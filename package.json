@@ -1,0 +1,31 @@
+{
+  "name": "homehub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tableau de bord maison affiché sur la tablette (Fully Kiosk)",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "node --watch server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "node server/index.ts",
+    "check": "tsc --noEmit -p server && svelte-check --tsconfig web/tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.6",
+    "hono": "^4.13.16"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/node": "^24.19.2",
+    "concurrently": "^10.0.6",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5"
+  }
+}
