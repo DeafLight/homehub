@@ -1,27 +1,37 @@
+// Point d'entrée : lit l'environnement, assemble les dépendances et démarre le serveur.
 import { readFileSync } from 'node:fs';
 import { serve } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
-import { type Context, Hono } from 'hono';
+import { FAMILY_ID } from '../shared/types.ts';
+import { createApp } from './app.ts';
+import { loadConfig } from './config.ts';
+import { createDashboardService } from './services/dashboard.ts';
+import { createSampleSources } from './sources/sample.ts';
+import type { Clock } from './sources/types.ts';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const port = Number(process.env.PORT ?? 3000);
+const configPath = process.env.HOMEHUB_CONFIG ?? 'config/homehub.yaml';
+const staticRoot = process.env.HOMEHUB_STATIC_ROOT ?? './web/dist';
 
-const app = new Hono();
+let config;
+try {
+  config = await loadConfig(configPath);
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
 
-app.get('/api/health', (c) => c.json({ status: 'ok', version, time: new Date().toISOString() }));
-
-// index.html jamais mis en cache : après un déploiement, le rechargement doit récupérer la nouvelle version.
-// Les assets ont un hash dans leur nom, ils peuvent rester en cache.
-const noCacheHtml = (path: string, c: Context) => {
-  if (path.endsWith('.html')) c.header('Cache-Control', 'no-cache');
-};
-
-// Front compilé par Vite (npm run build) ; en dev, c'est Vite qui le sert.
-app.use('/*', serveStatic({ root: './web/dist', onFound: noCacheHtml }));
-app.get('*', serveStatic({ path: './web/dist/index.html', onFound: noCacheHtml }));
+const clock: Clock = () => new Date();
+const sources = createSampleSources(
+  config.members.map((m) => m.id),
+  FAMILY_ID,
+  clock,
+);
+const service = createDashboardService({ config, sources, clock });
+const app = createApp({ config, service, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`HomeHub ${version} à l'écoute sur le port ${info.port}`);
+  console.log(`HomeHub ${version} à l'écoute sur le port ${info.port} (${config.members.length} membres, ${configPath})`);
 });
 
 // Arrêt propre quand Docker envoie SIGTERM.

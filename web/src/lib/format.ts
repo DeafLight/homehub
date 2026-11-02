@@ -1,0 +1,54 @@
+// Mise en forme des dates et des textes affichés (français, fuseau de la tablette).
+import type { CalendarEvent, ProfileSummary } from '../../../shared/types.ts';
+
+const LOCALE = 'fr-FR';
+const timeFormat = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' });
+const longDateFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
+const weekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long' });
+const shortDateFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export const formatTime = (date: Date) => timeFormat.format(date);
+export const formatLongDate = (date: Date) => longDateFormat.format(date);
+
+/** Nombre de jours calendaires entre deux dates (0 = même jour). */
+function dayDiff(from: Date, to: Date): number {
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+}
+
+/** Jour relatif : « Aujourd’hui », « Demain », « Mercredi », ou une date courte. */
+export function formatDay(date: Date, now: Date): string {
+  const diff = dayDiff(now, date);
+  if (diff === 0) return 'Aujourd’hui';
+  if (diff === 1) return 'Demain';
+  if (diff > 1 && diff < 7) return capitalize(weekdayFormat.format(date));
+  return capitalize(shortDateFormat.format(date));
+}
+
+/** « Demain à 08:30 » */
+export const formatWhen = (date: Date, now: Date) => `${formatDay(date, now)} à ${formatTime(date)}`;
+
+export function greeting(now: Date): string {
+  const hour = now.getHours();
+  if (hour < 5) return 'Bonne nuit';
+  if (hour < 18) return 'Bonjour';
+  return 'Bonsoir';
+}
+
+export const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
+  `${count} ${count > 1 ? plural : singular}`;
+
+/** Ligne de résumé d'un profil sur l'écran d'accueil. */
+export function profileHeadline(summary: ProfileSummary, now: Date): string {
+  if (summary.nextEvent) return eventLine(summary.nextEvent, now);
+  if (summary.pendingTasks > 0) return `${pluralize(summary.pendingTasks, 'tâche')} à faire`;
+  return 'Rien de prévu';
+}
+
+/** « Piscine · demain à 17:30 » */
+export function eventLine(event: CalendarEvent, now: Date): string {
+  return `${event.title} · ${formatWhen(new Date(event.start), now).toLowerCase()}`;
+}

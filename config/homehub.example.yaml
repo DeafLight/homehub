@@ -1,0 +1,29 @@
+# Configuration de HomeHub.
+# Sur le NAS : /mnt/X/docker/data/homehub/homehub.yaml (monté en /data/homehub.yaml dans le conteneur).
+# Après modification : redémarrer le conteneur (sudo docker compose restart homehub).
+
+# Membres de la famille, dans l'ordre d'affichage.
+#   id    : identifiant court (minuscules, chiffres, tirets), utilisé dans l'URL : /p/<id>
+#   name  : prénom affiché
+#   color : couleur d'accent du profil, au format #rrggbb
+members:
+  - id: alex
+    name: Alex
+    color: "#5b8def"
+  - id: sam
+    name: Sam
+    color: "#e8964a"
+  - id: lea
+    name: Léa
+    color: "#3fb8a8"
+  - id: tom
+    name: Tom
+    color: "#d96aa7"
+
+# Dashboard commun (agenda familial, courses, mots).
+family:
+  name: Famille
+
+ui:
+  # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).
+  idleTimeoutSeconds: 180

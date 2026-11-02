@@ -1,0 +1,50 @@
+import { readFile } from 'node:fs/promises';
+import { parse } from 'yaml';
+import { z } from 'zod';
+import { FAMILY_ID, type PublicConfig } from '../shared/types.ts';
+
+const memberSchema = z.object({
+  id: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,31}$/, 'minuscules, chiffres et tirets, 32 caractères max')
+    .refine((id) => id !== FAMILY_ID, `« ${FAMILY_ID} » est réservé au dashboard commun`),
+  name: z.string().trim().min(1).max(40),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'couleur au format #rrggbb'),
+});
+
+export const configSchema = z.object({
+  members: z
+    .array(memberSchema)
+    .min(1, 'au moins un membre')
+    .refine((members) => new Set(members.map((m) => m.id)).size === members.length, 'identifiants en double'),
+  family: z.object({ name: z.string().trim().min(1).max(40) }).default({ name: 'Famille' }),
+  ui: z
+    .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
+    .default({ idleTimeoutSeconds: 180 }),
+});
+
+export type AppConfig = z.infer<typeof configSchema>;
+
+/** Valide une configuration déjà parsée ; lève une erreur lisible si elle est invalide. */
+export function parseConfig(raw: unknown): AppConfig {
+  const result = configSchema.safeParse(raw);
+  if (!result.success) {
+    throw new Error(`Configuration invalide :\n${z.prettifyError(result.error)}`);
+  }
+  return result.data;
+}
+
+/** Lit et valide le fichier YAML de configuration. */
+export async function loadConfig(path: string): Promise<AppConfig> {
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (err) {
+    throw new Error(`Impossible de lire la configuration ${path} : ${(err as Error).message}`);
+  }
+  return parseConfig(parse(text));
+}
+
+export function toPublicConfig(config: AppConfig): PublicConfig {
+  return { members: config.members, family: config.family, ui: config.ui };
+}

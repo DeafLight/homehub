@@ -1,13 +1,26 @@
+/* Thème sombre de la tablette : jetons partagés par tous les composants. */
 :root {
   --bg: #0f1115;
+  --surface-rail: #14171d;
+  --surface: #181b22;
+  --surface-2: #262a33;
+  --border-strong: #3a3f4a;
   --fg: #e8eaed;
-  --muted: #8a9099;
-  --ok: #4caf7d;
-  --error: #e5534b;
+  --fg-soft: #cfd3d9;
+  --fg-muted: #9aa1ab;
+  --sun: #f2b84b;
+  --danger-bg: #4a1f1d;
+  --danger-fg: #ffb4ab;
 
+  --radius-md: 24px;
+  --radius-lg: 28px;
+  --radius-xl: 32px;
+
+  color-scheme: dark;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--fg);
   background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -20,4 +33,20 @@ body {
 
 #app {
   height: 100%;
+}
+
+.boot-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  box-sizing: border-box;
+  font-size: 1.5rem;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+:focus-visible {
+  outline: 3px solid #7fb2ff;
+  outline-offset: 3px;
 }
