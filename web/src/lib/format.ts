@@ -65,7 +65,12 @@ export const pluralize = (count: number, singular: string, plural = `${singular}
 
 /** Ligne de résumé d'un profil sur l'écran d'accueil. */
 export function profileHeadline(summary: ProfileSummary, now: Date): string {
-  if (summary.nextEvent) return eventLine(summary.nextEvent, now);
+  // Cours et rendez-vous au même niveau : le premier qui arrive l'emporte.
+  const { nextEvent, nextCourse } = summary;
+  if (nextCourse && (!nextEvent || new Date(nextCourse.start) < new Date(nextEvent.start))) {
+    return eventLine({ id: nextCourse.id, title: nextCourse.subject, start: nextCourse.start }, now);
+  }
+  if (nextEvent) return eventLine(nextEvent, now);
   if (summary.pendingTasks > 0) return `${pluralize(summary.pendingTasks, 'tâche')} à faire`;
   return 'Rien de prévu';
 }

@@ -5,6 +5,7 @@ import {
   type DashboardData,
   type HomeData,
   type ProfileSummary,
+  type SchoolCourse,
   type SchoolDays,
   type Task,
 } from '../../shared/types.ts';
@@ -75,14 +76,28 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
     }
   }
 
+  /** Prochain cours à venir, pour le résumé de l'accueil ; une panne de l'emploi du temps le masque. */
+  async function nextCourse(ownerId: string): Promise<SchoolCourse | null> {
+    const range = upcomingRange();
+    try {
+      const courses = await sources.school.coursesFor(ownerId, range);
+      return courses?.find((c) => !c.cancelled && new Date(c.start) >= range.from) ?? null;
+    } catch (err) {
+      logger.error(`Emploi du temps indisponible : ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   async function summary(ownerId: string): Promise<ProfileSummary> {
-    const [events, tasks] = await Promise.all([
+    const [events, course, tasks] = await Promise.all([
       sources.agenda.eventsFor(ownerId, upcomingRange()),
+      nextCourse(ownerId),
       sources.tasks.tasksFor(ownerId),
     ]);
     return {
       ownerId,
       nextEvent: events[0] ?? null,
+      nextCourse: course,
       pendingTasks: tasks.filter((t) => !t.done).length,
     };
   }

@@ -110,6 +110,21 @@ describe('emploi du temps', () => {
     expect(data?.events.map((e) => e.id)).toEqual(['ce-soir', 'dans-3-jours']);
   });
 
+  it('donne au résumé de l’accueil le prochain cours non annulé qui n’a pas commencé', async () => {
+    const sources = fakeSources({
+      courses: {
+        alex: [
+          { ...course('en-cours', 2, 17), end: new Date(2026, 10, 2, 19).toISOString() },
+          { ...course('annule', 3, 8), cancelled: true },
+          course('anglais', 3, 9),
+        ],
+      },
+    });
+    const home = await createDashboardService({ config, sources, clock: fixedClock, logger: silentLogger() }).home();
+    expect(home.profiles.find((p) => p.ownerId === 'alex')?.nextCourse?.id).toBe('anglais');
+    expect(home.profiles.find((p) => p.ownerId === 'lea')?.nextCourse).toBeNull();
+  });
+
   it('vaut null pour un profil sans emploi du temps ou si la source échoue', async () => {
     expect((await svc.dashboard('lea'))?.school).toBeNull();
     const logger = silentLogger();

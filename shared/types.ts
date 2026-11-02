@@ -79,6 +79,8 @@ export type SchoolDays = {
 export type ProfileSummary = {
   ownerId: string;
   nextEvent: CalendarEvent | null;
+  /** Prochain cours non annulé qui n'a pas encore commencé (7 jours), null sans emploi du temps. */
+  nextCourse: SchoolCourse | null;
   pendingTasks: number;
 };
 
