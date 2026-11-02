@@ -107,7 +107,18 @@ export function createSampleSources(memberIds: () => string[], familyId: string,
 
   const weather: WeatherSource = {
     async current(): Promise<Weather> {
-      return { temperatureC: 12, condition: 'Éclaircies', outlook: 'Max 15° · pluie vers 21 h' };
+      const rain = clock();
+      rain.setMinutes(0, 0, 0);
+      rain.setHours(rain.getHours() + 3);
+      return {
+        location: 'Exemple',
+        temperatureC: 12,
+        weatherCode: 2,
+        isDay: true,
+        today: { minC: 6, maxC: 15 },
+        tomorrow: { minC: 5, maxC: 13, weatherCode: 61 },
+        rainStartsAt: rain.toISOString(),
+      };
     },
   };
 

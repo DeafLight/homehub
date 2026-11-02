@@ -21,7 +21,18 @@ export const configSchema = z.object({
   ui: z
     .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
     .default({ idleTimeoutSeconds: 180 }),
+  /** Absent : pas de météo affichée. */
+  weather: z
+    .object({
+      label: z.string().trim().min(1).max(60),
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      refreshMinutes: z.number().int().min(5).max(180).default(15),
+    })
+    .optional(),
 });
+
+export type WeatherConfig = NonNullable<AppConfig['weather']>;
 
 export type AppConfig = z.infer<typeof configSchema>;
 

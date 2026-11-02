@@ -6,8 +6,9 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
+import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createSampleSources } from './sources/sample.ts';
-import type { Clock } from './sources/types.ts';
+import type { Clock, Sources } from './sources/types.ts';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const port = Number(process.env.PORT ?? 3000);
@@ -27,8 +28,11 @@ const config = createConfigStore(initialConfig);
 const stopWatching = watchConfigFile(configPath, config, console);
 
 const clock: Clock = () => new Date();
-const sources = createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock);
-const service = createDashboardService({ config, sources, clock });
+const sources: Sources = {
+  ...createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock),
+  weather: createOpenMeteoWeatherSource({ location: () => config.current().weather, clock, logger: console }),
+};
+const service = createDashboardService({ config, sources, clock, logger: console });
 const app = createApp({ config, service, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {

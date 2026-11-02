@@ -10,7 +10,9 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
-Les widgets affichent pour l'instant des **données d'exemple** (`server/sources/sample.ts`).
+La **météo** vient d'[Open-Meteo](https://open-meteo.com) avec les modèles de Météo-France (AROME 1,3 km, ARPEGE) :
+gratuit, sans clé, mis en cache 15 min ; en cas de panne, la dernière prévision reste affichée jusqu'à 6 h, puis le
+bloc est masqué. Les autres widgets affichent pour l'instant des **données d'exemple** (`server/sources/sample.ts`).
 
 ## Configuration
 
@@ -28,6 +30,10 @@ family:
   name: Famille
 ui:
   idleTimeoutSeconds: 180
+weather:             # facultatif : sans cette section, pas de météo
+  label: Paris
+  latitude: 48.85    # deux décimales (~1 km) suffisent
+  longitude: 2.35
 ```
 
 | Variable | Défaut | Rôle |
@@ -48,6 +54,7 @@ server/
   services/dashboard.ts    logique métier, sans HTTP ni implémentation de source
   sources/types.ts         interfaces des sources (agenda, tâches, mots, météo) + horloge
   sources/sample.ts        implémentations d'exemple, en mémoire
+  sources/open-meteo.ts    météo Open-Meteo (cache, repli sur la dernière prévision)
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
   App.svelte               choix de l'écran, retour à l'accueil, surveillance de version

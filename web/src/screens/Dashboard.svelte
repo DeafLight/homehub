@@ -10,6 +10,7 @@
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { HOME_PATH } from '../lib/route.ts';
+  import { formatTemperature, weatherLabel } from '../lib/weather.ts';
 
   const DASHBOARD_REFRESH_MS = 60_000;
 
@@ -45,7 +46,9 @@
       <header>
         <h1>{profile.isFamily ? profile.name : `${greeting(clock.now)} ${profile.name} !`}</h1>
         <span class="muted">
-          {formatLongDate(clock.now)}{#if dashboard.data} · {dashboard.data.weather.temperatureC}°{/if}
+          {formatLongDate(clock.now)}{#if dashboard.data?.weather}
+            · {formatTemperature(dashboard.data.weather.temperatureC)}
+            {weatherLabel(dashboard.data.weather.weatherCode).toLowerCase()}{/if}
         </span>
       </header>
 

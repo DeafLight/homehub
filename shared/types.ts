@@ -41,10 +41,16 @@ export type Note = {
 };
 
 export type Weather = {
+  /** Nom du lieu, tel que configuré. */
+  location: string;
   temperatureC: number;
-  condition: string;
-  /** Une ligne de prévision (max, pluie…). */
-  outlook: string;
+  /** Code météo WMO (0 = ciel dégagé … 99 = orage avec grêle) ; le front en tire libellé et icône. */
+  weatherCode: number;
+  isDay: boolean;
+  today: { minC: number; maxC: number };
+  tomorrow: { minC: number; maxC: number; weatherCode: number } | null;
+  /** Début du prochain créneau horaire pluvieux dans les 12 h (ISO 8601), ou null. Peut être déjà passé : il pleut. */
+  rainStartsAt: string | null;
 };
 
 /** Résumé d'un profil (un membre, ou la famille) pour l'écran d'accueil. */
@@ -55,7 +61,8 @@ export type ProfileSummary = {
 };
 
 export type HomeData = {
-  weather: Weather;
+  /** null si la météo n'est pas configurée ou indisponible. */
+  weather: Weather | null;
   profiles: ProfileSummary[];
   familyHighlight: CalendarEvent | null;
 };
@@ -66,7 +73,7 @@ export type DashboardData = {
   tasks: Task[];
   upcoming: CalendarEvent[];
   note: Note | null;
-  weather: Weather;
+  weather: Weather | null;
 };
 
 export type Health = {

@@ -6,12 +6,12 @@ import { createApp } from './app.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
-import { fakeSources, fixedClock, NOW, testConfig } from './testing.ts';
+import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
 
 function setup(staticRoot?: string) {
   const config = createConfigStore(testConfig);
   const sources = fakeSources({ tasks: { alex: [{ id: 't1', label: 'Poubelles', done: false }] } });
-  const service = createDashboardService({ config, sources, clock: fixedClock });
+  const service = createDashboardService({ config, sources, clock: fixedClock, logger: silentLogger() });
   const app = createApp({ config, service, clock: fixedClock, version: '9.9.9', staticRoot });
   return { app, config };
 }

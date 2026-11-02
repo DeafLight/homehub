@@ -1,7 +1,7 @@
 // Logique métier : assemble les données des sources pour l'écran d'accueil et les dashboards.
 // Ne connaît ni HTTP ni les implémentations des sources (injectées).
 import { FAMILY_ID, type DashboardData, type HomeData, type ProfileSummary, type Task } from '../../shared/types.ts';
-import type { ConfigProvider } from '../config-store.ts';
+import type { ConfigProvider, Logger } from '../config-store.ts';
 import type { Clock, Sources } from '../sources/types.ts';
 
 const UPCOMING_DAYS = 7;
@@ -22,9 +22,10 @@ export type DashboardServiceDeps = {
   config: ConfigProvider;
   sources: Sources;
   clock: Clock;
+  logger: Logger;
 };
 
-export function createDashboardService({ config, sources, clock }: DashboardServiceDeps): DashboardService {
+export function createDashboardService({ config, sources, clock, logger }: DashboardServiceDeps): DashboardService {
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
   const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
 
@@ -34,6 +35,16 @@ export function createDashboardService({ config, sources, clock }: DashboardServ
     to.setDate(to.getDate() + UPCOMING_DAYS);
     return { from, to };
   };
+
+  // La météo est accessoire : une panne de la source masque le bloc au lieu de faire échouer l'écran.
+  async function weather() {
+    try {
+      return await sources.weather.current();
+    } catch (err) {
+      logger.error(`Météo indisponible : ${(err as Error).message}`);
+      return null;
+    }
+  }
 
   async function summary(ownerId: string): Promise<ProfileSummary> {
     const [events, tasks] = await Promise.all([
@@ -51,24 +62,28 @@ export function createDashboardService({ config, sources, clock }: DashboardServ
     hasOwner,
 
     async home() {
-      const [weather, profiles] = await Promise.all([
-        sources.weather.current(),
-        Promise.all(ownerIds().map(summary)),
-      ]);
+      const [currentWeather, profiles] = await Promise.all([weather(), Promise.all(ownerIds().map(summary))]);
       const family = profiles.find((p) => p.ownerId === FAMILY_ID);
-      return { weather, profiles, familyHighlight: family?.nextEvent ?? null };
+      return { weather: currentWeather, profiles, familyHighlight: family?.nextEvent ?? null };
     },
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, note, weather] = await Promise.all([
+      const [events, tasks, note, currentWeather] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
         sources.notes.latestFor(ownerId),
-        sources.weather.current(),
+        weather(),
       ]);
       const [nextEvent = null, ...rest] = events;
-      return { ownerId, nextEvent, upcoming: rest.slice(0, UPCOMING_LIMIT), tasks, note, weather };
+      return {
+        ownerId,
+        nextEvent,
+        upcoming: rest.slice(0, UPCOMING_LIMIT),
+        tasks,
+        note,
+        weather: currentWeather,
+      };
     },
 
     async setTaskDone(ownerId, taskId, done) {

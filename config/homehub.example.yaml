@@ -29,3 +29,12 @@ family:
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).
   idleTimeoutSeconds: 180
+
+# Météo (Open-Meteo, modèles Météo-France). Sans cette section, le bloc météo est masqué.
+#   label          : nom du lieu affiché
+#   latitude/longitude : coordonnées en degrés décimaux ; deux décimales (~1 km) suffisent
+#   refreshMinutes : intervalle entre deux appels à l'API (5 à 180, 15 par défaut)
+weather:
+  label: Paris
+  latitude: 48.85
+  longitude: 2.35

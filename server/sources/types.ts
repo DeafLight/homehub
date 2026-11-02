@@ -25,7 +25,8 @@ export interface NoteSource {
 }
 
 export interface WeatherSource {
-  current(): Promise<Weather>;
+  /** null si aucun lieu n'est configuré ; lève une erreur si la source est indisponible. */
+  current(): Promise<Weather | null>;
 }
 
 export type Sources = {

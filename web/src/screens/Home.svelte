@@ -6,6 +6,7 @@
   import { eventLine, formatLongDate, formatTime, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { dashboardPath } from '../lib/route.ts';
+  import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
   const HOME_REFRESH_MS = 60_000;
 
@@ -28,13 +29,22 @@
     {#if home.data}
       {@const { weather, familyHighlight } = home.data}
       <div class="bottom">
-        <div class="weather">
-          <Icon name="sun" size={56} color="var(--sun)" strokeWidth={1.6} />
-          <div class="weather-text">
-            <span class="temperature">{weather.temperatureC}° · {weather.condition}</span>
-            <span class="muted">{weather.outlook}</span>
+        {#if weather}
+          <div class="weather">
+            <Icon
+              name={weatherIcon(weather.weatherCode, weather.isDay)}
+              size={56}
+              color={weatherIconColor(weather.weatherCode, weather.isDay)}
+              strokeWidth={1.6}
+            />
+            <div class="weather-text">
+              <span class="temperature">
+                {formatTemperature(weather.temperatureC)} · {weatherLabel(weather.weatherCode)}
+              </span>
+              <span class="muted">{weatherOutlook(weather, clock.now)}</span>
+            </div>
           </div>
-        </div>
+        {/if}
         {#if familyHighlight}
           <div class="highlight">
             <span class="label">{config.family.name}</span>

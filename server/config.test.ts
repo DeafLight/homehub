@@ -17,6 +17,8 @@ describe('parseConfig', () => {
     ['identifiant avec majuscule', { members: [{ ...alex, id: 'Alex' }] }],
     ['couleur invalide', { members: [{ ...alex, color: 'bleu' }] }],
     ['délai trop court', { members: [alex], ui: { idleTimeoutSeconds: 5 } }],
+    ['latitude hors limites', { members: [alex], weather: { label: 'X', latitude: 95, longitude: 0 } }],
+    ['météo sans nom de lieu', { members: [alex], weather: { latitude: 48.85, longitude: 2.35 } }],
   ])('refuse : %s', (_, raw) => {
     expect(() => parseConfig(raw)).toThrow(/Configuration invalide/);
   });
@@ -26,6 +28,7 @@ describe('loadConfig', () => {
   it("charge le fichier d'exemple du dépôt", async () => {
     const config = await loadConfig('config/homehub.example.yaml');
     expect(config.members.map((m) => m.id)).toEqual(['alex', 'sam', 'lea', 'tom']);
+    expect(config.weather).toMatchObject({ label: 'Paris', refreshMinutes: 15 });
   });
 
   it('signale un fichier absent', async () => {

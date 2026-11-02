@@ -1,6 +1,7 @@
 // Briques communes aux tests : configuration, horloge fixe et sources factices.
-import type { CalendarEvent, Task } from '../shared/types.ts';
+import type { CalendarEvent, Task, Weather } from '../shared/types.ts';
 import { type AppConfig, parseConfig } from './config.ts';
+import type { Logger } from './config-store.ts';
 import type { Clock, Sources } from './sources/types.ts';
 
 /** Lundi 2 novembre 2026, 18:00 heure locale. */
@@ -13,6 +14,22 @@ export const testConfig: AppConfig = parseConfig({
     { id: 'lea', name: 'Léa', color: '#3fb8a8' },
   ],
 });
+
+/** Journal muet, qui garde les messages pour les assertions. */
+export function silentLogger(): Logger & { errors: string[] } {
+  const errors: string[] = [];
+  return { errors, log() {}, error: (message: string) => void errors.push(message) };
+}
+
+export const testWeather: Weather = {
+  location: 'Test',
+  temperatureC: 10,
+  weatherCode: 3,
+  isDay: true,
+  today: { minC: 4, maxC: 12 },
+  tomorrow: null,
+  rainStartsAt: null,
+};
 
 export function event(id: string, hoursFromNow: number, title = id): CalendarEvent {
   return { id, title, start: new Date(NOW.getTime() + hoursFromNow * 3_600_000).toISOString() };
@@ -45,6 +62,6 @@ export function fakeSources(data: {
       },
     },
     notes: { async latestFor() { return { text: 'Coucou', authorId: 'alex' }; } },
-    weather: { async current() { return { temperatureC: 10, condition: 'Nuageux', outlook: 'Stable' }; } },
+    weather: { async current() { return testWeather; } },
   };
 }
