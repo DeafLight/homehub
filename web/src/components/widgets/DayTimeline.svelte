@@ -1,22 +1,27 @@
 <script lang="ts">
-  // Frise de la journée : cours (gris, pointillés, toque) et agenda (couleur du profil, calendrier) à leur heure.
-  import type { CalendarEvent, SchoolCourse } from '../../../../shared/types.ts';
+  // Frise d'une journée : cours (gris, pointillés, toque) et agenda (couleur du profil, calendrier) à leur heure.
   import { mix } from '../../lib/color.ts';
-  import { fitsInDay, timelineHours, timelineItems, timelinePercent } from '../../lib/day.ts';
-  import { formatEventWhen, formatTime } from '../../lib/format.ts';
+  import { type DayPlan, startOfDay, timelinePercent, whenOnDay } from '../../lib/day.ts';
+  import { formatTime } from '../../lib/format.ts';
   import Card from '../Card.svelte';
   import Icon from '../Icon.svelte';
 
-  type Props = { courses: SchoolCourse[]; events: CalendarEvent[]; now: Date; color: string };
-  let { courses, events, now, color }: Props = $props();
+  type Props = {
+    title: string;
+    day: Date;
+    plan: DayPlan;
+    /** Plage horaire, commune aux frises affichées côte à côte pour qu'elles s'alignent. */
+    hours: { startHour: number; endHour: number };
+    /** Lignes réservées aux événements sur la journée : les frises voisines restent alignées. */
+    allDayRows: number;
+    now: Date;
+    color: string;
+  };
+  let { title, day, plan, hours, allDayRows, now, color }: Props = $props();
 
   const accentBg = $derived(mix(color, '#0f1115', 0.3));
   const accentLight = $derived(mix(color, '#ffffff', 0.55));
 
-  // Les événements sur la journée ou à cheval sur plusieurs jours vont au-dessus de la frise.
-  const allDay = $derived(events.filter((e) => !fitsInDay(e, now)));
-  const items = $derived(timelineItems(courses, events.filter((e) => fitsInDay(e, now))));
-  const hours = $derived(timelineHours(items));
   const marks = $derived.by(() => {
     const step = hours.endHour - hours.startHour > 8 ? 2 : 1;
     const result: number[] = [];
@@ -25,24 +30,28 @@
   });
   const top = (date: Date) => timelinePercent(date, hours.startHour, hours.endHour);
   const markTop = (hour: number) => ((hour - hours.startHour) / (hours.endHour - hours.startHour)) * 100;
-  const nowVisible = $derived(now.getHours() >= hours.startHour && now.getHours() < hours.endHour);
+  const isToday = $derived(startOfDay(day).getTime() === startOfDay(now).getTime());
+  const nowVisible = $derived(isToday && now.getHours() >= hours.startHour && now.getHours() < hours.endHour);
 </script>
 
-<Card title="Aujourd’hui">
-  {#if allDay.length > 0}
+<Card {title}>
+  {#if allDayRows > 0}
     <ul class="all-day">
-      {#each allDay as event (event.id)}
+      {#each plan.allDay as event (event.id)}
         <li style:background={accentBg}>
           <Icon name="calendar" size={18} color={accentLight} />
           <span class="title">{event.title}</span>
-          <span class="meta" style:color={accentLight}>{formatEventWhen(event, now).toLowerCase()}</span>
+          <span class="meta" style:color={accentLight}>{whenOnDay(event, day)}</span>
         </li>
+      {/each}
+      {#each { length: allDayRows - plan.allDay.length } as _, i (i)}
+        <li class="filler" aria-hidden="true"><Icon name="calendar" size={18} /><span>&nbsp;</span></li>
       {/each}
     </ul>
   {/if}
 
-  {#if items.length === 0}
-    <p class="empty">Ni cours ni activité aujourd’hui</p>
+  {#if plan.items.length === 0}
+    <p class="empty">Ni cours ni activité</p>
   {:else}
     <div class="timeline">
       <div class="hours" aria-hidden="true">
@@ -54,7 +63,7 @@
         {#each marks as hour (hour)}
           <div class="line" style:top="{markTop(hour)}%"></div>
         {/each}
-        {#each items as item (item.id)}
+        {#each plan.items as item (item.id)}
           <div
             class="block {item.kind}"
             class:past={item.end <= now}
@@ -104,6 +113,10 @@
     padding: 8px 14px;
     border-radius: 12px;
     font-size: 1.1rem;
+  }
+
+  .filler {
+    visibility: hidden;
   }
 
   .timeline {

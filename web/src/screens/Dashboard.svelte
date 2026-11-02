@@ -2,14 +2,13 @@
   import { onDestroy } from 'svelte';
   import type { Task } from '../../../shared/types.ts';
   import ProfileRail from '../components/ProfileRail.svelte';
-  import DayCard from '../components/widgets/DayCard.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
   import TaskList from '../components/widgets/TaskList.svelte';
   import UpcomingList from '../components/widgets/UpcomingList.svelte';
   import { getAppContext } from '../lib/context.ts';
-  import { addDays, eventsAfter, eventsOnDay } from '../lib/day.ts';
+  import { addDays, dayPlan, eventsAfter, timelineHours } from '../lib/day.ts';
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { HOME_PATH } from '../lib/route.ts';
@@ -58,22 +57,15 @@
       {#if dashboard.data}
         {@const data = dashboard.data}
         {#if data.school}
-          <!-- Profil avec emploi du temps : frise du jour (cours + agenda), demain, puis la suite. -->
+          <!-- Profil avec emploi du temps : frises d'aujourd'hui et de demain (cours + agenda), puis la suite. -->
           {@const tomorrow = addDays(clock.now, 1)}
+          {@const today = dayPlan(data.school.today, data.events, clock.now)}
+          {@const next = dayPlan(data.school.tomorrow, data.events, tomorrow)}
+          {@const hours = timelineHours([...today.items, ...next.items])}
+          {@const allDayRows = Math.max(today.allDay.length, next.allDay.length)}
           <div class="grid school">
-            <DayTimeline
-              courses={data.school.today}
-              events={eventsOnDay(data.events, clock.now)}
-              now={clock.now}
-              color={profile.color}
-            />
-            <DayCard
-              title="Demain"
-              day={tomorrow}
-              courses={data.school.tomorrow}
-              events={eventsOnDay(data.events, tomorrow)}
-              color={profile.color}
-            />
+            <DayTimeline title="Aujourd’hui" day={clock.now} plan={today} {hours} {allDayRows} now={clock.now} color={profile.color} />
+            <DayTimeline title="Demain" day={tomorrow} plan={next} {hours} {allDayRows} now={clock.now} color={profile.color} />
             <div class="column">
               <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
               <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
@@ -147,7 +139,7 @@
   }
 
   .grid.school {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr);
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(0, 0.9fr);
   }
 
   .column {

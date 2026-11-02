@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '../../../shared/types.ts';
-import { eventsAfter, eventsOnDay, fitsInDay, timelineHours, timelineItems, timelinePercent, whenOnDay } from './day.ts';
+import { dayPlan, eventsAfter, eventsOnDay, fitsInDay, timelineHours, timelineItems, timelinePercent, whenOnDay } from './day.ts';
 
 const at = (day: number, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute);
 const ev = (id: string, start: Date, end?: Date, allDay = false): CalendarEvent => ({
@@ -61,5 +61,14 @@ describe('whenOnDay', () => {
     expect(whenOnDay(trip, at(1))).toBe('dès 18:00');
     expect(whenOnDay(trip, at(2))).toBe('journée');
     expect(whenOnDay(birthday, at(3))).toBe('journée');
+  });
+});
+
+describe('dayPlan', () => {
+  it('sépare frise et événements sur la journée, pour le jour demandé', () => {
+    const course = { id: '1', subject: 'Maths', start: at(3, 9).toISOString(), end: at(3, 10).toISOString(), cancelled: false };
+    const plan = dayPlan([course], [foot, trip, birthday, later], at(3));
+    expect(plan.items.map((i) => i.title)).toEqual(['Maths']);
+    expect(plan.allDay.map((e) => e.id)).toEqual(['voyage', 'anniversaire']);
   });
 });

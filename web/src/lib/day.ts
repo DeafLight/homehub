@@ -74,9 +74,25 @@ export function timelineItems(courses: SchoolCourse[], events: CalendarEvent[]):
   ].sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
+export type DayPlan = {
+  /** Cours et événements avec heure, placés sur la frise. */
+  items: TimelineItem[];
+  /** Événements sur la journée ou sur plusieurs jours, affichés au-dessus de la frise. */
+  allDay: CalendarEvent[];
+};
+
+/** Prépare la frise d'un jour à partir de ses cours et des événements qui le touchent. */
+export function dayPlan(courses: SchoolCourse[], events: CalendarEvent[], day: Date): DayPlan {
+  const onDay = eventsOnDay(events, day);
+  return {
+    items: timelineItems(courses, onDay.filter((e) => fitsInDay(e, day))),
+    allDay: onDay.filter((e) => !fitsInDay(e, day)),
+  };
+}
+
 const minutesOfDay = (date: Date) => date.getHours() * 60 + date.getMinutes();
 
-/** Heures de début et de fin de la frise : 8 h–20 h, élargies aux éléments qui en sortent. */
+/** Heures de début et de fin de la frise : 8 h–20 h, élargies aux éléments qui en sortent (communes à plusieurs frises si on les passe toutes). */
 export function timelineHours(items: TimelineItem[]): { startHour: number; endHour: number } {
   let startHour = DEFAULT_START_HOUR;
   let endHour = DEFAULT_END_HOUR;
