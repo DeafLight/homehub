@@ -1,6 +1,6 @@
 {
   "name": "homehub",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Tableau de bord maison affiché sur la tablette (Fully Kiosk)",
@@ -14,19 +14,24 @@
     "build": "vite build",
     "start": "node server/index.ts",
     "check": "tsc --noEmit -p server && svelte-check --tsconfig web/tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node scripts/patch-pawnote.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "hono": "^4.13.16",
     "ical.js": "^2.2.1",
+    "pawnote": "1.6.2",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/node": "^24.19.2",
+    "@types/pngjs": "6.0.5",
     "concurrently": "^10.0.6",
+    "jsqr": "1.4.0",
+    "pngjs": "7.0.0",
     "svelte": "^5.57.3",
     "svelte-check": "^4.7.8",
     "typescript": "^6.0.3",

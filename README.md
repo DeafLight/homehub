@@ -24,7 +24,24 @@ toutes les 60 min. Un profil avec `ecoledirecte: <prénom de l'élève>` affiche
 agenda à sa couleur) et une carte « Demain ». La connexion demande, la première fois, de répondre à une question
 de sécurité : `node scripts/ecoledirecte-pair.ts [prénom]` le fait sur un PC et affiche les variables
 `ECOLEDIRECTE_IDENTIFIANT`, `ECOLEDIRECTE_MOTDEPASSE`, `ECOLEDIRECTE_CN`, `ECOLEDIRECTE_CV` à mettre dans
-l'environnement. Les tâches et les mots sont encore des **données d'exemple**
+l'environnement.
+
+Il peut aussi venir de **Pronote** (compte parent), avec `pronote: <prénom de l'enfant>` sur le profil, par
+[Pawnote](https://github.com/LiterateInk/Pawnote), bibliothèque non officielle qui imite l'application mobile.
+Pawnote 1.6.2 ne suit pas Pronote 2026 : `scripts/patch-pawnote.ts` le corrige à chaque `npm install` et fait
+échouer l'installation si la version change. La connexion se fait par jeton, comme l'application :
+1. dans Pronote, bouton « QR code de l'application » en haut de la page, choisir un code PIN, faire une capture
+   d'écran du QR code (valable 10 min) ;
+2. sur un PC : `node scripts/pronote-pair.ts <capture.png> [prénom]` (demande le PIN, vérifie l'emploi du temps,
+   écrit `~/.homehub-pronote.json`) ;
+3. copier ce fichier sous le nom `pronote.json` dans le dossier d'état (`HOMEHUB_STATE_DIR`), inscriptible par
+   l'app.
+
+Pronote donne un nouveau jeton à chaque connexion : HomeHub le réenregistre aussitôt dans `pronote.json`. Le
+fichier copié ne sert donc qu'une fois ; s'il est perdu ou refusé, refaire l'appairage. L'appareil apparaît dans
+la liste des appareils connectés du compte Pronote, d'où il peut être révoqué.
+
+Les tâches et les mots sont encore des **données d'exemple**
 (`server/sources/sample.ts`).
 
 ## Configuration
@@ -58,6 +75,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`) |
 
 ## Architecture
 
@@ -74,6 +92,7 @@ server/
   sources/open-meteo.ts    météo Open-Meteo
   sources/ical.ts          agendas iCal (adresses secrètes Google Agenda)
   sources/ecoledirecte.ts  emploi du temps ÉcoleDirecte (client de l'API privée + source)
+  sources/pronote.ts       emploi du temps Pronote (Pawnote, jeton enregistré à chaque connexion)
   sources/refreshing-cache.ts  cache des données distantes (rafraîchissement, repli en cas de panne)
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte

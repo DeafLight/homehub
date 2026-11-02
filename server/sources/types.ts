@@ -37,6 +37,17 @@ export interface SchoolSource {
   coursesFor(ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null>;
 }
 
+/** Chaque profil a au plus un emploi du temps : le premier service qui le connaît répond (ÉcoleDirecte, Pronote...). */
+export const firstSchoolSource = (...sources: SchoolSource[]): SchoolSource => ({
+  async coursesFor(ownerId, range) {
+    for (const source of sources) {
+      const courses = await source.coursesFor(ownerId, range);
+      if (courses) return courses;
+    }
+    return null;
+  },
+});
+
 export type Sources = {
   agenda: AgendaSource;
   tasks: TaskSource;

@@ -1,5 +1,6 @@
 // Point d'entrée : lit l'environnement, assemble les dépendances et démarre le serveur.
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { FAMILY_ID } from '../shared/types.ts';
 import { createApp } from './app.ts';
@@ -9,13 +10,16 @@ import { createDashboardService } from './services/dashboard.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
+import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
 import { createSampleSources } from './sources/sample.ts';
-import type { Clock, Sources } from './sources/types.ts';
+import { type Clock, type Sources, firstSchoolSource } from './sources/types.ts';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const port = Number(process.env.PORT ?? 3000);
 const configPath = process.env.HOMEHUB_CONFIG ?? 'config/homehub.yaml';
 const staticRoot = process.env.HOMEHUB_STATIC_ROOT ?? './web/dist';
+/** Dossier inscriptible pour ce que HomeHub doit retenir (jeton Pronote). */
+const stateDir = process.env.HOMEHUB_STATE_DIR ?? 'state';
 
 // Au démarrage, une configuration invalide est fatale ; ensuite, elle est rechargée à chaud (voir config-store.ts).
 let initialConfig;
@@ -38,6 +42,8 @@ function ecoleDirecteCredentials(env: NodeJS.ProcessEnv): Credentials | undefine
   return { identifiant, motdepasse, ...(cn && cv && { trust: { cn, cv } }) };
 }
 
+const memberOf = (ownerId: string) => config.current().members.find((m) => m.id === ownerId);
+
 const sample = createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock);
 const ical = createIcalAgendaSource({
   calendarsFor: (ownerId) => calendarsOf(config.current(), ownerId),
@@ -51,14 +57,24 @@ const sources: Sources = {
   // Agenda d'exemple tant qu'aucun agenda n'est configuré (développement, première installation).
   agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sample.agenda).eventsFor(...args) },
   weather: createOpenMeteoWeatherSource({ location: () => config.current().weather, clock, logger: console }),
-  school: createEcoleDirecteSource({
-    studentFor: (ownerId) => config.current().members.find((m) => m.id === ownerId)?.ecoledirecte,
-    refreshMinutes: () => config.current().ecoledirecte.refreshMinutes,
-    credentials: () => ecoleDirecteCredentials(process.env),
-    client: createEcoleDirecteClient(),
-    clock,
-    logger: console,
-  }),
+  school: firstSchoolSource(
+    createEcoleDirecteSource({
+      studentFor: (ownerId) => memberOf(ownerId)?.ecoledirecte,
+      refreshMinutes: () => config.current().ecoledirecte.refreshMinutes,
+      credentials: () => ecoleDirecteCredentials(process.env),
+      client: createEcoleDirecteClient(),
+      clock,
+      logger: console,
+    }),
+    createPronoteSource({
+      childFor: (ownerId) => memberOf(ownerId)?.pronote,
+      refreshMinutes: () => config.current().pronote.refreshMinutes,
+      store: createFileStateStore(join(stateDir, 'pronote.json')),
+      client: createPawnoteClient(),
+      clock,
+      logger: console,
+    }),
+  ),
 };
 const service = createDashboardService({ config, sources, clock, logger: console });
 const app = createApp({ config, service, clock, version, staticRoot });

@@ -18,6 +18,8 @@ const memberSchema = z.object({
   calendars: calendarsSchema,
   /** Prénom de l'élève sur ÉcoleDirecte : affiche son emploi du temps sur ce profil. */
   ecoledirecte: z.string().trim().min(1).max(40).optional(),
+  /** Prénom de l'enfant sur Pronote (compte parent appairé, voir README). */
+  pronote: z.string().trim().min(1).max(40).optional(),
 });
 
 export const configSchema = z.object({
@@ -30,6 +32,9 @@ export const configSchema = z.object({
     .default({ name: 'Famille', calendars: [] }),
   agenda: z.object({ refreshMinutes: z.number().int().min(1).max(180).default(10) }).default({ refreshMinutes: 10 }),
   ecoledirecte: z
+    .object({ refreshMinutes: z.number().int().min(15).max(1440).default(60) })
+    .default({ refreshMinutes: 60 }),
+  pronote: z
     .object({ refreshMinutes: z.number().int().min(15).max(1440).default(60) })
     .default({ refreshMinutes: 60 }),
   ui: z

@@ -15,6 +15,8 @@
 #   ecoledirecte (facultatif) : prénom de l'élève sur ÉcoleDirecte ; son emploi du temps s'affiche sur ce profil
 #     (frise du jour + demain). Identifiants et jetons du compte Famille dans app.env (ECOLEDIRECTE_…),
 #     obtenus avec : node scripts/ecoledirecte-pair.ts
+#   pronote (facultatif) : prénom de l'enfant sur Pronote (compte parent), même affichage. Le jeton est dans
+#     HOMEHUB_STATE_DIR/pronote.json, obtenu avec : node scripts/pronote-pair.ts (voir README)
 members:
   - id: alex
     name: Alex
@@ -27,6 +29,7 @@ members:
     name: Léa
     color: "#3fb8a8"
     # ecoledirecte: Léa
+    # pronote: Léa
   - id: tom
     name: Tom
     color: "#d96aa7"
@@ -42,6 +45,10 @@ agenda:
 
 ecoledirecte:
   # Intervalle entre deux connexions à ÉcoleDirecte (minutes, 15 à 1440).
+  refreshMinutes: 60
+
+pronote:
+  # Intervalle entre deux connexions à Pronote (minutes, 15 à 1440).
   refreshMinutes: 60
 
 ui:
