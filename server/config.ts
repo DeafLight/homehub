@@ -45,6 +45,6 @@ export async function loadConfig(path: string): Promise<AppConfig> {
   return parseConfig(parse(text));
 }
 
-export function toPublicConfig(config: AppConfig): PublicConfig {
-  return { members: config.members, family: config.family, ui: config.ui };
+export function toPublicConfig(config: AppConfig, revision: string): PublicConfig {
+  return { members: config.members, family: config.family, ui: config.ui, revision };
 }

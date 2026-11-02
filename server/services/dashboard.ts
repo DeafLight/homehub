@@ -1,7 +1,7 @@
 // Logique métier : assemble les données des sources pour l'écran d'accueil et les dashboards.
 // Ne connaît ni HTTP ni les implémentations des sources (injectées).
 import { FAMILY_ID, type DashboardData, type HomeData, type ProfileSummary, type Task } from '../../shared/types.ts';
-import type { AppConfig } from '../config.ts';
+import type { ConfigProvider } from '../config-store.ts';
 import type { Clock, Sources } from '../sources/types.ts';
 
 const UPCOMING_DAYS = 7;
@@ -18,14 +18,15 @@ export type DashboardService = {
 };
 
 export type DashboardServiceDeps = {
-  config: AppConfig;
+  /** Lu à chaque appel : la configuration peut être rechargée à chaud. */
+  config: ConfigProvider;
   sources: Sources;
   clock: Clock;
 };
 
 export function createDashboardService({ config, sources, clock }: DashboardServiceDeps): DashboardService {
-  const ownerIds = new Set([...config.members.map((m) => m.id), FAMILY_ID]);
-  const hasOwner = (ownerId: string) => ownerIds.has(ownerId);
+  const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
+  const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
 
   const upcomingRange = () => {
     const from = clock();
@@ -52,7 +53,7 @@ export function createDashboardService({ config, sources, clock }: DashboardServ
     async home() {
       const [weather, profiles] = await Promise.all([
         sources.weather.current(),
-        Promise.all([...config.members.map((m) => m.id), FAMILY_ID].map(summary)),
+        Promise.all(ownerIds().map(summary)),
       ]);
       const family = profiles.find((p) => p.ownerId === FAMILY_ID);
       return { weather, profiles, familyHighlight: family?.nextEvent ?? null };

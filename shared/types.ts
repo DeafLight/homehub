@@ -16,6 +16,8 @@ export type PublicConfig = {
   members: Member[];
   family: { name: string };
   ui: { idleTimeoutSeconds: number };
+  /** Empreinte de la configuration : change à chaque modification du fichier. */
+  revision: string;
 };
 
 export type CalendarEvent = {
@@ -70,5 +72,7 @@ export type DashboardData = {
 export type Health = {
   status: 'ok';
   version: string;
+  /** Même valeur que PublicConfig.revision : le front se recharge quand elle change. */
+  configRevision: string;
   time: string;
 };

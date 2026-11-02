@@ -43,10 +43,11 @@ const FAMILY_TASKS = ['Lait', 'Pain', 'Pommes', 'Liquide vaisselle'];
 
 const NOTES = ['Bravo pour ta note de maths !', 'N’oublie pas ton goûter demain.', 'Bonne journée !'];
 
-/** `ownerIds` : les membres dans l'ordre de la config ; chacun reçoit un jeu d'exemples différent. */
-export function createSampleSources(ownerIds: string[], familyId: string, clock: Clock): Sources {
+/** `memberIds` : les membres dans l'ordre de la config ; chacun reçoit un jeu d'exemples différent. */
+export function createSampleSources(memberIds: () => string[], familyId: string, clock: Clock): Sources {
+  const indexOf = (ownerId: string) => Math.max(0, memberIds().indexOf(ownerId));
   const templateFor = <T>(ownerId: string, perMember: T[], family: T): T =>
-    ownerId === familyId ? family : perMember[Math.max(0, ownerIds.indexOf(ownerId)) % perMember.length];
+    ownerId === familyId ? family : perMember[indexOf(ownerId) % perMember.length];
 
   const agenda: AgendaSource = {
     async eventsFor(ownerId, range) {
@@ -96,9 +97,10 @@ export function createSampleSources(ownerIds: string[], familyId: string, clock:
 
   const notes: NoteSource = {
     async latestFor(ownerId) {
-      if (ownerIds.length < 2) return null;
-      const index = Math.max(0, ownerIds.indexOf(ownerId));
-      const note: Note = { text: NOTES[index % NOTES.length], authorId: ownerIds[(index + 1) % ownerIds.length] };
+      const ids = memberIds();
+      if (ids.length < 2) return null;
+      const index = indexOf(ownerId);
+      const note: Note = { text: NOTES[index % NOTES.length], authorId: ids[(index + 1) % ids.length] };
       return note;
     },
   };

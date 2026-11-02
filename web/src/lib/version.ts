@@ -1,5 +1,5 @@
-// Surveille le serveur : recharge la page quand une nouvelle version est déployée,
-// et signale si le serveur est joignable. Renvoie la fonction d'arrêt.
+// Surveille le serveur : recharge la page quand une nouvelle version est déployée ou que la configuration
+// a changé (membres, réglages), et signale si le serveur est joignable. Renvoie la fonction d'arrêt.
 import type { Api } from './api.ts';
 
 const RELOAD_GUARD_KEY = 'homehub:lastReload';
@@ -7,18 +7,29 @@ const RELOAD_MIN_INTERVAL_MS = 60_000;
 
 export type VersionWatchOptions = {
   api: Api;
+  /** Version du front chargé. */
   currentVersion: string;
+  /** Révision de la configuration reçue au démarrage. */
+  currentConfigRevision: string;
   intervalMs: number;
   onReachable(reachable: boolean): void;
   reload?: () => void;
 };
 
-export function watchVersion({ api, currentVersion, intervalMs, onReachable, reload = () => location.reload() }: VersionWatchOptions): () => void {
+export function watchVersion({
+  api,
+  currentVersion,
+  currentConfigRevision,
+  intervalMs,
+  onReachable,
+  reload = () => location.reload(),
+}: VersionWatchOptions): () => void {
   async function check() {
     try {
       const health = await api.health();
       onReachable(true);
-      if (health.version !== currentVersion && reloadAllowed()) reload();
+      const outdated = health.version !== currentVersion || health.configRevision !== currentConfigRevision;
+      if (outdated && reloadAllowed()) reload();
     } catch {
       onReachable(false);
     }

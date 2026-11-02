@@ -3,12 +3,13 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import type { Health } from '../shared/types.ts';
-import { type AppConfig, toPublicConfig } from './config.ts';
+import { toPublicConfig } from './config.ts';
+import type { ConfigStore } from './config-store.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import type { Clock } from './sources/types.ts';
 
 export type AppDeps = {
-  config: AppConfig;
+  config: ConfigStore;
   service: DashboardService;
   clock: Clock;
   version: string;
@@ -18,13 +19,17 @@ export type AppDeps = {
 
 const taskUpdateSchema = z.object({ done: z.boolean() });
 
+const hasExtension = (path: string) => /\.[^/]+$/.test(path);
+
 export function createApp({ config, service, clock, version, staticRoot }: AppDeps): Hono {
   const app = new Hono();
   const api = new Hono();
 
-  api.get('/health', (c) => c.json<Health>({ status: 'ok', version, time: clock().toISOString() }));
+  api.get('/health', (c) =>
+    c.json<Health>({ status: 'ok', version, configRevision: config.revision(), time: clock().toISOString() }),
+  );
 
-  api.get('/config', (c) => c.json(toPublicConfig(config)));
+  api.get('/config', (c) => c.json(toPublicConfig(config.current(), config.revision())));
 
   api.get('/home', async (c) => c.json(await service.home()));
 
@@ -51,13 +56,17 @@ export function createApp({ config, service, clock, version, staticRoot }: AppDe
 
   if (staticRoot) {
     // index.html jamais mis en cache : après un déploiement, le rechargement doit récupérer la nouvelle version.
-    // Les assets ont un hash dans leur nom, ils peuvent rester en cache.
-    const noCacheHtml = (path: string, c: Context) => {
-      if (path.endsWith('.html')) c.header('Cache-Control', 'no-cache');
-    };
-    app.use('/*', serveStatic({ root: staticRoot, onFound: noCacheHtml }));
+    // Les assets ont un hash dans leur nom, ils peuvent rester en cache. L'en-tête est posé AVANT serveStatic :
+    // son onFound est appelé une fois la réponse construite, trop tard pour une requête GET.
+    app.use('*', async (c: Context, next) => {
+      if (!hasExtension(c.req.path) || c.req.path.endsWith('.html')) c.header('Cache-Control', 'no-cache');
+      await next();
+    });
+    app.use('/*', serveStatic({ root: staticRoot }));
+    // Fichier absent (ex. /favicon.ico) : 404, pas la page HTML.
+    app.get('*', async (c, next) => (hasExtension(c.req.path) ? c.notFound() : next()));
     // Routage côté front (/p/<id>...) : toute autre URL renvoie l'application.
-    app.get('*', serveStatic({ path: `${staticRoot}/index.html`, onFound: noCacheHtml }));
+    app.get('*', serveStatic({ path: `${staticRoot}/index.html` }));
   }
 
   return app;

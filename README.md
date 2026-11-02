@@ -7,13 +7,16 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 - **Dashboard par profil** (`/p/<id>`) : prochaine activité, tâches à cocher, semaine, mot de la famille.
   Un rail à gauche ramène à l'accueil ou passe directement à un autre profil.
 - **Famille** : un profil commun (`/p/famille`) pour l'agenda partagé et la liste de courses.
-- Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement.
+- Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
+  ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
 Les widgets affichent pour l'instant des **données d'exemple** (`server/sources/sample.ts`).
 
 ## Configuration
 
-Un fichier YAML, lu au démarrage et validé (l'app refuse de démarrer avec un message clair s'il est invalide).
+Un fichier YAML validé, **rechargé à chaud** : le serveur le surveille et l'applique en quelques secondes, puis la
+tablette se recharge (au plus 30 s). Au démarrage, un fichier invalide empêche l'app de démarrer ; ensuite, la
+configuration précédente est conservée et l'erreur est journalisée.
 Modèle commenté : [`config/homehub.example.yaml`](config/homehub.example.yaml).
 
 ```yaml
@@ -40,6 +43,7 @@ shared/types.ts            contrat de l'API (types partagés serveur / front)
 server/
   index.ts                 racine de composition : env, config, sources, service, serveur
   config.ts                schéma zod + chargement du YAML
+  config-store.ts          configuration courante, révision, rechargement à chaud du fichier
   app.ts                   routes HTTP (fines : validation → service → JSON)
   services/dashboard.ts    logique métier, sans HTTP ni implémentation de source
   sources/types.ts         interfaces des sources (agenda, tâches, mots, météo) + horloge
@@ -61,8 +65,8 @@ web/src/
 
 | Route | Réponse |
 |---|---|
-| `GET /api/health` | `{ status, version, time }` (healthcheck Docker, détection de nouvelle version) |
-| `GET /api/config` | membres, nom de la famille, réglages d'interface |
+| `GET /api/health` | `{ status, version, configRevision, time }` (healthcheck Docker ; le front se recharge si la version ou la révision change) |
+| `GET /api/config` | membres, nom de la famille, réglages d'interface, révision |
 | `GET /api/home` | météo, résumé de chaque profil, prochain événement familial |
 | `GET /api/dashboard/:id` | dashboard d'un membre ou de `famille` (404 si inconnu) |
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour |

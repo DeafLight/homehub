@@ -1,6 +1,8 @@
 # Configuration de HomeHub.
 # Sur le NAS : /mnt/X/docker/data/homehub/homehub.yaml (monté en /data/homehub.yaml dans le conteneur).
-# Après modification : redémarrer le conteneur (sudo docker compose restart homehub).
+# Les modifications sont appliquées automatiquement (en quelques secondes côté serveur, 30 s max sur la tablette).
+# Si le fichier est invalide, la configuration précédente est conservée et l'erreur apparaît dans les logs :
+#   sudo docker compose logs --tail=20 homehub
 
 # Membres de la famille, dans l'ordre d'affichage.
 #   id    : identifiant court (minuscules, chiffres, tirets), utilisé dans l'URL : /p/<id>

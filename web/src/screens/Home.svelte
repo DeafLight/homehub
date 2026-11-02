@@ -21,6 +21,8 @@
     <div class="clock">
       <div class="time">{formatTime(clock.now)}</div>
       <div class="date">{formatLongDate(clock.now)}</div>
+      <!-- Version du front réellement chargé sur la tablette : permet de vérifier qu'un déploiement est arrivé. -->
+      <div class="version">HomeHub v{__APP_VERSION__}</div>
     </div>
 
     {#if home.data}
@@ -104,6 +106,11 @@
 
   .date {
     font-size: 1.9rem;
+    color: var(--fg-muted);
+  }
+
+  .version {
+    font-size: 0.95rem;
     color: var(--fg-muted);
   }
 

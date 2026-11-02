@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FAMILY_ID } from '../../shared/types.ts';
+import { parseConfig } from '../config.ts';
+import { createConfigStore } from '../config-store.ts';
 import { event, fakeSources, fixedClock, testConfig } from '../testing.ts';
 import { createDashboardService } from './dashboard.ts';
 
@@ -15,7 +17,8 @@ const sources = fakeSources({
     ],
   },
 });
-const service = createDashboardService({ config: testConfig, sources, clock: fixedClock });
+const config = createConfigStore(testConfig);
+const service = createDashboardService({ config, sources, clock: fixedClock });
 
 describe('home', () => {
   it('résume chaque membre puis la famille', async () => {
@@ -24,6 +27,18 @@ describe('home', () => {
     expect(home.profiles[0]).toMatchObject({ nextEvent: { id: 'ce-soir' }, pendingTasks: 1 });
     expect(home.profiles[1]).toMatchObject({ nextEvent: null, pendingTasks: 0 });
     expect(home.familyHighlight?.id).toBe('diner');
+  });
+});
+
+describe('configuration rechargée', () => {
+  it('suit les membres de la configuration courante', async () => {
+    const store = createConfigStore(testConfig);
+    const svc = createDashboardService({ config: store, sources, clock: fixedClock });
+    store.set(parseConfig({ members: [{ id: 'tom', name: 'Tom', color: '#d96aa7' }] }));
+
+    expect((await svc.home()).profiles.map((p) => p.ownerId)).toEqual(['tom', FAMILY_ID]);
+    expect(svc.hasOwner('alex')).toBe(false);
+    expect(await svc.dashboard('alex')).toBeNull();
   });
 });
 

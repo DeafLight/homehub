@@ -18,6 +18,7 @@
     const stopVersion = watchVersion({
       api,
       currentVersion: __APP_VERSION__,
+      currentConfigRevision: config.revision,
       intervalMs: VERSION_CHECK_MS,
       onReachable: (value) => (reachable = value),
     });

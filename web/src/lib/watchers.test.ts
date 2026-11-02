@@ -31,25 +31,47 @@ describe('watchIdle', () => {
 });
 
 describe('watchVersion', () => {
-  const apiReturning = (health: () => Promise<{ version: string }>) => ({ health }) as unknown as Api;
+  type ServerState = { version: string; configRevision: string };
+  const current: ServerState = { version: '1.0.0', configRevision: 'aaa' };
 
-  it('recharge quand la version du serveur change', async () => {
+  // sessionStorage n'existe pas sous Node : le garde-fou anti-boucle laisse alors toujours recharger.
+  async function run(health: () => Promise<ServerState>) {
     const reload = vi.fn();
     const onReachable = vi.fn();
-    const stop = watchVersion({ api: apiReturning(async () => ({ version: '2.0.0' })), currentVersion: '1.0.0', intervalMs: 1000, onReachable, reload });
+    const stop = watchVersion({
+      api: { health } as unknown as Api,
+      currentVersion: current.version,
+      currentConfigRevision: current.configRevision,
+      intervalMs: 1000,
+      onReachable,
+      reload,
+    });
     await vi.advanceTimersByTimeAsync(0);
-    expect(onReachable).toHaveBeenCalledWith(true);
-    expect(reload).toHaveBeenCalledOnce();
     stop();
+    return { reload, onReachable };
+  }
+
+  it('ne recharge pas si rien n’a changé', async () => {
+    const { reload, onReachable } = await run(async () => current);
+    expect(onReachable).toHaveBeenCalledWith(true);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('recharge quand la version du serveur change', async () => {
+    const { reload } = await run(async () => ({ ...current, version: '2.0.0' }));
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('recharge quand la configuration change', async () => {
+    const { reload } = await run(async () => ({ ...current, configRevision: 'bbb' }));
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it('signale un serveur injoignable sans recharger', async () => {
-    const reload = vi.fn();
-    const onReachable = vi.fn();
-    const stop = watchVersion({ api: apiReturning(async () => { throw new Error('réseau'); }), currentVersion: '1.0.0', intervalMs: 1000, onReachable, reload });
-    await vi.advanceTimersByTimeAsync(0);
+    const { reload, onReachable } = await run(async () => {
+      throw new Error('réseau');
+    });
     expect(onReachable).toHaveBeenCalledWith(false);
     expect(reload).not.toHaveBeenCalled();
-    stop();
   });
 });
