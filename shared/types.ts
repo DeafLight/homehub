@@ -25,6 +25,8 @@ export type CalendarEvent = {
   title: string;
   /** Début, ISO 8601 (minuit local pour un événement sur la journée). */
   start: string;
+  /** Fin, ISO 8601, exclusive (minuit du lendemain du dernier jour pour un événement sur la journée). */
+  end?: string;
   /** Événement sur la journée entière : pas d'heure à afficher. */
   allDay?: boolean;
   location?: string;

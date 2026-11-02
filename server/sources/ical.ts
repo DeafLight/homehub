@@ -52,6 +52,12 @@ export function parseCalendar(text: string): IcalEvent[] {
   return [...masters.values(), ...orphans];
 }
 
+/** Vrai si l'événement déborde sur un autre jour que celui où il commence (heure locale du serveur). */
+function spansSeveralDays(start: Date, end: Date): boolean {
+  const lastMoment = new Date(end.getTime() - 1);
+  return lastMoment.toDateString() !== start.toDateString();
+}
+
 /** Occurrences visibles dans l'intervalle (voir AgendaSource.eventsFor), récurrences déroulées. */
 export function occurrencesIn(events: IcalEvent[], range: TimeRange): CalendarEvent[] {
   const result: CalendarEvent[] = [];
@@ -59,14 +65,17 @@ export function occurrencesIn(events: IcalEvent[], range: TimeRange): CalendarEv
   const add = (item: IcalEvent, start: IcalTime, end: IcalTime) => {
     if (item.component.getFirstPropertyValue('status') === 'CANCELLED') return;
     const startDate = start.toJSDate();
-    const visible = start.isDate
-      ? end.toJSDate() > range.from && startDate < range.to
-      : startDate >= range.from && startDate < range.to;
+    const endDate = end.toJSDate();
+    const visible =
+      start.isDate || spansSeveralDays(startDate, endDate)
+        ? endDate > range.from && startDate < range.to
+        : startDate >= range.from && startDate < range.to;
     if (!visible) return;
     result.push({
       id: `${item.uid}/${start.toString()}`,
       title: item.summary || '(sans titre)',
       start: startDate.toISOString(),
+      end: endDate.toISOString(),
       ...(start.isDate && { allDay: true }),
       ...(item.location && { location: item.location }),
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventLine, formatDay, greeting, pluralize, profileHeadline } from './format.ts';
+import { eventLine, formatDay, formatEventWhen, greeting, pluralize, profileHeadline } from './format.ts';
 
 const now = new Date(2026, 10, 2, 18, 0); // lundi 2 novembre, 18:00
 
@@ -37,6 +37,22 @@ it('greeting', () => {
 
 it('pluralize', () => {
   expect(pluralize(3, 'tâche')).toBe('3 tâches');
+});
+
+describe('formatEventWhen sur plusieurs jours', () => {
+  const at = (day: number, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute).toISOString();
+
+  it.each([
+    ['à venir, avec heures', { start: at(6, 18), end: at(8, 14) }, 'Vendredi 18:00 → dimanche 14:00'],
+    ['à venir, sur la journée', { start: at(4), end: at(7), allDay: true }, 'Mercredi → vendredi'],
+    ['déjà commencé', { start: at(1, 18), end: at(3, 10) }, 'Jusqu’à demain 10:00'],
+    ['déjà commencé, sur la journée', { start: at(1), end: at(5), allDay: true }, 'Jusqu’à mercredi'],
+    ['un seul jour sur la journée', { start: at(3), end: at(4), allDay: true }, 'Demain'],
+    ['un seul jour avec heure', { start: at(3, 8, 30), end: at(3, 9, 30) }, 'Demain à 08:30'],
+    ['finit à minuit', { start: at(3, 20), end: at(4) }, 'Demain à 20:00'],
+  ])('%s', (_, when, expected) => {
+    expect(formatEventWhen({ id: 'x', title: 'X', ...when }, now)).toBe(expected);
+  });
 });
 
 describe('eventLine', () => {

@@ -31,9 +31,25 @@ export function formatDay(date: Date, now: Date): string {
 /** « Demain à 08:30 » */
 export const formatWhen = (date: Date, now: Date) => `${formatDay(date, now)} à ${formatTime(date)}`;
 
-/** Quand a lieu un événement : « Demain à 08:30 », ou « Demain » s'il dure toute la journée. */
+/**
+ * Quand a lieu un événement :
+ * - « Demain à 08:30 », ou « Demain » s'il dure toute la journée ;
+ * - sur plusieurs jours : « Vendredi 18:00 → dimanche 14:00 », « Mercredi → vendredi » ;
+ * - sur plusieurs jours et déjà commencé : « Jusqu’à dimanche 14:00 ».
+ */
 export function formatEventWhen(event: CalendarEvent, now: Date): string {
   const start = new Date(event.start);
+  const moment = (date: Date) => (event.allDay ? formatDay(date, now) : `${formatDay(date, now)} ${formatTime(date)}`);
+
+  if (event.end) {
+    const end = new Date(event.end);
+    // Pour un événement sur la journée, la fin est minuit le lendemain du dernier jour.
+    const last = event.allDay ? new Date(end.getTime() - 1) : end;
+    if (dayDiff(start, new Date(end.getTime() - 1)) > 0) {
+      if (start <= now) return `Jusqu’à ${moment(last).toLowerCase()}`;
+      return `${moment(start)} → ${moment(last).toLowerCase()}`;
+    }
+  }
   return event.allDay ? formatDay(start, now) : formatWhen(start, now);
 }
 

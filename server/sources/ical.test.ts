@@ -29,14 +29,25 @@ describe('occurrencesIn', () => {
     expect(new Date(birthday!.start).getDate()).toBe(2);
   });
 
+  it('garde un événement sur plusieurs jours jusqu’à sa fin, avec sa date de fin', () => {
+    expect(byTitle.get('Séminaire')).toMatchObject({
+      start: '2026-11-01T17:00:00.000Z',
+      end: '2026-11-03T09:00:00.000Z',
+    });
+    const trip = byTitle.get('Classe verte');
+    expect(trip?.allDay).toBe(true);
+    expect(new Date(trip!.end!).getDate()).toBe(7);
+  });
+
   it('écarte les événements passés et annulés', () => {
     expect(byTitle.has('Déjà passé')).toBe(false);
     expect(byTitle.has('Annulé')).toBe(false);
   });
 
   it('s’arrête à la fin de l’intervalle', () => {
-    expect(occurrencesIn(parseCalendar(ICS), { from: NOW, to: days(0.5) }).map((e) => e.title)).toEqual([
+    expect(occurrencesIn(parseCalendar(ICS), { from: NOW, to: days(0.5) }).map((e) => e.title).sort()).toEqual([
       'Anniversaire de Mamie',
+      'Séminaire',
     ]);
   });
 });
@@ -69,7 +80,13 @@ describe('createIcalAgendaSource', () => {
   it('fusionne les agendas d’un profil, sans doublon, triés par date', async () => {
     const { source } = setup({ alex: ['CAL_ALEX', 'CAL_FAMILLE'] });
     const events = await source.eventsFor('alex', TWO_WEEKS);
-    expect(events.map((e) => e.title)).toEqual(['Anniversaire de Mamie', 'Dentiste', 'Piscine (décalée)']);
+    expect(events.map((e) => e.title)).toEqual([
+      'Séminaire',
+      'Anniversaire de Mamie',
+      'Dentiste',
+      'Classe verte',
+      'Piscine (décalée)',
+    ]);
   });
 
   it('ne retélécharge pas un agenda avant refreshMinutes', async () => {
@@ -94,7 +111,7 @@ describe('createIcalAgendaSource', () => {
 
   it('un agenda en erreur n’empêche pas d’afficher les autres, et son adresse secrète reste hors des logs', async () => {
     const { source, logger } = setup({ alex: ['CAL_ALEX', 'CAL_FAMILLE'] }, [SECRETS.CAL_FAMILLE]);
-    expect(await source.eventsFor('alex', TWO_WEEKS)).toHaveLength(3);
+    expect(await source.eventsFor('alex', TWO_WEEKS)).toHaveLength(5);
     expect(logger.errors).toEqual([expect.stringContaining('Agenda CAL_FAMILLE : HTTP 404')]);
     expect(logger.errors.join()).not.toContain('secret');
   });

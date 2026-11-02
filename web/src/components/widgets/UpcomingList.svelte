@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { CalendarEvent } from '../../../../shared/types.ts';
-  import { formatDay, formatTime } from '../../lib/format.ts';
+  import { formatEventWhen } from '../../lib/format.ts';
   import Card from '../Card.svelte';
 
   type Props = { events: CalendarEvent[]; now: Date };
@@ -13,10 +13,9 @@
   {:else}
     <ul>
       {#each events as event (event.id)}
-        {@const start = new Date(event.start)}
         <li>
           <span>{event.title}</span>
-          <span class="when">{formatDay(start, now)} {event.allDay ? 'journée' : formatTime(start)}</span>
+          <span class="when">{formatEventWhen(event, now)}</span>
         </li>
       {/each}
     </ul>
