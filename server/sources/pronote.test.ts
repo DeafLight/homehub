@@ -131,6 +131,14 @@ describe('createFileStateStore', () => {
     if (process.platform !== 'win32') expect((await stat(join(dir, 'pronote.json'))).mode & 0o777).toBe(0o600);
   });
 
+  it('accepte un état sans navigatorIdentifier (Pronote ne le donne pas aux connexions mobiles)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'homehub-pronote-'));
+    const path = join(dir, 'pronote.json');
+    const { navigatorIdentifier: _, ...state } = STATE;
+    await writeFile(path, JSON.stringify(state));
+    expect(await createFileStateStore(path).load()).toEqual(state);
+  });
+
   it('refuse un fichier incomplet sans en afficher le contenu', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'homehub-pronote-'));
     const path = join(dir, 'pronote.json');

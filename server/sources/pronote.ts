@@ -25,7 +25,8 @@ export const pronoteStateSchema = z.object({
   username: z.string().min(1),
   token: z.string().min(1),
   deviceUUID: z.string().min(1),
-  navigatorIdentifier: z.string(),
+  /** Absent pour une connexion par QR code ou jeton : Pronote ne le renvoie pas. */
+  navigatorIdentifier: z.string().optional(),
 });
 export type PronoteState = z.infer<typeof pronoteStateSchema>;
 
