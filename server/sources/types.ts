@@ -10,7 +10,10 @@ export type TimeRange = { from: Date; to: Date };
 
 /** `ownerId` désigne un membre, ou FAMILY_ID pour la famille. */
 export interface AgendaSource {
-  /** Événements qui commencent dans l'intervalle, triés par date de début. */
+  /**
+   * Événements qui commencent dans l'intervalle, triés par date de début. Un événement sur la journée est inclus
+   * tant qu'il n'est pas terminé (celui d'aujourd'hui reste visible toute la journée).
+   */
   eventsFor(ownerId: string, range: TimeRange): Promise<CalendarEvent[]>;
 }
 

@@ -23,8 +23,10 @@ export type PublicConfig = {
 export type CalendarEvent = {
   id: string;
   title: string;
-  /** Début, ISO 8601. */
+  /** Début, ISO 8601 (minuit local pour un événement sur la journée). */
   start: string;
+  /** Événement sur la journée entière : pas d'heure à afficher. */
+  allDay?: boolean;
   location?: string;
 };
 

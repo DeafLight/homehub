@@ -3,6 +3,11 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 import { FAMILY_ID, type PublicConfig } from '../shared/types.ts';
 
+/** Agendas iCal : noms de variables d'environnement (app.env) qui contiennent les adresses secrètes. */
+const calendarsSchema = z
+  .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/, "nom de variable d'environnement (MAJUSCULES, chiffres, _)"))
+  .default([]);
+
 const memberSchema = z.object({
   id: z
     .string()
@@ -10,6 +15,7 @@ const memberSchema = z.object({
     .refine((id) => id !== FAMILY_ID, `« ${FAMILY_ID} » est réservé au dashboard commun`),
   name: z.string().trim().min(1).max(40),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'couleur au format #rrggbb'),
+  calendars: calendarsSchema,
 });
 
 export const configSchema = z.object({
@@ -17,7 +23,10 @@ export const configSchema = z.object({
     .array(memberSchema)
     .min(1, 'au moins un membre')
     .refine((members) => new Set(members.map((m) => m.id)).size === members.length, 'identifiants en double'),
-  family: z.object({ name: z.string().trim().min(1).max(40) }).default({ name: 'Famille' }),
+  family: z
+    .object({ name: z.string().trim().min(1).max(40), calendars: calendarsSchema })
+    .default({ name: 'Famille', calendars: [] }),
+  agenda: z.object({ refreshMinutes: z.number().int().min(1).max(180).default(10) }).default({ refreshMinutes: 10 }),
   ui: z
     .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
     .default({ idleTimeoutSeconds: 180 }),
@@ -33,6 +42,16 @@ export const configSchema = z.object({
 });
 
 export type WeatherConfig = NonNullable<AppConfig['weather']>;
+
+/** Noms des agendas d'un profil (membre ou FAMILY_ID). */
+export function calendarsOf(config: AppConfig, ownerId: string): string[] {
+  if (ownerId === FAMILY_ID) return config.family.calendars;
+  return config.members.find((m) => m.id === ownerId)?.calendars ?? [];
+}
+
+/** Vrai si au moins un profil a un agenda : on quitte alors les données d'exemple pour tout le monde. */
+export const hasCalendars = (config: AppConfig) =>
+  config.family.calendars.length > 0 || config.members.some((m) => m.calendars.length > 0);
 
 export type AppConfig = z.infer<typeof configSchema>;
 
@@ -57,5 +76,10 @@ export async function loadConfig(path: string): Promise<AppConfig> {
 }
 
 export function toPublicConfig(config: AppConfig, revision: string): PublicConfig {
-  return { members: config.members, family: config.family, ui: config.ui, revision };
+  return {
+    members: config.members.map(({ id, name, color }) => ({ id, name, color })),
+    family: { name: config.family.name },
+    ui: config.ui,
+    revision,
+  };
 }

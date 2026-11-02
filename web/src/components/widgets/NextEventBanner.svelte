@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { CalendarEvent } from '../../../../shared/types.ts';
   import { mix } from '../../lib/color.ts';
-  import { formatWhen } from '../../lib/format.ts';
+  import { eventLine } from '../../lib/format.ts';
   import Icon from '../Icon.svelte';
 
   type Props = { event: CalendarEvent | null; color: string; now: Date };
@@ -17,7 +17,7 @@
   <div class="text">
     <span class="label" style:color={accent}>Prochaine activité</span>
     {#if event}
-      <span class="title">{event.title} · {formatWhen(new Date(event.start), now).toLowerCase()}</span>
+      <span class="title">{eventLine(event, now)}</span>
       {#if event.location}
         <span class="detail">{event.location}</span>
       {/if}

@@ -9,6 +9,7 @@ RUN npm run check && npm test && npm run build
 # --- Image finale : serveur + front compilé ---
 FROM node:24-alpine
 ENV NODE_ENV=production \
+    TZ=Europe/Paris \
     PORT=3000 \
     HOMEHUB_CONFIG=/data/homehub.yaml \
     HOMEHUB_STATIC_ROOT=/app/web/dist

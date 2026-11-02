@@ -12,7 +12,13 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 
 La **météo** vient d'[Open-Meteo](https://open-meteo.com) avec les modèles de Météo-France (AROME 1,3 km, ARPEGE) :
 gratuit, sans clé, mis en cache 15 min ; en cas de panne, la dernière prévision reste affichée jusqu'à 6 h, puis le
-bloc est masqué. Les autres widgets affichent pour l'instant des **données d'exemple** (`server/sources/sample.ts`).
+bloc est masqué.
+
+L'**agenda** vient des adresses secrètes iCal (Google Agenda ou autre), téléchargées toutes les 10 min ; les
+récurrences, exceptions, fuseaux horaires et événements sur la journée sont gérés (`ical.js`). Les adresses sont des
+secrets : le YAML ne contient que le nom de la variable d'environnement qui les porte. Tant qu'aucun agenda n'est
+configuré, l'agenda affiche des exemples. Les tâches et les mots sont encore des **données d'exemple**
+(`server/sources/sample.ts`).
 
 ## Configuration
 
@@ -26,8 +32,10 @@ members:
   - id: lea          # minuscules, chiffres, tirets ; utilisé dans l'URL /p/lea
     name: Léa
     color: "#3fb8a8"
+    calendars: [CAL_LEA]   # variable d'environnement : CAL_LEA=https://calendar.google.com/…/basic.ics
 family:
   name: Famille
+  calendars: [CAL_FAMILLE]
 ui:
   idleTimeoutSeconds: 180
 weather:             # facultatif : sans cette section, pas de météo
@@ -41,6 +49,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `PORT` | `3000` | Port d'écoute |
 | `HOMEHUB_CONFIG` | `config/homehub.yaml` (image Docker : `/data/homehub.yaml`) | Fichier de configuration |
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
+| `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 
 ## Architecture
 
@@ -54,7 +63,9 @@ server/
   services/dashboard.ts    logique métier, sans HTTP ni implémentation de source
   sources/types.ts         interfaces des sources (agenda, tâches, mots, météo) + horloge
   sources/sample.ts        implémentations d'exemple, en mémoire
-  sources/open-meteo.ts    météo Open-Meteo (cache, repli sur la dernière prévision)
+  sources/open-meteo.ts    météo Open-Meteo
+  sources/ical.ts          agendas iCal (adresses secrètes Google Agenda)
+  sources/refreshing-cache.ts  cache des données distantes (rafraîchissement, repli en cas de panne)
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
   App.svelte               choix de l'écran, retour à l'accueil, surveillance de version

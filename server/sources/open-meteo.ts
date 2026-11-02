@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Weather } from '../../shared/types.ts';
 import type { WeatherConfig } from '../config.ts';
 import type { Logger } from '../config-store.ts';
+import { createRefreshingCache } from './refreshing-cache.ts';
 import type { Clock, WeatherSource } from './types.ts';
 
 const API_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -79,38 +80,23 @@ export function createOpenMeteoWeatherSource({
   logger,
   fetch: fetchFn = (...args) => fetch(...args),
 }: OpenMeteoDeps): WeatherSource {
-  let cache: { url: string; fetchedAt: number; data: OpenMeteoResponse } | null = null;
-  // Une seule requête à la fois : l'accueil et un dashboard peuvent demander la météo en même temps.
-  let inFlight: Promise<OpenMeteoResponse> | null = null;
-
-  async function download(url: string): Promise<OpenMeteoResponse> {
-    const res = await fetchFn(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-    if (!res.ok) throw new Error(`Open-Meteo : HTTP ${res.status}`);
-    return responseSchema.parse(await res.json());
-  }
+  const cache = createRefreshingCache<OpenMeteoResponse>({
+    clock,
+    logger,
+    staleMaxMs: STALE_MAX_MS,
+    async load(url) {
+      const res = await fetchFn(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return responseSchema.parse(await res.json());
+    },
+  });
 
   return {
     async current() {
       const place = location();
       if (!place) return null;
-
-      const url = buildForecastUrl(place);
-      const now = clock();
-      const age = cache?.url === url ? now.getTime() - cache.fetchedAt : Infinity;
-
-      if (age > place.refreshMinutes * 60_000) {
-        try {
-          inFlight ??= download(url).finally(() => {
-            inFlight = null;
-          });
-          cache = { url, fetchedAt: now.getTime(), data: await inFlight };
-        } catch (err) {
-          if (age > STALE_MAX_MS) throw err;
-          logger.error(`${(err as Error).message} ; prévision précédente conservée.`);
-        }
-      }
-
-      return toWeather(cache!.data, place.label, now);
+      const data = await cache.get(buildForecastUrl(place), place.refreshMinutes * 60_000, 'Open-Meteo');
+      return toWeather(data, place.label, clock());
     },
   };
 }

@@ -31,6 +31,12 @@ export function formatDay(date: Date, now: Date): string {
 /** « Demain à 08:30 » */
 export const formatWhen = (date: Date, now: Date) => `${formatDay(date, now)} à ${formatTime(date)}`;
 
+/** Quand a lieu un événement : « Demain à 08:30 », ou « Demain » s'il dure toute la journée. */
+export function formatEventWhen(event: CalendarEvent, now: Date): string {
+  const start = new Date(event.start);
+  return event.allDay ? formatDay(start, now) : formatWhen(start, now);
+}
+
 export function greeting(now: Date): string {
   const hour = now.getHours();
   if (hour < 5) return 'Bonne nuit';
@@ -50,5 +56,5 @@ export function profileHeadline(summary: ProfileSummary, now: Date): string {
 
 /** « Piscine · demain à 17:30 » */
 export function eventLine(event: CalendarEvent, now: Date): string {
-  return `${event.title} · ${formatWhen(new Date(event.start), now).toLowerCase()}`;
+  return `${event.title} · ${formatEventWhen(event, now).toLowerCase()}`;
 }

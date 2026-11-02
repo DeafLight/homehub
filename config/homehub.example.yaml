@@ -8,10 +8,15 @@
 #   id    : identifiant court (minuscules, chiffres, tirets), utilisé dans l'URL : /p/<id>
 #   name  : prénom affiché
 #   color : couleur d'accent du profil, au format #rrggbb
+#   calendars (facultatif) : agendas iCal du profil, désignés par le NOM d'une variable d'environnement
+#     qui contient l'adresse secrète (Google Agenda : Paramètres de l'agenda → Intégrer l'agenda →
+#     « Adresse secrète au format iCal »). Les adresses vont dans app.env, jamais dans ce fichier.
+#     Tant qu'aucun profil n'a d'agenda, des événements d'exemple sont affichés.
 members:
   - id: alex
     name: Alex
     color: "#5b8def"
+    # calendars: [CAL_ALEX]
   - id: sam
     name: Sam
     color: "#e8964a"
@@ -25,6 +30,11 @@ members:
 # Dashboard commun (agenda familial, courses, mots).
 family:
   name: Famille
+  # calendars: [CAL_FAMILLE]
+
+agenda:
+  # Intervalle entre deux téléchargements de chaque agenda (minutes, 1 à 180).
+  refreshMinutes: 10
 
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).

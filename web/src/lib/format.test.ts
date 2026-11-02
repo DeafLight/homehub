@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDay, greeting, pluralize, profileHeadline } from './format.ts';
+import { eventLine, formatDay, greeting, pluralize, profileHeadline } from './format.ts';
 
 const now = new Date(2026, 10, 2, 18, 0); // lundi 2 novembre, 18:00
 
@@ -37,4 +37,13 @@ it('greeting', () => {
 
 it('pluralize', () => {
   expect(pluralize(3, 'tâche')).toBe('3 tâches');
+});
+
+describe('eventLine', () => {
+  it('avec heure, ou sans pour un événement sur la journée', () => {
+    const start = new Date(2026, 10, 3, 8, 30).toISOString();
+    expect(eventLine({ id: '1', title: 'Dentiste', start }, now)).toBe('Dentiste · demain à 08:30');
+    const allDay = new Date(2026, 10, 3).toISOString();
+    expect(eventLine({ id: '2', title: 'Anniversaire', start: allDay, allDay: true }, now)).toBe('Anniversaire · demain');
+  });
 });

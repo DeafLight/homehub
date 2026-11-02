@@ -16,7 +16,7 @@
         {@const start = new Date(event.start)}
         <li>
           <span>{event.title}</span>
-          <span class="when">{formatDay(start, now)} {formatTime(start)}</span>
+          <span class="when">{formatDay(start, now)} {event.allDay ? 'journée' : formatTime(start)}</span>
         </li>
       {/each}
     </ul>

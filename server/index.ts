@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import { serve } from '@hono/node-server';
 import { FAMILY_ID } from '../shared/types.ts';
 import { createApp } from './app.ts';
-import { loadConfig } from './config.ts';
+import { calendarsOf, hasCalendars, loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
+import { createIcalAgendaSource } from './sources/ical.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createSampleSources } from './sources/sample.ts';
 import type { Clock, Sources } from './sources/types.ts';
@@ -28,8 +29,18 @@ const config = createConfigStore(initialConfig);
 const stopWatching = watchConfigFile(configPath, config, console);
 
 const clock: Clock = () => new Date();
+const sample = createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock);
+const ical = createIcalAgendaSource({
+  calendarsFor: (ownerId) => calendarsOf(config.current(), ownerId),
+  refreshMinutes: () => config.current().agenda.refreshMinutes,
+  secret: (name) => process.env[name],
+  clock,
+  logger: console,
+});
 const sources: Sources = {
-  ...createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock),
+  ...sample,
+  // Agenda d'exemple tant qu'aucun agenda n'est configuré (développement, première installation).
+  agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sample.agenda).eventsFor(...args) },
   weather: createOpenMeteoWeatherSource({ location: () => config.current().weather, clock, logger: console }),
 };
 const service = createDashboardService({ config, sources, clock, logger: console });
