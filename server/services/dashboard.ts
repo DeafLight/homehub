@@ -1,6 +1,13 @@
 // Logique métier : assemble les données des sources pour l'écran d'accueil et les dashboards.
 // Ne connaît ni HTTP ni les implémentations des sources (injectées).
-import { FAMILY_ID, type DashboardData, type HomeData, type ProfileSummary, type Task } from '../../shared/types.ts';
+import {
+  FAMILY_ID,
+  type DashboardData,
+  type HomeData,
+  type ProfileSummary,
+  type SchoolDays,
+  type Task,
+} from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import type { Clock, Sources } from '../sources/types.ts';
 
@@ -46,6 +53,28 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
     }
   }
 
+  /** Cours d'aujourd'hui et de demain. Accessoire, comme la météo : une panne masque l'emploi du temps. */
+  async function schoolDays(ownerId: string): Promise<SchoolDays | null> {
+    const today = clock();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const after = new Date(tomorrow);
+    after.setDate(after.getDate() + 1);
+    try {
+      const courses = await sources.school.coursesFor(ownerId, { from: today, to: after });
+      if (!courses) return null;
+      const startsBefore = (limit: Date) => (c: { start: string }) => new Date(c.start) < limit;
+      return {
+        today: courses.filter(startsBefore(tomorrow)),
+        tomorrow: courses.filter((c) => !startsBefore(tomorrow)(c)),
+      };
+    } catch (err) {
+      logger.error(`Emploi du temps indisponible : ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   async function summary(ownerId: string): Promise<ProfileSummary> {
     const [events, tasks] = await Promise.all([
       sources.agenda.eventsFor(ownerId, upcomingRange()),
@@ -69,20 +98,23 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, note, currentWeather] = await Promise.all([
+      const [events, tasks, note, currentWeather, school] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
         sources.notes.latestFor(ownerId),
         weather(),
+        schoolDays(ownerId),
       ]);
       const [nextEvent = null, ...rest] = events;
       return {
         ownerId,
         nextEvent,
         upcoming: rest.slice(0, UPCOMING_LIMIT),
+        events,
         tasks,
         note,
         weather: currentWeather,
+        school,
       };
     },
 

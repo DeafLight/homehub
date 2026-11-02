@@ -12,6 +12,9 @@
 #     qui contient l'adresse secrète (Google Agenda : Paramètres de l'agenda → Intégrer l'agenda →
 #     « Adresse secrète au format iCal »). Les adresses vont dans app.env, jamais dans ce fichier.
 #     Tant qu'aucun profil n'a d'agenda, des événements d'exemple sont affichés.
+#   ecoledirecte (facultatif) : prénom de l'élève sur ÉcoleDirecte ; son emploi du temps s'affiche sur ce profil
+#     (frise du jour + demain). Identifiants et jetons du compte Famille dans app.env (ECOLEDIRECTE_…),
+#     obtenus avec : node scripts/ecoledirecte-pair.ts
 members:
   - id: alex
     name: Alex
@@ -23,6 +26,7 @@ members:
   - id: lea
     name: Léa
     color: "#3fb8a8"
+    # ecoledirecte: Léa
   - id: tom
     name: Tom
     color: "#d96aa7"
@@ -35,6 +39,10 @@ family:
 agenda:
   # Intervalle entre deux téléchargements de chaque agenda (minutes, 1 à 180).
   refreshMinutes: 10
+
+ecoledirecte:
+  # Intervalle entre deux connexions à ÉcoleDirecte (minutes, 15 à 1440).
+  refreshMinutes: 60
 
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).

@@ -88,3 +88,41 @@ describe('météo', () => {
     expect(logger.errors[0]).toContain('réseau coupé');
   });
 });
+
+describe('emploi du temps', () => {
+  const course = (id: string, day: number, hour: number) => ({
+    id,
+    subject: id,
+    start: new Date(2026, 10, day, hour).toISOString(),
+    end: new Date(2026, 10, day, hour + 1).toISOString(),
+    cancelled: false,
+  });
+  const withSchool = fakeSources({
+    events: { alex: [event('ce-soir', 1), event('dans-3-jours', 72)] },
+    courses: { alex: [course('maths', 2, 9), course('anglais', 3, 8), course('apres-demain', 4, 8)] },
+  });
+  const svc = createDashboardService({ config, sources: withSchool, clock: fixedClock, logger: silentLogger() });
+
+  it('sépare les cours d’aujourd’hui et de demain, et transmet tous les événements', async () => {
+    const data = await svc.dashboard('alex');
+    expect(data?.school?.today.map((c) => c.id)).toEqual(['maths']);
+    expect(data?.school?.tomorrow.map((c) => c.id)).toEqual(['anglais']);
+    expect(data?.events.map((e) => e.id)).toEqual(['ce-soir', 'dans-3-jours']);
+  });
+
+  it('vaut null pour un profil sans emploi du temps ou si la source échoue', async () => {
+    expect((await svc.dashboard('lea'))?.school).toBeNull();
+    const logger = silentLogger();
+    const broken = {
+      ...withSchool,
+      school: {
+        async coursesFor(): Promise<never> {
+          throw new Error('ÉcoleDirecte en panne');
+        },
+      },
+    };
+    const brokenSvc = createDashboardService({ config, sources: broken, clock: fixedClock, logger });
+    expect((await brokenSvc.dashboard('alex'))?.school).toBeNull();
+    expect(logger.errors[0]).toContain('ÉcoleDirecte en panne');
+  });
+});

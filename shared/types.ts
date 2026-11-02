@@ -57,6 +57,24 @@ export type Weather = {
   rainStartsAt: string | null;
 };
 
+/** Cours de l'emploi du temps scolaire. */
+export type SchoolCourse = {
+  id: string;
+  subject: string;
+  /** ISO 8601. */
+  start: string;
+  end: string;
+  room?: string;
+  teacher?: string;
+  cancelled: boolean;
+};
+
+/** Emploi du temps d'aujourd'hui et de demain (listes vides : pas de cours ce jour-là). */
+export type SchoolDays = {
+  today: SchoolCourse[];
+  tomorrow: SchoolCourse[];
+};
+
 /** Résumé d'un profil (un membre, ou la famille) pour l'écran d'accueil. */
 export type ProfileSummary = {
   ownerId: string;
@@ -76,8 +94,12 @@ export type DashboardData = {
   nextEvent: CalendarEvent | null;
   tasks: Task[];
   upcoming: CalendarEvent[];
+  /** Tous les événements des 7 prochains jours (y compris ceux en cours), triés. */
+  events: CalendarEvent[];
   note: Note | null;
   weather: Weather | null;
+  /** null si le profil n'a pas d'emploi du temps (ou s'il est indisponible). */
+  school: SchoolDays | null;
 };
 
 export type Health = {

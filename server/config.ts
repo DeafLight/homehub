@@ -16,6 +16,8 @@ const memberSchema = z.object({
   name: z.string().trim().min(1).max(40),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'couleur au format #rrggbb'),
   calendars: calendarsSchema,
+  /** Prénom de l'élève sur ÉcoleDirecte : affiche son emploi du temps sur ce profil. */
+  ecoledirecte: z.string().trim().min(1).max(40).optional(),
 });
 
 export const configSchema = z.object({
@@ -27,6 +29,9 @@ export const configSchema = z.object({
     .object({ name: z.string().trim().min(1).max(40), calendars: calendarsSchema })
     .default({ name: 'Famille', calendars: [] }),
   agenda: z.object({ refreshMinutes: z.number().int().min(1).max(180).default(10) }).default({ refreshMinutes: 10 }),
+  ecoledirecte: z
+    .object({ refreshMinutes: z.number().int().min(15).max(1440).default(60) })
+    .default({ refreshMinutes: 60 }),
   ui: z
     .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
     .default({ idleTimeoutSeconds: 180 }),

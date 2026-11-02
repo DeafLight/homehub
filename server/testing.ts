@@ -1,5 +1,5 @@
 // Briques communes aux tests : configuration, horloge fixe et sources factices.
-import type { CalendarEvent, Task, Weather } from '../shared/types.ts';
+import type { CalendarEvent, SchoolCourse, Task, Weather } from '../shared/types.ts';
 import { type AppConfig, parseConfig } from './config.ts';
 import type { Logger } from './config-store.ts';
 import type { Clock, Sources } from './sources/types.ts';
@@ -39,6 +39,7 @@ export function event(id: string, hoursFromNow: number, title = id): CalendarEve
 export function fakeSources(data: {
   events?: Record<string, CalendarEvent[]>;
   tasks?: Record<string, Task[]>;
+  courses?: Record<string, SchoolCourse[]>;
 } = {}): Sources {
   const tasks = structuredClone(data.tasks ?? {});
   return {
@@ -63,5 +64,11 @@ export function fakeSources(data: {
     },
     notes: { async latestFor() { return { text: 'Coucou', authorId: 'alex' }; } },
     weather: { async current() { return testWeather; } },
+    school: {
+      async coursesFor(ownerId, range) {
+        if (!data.courses?.[ownerId]) return null;
+        return data.courses[ownerId].filter((c) => new Date(c.end) > range.from && new Date(c.start) < range.to);
+      },
+    },
   };
 }

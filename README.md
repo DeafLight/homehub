@@ -17,7 +17,14 @@ bloc est masqué.
 L'**agenda** vient des adresses secrètes iCal (Google Agenda ou autre), téléchargées toutes les 10 min ; les
 récurrences, exceptions, fuseaux horaires et événements sur la journée sont gérés (`ical.js`). Les adresses sont des
 secrets : le YAML ne contient que le nom de la variable d'environnement qui les porte. Tant qu'aucun agenda n'est
-configuré, l'agenda affiche des exemples. Les tâches et les mots sont encore des **données d'exemple**
+configuré, l'agenda affiche des exemples.
+
+L'**emploi du temps** vient d'ÉcoleDirecte (API privée du site, non officielle : elle peut changer), rafraîchi
+toutes les 60 min. Un profil avec `ecoledirecte: <prénom de l'élève>` affiche une frise du jour (cours en gris,
+agenda à sa couleur) et une carte « Demain ». La connexion demande, la première fois, de répondre à une question
+de sécurité : `node scripts/ecoledirecte-pair.ts [prénom]` le fait sur un PC et affiche les variables
+`ECOLEDIRECTE_IDENTIFIANT`, `ECOLEDIRECTE_MOTDEPASSE`, `ECOLEDIRECTE_CN`, `ECOLEDIRECTE_CV` à mettre dans
+l'environnement. Les tâches et les mots sont encore des **données d'exemple**
 (`server/sources/sample.ts`).
 
 ## Configuration
@@ -50,6 +57,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_CONFIG` | `config/homehub.yaml` (image Docker : `/data/homehub.yaml`) | Fichier de configuration |
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
+| `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
 
 ## Architecture
 
@@ -65,6 +73,7 @@ server/
   sources/sample.ts        implémentations d'exemple, en mémoire
   sources/open-meteo.ts    météo Open-Meteo
   sources/ical.ts          agendas iCal (adresses secrètes Google Agenda)
+  sources/ecoledirecte.ts  emploi du temps ÉcoleDirecte (client de l'API privée + source)
   sources/refreshing-cache.ts  cache des données distantes (rafraîchissement, repli en cas de panne)
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte

@@ -2,11 +2,14 @@
   import { onDestroy } from 'svelte';
   import type { Task } from '../../../shared/types.ts';
   import ProfileRail from '../components/ProfileRail.svelte';
+  import DayCard from '../components/widgets/DayCard.svelte';
+  import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
   import TaskList from '../components/widgets/TaskList.svelte';
   import UpcomingList from '../components/widgets/UpcomingList.svelte';
   import { getAppContext } from '../lib/context.ts';
+  import { addDays, eventsAfter, eventsOnDay } from '../lib/day.ts';
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { HOME_PATH } from '../lib/route.ts';
@@ -46,25 +49,49 @@
       <header>
         <h1>{profile.isFamily ? profile.name : `${greeting(clock.now)} ${profile.name} !`}</h1>
         <span class="muted">
-          {formatLongDate(clock.now)}{#if dashboard.data?.weather}
-            · {formatTemperature(dashboard.data.weather.temperatureC)}
-            {weatherLabel(dashboard.data.weather.weatherCode).toLowerCase()}{/if}
+          {formatLongDate(clock.now)}{#if dashboard.data?.weather}{` · ${formatTemperature(
+              dashboard.data.weather.temperatureC,
+            )} ${weatherLabel(dashboard.data.weather.weatherCode).toLowerCase()}`}{/if}
         </span>
       </header>
 
       {#if dashboard.data}
         {@const data = dashboard.data}
-        <NextEventBanner event={data.nextEvent} color={profile.color} now={clock.now} />
-        <div class="grid">
-          <TaskList
-            title={profile.isFamily ? 'Liste de courses' : 'Mes tâches'}
-            tasks={data.tasks}
-            color={profile.color}
-            onToggle={toggleTask}
-          />
-          <UpcomingList events={data.upcoming} now={clock.now} />
-          <NoteCard note={data.note} {authorName} />
-        </div>
+        {#if data.school}
+          <!-- Profil avec emploi du temps : frise du jour (cours + agenda), demain, puis la suite. -->
+          {@const tomorrow = addDays(clock.now, 1)}
+          <div class="grid school">
+            <DayTimeline
+              courses={data.school.today}
+              events={eventsOnDay(data.events, clock.now)}
+              now={clock.now}
+              color={profile.color}
+            />
+            <DayCard
+              title="Demain"
+              day={tomorrow}
+              courses={data.school.tomorrow}
+              events={eventsOnDay(data.events, tomorrow)}
+              color={profile.color}
+            />
+            <div class="column">
+              <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
+              <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
+            </div>
+          </div>
+        {:else}
+          <NextEventBanner event={data.nextEvent} color={profile.color} now={clock.now} />
+          <div class="grid">
+            <TaskList
+              title={profile.isFamily ? 'Liste de courses' : 'Mes tâches'}
+              tasks={data.tasks}
+              color={profile.color}
+              onToggle={toggleTask}
+            />
+            <UpcomingList events={data.upcoming} now={clock.now} />
+            <NoteCard note={data.note} {authorName} />
+          </div>
+        {/if}
       {:else if dashboard.error}
         <p class="muted">Impossible de charger le dashboard : {dashboard.error}</p>
       {/if}
@@ -116,6 +143,17 @@
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .grid.school {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  }
+
+  .column {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 20px;
   }
 

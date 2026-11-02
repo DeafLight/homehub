@@ -27,20 +27,22 @@
     margin: 0;
     padding: 0;
     list-style: none;
+    overflow-x: hidden;
     overflow-y: auto;
   }
 
   li {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: 12px;
+    gap: 4px 12px;
     padding: 10px 0;
     border-top: 1px solid var(--surface-2);
     font-size: 1.25rem;
   }
 
   .when {
-    flex-shrink: 0;
+    margin-left: auto;
     color: var(--fg-muted);
   }
 

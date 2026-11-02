@@ -1,7 +1,7 @@
 // Sources d'exemple, en mémoire : elles donnent à chaque profil des données plausibles, calculées par rapport
 // à l'heure courante pour que l'écran ait l'air vivant. À remplacer source par source par les vraies.
 import type { CalendarEvent, Note, Task, Weather } from '../../shared/types.ts';
-import type { AgendaSource, Clock, NoteSource, Sources, TaskSource, WeatherSource } from './types.ts';
+import type { AgendaSource, Clock, NoteSource, SchoolSource, Sources, TaskSource, WeatherSource } from './types.ts';
 
 /** Événement type : jour relatif à aujourd'hui (0 = aujourd'hui) et heure locale. */
 type EventTemplate = { day: number; hour: number; minute: number; title: string; location?: string };
@@ -122,5 +122,12 @@ export function createSampleSources(memberIds: () => string[], familyId: string,
     },
   };
 
-  return { agenda, tasks, notes, weather };
+  // Pas d'emploi du temps d'exemple : la carte « Cours » n'apparaît qu'avec ÉcoleDirecte.
+  const school: SchoolSource = {
+    async coursesFor() {
+      return null;
+    },
+  };
+
+  return { agenda, tasks, notes, weather, school };
 }

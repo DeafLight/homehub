@@ -6,6 +6,7 @@ import { createApp } from './app.ts';
 import { calendarsOf, hasCalendars, loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
+import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createSampleSources } from './sources/sample.ts';
@@ -29,6 +30,14 @@ const config = createConfigStore(initialConfig);
 const stopWatching = watchConfigFile(configPath, config, console);
 
 const clock: Clock = () => new Date();
+/** Compte ÉcoleDirecte (app.env) : identifiants du compte Famille et jetons de confiance de l'appareil. */
+function ecoleDirecteCredentials(env: NodeJS.ProcessEnv): Credentials | undefined {
+  const { ECOLEDIRECTE_IDENTIFIANT: identifiant, ECOLEDIRECTE_MOTDEPASSE: motdepasse } = env;
+  const { ECOLEDIRECTE_CN: cn, ECOLEDIRECTE_CV: cv } = env;
+  if (!identifiant || !motdepasse) return undefined;
+  return { identifiant, motdepasse, ...(cn && cv && { trust: { cn, cv } }) };
+}
+
 const sample = createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock);
 const ical = createIcalAgendaSource({
   calendarsFor: (ownerId) => calendarsOf(config.current(), ownerId),
@@ -42,6 +51,14 @@ const sources: Sources = {
   // Agenda d'exemple tant qu'aucun agenda n'est configuré (développement, première installation).
   agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sample.agenda).eventsFor(...args) },
   weather: createOpenMeteoWeatherSource({ location: () => config.current().weather, clock, logger: console }),
+  school: createEcoleDirecteSource({
+    studentFor: (ownerId) => config.current().members.find((m) => m.id === ownerId)?.ecoledirecte,
+    refreshMinutes: () => config.current().ecoledirecte.refreshMinutes,
+    credentials: () => ecoleDirecteCredentials(process.env),
+    client: createEcoleDirecteClient(),
+    clock,
+    logger: console,
+  }),
 };
 const service = createDashboardService({ config, sources, clock, logger: console });
 const app = createApp({ config, service, clock, version, staticRoot });
