@@ -1,6 +1,8 @@
 <script lang="ts">
   type Health = { status: string; version: string; time: string };
 
+  const RELOAD_MIN_INTERVAL_MS = 60_000;
+
   let health = $state<Health | null>(null);
   let error = $state(false);
 
@@ -10,9 +12,24 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       health = await res.json();
       error = false;
+      if (health && health.version !== __APP_VERSION__) reloadForNewVersion();
     } catch {
       error = true;
     }
+  }
+
+  // Nouvelle version déployée sur le serveur : on recharge la page pour récupérer le nouveau front.
+  // Au plus une fois par minute, pour ne pas boucler si le rechargement renvoie encore l'ancien front.
+  function reloadForNewVersion() {
+    let last = 0;
+    try {
+      last = Number(sessionStorage.getItem('homehub:lastReload') ?? 0);
+      if (Date.now() - last < RELOAD_MIN_INTERVAL_MS) return;
+      sessionStorage.setItem('homehub:lastReload', String(Date.now()));
+    } catch {
+      // sessionStorage indisponible : on recharge quand même.
+    }
+    location.reload();
   }
 
   $effect(() => {
