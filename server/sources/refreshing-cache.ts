@@ -1,12 +1,16 @@
-// Cache des données distantes (météo, agendas) : rafraîchies au plus toutes les `maxAgeMs`, une seule requête à la
-// fois par clé, et en cas de panne, la dernière valeur reste servie tant qu'elle n'est pas trop vieille.
+// Cache des données distantes (météo, agendas, emplois du temps) : rafraîchies au plus toutes les `maxAgeMs`, une
+// seule requête à la fois par clé. Une valeur encore utilisable est servie tout de suite et rafraîchie en
+// arrière-plan : un service lent ou muet ne ralentit jamais l'affichage. En cas de panne, la dernière valeur reste
+// servie tant qu'elle n'est pas trop vieille.
 import type { Logger } from '../config-store.ts';
 import type { Clock } from './types.ts';
 
 export type RefreshingCache<T> = {
   /**
-   * Valeur pour `key`, rechargée si elle a plus de `maxAgeMs`. `label` nomme la donnée dans les logs : la clé peut
-   * être une URL secrète et n'y apparaît jamais. Lève l'erreur du chargement s'il n'y a pas de valeur utilisable.
+   * Valeur pour `key`. Si elle a plus de `maxAgeMs`, elle est rechargée : en arrière-plan si l'ancienne est encore
+   * utilisable (elle est renvoyée sans attendre), sinon en attendant le résultat. `label` nomme la donnée dans les
+   * logs : la clé peut être une URL secrète et n'y apparaît jamais. Lève l'erreur du chargement s'il n'y a pas de
+   * valeur utilisable.
    */
   get(key: string, maxAgeMs: number, label: string): Promise<T>;
 };
@@ -21,7 +25,7 @@ export type RefreshingCacheDeps<T> = {
   retryDelayMs?: number;
 };
 
-type Entry<T> = { value?: T; fetchedAt?: number; failedAt?: number; error?: unknown; inFlight?: Promise<T> };
+type Entry<T> = { value?: T; fetchedAt?: number; failedAt?: number; error?: unknown; inFlight?: Promise<void> };
 
 export function createRefreshingCache<T>({
   load,
@@ -31,35 +35,45 @@ export function createRefreshingCache<T>({
   retryDelayMs = 60_000,
 }: RefreshingCacheDeps<T>): RefreshingCache<T> {
   const entries = new Map<string, Entry<T>>();
+  const ageOf = (entry: Entry<T>, now: number) => (entry.fetchedAt === undefined ? Infinity : now - entry.fetchedAt);
+  const usable = (entry: Entry<T>, now: number) => entry.value !== undefined && ageOf(entry, now) <= staleMaxMs;
+
+  /** Lance le rechargement (ou rejoint celui en cours) ; ne rejette jamais : le résultat est noté dans l'entrée. */
+  function refresh(entry: Entry<T>, key: string, startedAt: number, label: string): Promise<void> {
+    entry.inFlight ??= load(key)
+      .then(
+        (value) => {
+          entry.value = value;
+          entry.fetchedAt = startedAt;
+          entry.failedAt = entry.error = undefined;
+        },
+        (err) => {
+          entry.failedAt = startedAt;
+          entry.error = err;
+          const kept = usable(entry, clock().getTime()) ? ' ; données précédentes conservées' : '';
+          logger.error(`${label} : ${(err as Error).message}${kept}.`);
+        },
+      )
+      .finally(() => {
+        entry.inFlight = undefined;
+      });
+    return entry.inFlight;
+  }
 
   return {
     async get(key, maxAgeMs, label) {
       let entry = entries.get(key);
       if (!entry) entries.set(key, (entry = {}));
       const now = clock().getTime();
-      const age = entry.fetchedAt === undefined ? Infinity : now - entry.fetchedAt;
       const waitingRetry = entry.failedAt !== undefined && now - entry.failedAt < retryDelayMs;
 
-      if (age > maxAgeMs && !waitingRetry) {
-        const current = entry;
-        try {
-          current.inFlight ??= load(key).finally(() => {
-            current.inFlight = undefined;
-          });
-          current.value = await current.inFlight;
-          current.fetchedAt = now;
-          current.failedAt = current.error = undefined;
-          return current.value;
-        } catch (err) {
-          current.failedAt = now;
-          current.error = err;
-          const kept = age <= staleMaxMs ? ' ; données précédentes conservées' : '';
-          logger.error(`${label} : ${(err as Error).message}${kept}.`);
-        }
+      if (ageOf(entry, now) > maxAgeMs && !waitingRetry) {
+        const pending = refresh(entry, key, now, label);
+        if (!usable(entry, now)) await pending;
       }
 
-      if (entry.value === undefined || age > staleMaxMs) throw entry.error ?? new Error(`${label} indisponible`);
-      return entry.value;
+      if (!usable(entry, clock().getTime())) throw entry.error ?? new Error(`${label} indisponible`);
+      return entry.value as T;
     },
   };
 }
