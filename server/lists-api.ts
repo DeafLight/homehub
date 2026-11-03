@@ -28,7 +28,9 @@ const taskSchema = z.object({
 const pin = z.string().max(20).optional();
 const pairingSchema = z.object({ ownerId: z.string(), pin });
 const removeSchema = z.object({ pin }).nullable();
-const claimSchema = z.object({ code: z.string().min(1).max(100), name: z.string().trim().min(1).max(60) });
+const deviceName = z.string().trim().min(1).max(60);
+const claimSchema = z.object({ code: z.string().min(1).max(100), name: deviceName, system: z.string().trim().max(40).nullish() });
+const renameSchema = z.object({ name: deviceName });
 
 const body = async (c: Context) => c.req.json().catch(() => null);
 
@@ -152,13 +154,23 @@ export function createListsApi({ config, lists, devices, pins, kioskKey }: Lists
   api.post('/pairing/claim', async (c) => {
     const input = claimSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: 'Corps attendu : { "code": "…", "name": "…" }' }, 400);
-    const result = await devices.claim(input.data.code, input.data.name);
+    const result = await devices.claim(input.data.code, input.data.name, input.data.system ?? null);
     return result ? c.json(result, 201) : c.json({ error: 'Code inconnu ou expiré : afficher un nouveau QR code' }, 410);
   });
 
   api.get('/devices', async (c) => {
     const denied = await kioskOnly(c);
     return denied ?? c.json(await devices.list());
+  });
+
+  /** Nom donné sur la tablette (« Téléphone de Léa ») à la place du modèle annoncé. */
+  api.patch('/devices/:id', async (c) => {
+    const denied = await kioskOnly(c);
+    if (denied) return denied;
+    const input = renameSchema.safeParse(await body(c));
+    if (!input.success) return c.json({ error: 'Nom attendu (60 caractères max)' }, 400);
+    const device = await devices.rename(c.req.param('id'), input.data.name);
+    return device ? c.json(device) : c.json({ error: 'Téléphone inconnu' }, 404);
   });
 
   api.delete('/devices/:id', async (c) => {

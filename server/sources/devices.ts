@@ -19,6 +19,7 @@ const fileSchema = z.object({
       id: z.string(),
       ownerId: z.string(),
       name: z.string(),
+      system: z.string().nullish(),
       pairedAt: z.string(),
       lastSeenAt: z.string(),
       tokenHash: z.string(),
@@ -33,9 +34,10 @@ export type DeviceStore = {
   /** Nouveau code pour `ownerId` ; il remplace le précédent (un seul QR code affiché à la fois). */
   createCode(ownerId: string): PairingCode;
   /** Échange un code valide contre un jeton (renvoyé une seule fois) ; null si le code est inconnu ou expiré. */
-  claim(code: string, name: string): Promise<{ token: string; device: Device } | null>;
+  claim(code: string, name: string, system?: string | null): Promise<{ token: string; device: Device } | null>;
   /** Le téléphone qui présente ce jeton, ou null. */
   authenticate(token: string): Promise<Device | null>;
+  rename(id: string, name: string): Promise<Device | null>;
   remove(id: string): Promise<boolean>;
 };
 
@@ -89,14 +91,14 @@ export function createDeviceStore({ path, clock }: { path: string; clock: Clock 
       return pending;
     },
 
-    async claim(code, name) {
+    async claim(code, name, system = null) {
       const valid = pending && pending.code === code && new Date(pending.expiresAt) > clock();
       if (!valid || !pending) return null;
       const { ownerId } = pending;
       pending = undefined;
       const token = randomBytes(32).toString('base64url');
       const now = clock().toISOString();
-      const stored = { id: randomUUID(), ownerId, name, pairedAt: now, lastSeenAt: now, tokenHash: hash(token) };
+      const stored = { id: randomUUID(), ownerId, name, system, pairedAt: now, lastSeenAt: now, tokenHash: hash(token) };
       await change((file) => file.devices.push(stored));
       return { token, device: publicDevice(stored) };
     },
@@ -112,6 +114,14 @@ export function createDeviceStore({ path, clock }: { path: string; clock: Clock 
         await change(() => undefined);
       }
       return publicDevice(found);
+    },
+
+    rename(id, name) {
+      return change((file) => {
+        const found = file.devices.find((d) => d.id === id);
+        if (found) found.name = name;
+        return found ? publicDevice(found) : null;
+      });
     },
 
     remove(id) {

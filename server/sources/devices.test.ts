@@ -42,4 +42,13 @@ describe('téléphones', () => {
     expect(await store.authenticate(paired!.token)).toBeNull();
     expect(await store.list()).toEqual([]);
   });
+
+  it('système gardé ; renommé sur la tablette, il garde son jeton', async () => {
+    const { store } = setup();
+    const paired = await store.claim(store.createCode('tom').code, 'SM-S918B', 'Android 15');
+    expect(paired?.device).toMatchObject({ name: 'SM-S918B', system: 'Android 15' });
+    expect(await store.rename(paired!.device.id, 'Téléphone de Tom')).toMatchObject({ name: 'Téléphone de Tom', system: 'Android 15' });
+    expect(await store.authenticate(paired!.token)).toMatchObject({ name: 'Téléphone de Tom' });
+    expect(await store.rename('inconnu', 'X')).toBeNull();
+  });
 });

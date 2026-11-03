@@ -25,6 +25,8 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches`, `/m/agenda`
   (7 prochains jours, soi et la famille). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
+  La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
+  et son système ; on le renomme en touchant son nom.
   Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code et avant de retirer un
   de ses téléphones (5 erreurs : bloqué 15 min). Un **code parent** retire n'importe quel téléphone. On les définit
   sur le serveur : `node scripts/set-pin.ts <profil>` ou `--parent` (dans le conteneur :
@@ -157,8 +159,9 @@ web/src/
 | `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
 | `GET /api/pairing/pins` | `{ protected, parent }` : profils qui ont un PIN, code parent défini (tablette seulement) |
 | `POST /api/pairing` | `{ ownerId, pin? }` → code d'appairage (tablette seulement ; 403 si le PIN manque ou est faux, 429 si bloqué) |
-| `POST /api/pairing/claim` | `{ code, name }` → `{ token, device }` (410 si le code a expiré ou a servi) |
+| `POST /api/pairing/claim` | `{ code, name, system? }` → `{ token, device }` (410 si le code a expiré ou a servi) |
 | `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) ; retrait : `{ pin }`, PIN du propriétaire ou code parent s'il en existe un |
+| `PATCH /api/devices/:id` | `{ name }` : renomme un téléphone (tablette seulement) |
 
 **Écriture** : la tablette est reconnue à sa clé (`HOMEHUB_KIOSK_KEY`, lue une fois dans `#key=…` puis envoyée dans
 l'en-tête `X-Kiosk-Key` ; placée après `#`, elle n'apparaît jamais dans les journaux du proxy) ou à son adresse

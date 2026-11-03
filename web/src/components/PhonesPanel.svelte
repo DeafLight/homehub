@@ -4,6 +4,7 @@
   import type { Device, PairingCode } from '../../../shared/types.ts';
   import { getAppContext } from '../lib/context.ts';
   import { formatDay } from '../lib/format.ts';
+  import { readableModel } from '../lib/device-names.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import type { Profile } from '../lib/profiles.ts';
   import { PAIR_PATH } from '../lib/route.ts';
@@ -14,7 +15,8 @@
   // Téléphones de la famille (tablette seulement) : on choisit d'abord le profil, puis le téléphone scanne le code,
   // qui le lie à ce profil seul. Le code ne sert qu'une fois et expire au bout de 5 minutes. Un profil qui a un PIN
   // (scripts/set-pin.ts) le demande avant d'afficher son code, et avant de retirer un de ses téléphones (le code
-  // parent est accepté aussi). Sans aucun code à demander, le retrait se confirme d'un second geste.
+  // parent est accepté aussi). Sans aucun code à demander, le retrait se confirme d'un second geste. Le nom d'un
+  // téléphone (son modèle, rendu lisible) se change en le touchant.
   const DEVICES_REFRESH_MS = 15_000;
   const PAIRING_REFRESH_MS = 2_000;
 
@@ -31,6 +33,10 @@
   let asking = $state<Profile | null>(null);
   /** Téléphone à retirer, en attendant son code. */
   let removing = $state<Device | null>(null);
+  /** Téléphone qu'on renomme, et le nom en cours de saisie. */
+  let editing = $state<string | null>(null);
+  let draft = $state('');
+  let renameError = $state<string | null>(null);
   let pinError = $state<string | null>(null);
   let known = new Set<string>();
 
@@ -120,6 +126,25 @@
     }
   }
 
+  function startRename(device: Device) {
+    editing = device.id;
+    draft = readableModel(device.name);
+    renameError = null;
+  }
+
+  async function rename(event: SubmitEvent, device: Device) {
+    event.preventDefault();
+    const name = draft.trim();
+    if (!name) return;
+    try {
+      if (name !== readableModel(device.name)) await api.renameDevice(device.id, name);
+      editing = null;
+      await devices.refresh();
+    } catch (err) {
+      renameError = (err as Error).message;
+    }
+  }
+
   const removeHint = (ownerId: string) =>
     hasPin(ownerId) ? (hasParent ? 'Son PIN ou le code parent' : 'Son code PIN') : 'Code parent';
 </script>
@@ -130,7 +155,7 @@
       {@const device = removing}
       <PinPad
         profile={profiles.find((p) => p.id === device.ownerId)}
-        title="Retirer « {device.name} »"
+        title="Retirer « {readableModel(device.name)} »"
         hint={removeHint(device.ownerId)}
         error={pinError}
         onSubmit={(pin) => remove(device, pin)}
@@ -178,9 +203,21 @@
           <li>
             {#if owner}<Avatar profile={owner} size={44} />{/if}
             <span class="device">
-              <span class="name">{device.name}</span>
+              {#if editing === device.id}
+                <form class="rename" onsubmit={(e) => rename(e, device)}>
+                  <!-- svelte-ignore a11y_autofocus -->
+                  <input bind:value={draft} maxlength="60" aria-label="Nom du téléphone" autofocus />
+                  <button type="submit" class="icon ok" aria-label="Enregistrer le nom"><Icon name="check" size={24} strokeWidth={2.4} /></button>
+                  <button type="button" class="icon" aria-label="Annuler" onclick={() => (editing = null)}><Icon name="close" size={24} /></button>
+                </form>
+                {#if renameError}<span class="error small">{renameError}</span>{/if}
+              {:else}
+                <button type="button" class="name" aria-label="Renommer {readableModel(device.name)}" onclick={() => startRename(device)}>
+                  {readableModel(device.name)} <Icon name="pencil" size={18} color="var(--fg-muted)" />
+                </button>
+              {/if}
               <span class="muted small">
-                {nameOf(device.ownerId)} · relié {formatDay(new Date(device.pairedAt), clock.now).toLowerCase()} · vu {formatDay(
+                {nameOf(device.ownerId)}{device.system ? ` · ${device.system}` : ''} · relié {formatDay(new Date(device.pairedAt), clock.now).toLowerCase()} · vu {formatDay(
                   new Date(device.lastSeenAt),
                   clock.now,
                 ).toLowerCase()}
@@ -338,8 +375,55 @@
   }
 
   .name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 4px 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
     font-size: 1.2rem;
     font-weight: 600;
+    text-align: left;
+  }
+
+  .rename {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rename input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    font-size: 1.1rem;
+  }
+
+  .icon {
+    display: grid;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--fg);
+  }
+
+  .icon.ok {
+    background: var(--rain);
+    color: var(--bg);
   }
 
   .remove {

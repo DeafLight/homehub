@@ -4,7 +4,7 @@
   import Icon from '../components/Icon.svelte';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
-  import { deviceName, savePairing } from '../lib/phone.ts';
+  import { deviceInfo, savePairing } from '../lib/phone.ts';
   import type { Profile } from '../lib/profiles.ts';
   import { phonePath } from '../lib/route.ts';
 
@@ -25,7 +25,8 @@
       return;
     }
     try {
-      const { token, device } = await api.claimPairing(code, await deviceName());
+      const info = await deviceInfo();
+      const { token, device } = await api.claimPairing(code, info.name, info.system);
       savePairing({ token, ownerId: device.ownerId });
       profile = profiles.find((p) => p.id === device.ownerId) ?? null;
       step = 'done';

@@ -270,7 +270,16 @@ export type Lists = {
 };
 
 /** Téléphone appairé : il agit au nom d'un seul profil. */
-export type Device = { id: string; ownerId: string; name: string; pairedAt: string; lastSeenAt: string };
+export type Device = {
+  id: string;
+  ownerId: string;
+  /** Modèle annoncé par le téléphone (code brut sur Android), ou nom choisi sur la tablette. */
+  name: string;
+  /** Système annoncé à l'appairage (« Android 15 », « iOS 18 »), s'il est connu. */
+  system?: string | null;
+  pairedAt: string;
+  lastSeenAt: string;
+};
 
 /** Ce que peut faire l'appareil qui appelle l'API. */
 export type Me = {

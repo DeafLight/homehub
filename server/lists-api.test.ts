@@ -152,4 +152,17 @@ describe('API des listes', () => {
     expect((await call('DELETE', `/devices/${otherPhone}`, { body: { pin: '9753' } })).status).toBe(403); // pas la tablette
     expect((await remove('inconnu', '9753')).status).toBe(404);
   });
+
+  it('renommer un téléphone : tablette seulement, nom non vide', async () => {
+    const { call } = setup();
+    const { code } = await (await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).json();
+    const claimed = await call('POST', '/pairing/claim', { body: { code, name: 'SM-A556B', system: 'Android 15' } });
+    const { device } = await claimed.json();
+    expect(device).toMatchObject({ name: 'SM-A556B', system: 'Android 15' });
+    const rename = (name: unknown, key?: string) => call('PATCH', `/devices/${device.id}`, { key, body: { name } });
+    expect((await rename('Galaxy de Tom')).status).toBe(403);
+    expect((await rename('  ', KEY)).status).toBe(400);
+    expect(await (await rename(' Galaxy de Tom ', KEY)).json()).toMatchObject({ name: 'Galaxy de Tom' });
+    expect((await call('PATCH', '/devices/inconnu', { key: KEY, body: { name: 'X' } })).status).toBe(404);
+  });
 });
