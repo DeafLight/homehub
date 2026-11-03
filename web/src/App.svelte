@@ -3,11 +3,15 @@
   import StatusBanner from './components/StatusBanner.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
-  import { HOME_PATH, routePath } from './lib/route.ts';
+  import { sharedText } from './lib/lists.ts';
+  import { HOME_PATH, isPhoneRoute, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Home from './screens/Home.svelte';
+  import Lists from './screens/Lists.svelte';
   import Nas from './screens/Nas.svelte';
+  import Pair from './screens/Pair.svelte';
+  import Phone from './screens/Phone.svelte';
   import Weather from './screens/Weather.svelte';
   import Week from './screens/Week.svelte';
 
@@ -26,7 +30,10 @@
       onReachable: (value) => (reachable = value),
     });
     // Sans contact pendant un moment : retour à l'accueil, pour que le suivant tombe sur « Qui est là ? ».
-    const stopIdle = watchIdle(config.ui.idleTimeoutSeconds * 1000, () => router.navigate(HOME_PATH));
+    // Pas sur un téléphone, qui n'a pas d'accueil de tablette.
+    const stopIdle = watchIdle(config.ui.idleTimeoutSeconds * 1000, () => {
+      if (!isPhoneRoute(router.route)) router.navigate(HOME_PATH);
+    });
     return () => {
       stopVersion();
       stopIdle();
@@ -42,6 +49,15 @@
   <Weather back={router.route.back} />
 {:else if router.route.name === 'nas'}
   <Nas back={router.route.back} />
+{:else if router.route.name === 'lists'}
+  <Lists back={router.route.back} />
+{:else if router.route.name === 'phone'}
+  <Phone tab={router.route.tab} />
+{:else if router.route.name === 'share'}
+  <!-- Texte reçu par « Partager » (share_target du manifeste) : l'ajout s'ouvre prérempli. -->
+  <Phone tab="tasks" shared={sharedText(new URLSearchParams(location.search))} />
+{:else if router.route.name === 'pair'}
+  <Pair />
 {:else if router.route.name === 'week'}
   <!-- La page d’origine fixe les profils affichés au départ : un autre retour, une nouvelle page. -->
   {#key routePath(router.route)}

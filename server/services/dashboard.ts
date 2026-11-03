@@ -8,6 +8,7 @@ import {
   type SchoolCourse,
   type SchoolDays,
   type Task,
+  type Author,
   type WeatherForecast,
   type WeekData,
 } from '../../shared/types.ts';
@@ -28,7 +29,7 @@ export type DashboardService = {
   /** Semaine du lundi `offset` semaines après la semaine en cours (0 à WEEKS_AHEAD, vérifié par l'appelant). */
   week(offset: number): Promise<WeekData>;
   /** null si le profil ou la tâche n'existe pas. */
-  setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task | null>;
+  setTaskDone(ownerId: string, taskId: string, done: boolean, by?: Author): Promise<Task | null>;
 };
 
 export type DashboardServiceDeps = {
@@ -165,9 +166,9 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
       return { start: from.toISOString(), offset, owners };
     },
 
-    async setTaskDone(ownerId, taskId, done) {
+    async setTaskDone(ownerId, taskId, done, by) {
       if (!hasOwner(ownerId)) return null;
-      return sources.tasks.setDone(ownerId, taskId, done);
+      return sources.tasks.setDone(ownerId, taskId, done, by);
     },
   };
 }

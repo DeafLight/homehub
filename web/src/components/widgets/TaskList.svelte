@@ -11,7 +11,8 @@
   let { title, tasks, color, onToggle }: Props = $props();
 </script>
 
-<Card {title}>
+<!-- Le titre ouvre les listes, pour ajouter ou voir les tâches de chacun. -->
+<Card {title} link={{ to: 'lists', label: `${title} : ouvrir les listes` }}>
   {#if tasks.length === 0}
     <p class="empty">Rien à faire !</p>
   {:else}

@@ -1,3 +1,4 @@
+import { mkdtempSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,8 @@ import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
+import { createDeviceStore } from './sources/devices.ts';
+import { createListsStore } from './sources/lists.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
 
@@ -17,13 +20,17 @@ function setup(staticRoot?: string) {
   const sourceStatus = createSourceStatus(fixedClock);
   sourceStatus.record('Agenda CAL_A', new Error('HTTP 404'));
   const nas = createNasService({ nasStatus: { read: async () => null }, sourceStatus, version: '9.9.9', startedAt: NOW });
-  const app = createApp({ config, service, nas, clock: fixedClock, version: '9.9.9', staticRoot });
+  const dir = mkdtempSync(join(tmpdir(), 'homehub-app-'));
+  const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
+  const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
+  const app = createApp({ config, service, nas, lists, devices, clock: fixedClock, version: '9.9.9', staticRoot });
   return { app, config };
 }
 
-const put = (body: unknown) => ({
+/** Requête de la tablette (en test, l'adresse locale compte comme la tablette). */
+const put = (body: unknown, address = '127.0.0.1') => ({
   method: 'PUT',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', 'X-Real-IP': address },
   body: JSON.stringify(body),
 });
 
@@ -107,6 +114,8 @@ describe('API', () => {
     const { app } = setup();
     expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: 'oui' }))).status).toBe(400);
     expect((await app.request('/api/dashboard/alex/tasks/absente', put({ done: true }))).status).toBe(404);
+    // Autre appareil du réseau, non appairé : lecture seule.
+    expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }, '192.168.1.20'))).status).toBe(403);
   });
 
   it('route API inconnue : 404 en JSON', async () => {

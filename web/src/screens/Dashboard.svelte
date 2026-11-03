@@ -35,7 +35,7 @@
     if (!data) return;
     dashboard.set({ ...data, tasks: data.tasks.map((t) => (t.id === task.id ? { ...t, done } : t)) });
     try {
-      await api.setTaskDone(ownerId, task.id, done);
+      await api.setTaskDone(ownerId, task.id, done, ownerId);
     } catch {
       await dashboard.refresh();
     }

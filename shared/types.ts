@@ -228,3 +228,56 @@ export type NasData = {
   sources: SourceState[];
   homehub: { version: string; startedAt: string };
 };
+
+/** Qui a fait un ajout ou coché un élément : la tablette (profil ouvert, s'il y en a un) ou un téléphone appairé. */
+export type Author = { ownerId: string | null; via: 'tablet' | 'phone' };
+
+/** Article de la liste de courses. Coché : « dans le panier », jusqu'à « Vider ». */
+export type ShoppingItem = {
+  id: string;
+  label: string;
+  done: boolean;
+  addedBy: Author;
+  addedAt: string;
+  doneBy?: Author;
+  doneAt?: string;
+};
+
+export type Repeat = { every: number; unit: 'day' | 'week' };
+
+/** Tâche de la famille, pour un membre ou pour FAMILY_ID. */
+export type ListTask = {
+  id: string;
+  label: string;
+  ownerId: string;
+  /** Échéance, jour local AAAA-MM-JJ ; null : sans date. */
+  due: string | null;
+  /** Tâche qui revient : une fois faite, la suivante est créée à la prochaine échéance. */
+  repeat: Repeat | null;
+  done: boolean;
+  addedBy: Author;
+  addedAt: string;
+  doneBy?: Author;
+  doneAt?: string;
+};
+
+/** Listes de la famille : ce qui est à faire, et ce qui a été fait aujourd'hui. */
+export type Lists = {
+  shopping: ShoppingItem[];
+  tasks: ListTask[];
+  /** Articles souvent achetés et absents de la liste, du plus fréquent au moins fréquent. */
+  frequent: string[];
+};
+
+/** Téléphone appairé : il agit au nom d'un seul profil. */
+export type Device = { id: string; ownerId: string; name: string; pairedAt: string; lastSeenAt: string };
+
+/** Ce que peut faire l'appareil qui appelle l'API. */
+export type Me = {
+  /** Tablette de la maison (adresse listée dans la configuration) : peut modifier les listes et appairer. */
+  kiosk: boolean;
+  /** Téléphone appairé, ou null. */
+  device: Device | null;
+};
+
+export type PairingCode = { code: string; ownerId: string; expiresAt: string };

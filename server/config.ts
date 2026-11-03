@@ -37,6 +37,11 @@ export const configSchema = z.object({
   pronote: z
     .object({ refreshMinutes: z.number().int().min(15).max(1440).default(60) })
     .default({ refreshMinutes: 60 }),
+  /**
+   * Tablette de la maison : adresses IP (vues par HomeHub derrière le proxy) qui peuvent modifier les listes et
+   * appairer des téléphones sans jeton. Les autres appareils lisent seulement, sauf les téléphones appairés.
+   */
+  kiosk: z.object({ addresses: z.array(z.union([z.ipv4(), z.ipv6()])).default([]) }).default({ addresses: [] }),
   ui: z
     .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
     .default({ idleTimeoutSeconds: 180 }),

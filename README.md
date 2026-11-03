@@ -16,6 +16,15 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 - **Le NAS** (`/nas`) : ouvert en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
+- **Listes** (`/listes`) : courses et tâches de la famille, ouvertes depuis « Mes tâches » ou « Liste de courses ».
+  Courses : saisie rapide, articles fréquents en un geste, articles cochés « dans le panier » jusqu'à « Vider ».
+  Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
+  personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
+  courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom du profil d'origine.
+- **Téléphones** (onglet de `/listes`, tablette seulement) : on choisit le profil, le téléphone scanne le QR code
+  (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches`, `/m/agenda`
+  (7 prochains jours, soi et la famille). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
+  ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -71,6 +80,8 @@ family:
   calendars: [CAL_FAMILLE]
 ui:
   idleTimeoutSeconds: 180
+kiosk:
+  addresses: [192.168.1.50]   # adresse fixe de la tablette : seule à modifier les listes sans téléphone relié
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -84,7 +95,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), téléphones reliés (`devices.json`) |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
 ## Architecture
@@ -107,6 +118,10 @@ server/
   sources/source-status.ts dernier résultat de chaque source (page NAS)
   sources/nas-status.ts    relevé du NAS (nas-status.json, écrit par une tâche cron du NAS)
   services/nas.ts          page NAS : relevé, état des sources, version
+  sources/lists.ts         courses et tâches (lists.json), tâches qui reviennent, articles fréquents
+  sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
+  access.ts                qui écrit : la tablette (kiosk.addresses), un téléphone relié (jeton), sinon personne
+  lists-api.ts             routes des listes, de l'appairage et des téléphones
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
   App.svelte               choix de l'écran, retour à l'accueil, surveillance de version
@@ -129,7 +144,20 @@ web/src/
 | `GET /api/home` | météo, résumé de chaque profil, prochain événement familial |
 | `GET /api/dashboard/:id` | dashboard d'un membre ou de `famille` (404 si inconnu) |
 | `GET /api/nas` | relevé du NAS (`null` s'il est absent), état des sources, version et démarrage de HomeHub |
-| `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour |
+| `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true, "by"? }` → la tâche mise à jour (écriture) |
+| `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
+| `GET /api/lists` | `{ shopping, tasks, frequent }` |
+| `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
+| `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
+| `POST /api/pairing` | `{ ownerId }` → code d'appairage (tablette seulement) |
+| `POST /api/pairing/claim` | `{ code, name }` → `{ token, device }` (410 si le code a expiré ou a servi) |
+| `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) |
+
+**Écriture** : la tablette est reconnue à son adresse (`kiosk.addresses`, lue dans `X-Real-IP` posé par le proxy ;
+`127.0.0.1` compte toujours comme tablette, pour le développement), un téléphone relié à son jeton
+(`Authorization: Bearer`). Tout autre appareil lit sans écrire (403). Le `by` envoyé par la tablette dit au nom de
+quel profil elle agit ; un téléphone agit toujours au nom du sien. Les icônes de la PWA se régénèrent avec
+`node scripts/make-icons.ts`.
 
 ## Développement
 

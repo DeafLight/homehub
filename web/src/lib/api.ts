@@ -1,10 +1,18 @@
-// Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests.
+// Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `token` : jeton du téléphone appairé,
+// envoyé avec chaque requête (aucun sur la tablette).
 import type {
   DashboardData,
+  Device,
   Health,
   HomeData,
+  Lists,
+  ListTask,
+  Me,
   NasData,
+  PairingCode,
   PublicConfig,
+  Repeat,
+  ShoppingItem,
   Task,
   WeatherForecast,
   WeekData,
@@ -28,18 +36,46 @@ export type Api = {
   weather(): Promise<{ forecast: WeatherForecast | null }>;
   week(offset: number): Promise<WeekData>;
   nas(): Promise<NasData>;
-  setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task>;
+  /** `by` : profil ouvert sur la tablette (ignoré pour un téléphone, qui agit au nom du sien). */
+  setTaskDone(ownerId: string, taskId: string, done: boolean, by?: string | null): Promise<Task>;
+  me(): Promise<Me>;
+  lists(): Promise<Lists>;
+  addShopping(label: string, by?: string | null): Promise<ShoppingItem>;
+  setShoppingDone(id: string, done: boolean, by?: string | null): Promise<ShoppingItem>;
+  removeShopping(id: string): Promise<void>;
+  clearShopping(): Promise<void>;
+  addTask(task: NewTask, by?: string | null): Promise<ListTask>;
+  setListTaskDone(id: string, done: boolean, by?: string | null): Promise<ListTask>;
+  removeTask(id: string): Promise<void>;
+  createPairing(ownerId: string): Promise<PairingCode>;
+  claimPairing(code: string, name: string): Promise<{ token: string; device: Device }>;
+  devices(): Promise<Device[]>;
+  removeDevice(id: string): Promise<void>;
 };
 
-export function createApi(fetchFn: typeof fetch = (...args) => fetch(...args), baseUrl = '/api'): Api {
+export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
+
+export function createApi(
+  fetchFn: typeof fetch = (...args) => fetch(...args),
+  baseUrl = '/api',
+  token: () => string | null = () => null,
+): Api {
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetchFn(`${baseUrl}${path}`, init);
+    const auth = token();
+    const res = await fetchFn(`${baseUrl}${path}`, auth ? { ...init, headers: { ...init?.headers, Authorization: `Bearer ${auth}` } } : init);
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new ApiError(res.status, body?.error ?? `HTTP ${res.status}`);
     }
+    if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
   }
+
+  const send = <T>(method: string, path: string, body?: unknown) =>
+    request<T>(path, {
+      method,
+      ...(body !== undefined && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+    });
 
   const ownerPath = (ownerId: string) => `/dashboard/${encodeURIComponent(ownerId)}`;
 
@@ -51,11 +87,19 @@ export function createApi(fetchFn: typeof fetch = (...args) => fetch(...args), b
     weather: () => request('/weather'),
     week: (offset) => request(`/week?offset=${offset}`),
     nas: () => request('/nas'),
-    setTaskDone: (ownerId, taskId, done) =>
-      request(`${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ done }),
-      }),
+    setTaskDone: (ownerId, taskId, done, by) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done, by }),
+    me: () => request('/me'),
+    lists: () => request('/lists'),
+    addShopping: (label, by) => send('POST', '/lists/shopping', { label, by }),
+    setShoppingDone: (id, done, by) => send('PUT', `/lists/shopping/${encodeURIComponent(id)}`, { done, by }),
+    removeShopping: (id) => send('DELETE', `/lists/shopping/${encodeURIComponent(id)}`),
+    clearShopping: () => send('POST', '/lists/shopping/clear'),
+    addTask: (task, by) => send('POST', '/lists/tasks', { ...task, by }),
+    setListTaskDone: (id, done, by) => send('PUT', `/lists/tasks/${encodeURIComponent(id)}`, { done, by }),
+    removeTask: (id) => send('DELETE', `/lists/tasks/${encodeURIComponent(id)}`),
+    createPairing: (ownerId) => send('POST', '/pairing', { ownerId }),
+    claimPairing: (code, name) => send('POST', '/pairing/claim', { code, name }),
+    devices: () => request('/devices'),
+    removeDevice: (id) => send('DELETE', `/devices/${encodeURIComponent(id)}`),
   };
 }

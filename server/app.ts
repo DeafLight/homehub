@@ -3,28 +3,34 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { type Health, WEEKS_AHEAD } from '../shared/types.ts';
+import { authorOf, identify } from './access.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
+import { createListsApi } from './lists-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import type { NasService } from './services/nas.ts';
+import type { DeviceStore } from './sources/devices.ts';
+import type { ListsStore } from './sources/lists.ts';
 import type { Clock } from './sources/types.ts';
 
 export type AppDeps = {
   config: ConfigStore;
   service: DashboardService;
   nas: NasService;
+  lists: ListsStore;
+  devices: DeviceStore;
   clock: Clock;
   version: string;
   /** Dossier du front compilé ; absent en test et en dev (Vite sert le front). */
   staticRoot?: string;
 };
 
-const taskUpdateSchema = z.object({ done: z.boolean() });
+const taskUpdateSchema = z.object({ done: z.boolean(), by: z.string().nullish() });
 const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
-export function createApp({ config, service, nas, clock, version, staticRoot }: AppDeps): Hono {
+export function createApp({ config, service, nas, lists, devices, clock, version, staticRoot }: AppDeps): Hono {
   const app = new Hono();
   const api = new Hono();
 
@@ -54,9 +60,13 @@ export function createApp({ config, service, nas, clock, version, staticRoot }: 
   api.put('/dashboard/:ownerId/tasks/:taskId', async (c) => {
     const body = taskUpdateSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'Corps attendu : { "done": true|false }' }, 400);
-    const task = await service.setTaskDone(c.req.param('ownerId'), c.req.param('taskId'), body.data.done);
+    const author = authorOf(await identify(c, devices, config.current().kiosk.addresses), body.data.by);
+    if (!author) return c.json({ error: 'Lecture seule : appareil non appairé' }, 403);
+    const task = await service.setTaskDone(c.req.param('ownerId'), c.req.param('taskId'), body.data.done, author);
     return task ? c.json(task) : c.json({ error: 'Tâche inconnue' }, 404);
   });
+
+  api.route('/', createListsApi({ config, lists, devices }));
 
   app.route('/api', api);
   // Avant le front : une route d'API inconnue ne doit pas renvoyer index.html.

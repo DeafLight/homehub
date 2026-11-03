@@ -1,5 +1,5 @@
 // Point d'entrée : lit l'environnement, assemble les dépendances et démarre le serveur.
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { FAMILY_ID } from '../shared/types.ts';
@@ -10,6 +10,8 @@ import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
+import { createDeviceStore } from './sources/devices.ts';
+import { createListsStore, listsTaskSource } from './sources/lists.ts';
 import { createNasStatusSource } from './sources/nas-status.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
@@ -21,10 +23,11 @@ const { version } = JSON.parse(readFileSync(new URL('../package.json', import.me
 const port = Number(process.env.PORT ?? 3000);
 const configPath = process.env.HOMEHUB_CONFIG ?? 'config/homehub.yaml';
 const staticRoot = process.env.HOMEHUB_STATIC_ROOT ?? './web/dist';
-/** Dossier inscriptible pour ce que HomeHub doit retenir (jeton Pronote). */
+/** Dossier inscriptible pour ce que HomeHub doit retenir (jeton Pronote, listes, téléphones appairés). */
 const stateDir = process.env.HOMEHUB_STATE_DIR ?? 'state';
 /** Relevé du NAS écrit par la tâche cron nas-status.sh (nas-config), à côté de la configuration. */
 const nasStatusPath = process.env.HOMEHUB_NAS_STATUS ?? join(dirname(configPath), 'nas-status.json');
+mkdirSync(stateDir, { recursive: true });
 
 // Au démarrage, une configuration invalide est fatale ; ensuite, elle est rechargée à chaud (voir config-store.ts).
 let initialConfig;
@@ -60,8 +63,11 @@ const ical = createIcalAgendaSource({
   logger: console,
   status: sourceStatus,
 });
+const lists = createListsStore({ path: join(stateDir, 'lists.json'), clock });
+const devices = createDeviceStore({ path: join(stateDir, 'devices.json'), clock });
 const sources: Sources = {
   ...sample,
+  tasks: listsTaskSource(lists, FAMILY_ID),
   // Agenda d'exemple tant qu'aucun agenda n'est configuré (développement, première installation).
   agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sample.agenda).eventsFor(...args) },
   weather: createOpenMeteoWeatherSource({
@@ -98,7 +104,7 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, devices, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
