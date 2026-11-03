@@ -13,7 +13,7 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 - **Météo détaillée** (`/meteo`) : ouverte en touchant n'importe quel affichage météo ; conditions actuelles
   (ressenti, vent, humidité, soleil), courbe des 24 prochaines heures avec la pluie, et 4 jours. Le bouton retour
   ramène à la page d'origine (`/meteo/p/<id>` quand elle est ouverte depuis un profil).
-- **Le NAS** (`/nas`) : ouvert en touchant la version de HomeHub sur l'accueil ; état général, processeur,
+- **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
 - **Listes** (`/listes`) : courses et tâches de la famille, ouvertes depuis « Mes tâches » ou « Liste de courses ».
@@ -21,7 +21,7 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
   personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom du profil d'origine.
-- **Téléphones** (onglet de `/listes`, tablette seulement) : on choisit le profil, le téléphone scanne le QR code
+- **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches`, `/m/agenda`
   (7 prochains jours, soi et la famille). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.

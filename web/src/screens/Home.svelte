@@ -3,6 +3,7 @@
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
   import DetailLink from '../components/DetailLink.svelte';
+  import SettingsMenu from '../components/SettingsMenu.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { eventLine, formatLongDate, formatTime, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -90,6 +91,7 @@
         <Icon name="chevron" size={32} color="var(--fg-muted)" strokeWidth={2} />
       </button>
     {/each}
+    <div class="settings"><SettingsMenu placement="above" size={72} /></div>
   </section>
 </div>
 
@@ -234,5 +236,12 @@
   .name {
     font-size: 1.75rem;
     font-weight: 600;
+  }
+
+  .settings {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+    padding-top: 8px;
   }
 </style>

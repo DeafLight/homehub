@@ -12,6 +12,7 @@
   import Nas from './screens/Nas.svelte';
   import Pair from './screens/Pair.svelte';
   import Phone from './screens/Phone.svelte';
+  import Phones from './screens/Phones.svelte';
   import Weather from './screens/Weather.svelte';
   import Week from './screens/Week.svelte';
 
@@ -51,6 +52,8 @@
   <Nas back={router.route.back} />
 {:else if router.route.name === 'lists'}
   <Lists back={router.route.back} />
+{:else if router.route.name === 'phones'}
+  <Phones back={router.route.back} />
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}

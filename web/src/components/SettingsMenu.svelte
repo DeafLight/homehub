@@ -1,0 +1,132 @@
+<script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { getAppContext } from '../lib/context.ts';
+  import { createResource } from '../lib/resource.svelte.ts';
+  import { type DetailName, detailPath } from '../lib/route.ts';
+  import Icon from './Icon.svelte';
+
+  // Roue dentée de la tablette : pages d'administration, rarement utiles (téléphones reliés, état du NAS).
+  // Absente sur tout autre appareil. Le menu s'ouvre au-dessus du bouton (accueil) ou à sa droite (rail) ; il est
+  // placé par rapport à l'écran, car le rail fait défiler (et rognerait) ce qu'il contient.
+  type Props = { placement: 'above' | 'side'; size: number };
+  let { placement, size }: Props = $props();
+
+  const GAP = 12;
+
+  const { api, router, navigate } = getAppContext();
+  const me = createResource(() => api.me(), 5 * 60_000);
+  onDestroy(me.destroy);
+
+  let button = $state<HTMLButtonElement>();
+  let position = $state<string | null>(null);
+
+  function toggle() {
+    if (position || !button) {
+      position = null;
+      return;
+    }
+    const rect = button.getBoundingClientRect();
+    position =
+      placement === 'above'
+        ? `right: ${innerWidth - rect.right}px; bottom: ${innerHeight - rect.top + GAP}px`
+        : `left: ${rect.right + GAP}px; bottom: ${innerHeight - rect.bottom}px`;
+  }
+
+  function go(name: DetailName) {
+    position = null;
+    navigate(detailPath(name, router.route));
+  }
+</script>
+
+{#if me.data?.kiosk}
+  <button
+    bind:this={button}
+    class="gear"
+    class:open={position}
+    type="button"
+    aria-label="Réglages"
+    aria-expanded={position !== null}
+    style:width="{size}px"
+    style:height="{size}px"
+    onclick={toggle}
+  >
+    <Icon name="settings" size={Math.round(size * 0.5)} />
+  </button>
+
+  {#if position}
+    <div class="backdrop" role="presentation" onclick={() => (position = null)}></div>
+    <div class="menu" role="menu" style={position}>
+      <button type="button" role="menuitem" onclick={() => go('phones')}><Icon name="phone" size={28} /> Téléphones</button>
+      <button type="button" role="menuitem" onclick={() => go('nas')}><Icon name="server" size={28} /> État du NAS</button>
+      <div class="version">HomeHub v{__APP_VERSION__}</div>
+    </div>
+  {/if}
+{/if}
+
+<style>
+  button {
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .gear {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    padding: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    color: var(--fg-muted);
+  }
+
+  .gear.open,
+  .gear:active {
+    background: var(--border-strong);
+    color: var(--fg);
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+
+  .menu {
+    position: fixed;
+    z-index: 11;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    padding: 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+  }
+
+  .menu button {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 64px;
+    padding: 0 18px;
+    border-radius: 16px;
+    font-size: 1.3rem;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .menu button:active {
+    background: var(--border-strong);
+  }
+
+  .version {
+    margin: 6px 8px 0;
+    padding: 12px 10px 4px;
+    border-top: 1px solid var(--border-strong);
+    font-size: 1rem;
+    color: var(--fg-muted);
+  }
+</style>

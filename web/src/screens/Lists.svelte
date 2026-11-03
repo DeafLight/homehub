@@ -4,7 +4,6 @@
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
-  import PhonesPanel from '../components/PhonesPanel.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
   import { getAppContext } from '../lib/context.ts';
@@ -15,7 +14,7 @@
   const LISTS_REFRESH_MS = 10_000;
 
   // Courses et tâches de la famille sur la tablette, ouvertes depuis un dashboard ou l'accueil : ce qui est coché ou
-  // ajouté l'est au nom du profil d'origine. L'onglet « Téléphones » relie les téléphones de la famille.
+  // ajouté l'est au nom du profil d'origine.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -31,7 +30,6 @@
   /** Écriture réservée à la tablette (et aux téléphones reliés) : ailleurs, les listes sont en lecture seule. */
   const readOnly = $derived(me.data !== null && !me.data.kiosk && !me.data.device);
 
-  let view = $state<'lists' | 'phones'>('lists');
   let filter = $state<string | null>(untrack(() => (origin !== FAMILY_ID ? origin : null)));
   let adding = $state(false);
 
@@ -46,25 +44,14 @@
   <header>
     <BackButton {back} />
     <h1>Listes</h1>
-    {#if me.data?.kiosk}
-      <div class="tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={view === 'lists'} class:on={view === 'lists'} onclick={() => (view = 'lists')}>
-          <Icon name="list" size={24} /> Listes
-        </button>
-        <button type="button" role="tab" aria-selected={view === 'phones'} class:on={view === 'phones'} onclick={() => (view = 'phones')}>
-          <Icon name="phone" size={24} /> Téléphones
-        </button>
-      </div>
-    {:else if readOnly}
+    {#if readOnly}
       <span class="muted readonly">Lecture seule sur cet appareil</span>
     {/if}
   </header>
 
   {#if lists.actionError}<p class="error">{lists.actionError}</p>{/if}
 
-  {#if view === 'phones'}
-    <PhonesPanel />
-  {:else if lists.data}
+  {#if lists.data}
     {@const data = lists.data}
     <div class="columns">
       <section class="card">
@@ -142,35 +129,6 @@
     margin: 0;
     font-size: 2.5rem;
     font-weight: 600;
-  }
-
-  .tabs {
-    display: flex;
-    gap: 6px;
-    margin-left: auto;
-    padding: 5px;
-    border-radius: 999px;
-    background: var(--surface);
-  }
-
-  .tabs button {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 56px;
-    padding: 0 24px;
-    border: 0;
-    border-radius: 999px;
-    background: none;
-    color: var(--fg-muted);
-    font: inherit;
-    font-size: 1.2rem;
-    font-weight: 600;
-  }
-
-  .tabs button.on {
-    background: var(--surface-2);
-    color: var(--fg);
   }
 
   .readonly {

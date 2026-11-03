@@ -4,8 +4,9 @@
   import { dashboardPath, HOME_PATH } from '../lib/route.ts';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
+  import SettingsMenu from './SettingsMenu.svelte';
 
-  // Rail latéral : retour à l'accueil, et passage direct d'un profil à l'autre.
+  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, et roue dentée (tablette seulement).
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
@@ -30,6 +31,7 @@
       <Avatar {profile} size={64} dimmed={!current} />
     </button>
   {/each}
+  <div class="settings"><SettingsMenu placement="side" size={64} /></div>
   <div class="time">{formatTime(clock.now)}</div>
 </nav>
 
@@ -90,9 +92,12 @@
     box-sizing: border-box;
   }
 
-  .time {
+  .settings {
     margin-top: auto;
     padding-top: 8px;
+  }
+
+  .time {
     font-size: 1.6rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
