@@ -7,7 +7,7 @@ import { createConfigStore } from './config-store.ts';
 import { createListsApi } from './lists-api.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore } from './sources/lists.ts';
-import { createPinStore, MAX_PIN_FAILURES } from './sources/pins.ts';
+import { createPinStore, MAX_PIN_FAILURES, PARENT_PIN_ID } from './sources/pins.ts';
 import { fixedClock } from './testing.ts';
 
 const TABLET = '192.168.1.50';
@@ -111,7 +111,7 @@ describe('API des listes', () => {
     await pins.set('alex', '4821');
     const pair = (pin?: string) => call('POST', '/pairing', { key: KEY, body: { ownerId: 'alex', pin } });
 
-    expect(await (await call('GET', '/pairing/pins', { key: KEY })).json()).toEqual({ protected: ['alex'] });
+    expect(await (await call('GET', '/pairing/pins', { key: KEY })).json()).toEqual({ protected: ['alex'], parent: false });
     expect((await call('GET', '/pairing/pins')).status).toBe(403);
     expect((await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).status).toBe(201);
     expect((await pair()).status).toBe(403);
@@ -124,5 +124,32 @@ describe('API des listes', () => {
     expect((await locked.json()).error).toMatch(/15 min/);
     // Même le bon PIN est refusé pendant le blocage.
     expect((await pair('4821')).status).toBe(429);
+  });
+
+  it('retirer un téléphone : PIN du propriétaire ou code parent, quand l’un d’eux est défini', async () => {
+    const { call, pins } = setup();
+    const link = async (ownerId: string) => {
+      const { code } = await (await call('POST', '/pairing', { key: KEY, body: { ownerId } })).json();
+      return (await (await call('POST', '/pairing/claim', { body: { code, name: 'Pixel' } })).json()).device.id as string;
+    };
+    const remove = (id: string, pin?: string) => call('DELETE', `/devices/${id}`, { key: KEY, body: pin ? { pin } : undefined });
+
+    // Aucun code défini : retrait direct (la tablette demande seulement de confirmer).
+    expect((await remove(await link('tom'))).status).toBe(204);
+
+    const alexPhone = await link('alex');
+    const tomPhone = await link('tom');
+    const otherPhone = await link('tom');
+    await pins.set('alex', '4821');
+    await pins.set(PARENT_PIN_ID, '9753');
+    expect(await (await call('GET', '/pairing/pins', { key: KEY })).json()).toEqual({ protected: ['alex'], parent: true });
+
+    expect((await remove(alexPhone)).status).toBe(403);
+    expect((await remove(alexPhone, '1111')).status).toBe(403);
+    expect((await remove(tomPhone, '4821')).status).toBe(403); // le PIN d'Alex ne retire pas le téléphone de Tom
+    expect((await remove(alexPhone, '4821')).status).toBe(204);
+    expect((await remove(tomPhone, '9753')).status).toBe(204); // le code parent retire tous les téléphones
+    expect((await call('DELETE', `/devices/${otherPhone}`, { body: { pin: '9753' } })).status).toBe(403); // pas la tablette
+    expect((await remove('inconnu', '9753')).status).toBe(404);
   });
 });

@@ -3,19 +3,24 @@
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
 
-  // Saisie du PIN d'un profil sur la tablette, avant d'afficher le QR code qui relie un téléphone à ce profil.
-  // Les chiffres ne sont jamais affichés, seulement des points.
+  // Saisie d'un code sur la tablette : PIN d'un profil avant d'afficher le QR code qui relie un téléphone à ce profil,
+  // ou PIN du propriétaire / code parent avant de retirer un téléphone. Les chiffres ne sont jamais affichés,
+  // seulement des points.
   const MIN = 4;
   const MAX = 8;
 
   type Props = {
-    profile: Profile;
+    /** Profil concerné (absent : téléphone d'un profil disparu de la configuration). */
+    profile?: Profile;
+    /** Titre : le prénom du profil par défaut. */
+    title?: string;
+    hint?: string;
     error: string | null;
     /** Vrai si le PIN est accepté ; sinon la saisie est effacée. */
     onSubmit(pin: string): Promise<boolean>;
     onCancel(): void;
   };
-  let { profile, error, onSubmit, onCancel }: Props = $props();
+  let { profile, title = profile?.name ?? '', hint = 'Code PIN', error, onSubmit, onCancel }: Props = $props();
 
   let pin = $state('');
   let busy = $state(false);
@@ -38,9 +43,9 @@
 </script>
 
 <div class="pin">
-  <Avatar {profile} size={64} />
-  <h2>{profile.name}</h2>
-  <span class="hint">Code PIN</span>
+  {#if profile}<Avatar {profile} size={64} />{/if}
+  <h2>{title}</h2>
+  <span class="hint">{hint}</span>
   <div class="dots" aria-label="{pin.length} chiffres saisis">
     {#each { length: Math.max(MIN, pin.length) }, i (i)}
       <span class="dot" class:filled={i < pin.length}></span>

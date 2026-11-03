@@ -37,7 +37,7 @@ describe('clé de la tablette', () => {
   });
 
   it('envoyée avec chaque requête', async () => {
-    const fetchFn = vi.fn(async () => Response.json({ protected: [] }));
+    const fetchFn = vi.fn(async () => Response.json({ protected: [], parent: false }));
     await createApi(fetchFn, '/api', () => ({ kioskKey: 'cle-secrete' })).pairingPins();
     expect(fetchFn).toHaveBeenCalledWith('/api/pairing/pins', { headers: { 'X-Kiosk-Key': 'cle-secrete' } });
   });

@@ -1,6 +1,6 @@
 // Routes des listes (courses, tâches) et de l'appairage des téléphones. Lecture ouverte comme le reste de l'API ;
 // écriture réservée à la tablette et aux téléphones appairés ; appairage et gestion des téléphones : tablette seule,
-// avec le PIN du profil quand il en a un.
+// avec le PIN du profil quand il en a un (pour retirer un téléphone : ce PIN ou le code parent).
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { FAMILY_ID, type Me } from '../shared/types.ts';
@@ -8,7 +8,7 @@ import { authorOf, type Caller, identify, kioskKeyMatcher } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
-import type { PinStore } from './sources/pins.ts';
+import { PARENT_PIN_ID, type PinStore } from './sources/pins.ts';
 
 export type ListsApiDeps = { config: ConfigStore; lists: ListsStore; devices: DeviceStore; pins: PinStore; kioskKey?: string };
 
@@ -25,7 +25,9 @@ const taskSchema = z.object({
   repeat: z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['day', 'week']) }).nullable().default(null),
   by,
 });
-const pairingSchema = z.object({ ownerId: z.string(), pin: z.string().max(20).optional() });
+const pin = z.string().max(20).optional();
+const pairingSchema = z.object({ ownerId: z.string(), pin });
+const removeSchema = z.object({ pin }).nullable();
 const claimSchema = z.object({ code: z.string().min(1).max(100), name: z.string().trim().min(1).max(60) });
 
 const body = async (c: Context) => c.req.json().catch(() => null);
@@ -113,10 +115,25 @@ export function createListsApi({ config, lists, devices, pins, kioskKey }: Lists
   const kioskOnly = async (c: Context) =>
     (await caller(c)).kiosk ? null : c.json({ error: 'Réservé à la tablette de la maison' }, 403);
 
-  /** Profils protégés par un PIN : la tablette le demande avant d'afficher leur QR code. */
+  /** Vérifie `pin` contre l'un des codes `ids` (aucun : rien à vérifier) ; renvoie la réponse d'erreur, ou null. */
+  async function pinDenied(c: Context, ids: string[], pin: string | undefined) {
+    if (ids.length === 0) return null;
+    if (!pin) return c.json({ error: 'Code PIN requis' }, 403);
+    const check = await pins.check(ids, pin);
+    if (check.ok) return null;
+    if (check.reason === 'locked') {
+      const minutes = Math.max(1, Math.ceil(check.waitMs / 60_000));
+      return c.json({ error: `Trop d’essais : réessaie dans ${minutes} min` }, 429);
+    }
+    return c.json({ error: 'Code PIN incorrect' }, 403);
+  }
+
+  /** Profils protégés par un PIN (la tablette le demande avant d'afficher leur QR code), et code parent défini. */
   api.get('/pairing/pins', async (c) => {
     const denied = await kioskOnly(c);
-    return denied ?? c.json({ protected: await pins.protectedIds() });
+    if (denied) return denied;
+    const ids = await pins.protectedIds();
+    return c.json({ protected: ids.filter((id) => id !== PARENT_PIN_ID), parent: ids.includes(PARENT_PIN_ID) });
   });
 
   api.post('/pairing', async (c) => {
@@ -126,17 +143,10 @@ export function createListsApi({ config, lists, devices, pins, kioskKey }: Lists
     if (!input.success || !config.current().members.some((m) => m.id === input.data.ownerId)) {
       return c.json({ error: 'Profil inconnu' }, 400);
     }
-    const { ownerId, pin } = input.data;
-    if ((await pins.protectedIds()).includes(ownerId)) {
-      if (!pin) return c.json({ error: 'Code PIN requis' }, 403);
-      const check = await pins.check(ownerId, pin);
-      if (!check.ok && check.reason === 'locked') {
-        const minutes = Math.max(1, Math.ceil(check.waitMs / 60_000));
-        return c.json({ error: `Trop d’essais : réessaie dans ${minutes} min` }, 429);
-      }
-      if (!check.ok) return c.json({ error: 'Code PIN incorrect' }, 403);
-    }
-    return c.json(devices.createCode(ownerId), 201);
+    const { ownerId } = input.data;
+    const protectedIds = await pins.protectedIds();
+    const pinError = await pinDenied(c, protectedIds.includes(ownerId) ? [ownerId] : [], input.data.pin);
+    return pinError ?? c.json(devices.createCode(ownerId), 201);
   });
 
   api.post('/pairing/claim', async (c) => {
@@ -154,7 +164,16 @@ export function createListsApi({ config, lists, devices, pins, kioskKey }: Lists
   api.delete('/devices/:id', async (c) => {
     const denied = await kioskOnly(c);
     if (denied) return denied;
-    return (await devices.remove(c.req.param('id'))) ? c.body(null, 204) : c.json({ error: 'Téléphone inconnu' }, 404);
+    const device = (await devices.list()).find((d) => d.id === c.req.param('id'));
+    if (!device) return c.json({ error: 'Téléphone inconnu' }, 404);
+    const input = removeSchema.safeParse(await body(c));
+    // Le PIN du propriétaire ou le code parent, quand l'un d'eux est défini.
+    const protectedIds = await pins.protectedIds();
+    const ids = [device.ownerId, PARENT_PIN_ID].filter((id) => protectedIds.includes(id));
+    const pinError = await pinDenied(c, ids, input.success ? input.data?.pin : undefined);
+    if (pinError) return pinError;
+    await devices.remove(device.id);
+    return c.body(null, 204);
   });
 
   return api;

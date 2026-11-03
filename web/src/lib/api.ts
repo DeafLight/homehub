@@ -47,12 +47,13 @@ export type Api = {
   addTask(task: NewTask, by?: string | null): Promise<ListTask>;
   setListTaskDone(id: string, done: boolean, by?: string | null): Promise<ListTask>;
   removeTask(id: string): Promise<void>;
-  /** Profils dont la tablette doit demander le PIN avant d'afficher le QR code. */
-  pairingPins(): Promise<{ protected: string[] }>;
+  /** Profils dont la tablette doit demander le PIN avant d'afficher le QR code ; code parent défini. */
+  pairingPins(): Promise<{ protected: string[]; parent: boolean }>;
   createPairing(ownerId: string, pin?: string): Promise<PairingCode>;
   claimPairing(code: string, name: string): Promise<{ token: string; device: Device }>;
   devices(): Promise<Device[]>;
-  removeDevice(id: string): Promise<void>;
+  /** `pin` : celui du propriétaire ou le code parent, quand l'un d'eux est défini. */
+  removeDevice(id: string, pin?: string): Promise<void>;
 };
 
 export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
@@ -106,6 +107,6 @@ export function createApi(
     createPairing: (ownerId, pin) => send('POST', '/pairing', { ownerId, pin }),
     claimPairing: (code, name) => send('POST', '/pairing/claim', { code, name }),
     devices: () => request('/devices'),
-    removeDevice: (id) => send('DELETE', `/devices/${encodeURIComponent(id)}`),
+    removeDevice: (id, pin) => send('DELETE', `/devices/${encodeURIComponent(id)}`, pin ? { pin } : undefined),
   };
 }

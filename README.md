@@ -25,9 +25,11 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches`, `/m/agenda`
   (7 prochains jours, soi et la famille). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
-  Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code (5 erreurs : bloqué
-  15 min) ; on le définit sur le serveur : `node scripts/set-pin.ts <profil>` (dans le conteneur :
+  Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code et avant de retirer un
+  de ses téléphones (5 erreurs : bloqué 15 min). Un **code parent** retire n'importe quel téléphone. On les définit
+  sur le serveur : `node scripts/set-pin.ts <profil>` ou `--parent` (dans le conteneur :
   `docker exec -it homehub node scripts/set-pin.ts <profil>`, `--supprimer` pour l'enlever, sans argument : la liste).
+  Sans aucun code défini, le retrait se confirme d'un second geste.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -153,10 +155,10 @@ web/src/
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |
 | `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
 | `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
-| `GET /api/pairing/pins` | `{ protected }` : profils qui ont un PIN (tablette seulement) |
+| `GET /api/pairing/pins` | `{ protected, parent }` : profils qui ont un PIN, code parent défini (tablette seulement) |
 | `POST /api/pairing` | `{ ownerId, pin? }` → code d'appairage (tablette seulement ; 403 si le PIN manque ou est faux, 429 si bloqué) |
 | `POST /api/pairing/claim` | `{ code, name }` → `{ token, device }` (410 si le code a expiré ou a servi) |
-| `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) |
+| `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) ; retrait : `{ pin }`, PIN du propriétaire ou code parent s'il en existe un |
 
 **Écriture** : la tablette est reconnue à sa clé (`HOMEHUB_KIOSK_KEY`, lue une fois dans `#key=…` puis envoyée dans
 l'en-tête `X-Kiosk-Key` ; placée après `#`, elle n'apparaît jamais dans les journaux du proxy) ou à son adresse

@@ -13,7 +13,8 @@
 
   // Téléphones de la famille (tablette seulement) : on choisit d'abord le profil, puis le téléphone scanne le code,
   // qui le lie à ce profil seul. Le code ne sert qu'une fois et expire au bout de 5 minutes. Un profil qui a un PIN
-  // (scripts/set-pin.ts) le demande avant d'afficher son code.
+  // (scripts/set-pin.ts) le demande avant d'afficher son code, et avant de retirer un de ses téléphones (le code
+  // parent est accepté aussi). Sans aucun code à demander, le retrait se confirme d'un second geste.
   const DEVICES_REFRESH_MS = 15_000;
   const PAIRING_REFRESH_MS = 2_000;
 
@@ -26,8 +27,10 @@
   /** Téléphone appairé pendant que le code était affiché. */
   let paired = $state<Device | null>(null);
   let confirmRemove = $state<string | null>(null);
-  /** Profil dont on saisit le PIN. */
+  /** Profil dont on saisit le PIN pour relier un téléphone. */
   let asking = $state<Profile | null>(null);
+  /** Téléphone à retirer, en attendant son code. */
+  let removing = $state<Device | null>(null);
   let pinError = $state<string | null>(null);
   let known = new Set<string>();
 
@@ -47,6 +50,7 @@
     pins.destroy();
   });
   const hasPin = (id: string) => pins.data?.protected.includes(id) ?? false;
+  const hasParent = $derived(pins.data?.parent ?? false);
 
   // Pendant que le code est affiché, on guette le téléphone plus souvent.
   $effect(() => {
@@ -66,6 +70,7 @@
   function choose(profile: Profile) {
     pairingError = null;
     paired = null;
+    removing = null;
     if (hasPin(profile.id)) {
       pinError = null;
       asking = profile;
@@ -88,23 +93,50 @@
     }
   }
 
-  async function remove(device: Device) {
-    if (confirmRemove !== device.id) {
+  function askRemove(device: Device) {
+    if (hasPin(device.ownerId) || hasParent) {
+      asking = null;
+      pinError = null;
+      removing = device;
+    } else if (confirmRemove !== device.id) {
       confirmRemove = device.id;
-      return;
+    } else {
+      confirmRemove = null;
+      void remove(device);
     }
-    confirmRemove = null;
+  }
+
+  /** Vrai si le téléphone est retiré ; sinon l'erreur est montrée sous le code. */
+  async function remove(device: Device, pin?: string): Promise<boolean> {
     try {
-      await api.removeDevice(device.id);
+      await api.removeDevice(device.id, pin);
+      removing = null;
+      return true;
+    } catch (err) {
+      pinError = (err as Error).message;
+      return false;
     } finally {
       await devices.refresh();
     }
   }
+
+  const removeHint = (ownerId: string) =>
+    hasPin(ownerId) ? (hasParent ? 'Son PIN ou le code parent' : 'Son code PIN') : 'Code parent';
 </script>
 
 <div class="phones">
   <section class="card pair">
-    {#if asking}
+    {#if removing}
+      {@const device = removing}
+      <PinPad
+        profile={profiles.find((p) => p.id === device.ownerId)}
+        title="Retirer « {device.name} »"
+        hint={removeHint(device.ownerId)}
+        error={pinError}
+        onSubmit={(pin) => remove(device, pin)}
+        onCancel={() => (removing = null)}
+      />
+    {:else if asking}
       {@const profile = asking}
       <PinPad {profile} error={pinError} onSubmit={(pin) => start(profile.id, pin)} onCancel={() => (asking = null)} />
     {:else if pairing && !expired}
@@ -154,7 +186,7 @@
                 ).toLowerCase()}
               </span>
             </span>
-            <button type="button" class="remove" class:confirm={confirmRemove === device.id} onclick={() => remove(device)}>
+            <button type="button" class="remove" class:confirm={confirmRemove === device.id} onclick={() => askRemove(device)}>
               {confirmRemove === device.id ? 'Confirmer' : 'Retirer'}
             </button>
           </li>
