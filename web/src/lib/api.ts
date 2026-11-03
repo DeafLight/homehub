@@ -9,6 +9,7 @@ import type {
   ListTask,
   Me,
   NasData,
+  Note,
   PairingCode,
   PublicConfig,
   Repeat,
@@ -47,6 +48,10 @@ export type Api = {
   addTask(task: NewTask, by?: string | null): Promise<ListTask>;
   setListTaskDone(id: string, done: boolean, by?: string | null): Promise<ListTask>;
   removeTask(id: string): Promise<void>;
+  /** Mots des 7 derniers jours, vus ou non. `by` : sur la tablette, qui écrit (ou qui l'a vu). */
+  notes(): Promise<Note[]>;
+  addNote(to: string, text: string, by?: string | null): Promise<Note>;
+  markNoteSeen(id: string, by?: string | null): Promise<Note>;
   /** Profils dont la tablette doit demander le PIN avant d'afficher le QR code ; code parent défini. */
   pairingPins(): Promise<{ protected: string[]; parent: boolean }>;
   createPairing(ownerId: string, pin?: string): Promise<PairingCode>;
@@ -104,6 +109,9 @@ export function createApi(
     addTask: (task, by) => send('POST', '/lists/tasks', { ...task, by }),
     setListTaskDone: (id, done, by) => send('PUT', `/lists/tasks/${encodeURIComponent(id)}`, { done, by }),
     removeTask: (id) => send('DELETE', `/lists/tasks/${encodeURIComponent(id)}`),
+    notes: () => request('/notes'),
+    addNote: (to, text, by) => send('POST', '/notes', { to, text, by }),
+    markNoteSeen: (id, by) => send('PUT', `/notes/${encodeURIComponent(id)}/seen`, { by }),
     pairingPins: () => request('/pairing/pins'),
     createPairing: (ownerId, pin) => send('POST', '/pairing', { ownerId, pin }),
     claimPairing: (code, name, system) => send('POST', '/pairing/claim', { code, name, system }),

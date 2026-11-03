@@ -1,11 +1,11 @@
 // Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine, NAS,
-// listes, téléphones reliés). Sur les téléphones : l'appli (/m, /m/taches, /m/agenda), l'appairage (/appairer) et le partage (/partager).
+// listes, téléphones reliés). Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots), l'appairage (/appairer) et le partage (/partager).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
 export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones';
-export type PhoneTab = 'shopping' | 'tasks' | 'agenda';
+export type PhoneTab = 'shopping' | 'tasks' | 'agenda' | 'notes';
 export type Route =
   | PageRoute
   | { name: DetailName; back: PageRoute }
@@ -18,7 +18,7 @@ const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '
 
 export const dashboardPath = (ownerId: string) => `/p/${encodeURIComponent(ownerId)}`;
 
-const PHONE_PATHS: Record<PhoneTab, string> = { shopping: '/m', tasks: '/m/taches', agenda: '/m/agenda' };
+const PHONE_PATHS: Record<PhoneTab, string> = { shopping: '/m', tasks: '/m/taches', agenda: '/m/agenda', notes: '/m/mots' };
 export const phonePath = (tab: PhoneTab) => PHONE_PATHS[tab];
 export const PAIR_PATH = '/appairer';
 export const SHARE_PATH = '/partager';

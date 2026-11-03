@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Task } from '../../../shared/types.ts';
+  import type { Note, Task } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
+  import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
   import DetailLink from '../components/DetailLink.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
@@ -27,7 +28,26 @@
   const dashboard = createResource(() => api.dashboard(ownerId), DASHBOARD_REFRESH_MS);
   onDestroy(dashboard.destroy);
 
-  const authorName = $derived(profiles.find((p) => p.id === dashboard.data?.note?.authorId)?.name ?? null);
+  const members = profiles.filter((p) => !p.isFamily);
+  let writing = $state(false);
+
+  // Un mot vu disparaît tout de suite ; le suivant prend sa place.
+  async function seeNote(note: Note) {
+    const data = dashboard.data;
+    if (!data) return;
+    dashboard.set({ ...data, notes: data.notes.filter((n) => n.id !== note.id) });
+    try {
+      await api.markNoteSeen(note.id, ownerId);
+    } catch {
+      await dashboard.refresh();
+    }
+  }
+
+  async function writeNote({ to, text, from }: { to: string; text: string; from: string | null }) {
+    await api.addNote(to, text, from);
+    writing = false;
+    await dashboard.refresh();
+  }
 
   // Mise à jour optimiste : la case change tout de suite, et on resynchronise si le serveur refuse.
   async function toggleTask(task: Task, done: boolean) {
@@ -76,6 +96,7 @@
             <div class="column">
               <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
               <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
+              <NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={() => (writing = true)} />
             </div>
           </div>
         {:else}
@@ -88,7 +109,7 @@
               onToggle={toggleTask}
             />
             <UpcomingList events={data.upcoming} now={clock.now} />
-            <NoteCard note={data.note} {authorName} />
+            <NoteCard notes={data.notes} {profiles} now={clock.now} onSeen={seeNote} onWrite={() => (writing = true)} />
           </div>
         {/if}
       {:else if dashboard.error}
@@ -100,6 +121,14 @@
   <div class="unknown">
     <p>Ce profil n’existe plus.</p>
     <button type="button" onclick={() => navigate(HOME_PATH)}>Retour à l’accueil</button>
+  </div>
+{/if}
+
+{#if writing}
+  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (writing = false)}>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Laisser un mot">
+      <NoteForm {profiles} to={ownerId} authors={members} onSubmit={writeNote} onCancel={() => (writing = false)} />
+    </div>
   </div>
 {/if}
 
@@ -162,7 +191,7 @@
   .column {
     min-height: 0;
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 20px;
   }
 
@@ -185,5 +214,23 @@
     color: inherit;
     font: inherit;
     cursor: pointer;
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgb(0 0 0 / 60%);
+  }
+
+  .dialog {
+    width: min(620px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    box-sizing: border-box;
+    padding: 28px;
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    overflow-y: auto;
   }
 </style>

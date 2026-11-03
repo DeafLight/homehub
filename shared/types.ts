@@ -38,10 +38,15 @@ export type Task = {
   done: boolean;
 };
 
+/** Mot laissé à un membre, ou à toute la famille (`to` = FAMILY_ID). Il s'efface une fois vu, ou au bout de 7 jours. */
 export type Note = {
+  id: string;
   text: string;
-  /** Identifiant du membre qui a laissé le mot. */
-  authorId: string;
+  to: string;
+  from: Author;
+  at: string;
+  seenAt?: string;
+  seenBy?: Author;
 };
 
 export type Weather = {
@@ -144,7 +149,8 @@ export type DashboardData = {
   upcoming: CalendarEvent[];
   /** Tous les événements des 7 prochains jours (y compris ceux en cours), triés. */
   events: CalendarEvent[];
-  note: Note | null;
+  /** Mots pas encore vus, du plus récent au plus ancien. */
+  notes: Note[];
   weather: Weather | null;
   /** null si le profil n'a pas d'emploi du temps (ou s'il est indisponible). */
   school: SchoolDays | null;

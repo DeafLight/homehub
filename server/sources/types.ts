@@ -24,7 +24,8 @@ export interface TaskSource {
 }
 
 export interface NoteSource {
-  latestFor(ownerId: string): Promise<Note | null>;
+  /** Mots adressés à `ownerId` et pas encore vus, du plus récent au plus ancien. */
+  unseenFor(ownerId: string): Promise<Note[]>;
 }
 
 export interface WeatherSource {

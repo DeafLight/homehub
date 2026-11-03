@@ -10,6 +10,7 @@ import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore } from './sources/lists.ts';
+import { createNotesStore } from './sources/notes.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
@@ -25,7 +26,8 @@ function setup(staticRoot?: string) {
   const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
   const pins = createPinStore({ path: join(dir, 'pins.json'), clock: fixedClock });
-  const app = createApp({ config, service, nas, lists, devices, pins, clock: fixedClock, version: '9.9.9', staticRoot });
+  const notes = createNotesStore({ path: join(dir, 'notes.json'), clock: fixedClock });
+  const app = createApp({ config, service, nas, lists, notes, devices, pins, clock: fixedClock, version: '9.9.9', staticRoot });
   return { app, config };
 }
 

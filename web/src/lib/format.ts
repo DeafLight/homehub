@@ -28,6 +28,17 @@ export function formatDay(date: Date, now: Date): string {
   return capitalize(shortDateFormat.format(date));
 }
 
+/** Depuis quand : « à l’instant », « il y a 5 min », « il y a 2 h », puis « hier à 18:30 », « lundi à 08:00 ». */
+export function formatAgo(date: Date, now: Date): string {
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+  if (minutes < 1) return 'à l’instant';
+  if (minutes < 60) return `il y a ${minutes} min`;
+  const diff = dayDiff(date, now);
+  if (diff === 0) return `il y a ${Math.floor(minutes / 60)} h`;
+  const day = diff === 1 ? 'hier' : diff < 7 ? weekdayFormat.format(date) : shortDateFormat.format(date);
+  return `${day} à ${formatTime(date)}`;
+}
+
 /** « Demain à 08:30 » */
 export const formatWhen = (date: Date, now: Date) => `${formatDay(date, now)} à ${formatTime(date)}`;
 

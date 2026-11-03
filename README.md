@@ -21,9 +21,13 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
   personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom du profil d'origine.
+- **Mots** : un membre en laisse un à un autre, ou à toute la famille (200 caractères), depuis son téléphone (onglet
+  Mots, signé de son profil) ou la tablette (bloc « Mots » d'un dashboard, en choisissant qui l'écrit). Le
+  destinataire le voit sur son dashboard et son téléphone, touche « Vu » et il disparaît ; sinon il s'efface au bout
+  de 7 jours (`notes.json`).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches`, `/m/agenda`
-  (7 prochains jours, soi et la famille). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
+  (7 prochains jours, soi et la famille), `/m/mots`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
   La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
   et son système ; on le renomme en touchant son nom.
@@ -66,8 +70,8 @@ Pronote donne un nouveau jeton à chaque connexion : HomeHub le réenregistre au
 fichier copié ne sert donc qu'une fois ; s'il est perdu ou refusé, refaire l'appairage. L'appareil apparaît dans
 la liste des appareils connectés du compte Pronote, d'où il peut être révoqué.
 
-Les tâches et les mots sont encore des **données d'exemple**
-(`server/sources/sample.ts`).
+Sans agenda configuré, l'agenda est d'exemple (`server/sources/sample.ts`) ; les tâches et les mots sont toujours
+réels.
 
 ## Configuration
 
@@ -102,7 +106,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -127,6 +131,7 @@ server/
   sources/nas-status.ts    relevé du NAS (nas-status.json, écrit par une tâche cron du NAS)
   services/nas.ts          page NAS : relevé, état des sources, version
   sources/lists.ts         courses et tâches (lists.json), tâches qui reviennent, articles fréquents
+  sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
   access.ts                qui écrit : la tablette (kiosk.addresses), un téléphone relié (jeton), sinon personne
   lists-api.ts             routes des listes, de l'appairage et des téléphones
@@ -155,6 +160,8 @@ web/src/
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true, "by"? }` → la tâche mise à jour (écriture) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |
+| `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, by? }` (sur la tablette, `by` : qui l'écrit) |
+| `PUT /api/notes/:id/seen` | marque un mot vu (un téléphone : seulement les siens et ceux de la famille) |
 | `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
 | `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
 | `GET /api/pairing/pins` | `{ protected, parent }` : profils qui ont un PIN, code parent défini (tablette seulement) |

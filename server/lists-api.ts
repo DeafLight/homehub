@@ -1,4 +1,4 @@
-// Routes des listes (courses, tâches) et de l'appairage des téléphones. Lecture ouverte comme le reste de l'API ;
+// Routes des listes (courses, tâches), des mots et de l'appairage des téléphones. Lecture ouverte comme le reste de l'API ;
 // écriture réservée à la tablette et aux téléphones appairés ; appairage et gestion des téléphones : tablette seule,
 // avec le PIN du profil quand il en a un (pour retirer un téléphone : ce PIN ou le code parent).
 import { type Context, Hono } from 'hono';
@@ -8,9 +8,17 @@ import { authorOf, type Caller, identify, kioskKeyMatcher } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
+import { NOTE_MAX, type NotesStore } from './sources/notes.ts';
 import { PARENT_PIN_ID, type PinStore } from './sources/pins.ts';
 
-export type ListsApiDeps = { config: ConfigStore; lists: ListsStore; devices: DeviceStore; pins: PinStore; kioskKey?: string };
+export type ListsApiDeps = {
+  config: ConfigStore;
+  lists: ListsStore;
+  notes: NotesStore;
+  devices: DeviceStore;
+  pins: PinStore;
+  kioskKey?: string;
+};
 
 const label = z.string().trim().min(1).max(LABEL_MAX);
 const by = z.string().nullish();
@@ -25,6 +33,7 @@ const taskSchema = z.object({
   repeat: z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['day', 'week']) }).nullable().default(null),
   by,
 });
+const noteSchema = z.object({ to: z.string(), text: z.string().trim().min(1).max(NOTE_MAX), by });
 const pin = z.string().max(20).optional();
 const pairingSchema = z.object({ ownerId: z.string(), pin });
 const removeSchema = z.object({ pin }).nullable();
@@ -34,7 +43,7 @@ const renameSchema = z.object({ name: deviceName });
 
 const body = async (c: Context) => c.req.json().catch(() => null);
 
-export function createListsApi({ config, lists, devices, pins, kioskKey }: ListsApiDeps): Hono {
+export function createListsApi({ config, lists, notes, devices, pins, kioskKey }: ListsApiDeps): Hono {
   const api = new Hono();
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
   const isKey = kioskKeyMatcher(kioskKey);
@@ -110,6 +119,34 @@ export function createListsApi({ config, lists, devices, pins, kioskKey }: Lists
     const who = author(c, await caller(c), null);
     if (who.error) return who.error;
     return (await lists.removeTask(c.req.param('id'))) ? c.body(null, 204) : c.json({ error: 'Tâche inconnue' }, 404);
+  });
+
+  // --- Mots : laissés par un membre (son téléphone, ou la tablette au nom du profil choisi) ---
+
+  api.get('/notes', async (c) => c.json(await notes.list()));
+
+  api.post('/notes', async (c) => {
+    const input = noteSchema.safeParse(await body(c));
+    if (!input.success) return c.json({ error: `Corps attendu : { "to": "…", "text": "…" } (${NOTE_MAX} caractères max)` }, 400);
+    if (!ownerIds().includes(input.data.to)) return c.json({ error: 'Destinataire inconnu' }, 400);
+    const who = author(c, await caller(c), input.data.by);
+    if (who.error) return who.error;
+    // Un mot est signé : sur la tablette, il faut dire qui l'écrit.
+    if (!who.author.ownerId || who.author.ownerId === FAMILY_ID) return c.json({ error: 'Auteur du mot attendu' }, 400);
+    return c.json(await notes.add(input.data.to, input.data.text, who.author), 201);
+  });
+
+  /** Un téléphone ne marque vus que les mots de son profil, ou ceux de toute la famille. */
+  api.put('/notes/:id/seen', async (c) => {
+    const input = z.object({ by }).nullable().safeParse(await body(c));
+    const who = author(c, await caller(c), input.success ? input.data?.by : null);
+    if (who.error) return who.error;
+    const note = (await notes.list()).find((n) => n.id === c.req.param('id'));
+    if (!note) return c.json({ error: 'Mot inconnu' }, 404);
+    if (who.author.via === 'phone' && note.to !== who.author.ownerId && note.to !== FAMILY_ID) {
+      return c.json({ error: 'Ce mot est pour quelqu’un d’autre' }, 403);
+    }
+    return c.json(await notes.markSeen(note.id, who.author));
   });
 
   // --- Téléphones : la tablette les appaire et les retire ---

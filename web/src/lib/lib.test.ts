@@ -21,6 +21,7 @@ describe('route', () => {
     ['/semaine/p/lea', { name: 'week', back: { name: 'dashboard', ownerId: 'lea' } }],
     ['/nas', { name: 'nas', back: { name: 'home' } }],
     ['/listes/p/lea', { name: 'lists', back: { name: 'dashboard', ownerId: 'lea' } }],
+    ['/m/mots', { name: 'phone', tab: 'notes' }],
     ['/telephones/p/lea', { name: 'phones', back: { name: 'dashboard', ownerId: 'lea' } }],
     ['/m', { name: 'phone', tab: 'shopping' }],
     ['/m/', { name: 'phone', tab: 'shopping' }],

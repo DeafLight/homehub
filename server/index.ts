@@ -14,6 +14,7 @@ import { createIcalAgendaSource } from './sources/ical.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore, listsTaskSource } from './sources/lists.ts';
 import { createNasStatusSource } from './sources/nas-status.ts';
+import { createNotesStore } from './sources/notes.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
@@ -73,9 +74,11 @@ const ical = createIcalAgendaSource({
 const lists = createListsStore({ path: join(stateDir, 'lists.json'), clock });
 const devices = createDeviceStore({ path: join(stateDir, 'devices.json'), clock });
 const pins = createPinStore({ path: join(stateDir, 'pins.json'), clock });
+const notes = createNotesStore({ path: join(stateDir, 'notes.json'), clock });
 const sources: Sources = {
   ...sample,
   tasks: listsTaskSource(lists, FAMILY_ID),
+  notes,
   // Agenda d'exemple tant qu'aucun agenda n'est configuré (développement, première installation).
   agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sample.agenda).eventsFor(...args) },
   weather: createOpenMeteoWeatherSource({
@@ -112,7 +115,7 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, devices, pins, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, notes, devices, pins, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

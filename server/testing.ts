@@ -79,7 +79,11 @@ export function fakeSources(data: {
         return task;
       },
     },
-    notes: { async latestFor() { return { text: 'Coucou', authorId: 'alex' }; } },
+    notes: {
+      async unseenFor(ownerId) {
+        return ownerId === 'alex' ? [{ id: 'n1', text: 'Coucou', to: 'alex', from: { ownerId: 'tom', via: 'phone' }, at: NOW.toISOString() }] : [];
+      },
+    },
     weather: { async current() { return testWeather; }, async forecast() { return testForecast; } },
     school: {
       async coursesFor(ownerId, range) {

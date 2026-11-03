@@ -7,6 +7,7 @@ import { createConfigStore } from './config-store.ts';
 import { createListsApi } from './lists-api.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore } from './sources/lists.ts';
+import { createNotesStore } from './sources/notes.ts';
 import { createPinStore, MAX_PIN_FAILURES, PARENT_PIN_ID } from './sources/pins.ts';
 import { fixedClock } from './testing.ts';
 
@@ -30,7 +31,8 @@ function setup() {
   const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
   const pins = createPinStore({ path: join(dir, 'pins.json'), clock: fixedClock });
-  const api = createListsApi({ config, lists, devices, pins, kioskKey: KEY });
+  const notes = createNotesStore({ path: join(dir, 'notes.json'), clock: fixedClock });
+  const api = createListsApi({ config, lists, notes, devices, pins, kioskKey: KEY });
   const call = (method: string, path: string, { from = OTHER, token, key, body }: CallOptions = {}) =>
     api.request(path, {
       method,
@@ -151,6 +153,30 @@ describe('API des listes', () => {
     expect((await remove(tomPhone, '9753')).status).toBe(204); // le code parent retire tous les téléphones
     expect((await call('DELETE', `/devices/${otherPhone}`, { body: { pin: '9753' } })).status).toBe(403); // pas la tablette
     expect((await remove('inconnu', '9753')).status).toBe(404);
+  });
+
+  it('mots : signés par le téléphone ou le profil choisi sur la tablette ; vus par leur destinataire', async () => {
+    const { call } = setup();
+    const { code } = await (await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).json();
+    const { token } = await (await call('POST', '/pairing/claim', { body: { code, name: 'Pixel' } })).json();
+
+    expect((await call('POST', '/notes', { body: { to: 'alex', text: 'Coucou' } })).status).toBe(403);
+    expect((await call('POST', '/notes', { key: KEY, body: { to: 'alex', text: 'Coucou' } })).status).toBe(400); // qui écrit ?
+    expect((await call('POST', '/notes', { key: KEY, body: { to: 'inconnu', text: 'Coucou', by: 'tom' } })).status).toBe(400);
+    expect((await call('POST', '/notes', { key: KEY, body: { to: 'alex', text: 'x'.repeat(201), by: 'tom' } })).status).toBe(400);
+
+    const fromTablet = await (await call('POST', '/notes', { key: KEY, body: { to: 'tom', text: 'Range ta chambre', by: 'alex' } })).json();
+    expect(fromTablet.from).toEqual({ ownerId: 'alex', via: 'tablet' });
+    // Le téléphone signe de son profil, quoi qu'il annonce.
+    const fromPhone = await (await call('POST', '/notes', { token, body: { to: 'alex', text: 'Je rentre à 18 h', by: 'alex' } })).json();
+    expect(fromPhone.from).toEqual({ ownerId: 'tom', via: 'phone' });
+
+    expect((await call('PUT', `/notes/${fromPhone.id}/seen`, { token })).status).toBe(403); // pas pour Tom
+    expect((await call('PUT', `/notes/${fromTablet.id}/seen`, { token })).status).toBe(200);
+    expect((await call('PUT', `/notes/${fromPhone.id}/seen`, { key: KEY, body: { by: 'alex' } })).status).toBe(200);
+    expect((await call('PUT', '/notes/inconnu/seen', { key: KEY })).status).toBe(404);
+    const all = await (await call('GET', '/notes')).json();
+    expect(all.every((n: { seenAt?: string }) => n.seenAt)).toBe(true);
   });
 
   it('renommer un téléphone : tablette seulement, nom non vide', async () => {

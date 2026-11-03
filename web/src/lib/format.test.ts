@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { eventLine, formatDay, formatEventWhen, greeting, pluralize, profileHeadline } from './format.ts';
+import { eventLine, formatAgo, formatDay, formatEventWhen, greeting, pluralize, profileHeadline } from './format.ts';
 
 const now = new Date(2026, 10, 2, 18, 0); // lundi 2 novembre, 18:00
+
+describe('formatAgo', () => {
+  it.each([
+    [new Date(2026, 10, 2, 17, 59, 40), 'à l’instant'],
+    [new Date(2026, 10, 2, 17, 35), 'il y a 25 min'],
+    [new Date(2026, 10, 2, 15, 10), 'il y a 2 h'],
+    [new Date(2026, 10, 1, 20, 30), 'hier à 20:30'],
+    [new Date(2026, 9, 29, 8, 0), 'jeudi à 08:00'],
+  ])('%s → %s', (date, expected) => {
+    expect(formatAgo(date, now)).toBe(expected);
+  });
+});
 
 describe('formatDay', () => {
   it.each([

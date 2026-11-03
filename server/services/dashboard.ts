@@ -129,10 +129,10 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, note, currentWeather, school] = await Promise.all([
+      const [events, tasks, notes, currentWeather, school] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
-        sources.notes.latestFor(ownerId),
+        sources.notes.unseenFor(ownerId),
         weather(),
         schoolDays(ownerId),
       ]);
@@ -143,7 +143,7 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
         upcoming: rest.slice(0, UPCOMING_LIMIT),
         events,
         tasks,
-        note,
+        notes,
         weather: currentWeather,
         school,
       };

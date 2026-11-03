@@ -1,14 +1,15 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import { FAMILY_ID } from '../../../shared/types.ts';
+  import { FAMILY_ID, type Note } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
+  import NoteForm from '../components/NoteForm.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
   import { agendaDays } from '../lib/agenda.ts';
   import { getAppContext } from '../lib/context.ts';
-  import { capitalize, formatDay } from '../lib/format.ts';
+  import { capitalize, formatAgo, formatDay } from '../lib/format.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { clearPairing, loadPairing } from '../lib/phone.ts';
   import { ApiError } from '../lib/api.ts';
@@ -18,8 +19,9 @@
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
   const ME_REFRESH_MS = 60_000;
+  const NOTES_REFRESH_MS = 30_000;
 
-  // Appli du téléphone relié à un profil : courses, tâches et agenda des 7 prochains jours. Tout ce qui est coché ou
+  // Appli du téléphone relié à un profil : courses, tâches, agenda des 7 prochains jours et mots reçus. Tout ce qui est coché ou
   // ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
   type Props = { tab: PhoneTab; shared?: string };
   let { tab, shared }: Props = $props();
@@ -46,13 +48,43 @@
     }
   }, ME_REFRESH_MS);
   const agenda = createResource(() => Promise.all([api.week(0), api.week(1)]), AGENDA_REFRESH_MS);
+  const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
   onDestroy(() => {
     lists.destroy();
     agenda.destroy();
+    notes.destroy();
     check.destroy();
   });
 
   let filter = $state<string | null>(me?.id ?? null);
+  let writing = $state(false);
+  let noteError = $state<string | null>(null);
+
+  /** Mots reçus (pour moi ou pour toute la famille, sauf les miens) : ceux pas encore vus d'abord. */
+  const received = $derived(
+    (notes.data ?? [])
+      .filter((n) => (n.to === me?.id || n.to === FAMILY_ID) && n.from.ownerId !== me?.id)
+      .sort((a, b) => Number(Boolean(a.seenAt)) - Number(Boolean(b.seenAt))),
+  );
+  const unseen = $derived(received.filter((n) => !n.seenAt).length);
+
+  async function seeNote(note: Note) {
+    noteError = null;
+    try {
+      notes.set((notes.data ?? []).map((n) => (n.id === note.id ? { ...n, seenAt: new Date().toISOString() } : n)));
+      await api.markNoteSeen(note.id);
+    } catch (err) {
+      noteError = (err as Error).message;
+    } finally {
+      await notes.refresh();
+    }
+  }
+
+  async function writeNote({ to, text }: { to: string; text: string }) {
+    await api.addNote(to, text);
+    writing = false;
+    await notes.refresh();
+  }
   let adding = $state(untrack(() => shared !== undefined));
 
   async function add(input: AddInput) {
@@ -68,10 +100,11 @@
     if (shared !== undefined) navigate(phonePath(tab));
   }
 
-  const TABS: { tab: PhoneTab; label: string; icon: 'cart' | 'check' | 'calendar' }[] = [
+  const TABS: { tab: PhoneTab; label: string; icon: 'cart' | 'check' | 'calendar' | 'message' }[] = [
     { tab: 'shopping', label: 'Courses', icon: 'cart' },
     { tab: 'tasks', label: 'Tâches', icon: 'check' },
     { tab: 'agenda', label: 'Agenda', icon: 'calendar' },
+    { tab: 'notes', label: 'Mots', icon: 'message' },
   ];
   const nameOf = (id: string) => profiles.find((p) => p.id === id);
 </script>
@@ -81,7 +114,7 @@
     <div class="unpaired">
       <Icon name="phone" size={64} color="var(--fg-muted)" />
       <h1>{revoked ? 'Ce téléphone a été retiré' : 'Ce téléphone n’est pas relié'}</h1>
-      <p>Sur la tablette, ouvre <strong>Listes › Téléphones</strong>, choisis ton profil et scanne le code avec l’appareil photo.</p>
+      <p>Sur la tablette, ouvre <strong>la roue dentée › Téléphones</strong>, choisis ton profil et scanne le code avec l’appareil photo.</p>
     </div>
   {:else}
     <header>
@@ -93,7 +126,32 @@
     <main>
       {#if lists.actionError}<p class="error">{lists.actionError}</p>{/if}
 
-      {#if tab === 'agenda'}
+      {#if tab === 'notes'}
+        {#if noteError}<p class="error">{noteError}</p>{/if}
+        {#if notes.data}
+          <ul class="notes">
+            {#each received as note (note.id)}
+              {@const author = nameOf(note.from.ownerId ?? '')}
+              <li class:read={note.seenAt}>
+                {#if author}<Avatar profile={author} size={36} />{/if}
+                <div class="note-body">
+                  <span class="note-text">{note.text}</span>
+                  <span class="muted small">
+                    {author?.name ?? 'Tablette'}{note.to === FAMILY_ID ? ' · pour la famille' : ''} · {formatAgo(new Date(note.at), clock.now)}
+                  </span>
+                </div>
+                {#if !note.seenAt}
+                  <button type="button" class="seen" onclick={() => seeNote(note)}>Vu</button>
+                {/if}
+              </li>
+            {:else}
+              <li class="muted">Pas de mot cette semaine.</li>
+            {/each}
+          </ul>
+        {:else if notes.error}
+          <p class="muted">Impossible de charger les mots : {notes.error}</p>
+        {/if}
+      {:else if tab === 'agenda'}
         {#if agenda.data}
           {#each agendaDays(agenda.data, new Set([me.id, FAMILY_ID]), clock.now) as day (day.date.getTime())}
             <section class="day">
@@ -145,16 +203,31 @@
       <button type="button" class="fab" aria-label="Ajouter une tâche" onclick={() => (adding = true)}>
         <Icon name="plus" size={30} strokeWidth={2.4} />
       </button>
+    {:else if tab === 'notes'}
+      <button type="button" class="fab" aria-label="Laisser un mot" onclick={() => (writing = true)}>
+        <Icon name="plus" size={30} strokeWidth={2.4} />
+      </button>
     {/if}
 
     <nav>
       {#each TABS as item (item.tab)}
         <button type="button" class:on={item.tab === tab} aria-current={item.tab === tab ? 'page' : undefined} onclick={() => navigate(phonePath(item.tab))}>
-          <Icon name={item.icon} size={26} />
+          <span class="tab-icon">
+            <Icon name={item.icon} size={26} />
+            {#if item.tab === 'notes' && unseen > 0}<span class="badge">{unseen}</span>{/if}
+          </span>
           {item.label}
         </button>
       {/each}
     </nav>
+
+    {#if writing}
+      <div class="sheet-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && (writing = false)}>
+        <div class="sheet" role="dialog" aria-modal="true" aria-label="Laisser un mot">
+          <NoteForm profiles={profiles.filter((p) => p.id !== me.id)} to={FAMILY_ID} onSubmit={writeNote} onCancel={() => (writing = false)} />
+        </div>
+      </div>
+    {/if}
 
     {#if adding}
       <div class="sheet-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && cancelAdd()}>
@@ -263,6 +336,81 @@
     font-size: 1.1rem;
   }
 
+  .notes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-radius: 18px;
+    background: var(--surface);
+  }
+
+  .notes li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--surface-2);
+  }
+
+  .notes li:last-child {
+    border-bottom: 0;
+  }
+
+  .notes li.read {
+    opacity: 0.55;
+  }
+
+  .note-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .note-text {
+    font-size: 1.15rem;
+    overflow-wrap: anywhere;
+  }
+
+  .small {
+    font-size: 0.9rem;
+  }
+
+  .seen {
+    min-height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--rain);
+    color: var(--bg);
+    font: inherit;
+    font-weight: 700;
+  }
+
+  .tab-icon {
+    position: relative;
+    display: inline-grid;
+  }
+
+  .badge {
+    position: absolute;
+    top: -6px;
+    right: -12px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background: var(--danger-fg);
+    color: var(--bg);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+  }
+
   .fab {
     position: fixed;
     right: max(18px, calc(50vw - 302px));
@@ -280,7 +428,7 @@
 
   nav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--surface-2);
     background: var(--surface-rail);

@@ -1,7 +1,7 @@
 // Sources d'exemple, en mémoire : elles donnent à chaque profil des données plausibles, calculées par rapport
 // à l'heure courante pour que l'écran ait l'air vivant. À remplacer source par source par les vraies.
-import type { CalendarEvent, Note, Task, Weather, WeatherForecast } from '../../shared/types.ts';
-import type { AgendaSource, Clock, NoteSource, SchoolSource, Sources, TaskSource, WeatherSource } from './types.ts';
+import type { CalendarEvent, Task, Weather, WeatherForecast } from '../../shared/types.ts';
+import type { AgendaSource, Clock, SchoolSource, Sources, TaskSource, WeatherSource } from './types.ts';
 
 /** Événement type : jour relatif à aujourd'hui (0 = aujourd'hui) et heure locale. */
 type EventTemplate = { day: number; hour: number; minute: number; title: string; location?: string };
@@ -41,10 +41,9 @@ const TASK_TEMPLATES: string[][] = [
 
 const FAMILY_TASKS = ['Lait', 'Pain', 'Pommes', 'Liquide vaisselle'];
 
-const NOTES = ['Bravo pour ta note de maths !', 'N’oublie pas ton goûter demain.', 'Bonne journée !'];
-
 /** `memberIds` : les membres dans l'ordre de la config ; chacun reçoit un jeu d'exemples différent. */
-export function createSampleSources(memberIds: () => string[], familyId: string, clock: Clock): Sources {
+/** Les mots ne sont jamais d'exemple : ce sont ceux laissés par la famille (notes.ts). */
+export function createSampleSources(memberIds: () => string[], familyId: string, clock: Clock): Omit<Sources, 'notes'> {
   const indexOf = (ownerId: string) => Math.max(0, memberIds().indexOf(ownerId));
   const templateFor = <T>(ownerId: string, perMember: T[], family: T): T =>
     ownerId === familyId ? family : perMember[indexOf(ownerId) % perMember.length];
@@ -95,15 +94,6 @@ export function createSampleSources(memberIds: () => string[], familyId: string,
     },
   };
 
-  const notes: NoteSource = {
-    async latestFor(ownerId) {
-      const ids = memberIds();
-      if (ids.length < 2) return null;
-      const index = indexOf(ownerId);
-      const note: Note = { text: NOTES[index % NOTES.length], authorId: ids[(index + 1) % ids.length] };
-      return note;
-    },
-  };
 
   const weather: WeatherSource = {
     // Courbe de température douce sur 24 h, une averse dans 3 h.
@@ -168,5 +158,5 @@ export function createSampleSources(memberIds: () => string[], familyId: string,
     },
   };
 
-  return { agenda, tasks, notes, weather, school };
+  return { agenda, tasks, weather, school };
 }
