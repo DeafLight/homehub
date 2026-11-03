@@ -6,13 +6,18 @@ import { createApp } from './app.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
+import { createNasService } from './services/nas.ts';
+import { createSourceStatus } from './sources/source-status.ts';
 import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
 
 function setup(staticRoot?: string) {
   const config = createConfigStore(testConfig);
   const sources = fakeSources({ tasks: { alex: [{ id: 't1', label: 'Poubelles', done: false }] } });
   const service = createDashboardService({ config, sources, clock: fixedClock, logger: silentLogger() });
-  const app = createApp({ config, service, clock: fixedClock, version: '9.9.9', staticRoot });
+  const sourceStatus = createSourceStatus(fixedClock);
+  sourceStatus.record('Agenda CAL_A', new Error('HTTP 404'));
+  const nas = createNasService({ nasStatus: { read: async () => null }, sourceStatus, version: '9.9.9', startedAt: NOW });
+  const app = createApp({ config, service, nas, clock: fixedClock, version: '9.9.9', staticRoot });
   return { app, config };
 }
 
@@ -64,6 +69,15 @@ describe('API', () => {
     const res = await setup().app.request('/api/weather');
     expect(res.status).toBe(200);
     expect((await res.json()).forecast.current.windKmh).toBe(12);
+  });
+
+  it('GET /api/nas : relevé du NAS, état des sources et version', async () => {
+    const res = await setup().app.request('/api/nas');
+    expect(await res.json()).toEqual({
+      status: null,
+      sources: [{ name: 'Agenda CAL_A', ok: false, at: NOW.toISOString(), error: 'HTTP 404', failingSince: NOW.toISOString() }],
+      homehub: { version: '9.9.9', startedAt: NOW.toISOString() },
+    });
   });
 
   it('GET /api/week : semaine en cours par défaut, 400 hors des semaines consultables', async () => {

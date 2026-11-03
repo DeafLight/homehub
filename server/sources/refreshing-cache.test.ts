@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NOW, silentLogger } from '../testing.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
+import { createSourceStatus } from './source-status.ts';
 
 describe('createRefreshingCache', () => {
   it('attend retryDelayMs avant de retenter après un échec', async () => {
@@ -84,5 +85,26 @@ describe('createRefreshingCache', () => {
     pending[1].reject(new Error('panne'));
     await expect(second).rejects.toThrow('panne');
   });
-});
 
+  it('note le résultat de chaque chargement dans l’état des sources', async () => {
+    const status = createSourceStatus(() => NOW);
+    let fail = true;
+    const cache = createRefreshingCache<string>({
+      clock: () => NOW,
+      logger: silentLogger(),
+      staleMaxMs: 3_600_000,
+      retryDelayMs: 0,
+      status,
+      async load() {
+        if (fail) throw new Error('HTTP 404');
+        return 'ok';
+      },
+    });
+
+    await expect(cache.get('https://secret', 600_000, 'Agenda CAL_A')).rejects.toThrow();
+    expect(status.list()).toMatchObject([{ name: 'Agenda CAL_A', ok: false, error: 'HTTP 404' }]);
+    fail = false;
+    await cache.get('https://secret', 600_000, 'Agenda CAL_A');
+    expect(status.list()).toMatchObject([{ name: 'Agenda CAL_A', ok: true }]);
+  });
+});

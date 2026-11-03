@@ -7,13 +7,13 @@ const longDateFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: '
 const weekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long' });
 const shortDateFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
 
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const formatTime = (date: Date) => timeFormat.format(date);
 export const formatLongDate = (date: Date) => longDateFormat.format(date);
 
 /** Nombre de jours calendaires entre deux dates (0 = même jour). */
-function dayDiff(from: Date, to: Date): number {
+export function dayDiff(from: Date, to: Date): number {
   const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const b = new Date(to.getFullYear(), to.getMonth(), to.getDate());
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);

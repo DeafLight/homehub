@@ -13,6 +13,9 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 - **Météo détaillée** (`/meteo`) : ouverte en touchant n'importe quel affichage météo ; conditions actuelles
   (ressenti, vent, humidité, soleil), courbe des 24 prochaines heures avec la pluie, et 4 jours. Le bouton retour
   ramène à la page d'origine (`/meteo/p/<id>` quand elle est ouverte depuis un profil).
+- **Le NAS** (`/nas`) : ouvert en touchant la version de HomeHub sur l'accueil ; état général, processeur,
+  mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
+  points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -82,6 +85,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
 | `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`) |
+| `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
 ## Architecture
 
@@ -100,6 +104,9 @@ server/
   sources/ecoledirecte.ts  emploi du temps ÉcoleDirecte (client de l'API privée + source)
   sources/pronote.ts       emploi du temps Pronote (Pawnote, jeton enregistré à chaque connexion)
   sources/refreshing-cache.ts  cache des données distantes (rafraîchissement, repli en cas de panne)
+  sources/source-status.ts dernier résultat de chaque source (page NAS)
+  sources/nas-status.ts    relevé du NAS (nas-status.json, écrit par une tâche cron du NAS)
+  services/nas.ts          page NAS : relevé, état des sources, version
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
   App.svelte               choix de l'écran, retour à l'accueil, surveillance de version
@@ -121,6 +128,7 @@ web/src/
 | `GET /api/config` | membres, nom de la famille, réglages d'interface, révision |
 | `GET /api/home` | météo, résumé de chaque profil, prochain événement familial |
 | `GET /api/dashboard/:id` | dashboard d'un membre ou de `famille` (404 si inconnu) |
+| `GET /api/nas` | relevé du NAS (`null` s'il est absent), état des sources, version et démarrage de HomeHub |
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour |
 
 ## Développement
@@ -128,6 +136,7 @@ web/src/
 ```bash
 npm install
 cp config/homehub.example.yaml config/homehub.yaml
+cp server/sources/fixtures/nas-status.json config/nas-status.json   # facultatif : page NAS (relevé ancien)
 npm run dev       # back sur :3000 + Vite sur :5173 (proxy /api → :3000)
 npm test          # tests (vitest) : config, service, routes, utilitaires du front
 npm run check     # vérification des types (server + web)

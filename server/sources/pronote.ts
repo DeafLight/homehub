@@ -9,6 +9,7 @@ import type { SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { formatSubject, normalizeName } from './ecoledirecte.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
+import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -155,9 +156,11 @@ export type PronoteSourceDeps = {
   client: PronoteClient;
   clock: Clock;
   logger: Logger;
+  /** Résultat de chaque chargement, pour la page « Le NAS ». */
+  status?: SourceStatus;
 };
 
-export function createPronoteSource({ childFor, refreshMinutes, store, client, clock, logger }: PronoteSourceDeps): SchoolSource {
+export function createPronoteSource({ childFor, refreshMinutes, store, client, clock, logger, status }: PronoteSourceDeps): SchoolSource {
   // Le jeton change à chaque connexion : deux connexions en parallèle avec le même jeton en invalideraient une.
   let queue: Promise<unknown> = Promise.resolve();
   const exclusive = <T>(task: () => Promise<T>): Promise<T> => {
@@ -182,6 +185,7 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
   const cache = createRefreshingCache<SchoolCourse[]>({
     clock,
     logger,
+    status,
     staleMaxMs: STALE_MAX_MS,
     load: (key) =>
       exclusive(async () => {

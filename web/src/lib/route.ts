@@ -1,13 +1,13 @@
-// Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine).
+// Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine, NAS).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
-export type DetailName = 'weather' | 'week';
+export type DetailName = 'weather' | 'week' | 'nas';
 export type Route = PageRoute | { name: DetailName; back: PageRoute };
 
 export const HOME_PATH = '/';
-const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine' };
+const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine', nas: '/nas' };
 
 export const dashboardPath = (ownerId: string) => `/p/${encodeURIComponent(ownerId)}`;
 

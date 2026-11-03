@@ -3,6 +3,7 @@
 // arrière-plan : un service lent ou muet ne ralentit jamais l'affichage. En cas de panne, la dernière valeur reste
 // servie tant qu'elle n'est pas trop vieille.
 import type { Logger } from '../config-store.ts';
+import type { SourceStatus } from './source-status.ts';
 import type { Clock } from './types.ts';
 
 export type RefreshingCache<T> = {
@@ -23,6 +24,8 @@ export type RefreshingCacheDeps<T> = {
   staleMaxMs: number;
   /** Délai minimal entre deux tentatives après un échec : évite de marteler une API en panne. */
   retryDelayMs?: number;
+  /** Reçoit le résultat de chaque chargement, sous le nom `label`. */
+  status?: SourceStatus;
 };
 
 type Entry<T> = { value?: T; fetchedAt?: number; failedAt?: number; error?: unknown; inFlight?: Promise<void> };
@@ -33,6 +36,7 @@ export function createRefreshingCache<T>({
   logger,
   staleMaxMs,
   retryDelayMs = 60_000,
+  status,
 }: RefreshingCacheDeps<T>): RefreshingCache<T> {
   const entries = new Map<string, Entry<T>>();
   const ageOf = (entry: Entry<T>, now: number) => (entry.fetchedAt === undefined ? Infinity : now - entry.fetchedAt);
@@ -46,10 +50,12 @@ export function createRefreshingCache<T>({
           entry.value = value;
           entry.fetchedAt = startedAt;
           entry.failedAt = entry.error = undefined;
+          status?.record(label);
         },
         (err) => {
           entry.failedAt = startedAt;
           entry.error = err;
+          status?.record(label, err);
           const kept = usable(entry, clock().getTime()) ? ' ; données précédentes conservées' : '';
           logger.error(`${label} : ${(err as Error).message}${kept}.`);
         },

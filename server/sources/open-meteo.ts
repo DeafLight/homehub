@@ -5,6 +5,7 @@ import type { Weather, WeatherDay, WeatherForecast, WeatherHour } from '../../sh
 import type { WeatherConfig } from '../config.ts';
 import type { Logger } from '../config-store.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
+import type { SourceStatus } from './source-status.ts';
 import type { Clock, WeatherSource } from './types.ts';
 
 const API_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -58,6 +59,8 @@ export type OpenMeteoDeps = {
   location(): WeatherConfig | undefined;
   clock: Clock;
   logger: Logger;
+  /** Résultat de chaque chargement, pour la page « Le NAS ». */
+  status?: SourceStatus;
   fetch?: typeof fetch;
 };
 
@@ -166,11 +169,13 @@ export function createOpenMeteoWeatherSource({
   location,
   clock,
   logger,
+  status,
   fetch: fetchFn = (...args) => fetch(...args),
 }: OpenMeteoDeps): WeatherSource {
   const cache = createRefreshingCache<OpenMeteoResponse>({
     clock,
     logger,
+    status,
     staleMaxMs: STALE_MAX_MS,
     async load(url) {
       const res = await fetchFn(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });

@@ -7,6 +7,7 @@
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Home from './screens/Home.svelte';
+  import Nas from './screens/Nas.svelte';
   import Weather from './screens/Weather.svelte';
   import Week from './screens/Week.svelte';
 
@@ -39,6 +40,8 @@
   {/key}
 {:else if router.route.name === 'weather'}
   <Weather back={router.route.back} />
+{:else if router.route.name === 'nas'}
+  <Nas back={router.route.back} />
 {:else if router.route.name === 'week'}
   <!-- La page d’origine fixe les profils affichés au départ : un autre retour, une nouvelle page. -->
   {#key routePath(router.route)}

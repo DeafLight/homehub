@@ -19,6 +19,7 @@ describe('route', () => {
     ['/meteorite', { name: 'home' }],
     ['/semaine', { name: 'week', back: { name: 'home' } }],
     ['/semaine/p/lea', { name: 'week', back: { name: 'dashboard', ownerId: 'lea' } }],
+    ['/nas', { name: 'nas', back: { name: 'home' } }],
   ])('%s', (path, expected) => {
     expect(parseRoute(path)).toEqual(expected);
   });

@@ -23,8 +23,11 @@
     <div class="clock">
       <div class="time">{formatTime(clock.now)}</div>
       <div class="date">{formatLongDate(clock.now)}</div>
-      <!-- Version du front réellement chargé sur la tablette : permet de vérifier qu'un déploiement est arrivé. -->
-      <div class="version">HomeHub v{__APP_VERSION__}</div>
+      <!-- Version du front réellement chargé sur la tablette : permet de vérifier qu'un déploiement est arrivé.
+           Elle ouvre la page du NAS qui héberge HomeHub. -->
+      <DetailLink to="nas" label="État du NAS" chevronSize={20}>
+        <span class="version">HomeHub v{__APP_VERSION__}</span>
+      </DetailLink>
     </div>
 
     {#if home.data}

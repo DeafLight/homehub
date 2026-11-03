@@ -5,6 +5,7 @@ import ICAL from 'ical.js';
 import type { CalendarEvent } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
+import type { SourceStatus } from './source-status.ts';
 import type { AgendaSource, Clock, TimeRange } from './types.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -24,6 +25,8 @@ export type IcalAgendaDeps = {
   secret(name: string): string | undefined;
   clock: Clock;
   logger: Logger;
+  /** Résultat de chaque chargement, pour la page « Le NAS ». */
+  status?: SourceStatus;
   fetch?: typeof fetch;
 };
 
@@ -102,11 +105,13 @@ export function createIcalAgendaSource({
   secret,
   clock,
   logger,
+  status,
   fetch: fetchFn = (...args) => fetch(...args),
 }: IcalAgendaDeps): AgendaSource {
   const cache = createRefreshingCache<IcalEvent[]>({
     clock,
     logger,
+    status,
     staleMaxMs: STALE_MAX_MS,
     async load(url) {
       const res = await fetchFn(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });

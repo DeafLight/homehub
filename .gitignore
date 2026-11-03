@@ -4,5 +4,7 @@ web/dist/
 *.log
 # Configuration locale de dev (copie de config/homehub.example.yaml)
 config/homehub.yaml
+# Relevé du NAS de dev (copie de server/sources/fixtures/nas-status.json)
+config/nas-status.json
 # État local de dev (jeton Pronote)
 state/

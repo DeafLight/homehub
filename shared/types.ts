@@ -177,3 +177,54 @@ export type Health = {
   configRevision: string;
   time: string;
 };
+
+/** Résultat d'un contrôle de santé du NAS (scripts/healthcheck.sh de nas-config). */
+export type NasCheck = { level: 'OK' | 'WARN' | 'CRIT'; check: string; detail: string };
+
+/** Relevé du NAS écrit toutes les 5 minutes par scripts/nas-status.sh (nas-config) dans nas-status.json. */
+export type NasStatus = {
+  generatedAt: string;
+  hostname: string | null;
+  version: string | null;
+  uptimeSeconds: number | null;
+  bootTime: string | null;
+  cpu: { percent: number | null; load1: number | null; temperatureC: number | null };
+  fanRpm: number | null;
+  memory: { totalBytes: number; availableBytes: number; swapTotalBytes: number; swapUsedBytes: number };
+  /** null : pas de batterie. */
+  battery: { percent: number; status: string | null; healthPercent: number | null; onAc: boolean } | null;
+  pools: {
+    name: string;
+    status: string;
+    healthy: boolean;
+    sizeBytes: number;
+    allocatedBytes: number;
+    /** Faux pour un disque seul : aucune copie en cas de panne. */
+    redundant: boolean;
+    lastScrub: { end: string; errors: number | null } | null;
+  }[];
+  disks: { name: string; model: string | null; temperatureC: number | null }[];
+  checks: NasCheck[];
+  backup: { at: string; result: string } | null;
+  /** Conteneurs regroupés par service ; null si leur état est inconnu. */
+  services: { label: string; running: number; total: number }[] | null;
+};
+
+/** État d'une source de données de HomeHub (agenda, météo, emploi du temps) d'après son dernier chargement. */
+export type SourceState = {
+  name: string;
+  ok: boolean;
+  /** Dernier chargement (réussi ou non), ISO 8601. */
+  at: string;
+  /** En échec : message de la dernière erreur, et début de la série d'échecs. */
+  error?: string;
+  failingSince?: string;
+};
+
+/** Page « Le NAS ». */
+export type NasData = {
+  /** null : relevé absent ou illisible. */
+  status: NasStatus | null;
+  sources: SourceState[];
+  homehub: { version: string; startedAt: string };
+};

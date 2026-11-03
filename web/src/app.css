@@ -14,6 +14,14 @@
   --rain-bg: #1e2a3a;
   --danger-bg: #4a1f1d;
   --danger-fg: #ffb4ab;
+  /* États (page NAS) : vert, orange, rouge, gris. */
+  --ok: #3fcf7f;
+  --ok-bg: #173b2c;
+  --ok-fg: #bfeccf;
+  --warn: #f2b84b;
+  --warn-bg: #3d3018;
+  --bad: #ff7a6b;
+  --off: #4a505c;
 
   --radius-md: 24px;
   --radius-lg: 28px;

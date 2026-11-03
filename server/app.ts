@@ -6,11 +6,13 @@ import { type Health, WEEKS_AHEAD } from '../shared/types.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DashboardService } from './services/dashboard.ts';
+import type { NasService } from './services/nas.ts';
 import type { Clock } from './sources/types.ts';
 
 export type AppDeps = {
   config: ConfigStore;
   service: DashboardService;
+  nas: NasService;
   clock: Clock;
   version: string;
   /** Dossier du front compilé ; absent en test et en dev (Vite sert le front). */
@@ -22,7 +24,7 @@ const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
-export function createApp({ config, service, clock, version, staticRoot }: AppDeps): Hono {
+export function createApp({ config, service, nas, clock, version, staticRoot }: AppDeps): Hono {
   const app = new Hono();
   const api = new Hono();
 
@@ -41,6 +43,8 @@ export function createApp({ config, service, clock, version, staticRoot }: AppDe
     if (!offset.success) return c.json({ error: `offset attendu : entier de 0 à ${WEEKS_AHEAD}` }, 400);
     return c.json(await service.week(offset.data));
   });
+
+  api.get('/nas', async (c) => c.json(await nas.data()));
 
   api.get('/dashboard/:ownerId', async (c) => {
     const data = await service.dashboard(c.req.param('ownerId'));

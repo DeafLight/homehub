@@ -4,7 +4,7 @@
   import { type DetailName, detailPath } from '../lib/route.ts';
   import Icon from './Icon.svelte';
 
-  // Ouvre une page de détail (météo, semaine), qui saura revenir à la page courante.
+  // Ouvre une page de détail (météo, semaine, NAS), qui saura revenir à la page courante.
   // Toute météo affichée y mène, comme tout widget qui montre la prochaine activité.
   // - inline : le contenu garde son style, suivi d'un chevron ;
   // - pill : version compacte sur fond, pour un en-tête ;

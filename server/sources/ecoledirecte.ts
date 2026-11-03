@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
+import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
 const BASE_URL = 'https://api.ecoledirecte.com/v3';
@@ -250,6 +251,8 @@ export type EcoleDirecteSourceDeps = {
   client: EcoleDirecteClient;
   clock: Clock;
   logger: Logger;
+  /** Résultat de chaque chargement, pour la page « Le NAS ». */
+  status?: SourceStatus;
 };
 
 export function createEcoleDirecteSource({
@@ -259,11 +262,13 @@ export function createEcoleDirecteSource({
   client,
   clock,
   logger,
+  status,
 }: EcoleDirecteSourceDeps): SchoolSource {
   // Clé : élève et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
   const cache = createRefreshingCache<SchoolCourse[]>({
     clock,
     logger,
+    status,
     staleMaxMs: STALE_MAX_MS,
     async load(key) {
       const { prenom, from } = JSON.parse(key) as { prenom: string; from: string };
