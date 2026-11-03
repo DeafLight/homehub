@@ -7,7 +7,7 @@
   let { events, now }: Props = $props();
 </script>
 
-<Card title="Cette semaine">
+<Card title="Cette semaine" link={{ to: 'week', label: 'Semaine détaillée' }}>
   {#if events.length === 0}
     <p class="empty">Rien d’autre de prévu</p>
   {:else}

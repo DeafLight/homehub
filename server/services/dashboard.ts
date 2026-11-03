@@ -9,9 +9,10 @@ import {
   type SchoolDays,
   type Task,
   type WeatherForecast,
+  type WeekData,
 } from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
-import type { Clock, Sources } from '../sources/types.ts';
+import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
 
 const UPCOMING_DAYS = 7;
 const UPCOMING_LIMIT = 5;
@@ -24,6 +25,8 @@ export type DashboardService = {
   weatherForecast(): Promise<WeatherForecast | null>;
   /** null si le profil n'existe pas. */
   dashboard(ownerId: string): Promise<DashboardData | null>;
+  /** Semaine du lundi `offset` semaines après la semaine en cours (0 à WEEKS_AHEAD, vérifié par l'appelant). */
+  week(offset: number): Promise<WeekData>;
   /** null si le profil ou la tâche n'existe pas. */
   setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task | null>;
 };
@@ -57,7 +60,17 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
     }
   }
 
-  /** Cours d'aujourd'hui et de demain. Accessoire, comme la météo : une panne masque l'emploi du temps. */
+  /** Cours sur l'intervalle. Accessoire, comme la météo : une panne masque l'emploi du temps. */
+  async function coursesIn(ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null> {
+    try {
+      return await sources.school.coursesFor(ownerId, range);
+    } catch (err) {
+      logger.error(`Emploi du temps indisponible : ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /** Cours d'aujourd'hui et de demain. */
   async function schoolDays(ownerId: string): Promise<SchoolDays | null> {
     const today = clock();
     today.setHours(0, 0, 0, 0);
@@ -65,30 +78,20 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
     tomorrow.setDate(tomorrow.getDate() + 1);
     const after = new Date(tomorrow);
     after.setDate(after.getDate() + 1);
-    try {
-      const courses = await sources.school.coursesFor(ownerId, { from: today, to: after });
-      if (!courses) return null;
-      const startsBefore = (limit: Date) => (c: { start: string }) => new Date(c.start) < limit;
-      return {
-        today: courses.filter(startsBefore(tomorrow)),
-        tomorrow: courses.filter((c) => !startsBefore(tomorrow)(c)),
-      };
-    } catch (err) {
-      logger.error(`Emploi du temps indisponible : ${(err as Error).message}`);
-      return null;
-    }
+    const courses = await coursesIn(ownerId, { from: today, to: after });
+    if (!courses) return null;
+    const startsBefore = (limit: Date) => (c: { start: string }) => new Date(c.start) < limit;
+    return {
+      today: courses.filter(startsBefore(tomorrow)),
+      tomorrow: courses.filter((c) => !startsBefore(tomorrow)(c)),
+    };
   }
 
-  /** Prochain cours à venir, pour le résumé de l'accueil ; une panne de l'emploi du temps le masque. */
+  /** Prochain cours à venir, pour le résumé de l'accueil. */
   async function nextCourse(ownerId: string): Promise<SchoolCourse | null> {
     const range = upcomingRange();
-    try {
-      const courses = await sources.school.coursesFor(ownerId, range);
-      return courses?.find((c) => !c.cancelled && new Date(c.start) >= range.from) ?? null;
-    } catch (err) {
-      logger.error(`Emploi du temps indisponible : ${(err as Error).message}`);
-      return null;
-    }
+    const courses = await coursesIn(ownerId, range);
+    return courses?.find((c) => !c.cancelled && new Date(c.start) >= range.from) ?? null;
   }
 
   async function summary(ownerId: string): Promise<ProfileSummary> {
@@ -143,6 +146,23 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
         weather: currentWeather,
         school,
       };
+    },
+
+    async week(offset) {
+      const from = startOfWeek(clock());
+      from.setDate(from.getDate() + offset * 7);
+      const to = new Date(from);
+      to.setDate(to.getDate() + 7);
+      const owners = await Promise.all(
+        ownerIds().map(async (ownerId) => {
+          const [events, courses] = await Promise.all([
+            sources.agenda.eventsFor(ownerId, { from, to }),
+            coursesIn(ownerId, { from, to }),
+          ]);
+          return { ownerId, events, courses };
+        }),
+      );
+      return { start: from.toISOString(), offset, owners };
     },
 
     async setTaskDone(ownerId, taskId, done) {

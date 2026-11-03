@@ -1,5 +1,5 @@
 // Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests.
-import type { DashboardData, Health, HomeData, PublicConfig, Task, WeatherForecast } from '../../../shared/types.ts';
+import type { DashboardData, Health, HomeData, PublicConfig, Task, WeatherForecast, WeekData } from '../../../shared/types.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -17,6 +17,7 @@ export type Api = {
   home(): Promise<HomeData>;
   dashboard(ownerId: string): Promise<DashboardData>;
   weather(): Promise<{ forecast: WeatherForecast | null }>;
+  week(offset: number): Promise<WeekData>;
   setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task>;
 };
 
@@ -38,6 +39,7 @@ export function createApi(fetchFn: typeof fetch = (...args) => fetch(...args), b
     home: () => request('/home'),
     dashboard: (ownerId) => request(ownerPath(ownerId)),
     weather: () => request('/weather'),
+    week: (offset) => request(`/week?offset=${offset}`),
     setTaskDone: (ownerId, taskId, done) =>
       request(`${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, {
         method: 'PUT',

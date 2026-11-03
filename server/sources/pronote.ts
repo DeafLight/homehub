@@ -9,13 +9,11 @@ import type { SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { formatSubject, normalizeName } from './ecoledirecte.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
-import type { Clock, SchoolSource, TimeRange } from './types.ts';
+import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 /** En cas de panne, l'emploi du temps reste affiché tant qu'il a moins de 24 h. */
 const STALE_MAX_MS = 24 * 3_600_000;
-/** Jours chargés à partir d'aujourd'hui. */
-const WINDOW_DAYS = 8;
 const PAIRING_HINT = 'refaire l’appairage (scripts/pronote-pair.ts, voir README)';
 
 /** Ce qu'il faut pour se reconnecter : le format de RefreshInformation de Pawnote, plus l'appareil. */
@@ -180,7 +178,7 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
     return session;
   }
 
-  // Clé : enfant et jour de début de la fenêtre, pour recharger au changement de jour.
+  // Clé : enfant et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
   const cache = createRefreshingCache<SchoolCourse[]>({
     clock,
     logger,
@@ -192,7 +190,7 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
         const child = session.children.find((name) => matchesChild(name, prenom));
         if (!child) throw new Error(`enfant « ${prenom} » introuvable sur le compte Pronote (${session.children.length} enfant(s))`);
         const start = new Date(from);
-        return session.timetable(child, start, new Date(start.getTime() + WINDOW_DAYS * 86_400_000));
+        return session.timetable(child, start, new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000));
       }),
   });
   let warnedNotPaired = false;
@@ -206,9 +204,8 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
         warnedNotPaired = true;
         return null;
       }
-      const today = clock();
-      today.setHours(0, 0, 0, 0);
-      const courses = await cache.get(JSON.stringify({ prenom, from: today.toISOString() }), refreshMinutes() * 60_000, 'Pronote');
+      const monday = startOfWeek(clock());
+      const courses = await cache.get(JSON.stringify({ prenom, from: monday.toISOString() }), refreshMinutes() * 60_000, 'Pronote');
       return courses.filter((c) => new Date(c.end) > range.from && new Date(c.start) < range.to);
     },
   };

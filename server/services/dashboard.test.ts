@@ -145,3 +145,26 @@ describe('emploi du temps', () => {
     expect(logger.errors[0]).toContain('ÉcoleDirecte en panne');
   });
 });
+
+describe('semaine', () => {
+  it('donne, pour chaque profil, les événements et les cours du lundi au dimanche', async () => {
+    const withSchool = fakeSources({
+      events: { alex: [event('passé', -2), event('dimanche', 6 * 24 - 13), event('lundi-suivant', 7 * 24 - 13)] },
+      courses: { alex: [{ id: 'maths', subject: 'Maths', start: new Date(2026, 10, 2, 9).toISOString(), end: new Date(2026, 10, 2, 10).toISOString(), cancelled: false }] },
+    });
+    const svc = createDashboardService({ config, sources: withSchool, clock: fixedClock, logger: silentLogger() });
+
+    const week = await svc.week(0);
+    expect(week.start).toBe(new Date(2026, 10, 2).toISOString());
+    expect(week.owners.map((o) => o.ownerId)).toEqual(['alex', 'lea', FAMILY_ID]);
+    const alex = week.owners[0];
+    expect(alex.events.map((e) => e.id)).toEqual(['passé', 'dimanche']);
+    expect(alex.courses?.map((c) => c.id)).toEqual(['maths']);
+    expect(week.owners[1].courses).toBeNull();
+
+    const next = await svc.week(1);
+    expect(next.start).toBe(new Date(2026, 10, 9).toISOString());
+    expect(next.owners[0].events.map((e) => e.id)).toEqual(['lundi-suivant']);
+    expect(next.owners[0].courses).toEqual([]);
+  });
+});

@@ -150,6 +150,26 @@ export type DashboardData = {
   school: SchoolDays | null;
 };
 
+/** Nombre de semaines consultables après la semaine en cours (limité par la fenêtre des emplois du temps). */
+export const WEEKS_AHEAD = 2;
+
+/** Agenda et cours d'un profil sur la semaine affichée. */
+export type WeekOwner = {
+  ownerId: string;
+  events: CalendarEvent[];
+  /** null si le profil n'a pas d'emploi du temps (ou s'il est indisponible). */
+  courses: SchoolCourse[] | null;
+};
+
+/** Semaine détaillée : tous les profils, le front choisit lesquels afficher. */
+export type WeekData = {
+  /** Lundi, minuit local, ISO 8601. */
+  start: string;
+  /** 0 : semaine en cours ; 1 à WEEKS_AHEAD : les suivantes. */
+  offset: number;
+  owners: WeekOwner[];
+};
+
 export type Health = {
   status: 'ok';
   version: string;

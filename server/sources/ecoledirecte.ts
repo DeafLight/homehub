@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
-import type { Clock, SchoolSource, TimeRange } from './types.ts';
+import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
 const BASE_URL = 'https://api.ecoledirecte.com/v3';
 /** Version de l'application web, exigée par l'API. */
@@ -14,8 +14,6 @@ const API_VERSION = '4.101.4';
 const REQUEST_TIMEOUT_MS = 15_000;
 /** En cas de panne, l'emploi du temps reste affiché tant qu'il a moins de 24 h. */
 const STALE_MAX_MS = 24 * 3_600_000;
-/** Jours chargés à partir d'aujourd'hui. */
-const WINDOW_DAYS = 8;
 const CODE_OK = 200;
 const CODE_DOUBLE_AUTH = 250;
 
@@ -262,7 +260,7 @@ export function createEcoleDirecteSource({
   clock,
   logger,
 }: EcoleDirecteSourceDeps): SchoolSource {
-  // Clé : élève et jour de début de la fenêtre, pour recharger au changement de jour.
+  // Clé : élève et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
   const cache = createRefreshingCache<SchoolCourse[]>({
     clock,
     logger,
@@ -277,7 +275,7 @@ export function createEcoleDirecteSource({
         throw new Error(`élève « ${prenom} » introuvable (élèves du compte : ${session.students.map((s) => s.prenom).join(', ')})`);
       }
       const start = new Date(from);
-      return session.timetable(student.id, start, new Date(start.getTime() + WINDOW_DAYS * 86_400_000));
+      return session.timetable(student.id, start, new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000));
     },
   });
   let warnedMissingCredentials = false;
@@ -293,10 +291,9 @@ export function createEcoleDirecteSource({
         warnedMissingCredentials = true;
         return null;
       }
-      const today = clock();
-      today.setHours(0, 0, 0, 0);
+      const monday = startOfWeek(clock());
       const courses = await cache.get(
-        JSON.stringify({ prenom, from: today.toISOString() }),
+        JSON.stringify({ prenom, from: monday.toISOString() }),
         refreshMinutes() * 60_000,
         'ÉcoleDirecte',
       );

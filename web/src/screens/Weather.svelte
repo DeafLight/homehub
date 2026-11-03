@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import Avatar from '../components/Avatar.svelte';
+  import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
   import HourlyChart from '../components/widgets/HourlyChart.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { formatDay, formatTime } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { routePath, type PageRoute } from '../lib/route.ts';
+  import type { PageRoute } from '../lib/route.ts';
   import {
     dayExtra,
     firstRainSpell,
@@ -27,11 +27,9 @@
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
-  const { api, profiles, clock, navigate } = getAppContext();
+  const { api, clock } = getAppContext();
   const weather = createResource(() => api.weather(), WEATHER_REFRESH_MS);
   onDestroy(weather.destroy);
-
-  const backProfile = $derived(back.name === 'dashboard' ? profiles.find((p) => p.id === back.ownerId) : undefined);
 
   const optional = (value: number | null, format: (n: number) => string) => (value === null ? '—' : format(value));
   const timeOf = (iso: string | null) => (iso ? formatTime(new Date(iso)) : '—');
@@ -39,20 +37,7 @@
 
 <div class="weather-page">
   <header>
-    <button
-      class="back"
-      type="button"
-      aria-label={backProfile ? `Retour au profil de ${backProfile.name}` : 'Retour à l’accueil'}
-      onclick={() => navigate(routePath(backProfile ? back : { name: 'home' }))}
-    >
-      <Icon name="back" size={30} strokeWidth={2.2} />
-      {#if backProfile}
-        <Avatar profile={backProfile} size={36} />
-        {backProfile.name}
-      {:else}
-        Accueil
-      {/if}
-    </button>
+    <BackButton {back} />
     {#if weather.data?.forecast}
       {@const forecast = weather.data.forecast}
       <h1>Météo · {forecast.location}</h1>
@@ -164,26 +149,6 @@
     display: flex;
     align-items: center;
     gap: 24px;
-  }
-
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    min-height: 72px;
-    padding: 0 28px 0 18px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: inherit;
-    font: inherit;
-    font-size: 1.4rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .back:active {
-    background: var(--border-strong);
   }
 
   h1 {

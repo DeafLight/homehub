@@ -2,7 +2,7 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
-import type { Health } from '../shared/types.ts';
+import { type Health, WEEKS_AHEAD } from '../shared/types.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DashboardService } from './services/dashboard.ts';
@@ -18,6 +18,7 @@ export type AppDeps = {
 };
 
 const taskUpdateSchema = z.object({ done: z.boolean() });
+const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
@@ -34,6 +35,12 @@ export function createApp({ config, service, clock, version, staticRoot }: AppDe
   api.get('/home', async (c) => c.json(await service.home()));
 
   api.get('/weather', async (c) => c.json({ forecast: await service.weatherForecast() }));
+
+  api.get('/week', async (c) => {
+    const offset = weekOffsetSchema.safeParse(c.req.query('offset') ?? 0);
+    if (!offset.success) return c.json({ error: `offset attendu : entier de 0 à ${WEEKS_AHEAD}` }, 400);
+    return c.json(await service.week(offset.data));
+  });
 
   api.get('/dashboard/:ownerId', async (c) => {
     const data = await service.dashboard(c.req.param('ownerId'));

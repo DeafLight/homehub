@@ -1,23 +1,28 @@
-// Routes du front : l'accueil, un dashboard par profil (/p/<id>), et la météo détaillée.
-// La page météo porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
+// Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine).
+// Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
-export type Route = PageRoute | { name: 'weather'; back: PageRoute };
+export type DetailName = 'weather' | 'week';
+export type Route = PageRoute | { name: DetailName; back: PageRoute };
 
 export const HOME_PATH = '/';
-const WEATHER_PREFIX = '/meteo';
+const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine' };
 
 export const dashboardPath = (ownerId: string) => `/p/${encodeURIComponent(ownerId)}`;
 
 export function routePath(route: Route): string {
+  if (route.name === 'home') return HOME_PATH;
   if (route.name === 'dashboard') return dashboardPath(route.ownerId);
-  if (route.name === 'weather') return route.back.name === 'home' ? WEATHER_PREFIX : `${WEATHER_PREFIX}${routePath(route.back)}`;
-  return HOME_PATH;
+  const prefix = DETAIL_PREFIXES[route.name];
+  return route.back.name === 'home' ? prefix : `${prefix}${routePath(route.back)}`;
 }
 
-/** Chemin de la page météo ouverte depuis `from` (depuis la météo elle-même : on garde le même retour). */
-export const weatherPath = (from: Route) => routePath(from.name === 'weather' ? from : { name: 'weather', back: from });
+/** Page à laquelle revenir depuis `route` : elle-même, ou la page d'origine pour une page de détail. */
+export const pageOf = (route: Route): PageRoute => (route.name === 'home' || route.name === 'dashboard' ? route : route.back);
+
+/** Chemin de la page de détail `name` ouverte depuis `from` (depuis une autre page de détail : même retour). */
+export const detailPath = (name: DetailName, from: Route) => routePath({ name, back: pageOf(from) });
 
 function parsePage(pathname: string): PageRoute {
   const match = /^\/p\/([^/]+)\/?$/.exec(pathname);
@@ -30,7 +35,10 @@ function parsePage(pathname: string): PageRoute {
 }
 
 export function parseRoute(pathname: string): Route {
-  const weather = /^\/meteo(\/.*)?$/.exec(pathname);
-  if (weather) return { name: 'weather', back: parsePage(weather[1] ?? HOME_PATH) };
+  for (const [name, prefix] of Object.entries(DETAIL_PREFIXES) as [DetailName, string][]) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return { name, back: parsePage(pathname.slice(prefix.length) || HOME_PATH) };
+    }
+  }
   return parsePage(pathname);
 }

@@ -3,11 +3,12 @@
   import StatusBanner from './components/StatusBanner.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
-  import { HOME_PATH } from './lib/route.ts';
+  import { HOME_PATH, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Home from './screens/Home.svelte';
   import Weather from './screens/Weather.svelte';
+  import Week from './screens/Week.svelte';
 
   const VERSION_CHECK_MS = 30_000;
 
@@ -38,6 +39,11 @@
   {/key}
 {:else if router.route.name === 'weather'}
   <Weather back={router.route.back} />
+{:else if router.route.name === 'week'}
+  <!-- La page d’origine fixe les profils affichés au départ : un autre retour, une nouvelle page. -->
+  {#key routePath(router.route)}
+    <Week back={router.route.back} />
+  {/key}
 {:else}
   <Home />
 {/if}

@@ -66,6 +66,15 @@ describe('API', () => {
     expect((await res.json()).forecast.current.windKmh).toBe(12);
   });
 
+  it('GET /api/week : semaine en cours par défaut, 400 hors des semaines consultables', async () => {
+    const { app } = setup();
+    const week = await (await app.request('/api/week')).json();
+    expect(week.offset).toBe(0);
+    expect(week.owners.map((o: { ownerId: string }) => o.ownerId)).toEqual(['alex', 'lea', 'famille']);
+    expect((await (await app.request('/api/week?offset=2')).json()).offset).toBe(2);
+    for (const bad of ['-1', '3', '1.5', 'x']) expect((await app.request(`/api/week?offset=${bad}`)).status).toBe(400);
+  });
+
   it('GET /api/dashboard/:id : 200 pour un membre, 404 sinon', async () => {
     const { app } = setup();
     expect((await app.request('/api/dashboard/alex')).status).toBe(200);

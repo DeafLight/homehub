@@ -34,6 +34,17 @@ export interface WeatherSource {
   forecast(): Promise<WeatherForecast | null>;
 }
 
+/** Les emplois du temps sont chargés du lundi de la semaine en cours, sur ce nombre de jours (page semaine : 3 semaines). */
+export const SCHOOL_WINDOW_DAYS = 21;
+
+/** Lundi de la semaine de `date`, à minuit (heure locale). */
+export function startOfWeek(date: Date): Date {
+  const monday = new Date(date);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return monday;
+}
+
 export interface SchoolSource {
   /** Cours qui chevauchent l'intervalle, triés ; null si le profil n'a pas d'emploi du temps. */
   coursesFor(ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null>;

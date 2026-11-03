@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
-  import WeatherLink from '../components/WeatherLink.svelte';
+  import DetailLink from '../components/DetailLink.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { eventLine, formatLongDate, formatTime, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -31,7 +31,7 @@
       {@const { weather, familyHighlight } = home.data}
       <div class="bottom">
         {#if weather}
-          <WeatherLink>
+          <DetailLink to="weather" label="Météo détaillée">
             <Icon
               name={weatherIcon(weather.weatherCode, weather.isDay)}
               size={56}
@@ -44,13 +44,18 @@
               </span>
               <span class="muted">{weatherOutlook(weather, clock.now)}</span>
             </span>
-          </WeatherLink>
+          </DetailLink>
         {/if}
         {#if familyHighlight}
-          <div class="highlight">
-            <span class="label">{config.family.name}</span>
-            <span class="highlight-text">{eventLine(familyHighlight, clock.now)}</span>
-          </div>
+          <DetailLink to="week" label="Semaine de la famille" variant="block">
+            <span class="highlight">
+              <span class="highlight-body">
+                <span class="label">{config.family.name}</span>
+                <span class="highlight-text">{eventLine(familyHighlight, clock.now)}</span>
+              </span>
+              <Icon name="chevron" size={32} color="var(--fg-muted)" strokeWidth={2} />
+            </span>
+          </DetailLink>
         {/if}
       </div>
     {/if}
@@ -132,7 +137,7 @@
   }
 
   .weather-text,
-  .highlight,
+  .highlight-body,
   .profile-text {
     display: flex;
     flex-direction: column;
@@ -151,7 +156,9 @@
   }
 
   .highlight {
-    gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
     padding: 20px 24px;
     border-radius: var(--radius-md);
     background: var(--surface-2);
@@ -163,6 +170,11 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     color: var(--fg-muted);
+  }
+
+  .highlight-body {
+    flex-grow: 1;
+    gap: 8px;
   }
 
   .highlight-text {

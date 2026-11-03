@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from './api.ts';
 import { mix, textColorOn } from './color.ts';
-import { dashboardPath, parseRoute, routePath, weatherPath } from './route.ts';
+import { dashboardPath, detailPath, parseRoute, routePath } from './route.ts';
+
+const weatherPath = (from: Parameters<typeof detailPath>[1]) => detailPath('weather', from);
 
 describe('route', () => {
   it.each([
@@ -15,6 +17,8 @@ describe('route', () => {
     ['/meteo/p/lea', { name: 'weather', back: { name: 'dashboard', ownerId: 'lea' } }],
     ['/meteo/autre', { name: 'weather', back: { name: 'home' } }],
     ['/meteorite', { name: 'home' }],
+    ['/semaine', { name: 'week', back: { name: 'home' } }],
+    ['/semaine/p/lea', { name: 'week', back: { name: 'dashboard', ownerId: 'lea' } }],
   ])('%s', (path, expected) => {
     expect(parseRoute(path)).toEqual(expected);
   });
@@ -33,6 +37,8 @@ describe('route', () => {
     // Depuis la météo elle-même, le retour ne change pas.
     expect(weatherPath(parseRoute('/meteo/p/lea'))).toBe('/meteo/p/lea');
     expect(routePath({ name: 'home' })).toBe('/');
+    // De la météo vers la semaine : on garde la page d'origine.
+    expect(detailPath('week', parseRoute('/meteo/p/lea'))).toBe('/semaine/p/lea');
   });
 });
 

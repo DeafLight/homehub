@@ -1,12 +1,19 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import type { DetailName } from '../lib/route.ts';
+  import DetailLink from './DetailLink.svelte';
 
-  type Props = { title?: string; children: Snippet };
-  let { title, children }: Props = $props();
+  // `link` : le titre ouvre une page de détail (ex. la semaine depuis « Cette semaine »).
+  type Props = { title?: string; link?: { to: DetailName; label: string }; children: Snippet };
+  let { title, link, children }: Props = $props();
 </script>
 
 <section class="card">
-  {#if title}
+  {#if title && link}
+    <h2>
+      <DetailLink to={link.to} label={link.label} chevronSize={28}>{title}</DetailLink>
+    </h2>
+  {:else if title}
     <h2>{title}</h2>
   {/if}
   {@render children()}

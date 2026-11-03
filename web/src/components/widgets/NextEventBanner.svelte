@@ -2,6 +2,7 @@
   import type { CalendarEvent } from '../../../../shared/types.ts';
   import { mix } from '../../lib/color.ts';
   import { eventLine } from '../../lib/format.ts';
+  import DetailLink from '../DetailLink.svelte';
   import Icon from '../Icon.svelte';
 
   type Props = { event: CalendarEvent | null; color: string; now: Date };
@@ -12,20 +13,23 @@
   const accent = $derived(mix(color, '#ffffff', 0.55));
 </script>
 
-<section class="banner" style:background>
-  <Icon name="clock" size={72} color={accent} strokeWidth={1.6} />
-  <div class="text">
-    <span class="label" style:color={accent}>Prochaine activité</span>
-    {#if event}
-      <span class="title">{eventLine(event, now)}</span>
-      {#if event.location}
-        <span class="detail">{event.location}</span>
+<DetailLink to="week" label="Semaine détaillée" variant="block">
+  <span class="banner" style:background>
+    <Icon name="clock" size={72} color={accent} strokeWidth={1.6} />
+    <span class="text">
+      <span class="label" style:color={accent}>Prochaine activité</span>
+      {#if event}
+        <span class="title">{eventLine(event, now)}</span>
+        {#if event.location}
+          <span class="detail">{event.location}</span>
+        {/if}
+      {:else}
+        <span class="title">Rien de prévu cette semaine</span>
       {/if}
-    {:else}
-      <span class="title">Rien de prévu cette semaine</span>
-    {/if}
-  </div>
-</section>
+    </span>
+    <span class="chevron"><Icon name="chevron" size={40} color={accent} strokeWidth={2} /></span>
+  </span>
+</DetailLink>
 
 <style>
   .banner {
@@ -34,6 +38,11 @@
     gap: 32px;
     padding: 28px 36px;
     border-radius: var(--radius-xl);
+  }
+
+  .chevron {
+    display: flex;
+    margin-left: auto;
   }
 
   .text {

@@ -34,7 +34,7 @@
   const nowVisible = $derived(isToday && now.getHours() >= hours.startHour && now.getHours() < hours.endHour);
 </script>
 
-<Card {title}>
+<Card {title} link={{ to: 'week', label: 'Semaine détaillée' }}>
   {#if allDayRows > 0}
     <ul class="all-day">
       {#each plan.allDay as event (event.id)}

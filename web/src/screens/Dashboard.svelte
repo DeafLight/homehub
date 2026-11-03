@@ -3,7 +3,7 @@
   import type { Task } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
-  import WeatherLink from '../components/WeatherLink.svelte';
+  import DetailLink from '../components/DetailLink.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
@@ -53,10 +53,10 @@
           <span class="muted">{formatLongDate(clock.now)}</span>
           {#if dashboard.data?.weather}
             {@const weather = dashboard.data.weather}
-            <WeatherLink pill chevronSize={24}>
+            <DetailLink to="weather" label="Météo détaillée" variant="pill" chevronSize={24}>
               <Icon name={weatherIcon(weather.weatherCode, weather.isDay)} size={28} color={weatherIconColor(weather.weatherCode, weather.isDay)} />
               <span class="weather">{formatTemperature(weather.temperatureC)} {weatherLabel(weather.weatherCode).toLowerCase()}</span>
-            </WeatherLink>
+            </DetailLink>
           {/if}
         </span>
       </header>
