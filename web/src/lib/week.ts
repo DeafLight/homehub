@@ -1,7 +1,7 @@
 // Grille de la semaine : les agendas et les cours des profils choisis, jour par jour, prêts à placer.
 import type { CalendarEvent, WeekData } from '../../../shared/types.ts';
 import { addDays, eventsOnDay, fitsInDay, whenOnDay } from './day.ts';
-import { formatTime, pluralize } from './format.ts';
+import { formatTime } from './format.ts';
 
 /** Plage affichée par défaut ; élargie si un élément en déborde. */
 const DEFAULT_START_HOUR = 8;
@@ -11,9 +11,13 @@ const DEFAULT_EVENT_MINUTES = 60;
 export type WeekBlock = {
   id: string;
   ownerId: string;
-  kind: 'event' | 'school';
+  kind: 'event' | 'course';
   title: string;
+  /** Heure de début. */
   meta: string;
+  /** Salle d'un cours. */
+  detail?: string;
+  cancelled: boolean;
   start: Date;
   end: Date;
   /** Couloir dans le groupe d'éléments qui se chevauchent, et nombre de couloirs de ce groupe. */
@@ -28,7 +32,7 @@ export type WeekDay = { date: Date; allDay: WeekAllDay[]; blocks: WeekBlock[] };
 export type WeekFilter = {
   /** Profils affichés. */
   owners: ReadonlySet<string>;
-  /** Cours affichés (un bloc par jour et par profil). */
+  /** Cours affichés, chacun dans son bloc comme un événement. */
   courses: boolean;
 };
 
@@ -92,26 +96,30 @@ export function weekDays(data: WeekData, filter: WeekFilter): WeekDay[] {
         kind: 'event',
         title: event.title,
         meta: formatTime(new Date(event.start)),
+        cancelled: false,
         start: new Date(event.start),
         end: endOf(event),
       }));
 
-    // Les cours d'un jour forment un seul bloc : le détail est sur le dashboard du profil.
+    // Chaque cours a son bloc, comme un événement ; un cours annulé reste visible (barré).
     if (filter.courses) {
       for (const { ownerId, courses } of owners) {
-        const ofDay = (courses ?? []).filter((c) => !c.cancelled && new Date(c.start) < next && new Date(c.end) > date);
-        if (ofDay.length === 0) continue;
-        const start = new Date(Math.min(...ofDay.map((c) => new Date(c.start).getTime())));
-        const end = new Date(Math.max(...ofDay.map((c) => new Date(c.end).getTime())));
-        blocks.push({
-          id: `s-${ownerId}-${i}`,
-          ownerId,
-          kind: 'school',
-          title: 'Cours',
-          meta: `${formatTime(start)} – ${formatTime(end)} · ${pluralize(ofDay.length, 'cours', 'cours')}`,
-          start,
-          end,
-        });
+        for (const course of courses ?? []) {
+          const start = new Date(course.start);
+          const end = new Date(course.end);
+          if (start >= next || end <= date) continue;
+          blocks.push({
+            id: `c-${ownerId}-${course.id}`,
+            ownerId,
+            kind: 'course',
+            title: course.subject,
+            meta: formatTime(start),
+            detail: course.room,
+            cancelled: course.cancelled,
+            start,
+            end,
+          });
+        }
       }
     }
 

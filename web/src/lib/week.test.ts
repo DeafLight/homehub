@@ -19,7 +19,7 @@ const data: WeekData = {
     {
       ownerId: 'greg',
       events: [ev('foot', 2, 18, 19), ev('dentiste', 3, 17, 18), { id: 'anniv', title: 'Anniversaire', start: at(7, 0), end: at(8, 0), allDay: true }],
-      courses: [course('maths', 2, 8, 9), course('svt', 2, 14, 17), course('annulé', 3, 8, 9, true), course('anglais', 3, 10, 11)],
+      courses: [{ ...course('maths', 2, 8, 9), room: 'B26' }, course('svt', 2, 14, 17), course('annulé', 3, 8, 9, true), course('anglais', 3, 10, 11)],
     },
     { ownerId: 'lucie', events: [ev('piscine', 2, 18, 20)], courses: null },
     // « foot » est aussi dans l'agenda de la famille.
@@ -55,13 +55,19 @@ describe('semaine', () => {
     expect([byTitle.diner.lane, byTitle.diner.lanes]).toEqual([0, 1]);
   });
 
-  it('les cours d’un jour forment un seul bloc, sans les cours annulés', () => {
+  it('chaque cours a son bloc, comme un événement ; un cours annulé reste visible', () => {
     const days = weekDays(data, { owners: new Set(['greg']), courses: true });
-    const monday = days[0].blocks.find((b) => b.kind === 'school');
-    expect(monday?.meta).toBe('08:00 – 17:00 · 2 cours');
-    const tuesday = days[1].blocks.find((b) => b.kind === 'school');
-    expect(tuesday?.meta).toBe('10:00 – 11:00 · 1 cours');
-    expect(weekDays(data, { owners: new Set(['greg']), courses: false })[0].blocks.some((b) => b.kind === 'school')).toBe(false);
+    const courses = (day: number) => days[day].blocks.filter((b) => b.kind === 'course');
+    expect(courses(0).map((b) => [b.title, b.meta])).toEqual([
+      ['maths', '08:00'],
+      ['svt', '14:00'],
+    ]);
+    expect(courses(0)[0].detail).toBe('B26');
+    expect(courses(1).map((b) => [b.title, b.cancelled])).toEqual([
+      ['annulé', true],
+      ['anglais', false],
+    ]);
+    expect(weekDays(data, { owners: new Set(['greg']), courses: false })[0].blocks.some((b) => b.kind === 'course')).toBe(false);
   });
 
   it('plage horaire : 8 h–21 h, élargie si besoin', () => {

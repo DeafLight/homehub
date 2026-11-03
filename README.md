@@ -8,8 +8,8 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   Un rail à gauche ramène à l'accueil ou passe directement à un autre profil.
 - **Famille** : un profil commun (`/p/famille`) pour l'agenda partagé et la liste de courses.
 - **Semaine détaillée** (`/semaine`) : ouverte depuis « Prochaine activité », « Cette semaine », les frises du jour et le
-  bloc famille de l'accueil. Grille des 7 jours, agendas dans la couleur de chaque profil, cours regroupés en un bloc
-  par jour ; on choisit qui afficher, et on avance jusqu'à 2 semaines. Retour vers la page d'origine, comme la météo.
+  bloc famille de l'accueil. Grille des 7 jours, agendas dans la couleur de chaque profil, cours un par un (salle,
+  annulations) ; on choisit qui afficher, et on avance jusqu'à 2 semaines. Retour vers la page d'origine, comme la météo.
 - **Météo détaillée** (`/meteo`) : ouverte en touchant n'importe quel affichage météo ; conditions actuelles
   (ressenti, vent, humidité, soleil), courbe des 24 prochaines heures avec la pluie, et 4 jours. Le bouton retour
   ramène à la page d'origine (`/meteo/p/<id>` quand elle est ouverte depuis un profil).

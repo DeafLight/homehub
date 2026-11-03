@@ -16,7 +16,7 @@
   const BLOCK_LINE_PX = 19;
   const BLOCK_PADDING_PX = 6;
 
-  // Semaine détaillée en grille : 7 colonnes, agendas en couleur du profil, cours regroupés par jour.
+  // Semaine détaillée en grille : 7 colonnes, agendas en couleur du profil, cours un par un comme les événements.
   // `back` est la page qui l'a ouverte : elle choisit aussi les profils affichés au départ.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
@@ -28,7 +28,7 @@
 
   let offset = $state(0);
   let owners = $state(initialOwners(profiles.map((p) => p.id), fromOwner, FAMILY_ID));
-  // Depuis un profil, ses cours sont utiles ; depuis l'accueil, ceux de tout le monde chargeraient la grille.
+  // Depuis un profil, ses cours sont utiles ; depuis l’accueil, ceux de tout le monde chargeraient la grille.
   let showCourses = $state(fromProfile !== undefined);
 
   const week = createResource(() => api.week(offset), WEEK_REFRESH_MS);
@@ -157,6 +157,7 @@
                 <div
                   class="block {block.kind}"
                   class:past={block.end <= clock.now}
+                  class:cancelled={block.cancelled}
                   style:top="{top(block.start)}%"
                   style:height="calc({top(block.end) - top(block.start)}% - 3px)"
                   style:left="calc({(block.lane / block.lanes) * 100}% + 1px)"
@@ -164,14 +165,14 @@
                   style:border-left-color={color}
                   style:background={block.kind === 'event' ? mix(color, SURFACE, 0.32) : undefined}
                 >
-                  <span class="block-text" style:--lines={n} style:max-height="{n * BLOCK_LINE_PX}px">
-                    {#if block.kind === 'event'}
-                      <!-- Heure puis titre sur une même ligne, qui se replie si le bloc est assez haut. -->
-                      <span class="block-time" style:color={mix(color, '#ffffff', 0.5)}>{block.meta}</span>
-                      <span class="block-title">{block.title}</span>
-                    {:else}
-                      <span class="block-title">{block.title}</span>
-                      <span class="block-meta">{block.meta}</span>
+                  <span class="block-text" class:single={n === 1} style:--lines={n} style:max-height="{n * BLOCK_LINE_PX}px">
+                    <!-- Heure puis titre sur une même ligne, qui se replie si le bloc est assez haut ; la salle d'un cours ensuite. -->
+                    <span class="block-time" style:color={block.kind === 'event' ? mix(color, '#ffffff', 0.5) : undefined}>{block.meta}</span>
+                    <span class="block-title">{block.title}</span>
+                    {#if block.cancelled}
+                      <span class="block-detail">annulé</span>
+                    {:else if block.detail}
+                      <span class="block-detail">· {block.detail}</span>
                     {/if}
                   </span>
                 </div>
@@ -456,8 +457,8 @@
     overflow: hidden;
   }
 
-  .block.school {
-    background: repeating-linear-gradient(135deg, #1f232b 0 10px, #1c2027 10px 20px);
+  .block.course {
+    background: #1f232b;
     border-top: 1px dashed #3a404b;
     border-right: 1px dashed #3a404b;
     border-bottom: 1px dashed #3a404b;
@@ -470,6 +471,13 @@
     line-clamp: var(--lines);
     overflow: hidden;
     line-height: 19px;
+  }
+
+  /* Une seule ligne : le titre est tronqué plutôt que renvoyé à une ligne invisible. */
+  .block-text.single {
+    display: block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .block-time {
@@ -485,15 +493,23 @@
     overflow-wrap: anywhere;
   }
 
-  .school .block-title {
+  .course .block-time,
+  .block-detail {
+    font-size: 0.82rem;
+    color: var(--fg-muted);
+  }
+
+  .course .block-title {
     font-weight: 600;
     color: #c9ced6;
   }
 
-  .block-meta {
-    display: block;
-    font-size: 0.82rem;
-    color: var(--fg-muted);
+  .cancelled .block-title {
+    text-decoration: line-through;
+  }
+
+  .cancelled {
+    opacity: 0.6;
   }
 
   .past {
