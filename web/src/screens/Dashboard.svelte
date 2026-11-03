@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import type { Task } from '../../../shared/types.ts';
+  import Icon from '../components/Icon.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
+  import WeatherLink from '../components/WeatherLink.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
@@ -12,7 +14,7 @@
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { HOME_PATH } from '../lib/route.ts';
-  import { formatTemperature, weatherLabel } from '../lib/weather.ts';
+  import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel } from '../lib/weather.ts';
 
   const DASHBOARD_REFRESH_MS = 60_000;
 
@@ -47,10 +49,15 @@
     <main>
       <header>
         <h1>{profile.isFamily ? profile.name : `${greeting(clock.now)} ${profile.name} !`}</h1>
-        <span class="muted">
-          {formatLongDate(clock.now)}{#if dashboard.data?.weather}{` · ${formatTemperature(
-              dashboard.data.weather.temperatureC,
-            )} ${weatherLabel(dashboard.data.weather.weatherCode).toLowerCase()}`}{/if}
+        <span class="header-side">
+          <span class="muted">{formatLongDate(clock.now)}</span>
+          {#if dashboard.data?.weather}
+            {@const weather = dashboard.data.weather}
+            <WeatherLink pill chevronSize={24}>
+              <Icon name={weatherIcon(weather.weatherCode, weather.isDay)} size={28} color={weatherIconColor(weather.weatherCode, weather.isDay)} />
+              <span class="weather">{formatTemperature(weather.temperatureC)} {weatherLabel(weather.weatherCode).toLowerCase()}</span>
+            </WeatherLink>
+          {/if}
         </span>
       </header>
 
@@ -115,7 +122,7 @@
   header {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     gap: 24px;
   }
 
@@ -128,6 +135,16 @@
   .muted {
     font-size: 1.4rem;
     color: var(--fg-muted);
+  }
+
+  .header-side {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .weather {
+    font-size: 1.3rem;
   }
 
   .grid {

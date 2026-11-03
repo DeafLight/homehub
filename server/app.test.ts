@@ -60,6 +60,12 @@ describe('API', () => {
     expect((await res.json()).profiles).toHaveLength(3);
   });
 
+  it('GET /api/weather', async () => {
+    const res = await setup().app.request('/api/weather');
+    expect(res.status).toBe(200);
+    expect((await res.json()).forecast.current.windKmh).toBe(12);
+  });
+
   it('GET /api/dashboard/:id : 200 pour un membre, 404 sinon', async () => {
     const { app } = setup();
     expect((await app.request('/api/dashboard/alex')).status).toBe(200);

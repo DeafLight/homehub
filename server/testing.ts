@@ -1,5 +1,5 @@
 // Briques communes aux tests : configuration, horloge fixe et sources factices.
-import type { CalendarEvent, SchoolCourse, Task, Weather } from '../shared/types.ts';
+import type { CalendarEvent, SchoolCourse, Task, Weather, WeatherForecast } from '../shared/types.ts';
 import { type AppConfig, parseConfig } from './config.ts';
 import type { Logger } from './config-store.ts';
 import type { Clock, Sources } from './sources/types.ts';
@@ -29,6 +29,23 @@ export const testWeather: Weather = {
   today: { minC: 4, maxC: 12 },
   tomorrow: null,
   rainStartsAt: null,
+};
+
+export const testForecast: WeatherForecast = {
+  location: 'Test',
+  observedAt: NOW.toISOString(),
+  current: {
+    temperatureC: 10,
+    apparentC: 8,
+    weatherCode: 3,
+    isDay: true,
+    humidityPct: 80,
+    windKmh: 12,
+    gustsKmh: 25,
+    windFromDeg: 45,
+  },
+  hours: [],
+  days: [],
 };
 
 export function event(id: string, hoursFromNow: number, title = id): CalendarEvent {
@@ -63,7 +80,7 @@ export function fakeSources(data: {
       },
     },
     notes: { async latestFor() { return { text: 'Coucou', authorId: 'alex' }; } },
-    weather: { async current() { return testWeather; } },
+    weather: { async current() { return testWeather; }, async forecast() { return testForecast; } },
     school: {
       async coursesFor(ownerId, range) {
         if (!data.courses?.[ownerId]) return null;

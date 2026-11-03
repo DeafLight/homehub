@@ -33,6 +33,8 @@ export function createApp({ config, service, clock, version, staticRoot }: AppDe
 
   api.get('/home', async (c) => c.json(await service.home()));
 
+  api.get('/weather', async (c) => c.json({ forecast: await service.weatherForecast() }));
+
   api.get('/dashboard/:ownerId', async (c) => {
     const data = await service.dashboard(c.req.param('ownerId'));
     return data ? c.json(data) : c.json({ error: 'Profil inconnu' }, 404);

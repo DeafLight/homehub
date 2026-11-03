@@ -1,7 +1,7 @@
 // Ports vers les sources de données. Chaque widget dépend d'une interface, pas d'une implémentation :
 // les données d'exemple d'aujourd'hui seront remplacées une par une (agenda Google, météo, Immich...)
 // sans toucher au service ni aux routes.
-import type { CalendarEvent, Note, SchoolCourse, Task, Weather } from '../../shared/types.ts';
+import type { CalendarEvent, Note, SchoolCourse, Task, Weather, WeatherForecast } from '../../shared/types.ts';
 
 /** Horloge injectable, pour des tests déterministes. */
 export type Clock = () => Date;
@@ -30,6 +30,8 @@ export interface NoteSource {
 export interface WeatherSource {
   /** null si aucun lieu n'est configuré ; lève une erreur si la source est indisponible. */
   current(): Promise<Weather | null>;
+  /** Prévision détaillée (page météo) ; mêmes règles que `current`. */
+  forecast(): Promise<WeatherForecast | null>;
 }
 
 export interface SchoolSource {

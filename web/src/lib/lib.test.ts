@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from './api.ts';
 import { mix, textColorOn } from './color.ts';
-import { dashboardPath, parseRoute } from './route.ts';
+import { dashboardPath, parseRoute, routePath, weatherPath } from './route.ts';
 
 describe('route', () => {
   it.each([
@@ -10,12 +10,29 @@ describe('route', () => {
     ['/p/lea/', { name: 'dashboard', ownerId: 'lea' }],
     ['/autre', { name: 'home' }],
     ['/p/%E0', { name: 'home' }],
+    ['/meteo', { name: 'weather', back: { name: 'home' } }],
+    ['/meteo/', { name: 'weather', back: { name: 'home' } }],
+    ['/meteo/p/lea', { name: 'weather', back: { name: 'dashboard', ownerId: 'lea' } }],
+    ['/meteo/autre', { name: 'weather', back: { name: 'home' } }],
+    ['/meteorite', { name: 'home' }],
   ])('%s', (path, expected) => {
     expect(parseRoute(path)).toEqual(expected);
   });
 
   it('aller-retour', () => {
     expect(parseRoute(dashboardPath('famille'))).toEqual({ name: 'dashboard', ownerId: 'famille' });
+  });
+
+  it('la météo revient à la page qui l’a ouverte', () => {
+    expect(weatherPath({ name: 'home' })).toBe('/meteo');
+    expect(weatherPath({ name: 'dashboard', ownerId: 'léa' })).toBe('/meteo/p/l%C3%A9a');
+    expect(parseRoute(weatherPath({ name: 'dashboard', ownerId: 'léa' }))).toEqual({
+      name: 'weather',
+      back: { name: 'dashboard', ownerId: 'léa' },
+    });
+    // Depuis la météo elle-même, le retour ne change pas.
+    expect(weatherPath(parseRoute('/meteo/p/lea'))).toBe('/meteo/p/lea');
+    expect(routePath({ name: 'home' })).toBe('/');
   });
 });
 

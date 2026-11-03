@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
+  import WeatherLink from '../components/WeatherLink.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { eventLine, formatLongDate, formatTime, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -30,20 +31,20 @@
       {@const { weather, familyHighlight } = home.data}
       <div class="bottom">
         {#if weather}
-          <div class="weather">
+          <WeatherLink>
             <Icon
               name={weatherIcon(weather.weatherCode, weather.isDay)}
               size={56}
               color={weatherIconColor(weather.weatherCode, weather.isDay)}
               strokeWidth={1.6}
             />
-            <div class="weather-text">
+            <span class="weather-text">
               <span class="temperature">
                 {formatTemperature(weather.temperatureC)} · {weatherLabel(weather.weatherCode)}
               </span>
               <span class="muted">{weatherOutlook(weather, clock.now)}</span>
-            </div>
-          </div>
+            </span>
+          </WeatherLink>
         {/if}
         {#if familyHighlight}
           <div class="highlight">
@@ -128,12 +129,6 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-  }
-
-  .weather {
-    display: flex;
-    align-items: center;
-    gap: 16px;
   }
 
   .weather-text,

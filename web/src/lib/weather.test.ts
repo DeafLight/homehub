@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { Weather } from '../../../shared/types.ts';
-import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from './weather.ts';
+import type { Weather, WeatherHour } from '../../../shared/types.ts';
+import {
+  dayExtra,
+  firstRainSpell,
+  formatMm,
+  formatTemperature,
+  hourlyPoints,
+  rainLine,
+  weatherIcon,
+  weatherIconColor,
+  weatherLabel,
+  weatherOutlook,
+  windDirection,
+} from './weather.ts';
 
 const at = (hour: number, minute = 0) => new Date(2026, 10, 2, hour, minute);
 
@@ -50,5 +62,42 @@ describe('weatherOutlook', () => {
 
   it('en soirée : le lendemain', () => {
     expect(weatherOutlook(weather, at(18))).toBe('Demain : pluie faible, 5° à 11°');
+  });
+});
+
+/** Heures à partir de 18:00, avec la pluie donnée heure par heure. */
+const hoursFrom18 = (rain: number[]): WeatherHour[] =>
+  rain.map((mm, i) => ({ time: at(18 + i).toISOString(), temperatureC: 10 - i / 2, precipitationMm: mm, weatherCode: 3, isDay: false }));
+
+describe('page météo', () => {
+  it('un point toutes les 3 h, avec la pluie de la tranche qui suit', () => {
+    const points = hourlyPoints(hoursFrom18([0, 0.2, 0.3, 1, 0, 0, 0]));
+    expect(points.map((p) => p.time.getHours())).toEqual([18, 21, 0]);
+    expect(points.map((p) => p.rainMm)).toEqual([0.5, 1, 0]);
+  });
+
+  it('premier épisode de pluie', () => {
+    const spell = firstRainSpell(hoursFrom18([0, 0, 0.4, 1.2, 0.05, 2]))!;
+    expect(spell.start.getHours()).toBe(20);
+    expect(spell.end.getHours()).toBe(22);
+    expect(spell.totalMm).toBeCloseTo(1.6);
+    expect(firstRainSpell(hoursFrom18([0, 0.05]))).toBeNull();
+  });
+
+  it('ligne de pluie', () => {
+    const spell = firstRainSpell(hoursFrom18([0, 0, 1]));
+    expect(rainLine(spell, at(18, 30))).toBe('Pluie vers 20 h');
+    expect(rainLine(spell, at(20, 10))).toBe('Pluie en ce moment');
+    expect(rainLine(null, at(18))).toBeNull();
+  });
+
+  it('vent, cumuls et compléments du jour', () => {
+    expect(windDirection(0)).toBe('N');
+    expect(windDirection(230)).toBe('SO');
+    expect(windDirection(350)).toBe('N');
+    expect(formatMm(2.64)).toBe('2,6 mm');
+    expect(dayExtra(2.6, 19.6)).toBe('2,6 mm · vent 20 km/h');
+    expect(dayExtra(0, null)).toBe('Sec');
+    expect(dayExtra(null, null)).toBe('');
   });
 });

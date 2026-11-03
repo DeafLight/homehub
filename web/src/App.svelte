@@ -7,6 +7,7 @@
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Home from './screens/Home.svelte';
+  import Weather from './screens/Weather.svelte';
 
   const VERSION_CHECK_MS = 30_000;
 
@@ -35,6 +36,8 @@
   {#key router.route.ownerId}
     <Dashboard ownerId={router.route.ownerId} />
   {/key}
+{:else if router.route.name === 'weather'}
+  <Weather back={router.route.back} />
 {:else}
   <Home />
 {/if}

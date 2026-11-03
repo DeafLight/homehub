@@ -79,12 +79,16 @@ describe('météo', () => {
         async current(): Promise<never> {
           throw new Error('réseau coupé');
         },
+        async forecast(): Promise<never> {
+          throw new Error('réseau coupé');
+        },
       },
     };
     const svc = createDashboardService({ config, sources: broken, clock: fixedClock, logger });
 
     expect((await svc.home()).weather).toBeNull();
     expect((await svc.dashboard('alex'))?.weather).toBeNull();
+    expect(await svc.weatherForecast()).toBeNull();
     expect(logger.errors[0]).toContain('réseau coupé');
   });
 });

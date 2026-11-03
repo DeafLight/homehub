@@ -8,6 +8,7 @@ import {
   type SchoolCourse,
   type SchoolDays,
   type Task,
+  type WeatherForecast,
 } from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import type { Clock, Sources } from '../sources/types.ts';
@@ -19,6 +20,8 @@ export type DashboardService = {
   /** Vrai si l'identifiant désigne un membre configuré ou la famille. */
   hasOwner(ownerId: string): boolean;
   home(): Promise<HomeData>;
+  /** Prévision détaillée ; null si la météo n'est pas configurée ou indisponible. */
+  weatherForecast(): Promise<WeatherForecast | null>;
   /** null si le profil n'existe pas. */
   dashboard(ownerId: string): Promise<DashboardData | null>;
   /** null si le profil ou la tâche n'existe pas. */
@@ -109,6 +112,15 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
       const [currentWeather, profiles] = await Promise.all([weather(), Promise.all(ownerIds().map(summary))]);
       const family = profiles.find((p) => p.ownerId === FAMILY_ID);
       return { weather: currentWeather, profiles, familyHighlight: family?.nextEvent ?? null };
+    },
+
+    async weatherForecast() {
+      try {
+        return await sources.weather.forecast();
+      } catch (err) {
+        logger.error(`Météo indisponible : ${(err as Error).message}`);
+        return null;
+      }
     },
 
     async dashboard(ownerId) {

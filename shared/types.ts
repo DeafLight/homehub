@@ -57,6 +57,52 @@ export type Weather = {
   rainStartsAt: string | null;
 };
 
+/** Une heure de prévision (le créneau commence à `time`). */
+export type WeatherHour = {
+  /** ISO 8601. */
+  time: string;
+  temperatureC: number;
+  /** Cumul de pluie sur l'heure (mm). */
+  precipitationMm: number;
+  weatherCode: number;
+  isDay: boolean;
+};
+
+export type WeatherDay = {
+  /** Minuit local du jour, ISO 8601. */
+  date: string;
+  weatherCode: number;
+  minC: number;
+  maxC: number;
+  /** null : donnée absente de la prévision. */
+  precipitationMm: number | null;
+  windMaxKmh: number | null;
+  sunrise: string | null;
+  sunset: string | null;
+};
+
+/** Prévision détaillée, pour la page météo. */
+export type WeatherForecast = {
+  location: string;
+  /** Heure de l'observation « actuelle » du modèle (ISO 8601). */
+  observedAt: string;
+  current: {
+    temperatureC: number;
+    apparentC: number | null;
+    weatherCode: number;
+    isDay: boolean;
+    humidityPct: number | null;
+    windKmh: number | null;
+    gustsKmh: number | null;
+    /** Direction d'où vient le vent, en degrés (0 = nord). */
+    windFromDeg: number | null;
+  };
+  /** Les 24 prochaines heures, à partir de l'heure en cours. */
+  hours: WeatherHour[];
+  /** Aujourd'hui puis les jours suivants couverts par le modèle (4 au plus). */
+  days: WeatherDay[];
+};
+
 /** Cours de l'emploi du temps scolaire. */
 export type SchoolCourse = {
   id: string;

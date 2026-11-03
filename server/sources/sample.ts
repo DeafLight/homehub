@@ -1,6 +1,6 @@
 // Sources d'exemple, en mémoire : elles donnent à chaque profil des données plausibles, calculées par rapport
 // à l'heure courante pour que l'écran ait l'air vivant. À remplacer source par source par les vraies.
-import type { CalendarEvent, Note, Task, Weather } from '../../shared/types.ts';
+import type { CalendarEvent, Note, Task, Weather, WeatherForecast } from '../../shared/types.ts';
 import type { AgendaSource, Clock, NoteSource, SchoolSource, Sources, TaskSource, WeatherSource } from './types.ts';
 
 /** Événement type : jour relatif à aujourd'hui (0 = aujourd'hui) et heure locale. */
@@ -106,6 +106,45 @@ export function createSampleSources(memberIds: () => string[], familyId: string,
   };
 
   const weather: WeatherSource = {
+    // Courbe de température douce sur 24 h, une averse dans 3 h.
+    async forecast(): Promise<WeatherForecast> {
+      const start = clock();
+      start.setMinutes(0, 0, 0);
+      const hours = Array.from({ length: 25 }, (_, i) => {
+        const time = new Date(start.getTime() + i * 3_600_000);
+        const hour = time.getHours();
+        return {
+          time: time.toISOString(),
+          temperatureC: 10 + 5 * Math.sin(((hour - 9) / 24) * 2 * Math.PI),
+          precipitationMm: i >= 3 && i <= 5 ? 0.8 : 0,
+          weatherCode: i >= 3 && i <= 5 ? 61 : 2,
+          isDay: hour >= 8 && hour < 18,
+        };
+      });
+      const days = [2, 3, 1, 61].map((weatherCode, i) => {
+        const day = clock();
+        day.setHours(0, 0, 0, 0);
+        day.setDate(day.getDate() + i);
+        const at = (h: number, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m).toISOString();
+        return {
+          date: day.toISOString(),
+          weatherCode,
+          minC: 6 - i,
+          maxC: 15 - i,
+          precipitationMm: weatherCode === 61 ? 3.2 : 0,
+          windMaxKmh: 18,
+          sunrise: at(7, 40),
+          sunset: at(17, 27),
+        };
+      });
+      return {
+        location: 'Exemple',
+        observedAt: start.toISOString(),
+        current: { temperatureC: 12, apparentC: 10, weatherCode: 2, isDay: true, humidityPct: 78, windKmh: 13, gustsKmh: 27, windFromDeg: 45 },
+        hours,
+        days,
+      };
+    },
     async current(): Promise<Weather> {
       const rain = clock();
       rain.setMinutes(0, 0, 0);

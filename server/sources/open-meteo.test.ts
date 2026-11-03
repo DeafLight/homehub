@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WeatherConfig } from '../config.ts';
 import { NOW, silentLogger } from '../testing.ts';
-import { buildForecastUrl, createOpenMeteoWeatherSource, toWeather } from './open-meteo.ts';
+import { buildForecastUrl, createOpenMeteoWeatherSource, toForecast, toWeather } from './open-meteo.ts';
 
 const PARIS: WeatherConfig = { label: 'Paris', latitude: 48.85, longitude: 2.35, refreshMinutes: 15 };
 const hour = (offset: number) => Math.floor(NOW.getTime() / 1000) + offset * 3600;
@@ -49,6 +49,72 @@ describe('toWeather', () => {
   });
 });
 
+describe('toForecast', () => {
+  /** Réponse complète : 30 heures à partir de 17:00, 4 jours dont le dernier hors de portée du modèle (null). */
+  function detailed() {
+    const n = 30;
+    const midnight = Math.floor(new Date(2026, 10, 2).getTime() / 1000);
+    return {
+      current: {
+        time: hour(0),
+        temperature_2m: 9.2,
+        weather_code: 3,
+        is_day: 0,
+        apparent_temperature: 6.5,
+        relative_humidity_2m: 85,
+        wind_speed_10m: 13.1,
+        wind_gusts_10m: 26.6,
+        wind_direction_10m: 37,
+      },
+      hourly: {
+        time: Array.from({ length: n }, (_, i) => hour(i - 1)),
+        precipitation: Array.from({ length: n }, (_, i) => (i === 4 ? 1.2 : 0)),
+        temperature_2m: Array.from({ length: n }, (_, i) => (i === n - 1 ? null : 10 - i / 4)),
+        weather_code: Array.from({ length: n }, () => 3),
+        is_day: Array.from({ length: n }, (_, i) => (i > 14 && i < 24 ? 1 : 0)),
+      },
+      daily: {
+        time: [0, 1, 2, 3].map((d) => midnight + d * 86_400),
+        weather_code: [3, 61, 2, null],
+        temperature_2m_max: [13.3, 10.6, 11, null],
+        temperature_2m_min: [3.7, 4.7, 1, null],
+        precipitation_sum: [0, 3.2, 0, null],
+        wind_speed_10m_max: [19.7, 15.6, 9.2, null],
+        sunrise: [0, 1, 2, 3].map((d) => midnight + d * 86_400 + 7 * 3600 + 40 * 60),
+        sunset: [0, 1, 2, 3].map((d) => midnight + d * 86_400 + 17 * 3600 + 27 * 60),
+      },
+    };
+  }
+
+  it('donne les conditions actuelles, 25 points horaires à partir de l’heure en cours et les jours complets', () => {
+    const forecast = toForecast(detailed(), 'Paris', new Date(NOW.getTime() + 20 * 60_000));
+    expect(forecast.current).toEqual({
+      temperatureC: 9.2,
+      apparentC: 6.5,
+      weatherCode: 3,
+      isDay: false,
+      humidityPct: 85,
+      windKmh: 13.1,
+      gustsKmh: 26.6,
+      windFromDeg: 37,
+    });
+    expect(forecast.observedAt).toBe(new Date(hour(0) * 1000).toISOString());
+    expect(forecast.hours).toHaveLength(25);
+    expect(forecast.hours[0].time).toBe(new Date(hour(0) * 1000).toISOString());
+    expect(forecast.hours[3].precipitationMm).toBe(1.2);
+    expect(forecast.days.map((d) => d.weatherCode)).toEqual([3, 61, 2]);
+    expect(forecast.days[1]).toMatchObject({ minC: 4.7, maxC: 10.6, precipitationMm: 3.2, windMaxKmh: 15.6 });
+    expect(new Date(forecast.days[0].sunset!).getHours()).toBe(17);
+  });
+
+  it('se contente de la réponse minimale', () => {
+    const forecast = toForecast(response(), 'Paris', NOW);
+    expect(forecast.current.apparentC).toBeNull();
+    expect(forecast.hours).toEqual([]);
+    expect(forecast.days[0]).toMatchObject({ minC: 3.7, maxC: 13.3, sunrise: null });
+  });
+});
+
 describe('createOpenMeteoWeatherSource', () => {
   it('renvoie null sans lieu configuré, sans appeler l’API', async () => {
     const { fn, calls } = fakeFetch([response()]);
@@ -69,7 +135,7 @@ describe('createOpenMeteoWeatherSource', () => {
     const { fn, calls } = fakeFetch([response()]);
     const source = createOpenMeteoWeatherSource({ location: () => place, clock: () => now, logger: silentLogger(), fetch: fn });
 
-    await Promise.all([source.current(), source.current()]);
+    await Promise.all([source.current(), source.current(), source.forecast()]);
     now = new Date(NOW.getTime() + 10 * 60_000);
     await source.current();
     expect(calls).toHaveLength(1);

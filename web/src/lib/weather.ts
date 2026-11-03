@@ -1,5 +1,5 @@
 // Présentation de la météo : le serveur transmet des données (codes WMO, températures), le front choisit les mots.
-import type { Weather } from '../../../shared/types.ts';
+import type { Weather, WeatherHour } from '../../../shared/types.ts';
 import type { IconName } from '../components/Icon.svelte';
 import { formatTime } from './format.ts';
 
@@ -71,5 +71,72 @@ export function weatherOutlook(weather: Weather, now: Date): string {
     const start = new Date(weather.rainStartsAt);
     parts.push(start <= now ? 'pluie en ce moment' : `pluie vers ${formatTime(start)}`);
   }
+  return parts.join(' · ');
+}
+
+/** Seuil en dessous duquel une heure est considérée comme sèche (mm). */
+const RAIN_MM = 0.1;
+const HOUR_MS = 3_600_000;
+
+const mmFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+
+/** « 2,6 mm » */
+export const formatMm = (mm: number) => `${mmFormat.format(mm)} mm`;
+
+/** « 21 h » */
+export const formatHour = (date: Date) => `${date.getHours()} h`;
+
+const DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+
+/** Point cardinal d'où vient le vent (0° = nord). */
+export const windDirection = (fromDeg: number) => DIRECTIONS[Math.round((((fromDeg % 360) + 360) % 360) / 45) % 8];
+
+export function humidityLabel(pct: number): string {
+  if (pct < 40) return 'Air sec';
+  if (pct > 80) return 'Air humide';
+  return 'Air normal';
+}
+
+export type ChartPoint = { time: Date; temperatureC: number; weatherCode: number; isDay: boolean; rainMm: number };
+
+/** Un point toutes les `step` heures, avec la pluie cumulée jusqu'au point suivant (0 pour le dernier). */
+export function hourlyPoints(hours: WeatherHour[], step = 3): ChartPoint[] {
+  const points: ChartPoint[] = [];
+  for (let i = 0; i < hours.length; i += step) {
+    const { time, temperatureC, weatherCode, isDay } = hours[i];
+    const window = i + step < hours.length ? hours.slice(i, i + step) : [];
+    const rainMm = window.reduce((sum, h) => sum + h.precipitationMm, 0);
+    points.push({ time: new Date(time), temperatureC, weatherCode, isDay, rainMm });
+  }
+  return points;
+}
+
+export type RainSpell = { start: Date; end: Date; totalMm: number };
+
+/** Premier épisode de pluie des heures fournies (heures pluvieuses consécutives), ou null. */
+export function firstRainSpell(hours: WeatherHour[]): RainSpell | null {
+  const first = hours.findIndex((h) => h.precipitationMm >= RAIN_MM);
+  if (first < 0) return null;
+  let last = first;
+  while (last + 1 < hours.length && hours[last + 1].precipitationMm >= RAIN_MM) last++;
+  const spell = hours.slice(first, last + 1);
+  return {
+    start: new Date(spell[0].time),
+    end: new Date(new Date(spell[spell.length - 1].time).getTime() + HOUR_MS),
+    totalMm: spell.reduce((sum, h) => sum + h.precipitationMm, 0),
+  };
+}
+
+/** « Pluie en ce moment », « Pluie vers 21 h », ou null s'il ne pleut pas dans les heures fournies. */
+export function rainLine(spell: RainSpell | null, now: Date): string | null {
+  if (!spell) return null;
+  return spell.start <= now ? 'Pluie en ce moment' : `Pluie vers ${formatHour(spell.start)}`;
+}
+
+/** Complément d'une journée : « 2,6 mm · vent 20 km/h », « Sec ». */
+export function dayExtra(precipitationMm: number | null, windMaxKmh: number | null): string {
+  const parts: string[] = [];
+  if (precipitationMm !== null) parts.push(precipitationMm >= RAIN_MM ? formatMm(precipitationMm) : 'Sec');
+  if (windMaxKmh !== null) parts.push(`vent ${Math.round(windMaxKmh)} km/h`);
   return parts.join(' · ');
 }

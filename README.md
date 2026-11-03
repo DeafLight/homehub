@@ -7,6 +7,9 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
 - **Dashboard par profil** (`/p/<id>`) : prochaine activité, tâches à cocher, semaine, mot de la famille.
   Un rail à gauche ramène à l'accueil ou passe directement à un autre profil.
 - **Famille** : un profil commun (`/p/famille`) pour l'agenda partagé et la liste de courses.
+- **Météo détaillée** (`/meteo`) : ouverte en touchant n'importe quel affichage météo ; conditions actuelles
+  (ressenti, vent, humidité, soleil), courbe des 24 prochaines heures avec la pluie, et 4 jours. Le bouton retour
+  ramène à la page d'origine (`/meteo/p/<id>` quand elle est ouverte depuis un profil).
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
