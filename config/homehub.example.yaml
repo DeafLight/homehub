@@ -51,9 +51,10 @@ pronote:
   # Intervalle entre deux connexions à Pronote (minutes, 15 à 1440).
   refreshMinutes: 60
 
-# Tablette de la maison : ses adresses IP (fixées dans la box) peuvent modifier les listes et appairer les
-# téléphones. Les autres appareils du réseau lisent seulement ; les téléphones appairés écrivent au nom de leur profil.
-# En développement, l'accès local (127.0.0.1) est toujours accepté.
+# Tablette de la maison : elle peut modifier les listes et appairer les téléphones. Elle est reconnue de préférence à
+# sa clé (variable HOMEHUB_KIOSK_KEY, donnée une fois dans son adresse de démarrage : https://…/#key=<clé>), ou à ses
+# adresses IP ci-dessous (fixées dans la box). Les autres appareils du réseau lisent seulement ; les téléphones
+# appairés écrivent au nom de leur profil. En développement, l'accès local (127.0.0.1) est toujours accepté.
 kiosk:
   addresses: []
 

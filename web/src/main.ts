@@ -4,6 +4,7 @@ import App from './App.svelte';
 import { createApi } from './lib/api.ts';
 import { createClock } from './lib/clock.svelte.ts';
 import { appContextMap } from './lib/context.ts';
+import { loadKioskKey, takeKioskKeyFromUrl } from './lib/kiosk.ts';
 import { loadPairing } from './lib/phone.ts';
 import { buildProfiles } from './lib/profiles.ts';
 import { createRouter } from './lib/router.svelte.ts';
@@ -11,8 +12,9 @@ import './app.css';
 
 const CONFIG_RETRY_MS = 10_000;
 const target = document.getElementById('app')!;
-// Sur un téléphone relié, chaque requête porte son jeton ; la tablette n'en a pas.
-const api = createApi(undefined, '/api', () => loadPairing()?.token ?? null);
+// Chaque requête porte le jeton du téléphone relié, ou la clé de la tablette (lue une fois dans #key=…).
+takeKioskKeyFromUrl();
+const api = createApi(undefined, '/api', () => ({ token: loadPairing()?.token, kioskKey: loadKioskKey() }));
 
 // La config (membres, réglages) est nécessaire avant tout affichage : on réessaie tant que le serveur ne répond pas.
 async function start() {

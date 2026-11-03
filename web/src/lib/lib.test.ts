@@ -79,7 +79,7 @@ describe('api', () => {
 
   it('téléphone relié : chaque requête porte son jeton ; 204 sans contenu', async () => {
     const fetchFn = vi.fn(async () => new Response(null, { status: 204 }));
-    const api = createApi(fetchFn, '/api', () => 'jeton');
+    const api = createApi(fetchFn, '/api', () => ({ token: 'jeton' }));
     await expect(api.removeShopping('s1')).resolves.toBeUndefined();
     expect(fetchFn).toHaveBeenCalledWith(
       '/api/lists/shopping/s1',

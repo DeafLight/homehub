@@ -5,12 +5,15 @@
   import { getAppContext } from '../lib/context.ts';
   import { formatDay } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
+  import type { Profile } from '../lib/profiles.ts';
   import { PAIR_PATH } from '../lib/route.ts';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
+  import PinPad from './PinPad.svelte';
 
   // Téléphones de la famille (tablette seulement) : on choisit d'abord le profil, puis le téléphone scanne le code,
-  // qui le lie à ce profil seul. Le code ne sert qu'une fois et expire au bout de 5 minutes.
+  // qui le lie à ce profil seul. Le code ne sert qu'une fois et expire au bout de 5 minutes. Un profil qui a un PIN
+  // (scripts/set-pin.ts) le demande avant d'afficher son code.
   const DEVICES_REFRESH_MS = 15_000;
   const PAIRING_REFRESH_MS = 2_000;
 
@@ -23,6 +26,9 @@
   /** Téléphone appairé pendant que le code était affiché. */
   let paired = $state<Device | null>(null);
   let confirmRemove = $state<string | null>(null);
+  /** Profil dont on saisit le PIN. */
+  let asking = $state<Profile | null>(null);
+  let pinError = $state<string | null>(null);
   let known = new Set<string>();
 
   const devices = createResource(async () => {
@@ -35,7 +41,12 @@
     known = new Set(list.map((d) => d.id));
     return list;
   }, DEVICES_REFRESH_MS);
-  onDestroy(devices.destroy);
+  const pins = createResource(() => api.pairingPins(), 60_000);
+  onDestroy(() => {
+    devices.destroy();
+    pins.destroy();
+  });
+  const hasPin = (id: string) => pins.data?.protected.includes(id) ?? false;
 
   // Pendant que le code est affiché, on guette le téléphone plus souvent.
   $effect(() => {
@@ -52,14 +63,28 @@
   });
   const qr = $derived(pairing ? renderSVG(`${location.origin}${PAIR_PATH}#${pairing.code}`, { pixelSize: 8 }) : '');
 
-  async function start(ownerId: string) {
+  function choose(profile: Profile) {
     pairingError = null;
     paired = null;
+    if (hasPin(profile.id)) {
+      pinError = null;
+      asking = profile;
+    } else {
+      void start(profile.id);
+    }
+  }
+
+  /** Vrai si le code est affiché ; sinon l'erreur est montrée (sous le PIN quand on le saisit). */
+  async function start(ownerId: string, pin?: string): Promise<boolean> {
     try {
       known = new Set((devices.data ?? []).map((d) => d.id));
-      pairing = await api.createPairing(ownerId);
+      pairing = await api.createPairing(ownerId, pin);
+      asking = null;
+      return true;
     } catch (err) {
-      pairingError = (err as Error).message;
+      if (pin) pinError = (err as Error).message;
+      else pairingError = (err as Error).message;
+      return false;
     }
   }
 
@@ -79,7 +104,10 @@
 
 <div class="phones">
   <section class="card pair">
-    {#if pairing && !expired}
+    {#if asking}
+      {@const profile = asking}
+      <PinPad {profile} error={pinError} onSubmit={(pin) => start(profile.id, pin)} onCancel={() => (asking = null)} />
+    {:else if pairing && !expired}
       <h2>Code pour {nameOf(pairing.ownerId)}</h2>
       <div class="qr">{@html qr}</div>
       <p class="muted">Ouvre l’appareil photo du téléphone et vise le code. Valable encore {countdown}, une seule fois.</p>
@@ -95,9 +123,12 @@
       {/if}
       <div class="members">
         {#each members as profile (profile.id)}
-          <button type="button" class="member" onclick={() => start(profile.id)}>
+          <button type="button" class="member" onclick={() => choose(profile)}>
             <Avatar {profile} size={64} />
-            {profile.name}
+            <span class="member-name">
+              {#if hasPin(profile.id)}<Icon name="lock" size={18} color="var(--fg-muted)" />{/if}
+              {profile.name}
+            </span>
           </button>
         {/each}
       </div>
@@ -216,6 +247,12 @@
     font: inherit;
     font-size: 1.15rem;
     font-weight: 600;
+  }
+
+  .member-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .member:active {

@@ -25,6 +25,9 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches`, `/m/agenda`
   (7 prochains jours, soi et la famille). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
+  Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code (5 erreurs : bloqué
+  15 min) ; on le définit sur le serveur : `node scripts/set-pin.ts <profil>` (dans le conteneur :
+  `docker exec -it homehub node scripts/set-pin.ts <profil>`, `--supprimer` pour l'enlever, sans argument : la liste).
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -81,7 +84,7 @@ family:
 ui:
   idleTimeoutSeconds: 180
 kiosk:
-  addresses: [192.168.1.50]   # adresse fixe de la tablette : seule à modifier les listes sans téléphone relié
+  addresses: [192.168.1.50]   # facultatif : adresse fixe de la tablette (sinon, sa clé HOMEHUB_KIOSK_KEY)
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -95,7 +98,8 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), téléphones reliés (`devices.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`) |
+| `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
 ## Architecture
@@ -149,12 +153,15 @@ web/src/
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |
 | `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
 | `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
-| `POST /api/pairing` | `{ ownerId }` → code d'appairage (tablette seulement) |
+| `GET /api/pairing/pins` | `{ protected }` : profils qui ont un PIN (tablette seulement) |
+| `POST /api/pairing` | `{ ownerId, pin? }` → code d'appairage (tablette seulement ; 403 si le PIN manque ou est faux, 429 si bloqué) |
 | `POST /api/pairing/claim` | `{ code, name }` → `{ token, device }` (410 si le code a expiré ou a servi) |
 | `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) |
 
-**Écriture** : la tablette est reconnue à son adresse (`kiosk.addresses`, lue dans `X-Real-IP` posé par le proxy ;
-`127.0.0.1` compte toujours comme tablette, pour le développement), un téléphone relié à son jeton
+**Écriture** : la tablette est reconnue à sa clé (`HOMEHUB_KIOSK_KEY`, lue une fois dans `#key=…` puis envoyée dans
+l'en-tête `X-Kiosk-Key` ; placée après `#`, elle n'apparaît jamais dans les journaux du proxy) ou à son adresse
+(`kiosk.addresses`, lue dans `X-Real-IP` posé par le proxy ; `127.0.0.1` compte toujours comme tablette, pour le
+développement), un téléphone relié à son jeton
 (`Authorization: Bearer`). Tout autre appareil lit sans écrire (403). Le `by` envoyé par la tablette dit au nom de
 quel profil elle agit ; un téléphone agit toujours au nom du sien. Les icônes de la PWA se régénèrent avec
 `node scripts/make-icons.ts`.

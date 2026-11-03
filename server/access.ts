@@ -1,5 +1,6 @@
-// Qui appelle l'API : la tablette de la maison (reconnue à son adresse), un téléphone appairé (jeton), ou un autre
-// appareil du réseau, qui ne peut que lire.
+// Qui appelle l'API : la tablette de la maison (reconnue à sa clé, ou à son adresse), un téléphone appairé (jeton),
+// ou un autre appareil du réseau, qui ne peut que lire.
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context } from 'hono';
 import type { Author, Device } from '../shared/types.ts';
@@ -13,6 +14,20 @@ export type Caller = {
 };
 
 const LOOPBACK = new Set(['127.0.0.1', '::1']);
+
+/** En-tête de la clé de la tablette (reçue une fois dans l'adresse de démarrage : /#key=…). */
+export const KIOSK_KEY_HEADER = 'x-kiosk-key';
+export const KIOSK_KEY_MIN_LENGTH = 20;
+
+/** Reconnaît la clé de la tablette (comparaison à temps constant) ; sans clé configurée, rien ne correspond. */
+export function kioskKeyMatcher(key: string | undefined): (presented: string | undefined) => boolean {
+  if (!key) return () => false;
+  const digest = (value: string) => createHash('sha256').update(value).digest();
+  const expected = digest(key);
+  return (presented) => presented !== undefined && timingSafeEqual(digest(presented), expected);
+}
+
+export type KioskRule = { addresses: string[]; isKey: (presented: string | undefined) => boolean };
 
 /**
  * Adresse du client. HomeHub n'est joignable que par le proxy (NPM), qui fixe X-Real-IP : on lui fait confiance.
@@ -31,9 +46,11 @@ export function clientAddress(c: Context): string | undefined {
   return address?.replace(/^::ffff:/, '');
 }
 
-export async function identify(c: Context, devices: DeviceStore, kioskAddresses: string[]): Promise<Caller> {
+export async function identify(c: Context, devices: DeviceStore, rule: KioskRule): Promise<Caller> {
   const address = clientAddress(c);
-  const kiosk = address !== undefined && (LOOPBACK.has(address) || kioskAddresses.includes(address));
+  const kiosk =
+    rule.isKey(c.req.header(KIOSK_KEY_HEADER)) ||
+    (address !== undefined && (LOOPBACK.has(address) || rule.addresses.includes(address)));
   const token = /^Bearer (\S+)$/.exec(c.req.header('authorization') ?? '')?.[1];
   const device = token ? await devices.authenticate(token) : null;
   return { kiosk, device, rejectedToken: Boolean(token) && !device };

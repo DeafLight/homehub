@@ -7,12 +7,14 @@ import { createConfigStore } from './config-store.ts';
 import { createListsApi } from './lists-api.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore } from './sources/lists.ts';
+import { createPinStore, MAX_PIN_FAILURES } from './sources/pins.ts';
 import { fixedClock } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 const OTHER = '192.168.1.20';
+const KEY = 'cle-de-test-de-la-tablette';
 
-type CallOptions = { from?: string; token?: string; body?: unknown };
+type CallOptions = { from?: string; token?: string; key?: string; body?: unknown };
 
 function setup() {
   const config = createConfigStore(
@@ -27,18 +29,20 @@ function setup() {
   const dir = mkdtempSync(join(tmpdir(), 'homehub-lists-api-'));
   const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
-  const api = createListsApi({ config, lists, devices });
-  const call = (method: string, path: string, { from = OTHER, token, body }: CallOptions = {}) =>
+  const pins = createPinStore({ path: join(dir, 'pins.json'), clock: fixedClock });
+  const api = createListsApi({ config, lists, devices, pins, kioskKey: KEY });
+  const call = (method: string, path: string, { from = OTHER, token, key, body }: CallOptions = {}) =>
     api.request(path, {
       method,
       headers: {
         'Content-Type': 'application/json',
         'X-Real-IP': from,
         ...(token && { Authorization: `Bearer ${token}` }),
+        ...(key && { 'X-Kiosk-Key': key }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-  return { call };
+  return { call, pins };
 }
 
 describe('API des listes', () => {
@@ -92,5 +96,33 @@ describe('API des listes', () => {
     const { id } = await res.json();
     expect((await call('PUT', `/lists/tasks/${id}`, { from: TABLET, body: { done: true } })).status).toBe(200);
     expect((await call('DELETE', `/lists/tasks/${id}`, { from: TABLET })).status).toBe(204);
+  });
+
+  it('clé de la tablette : reconnue d’où qu’elle vienne ; une mauvaise clé ne donne rien', async () => {
+    const { call } = setup();
+    expect((await (await call('GET', '/me', { key: KEY })).json()).kiosk).toBe(true);
+    expect((await call('POST', '/lists/shopping', { key: KEY, body: { label: 'Lait' } })).status).toBe(201);
+    expect((await (await call('GET', '/me', { key: 'mauvaise-cle-de-la-tablette' })).json()).kiosk).toBe(false);
+    expect((await call('POST', '/pairing', { key: 'x', body: { ownerId: 'tom' } })).status).toBe(403);
+  });
+
+  it('PIN : demandé pour un profil protégé, bloqué après trop d’erreurs', async () => {
+    const { call, pins } = setup();
+    await pins.set('alex', '4821');
+    const pair = (pin?: string) => call('POST', '/pairing', { key: KEY, body: { ownerId: 'alex', pin } });
+
+    expect(await (await call('GET', '/pairing/pins', { key: KEY })).json()).toEqual({ protected: ['alex'] });
+    expect((await call('GET', '/pairing/pins')).status).toBe(403);
+    expect((await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).status).toBe(201);
+    expect((await pair()).status).toBe(403);
+    expect((await pair('0000')).status).toBe(403);
+    expect((await pair('4821')).status).toBe(201);
+
+    for (let i = 0; i < MAX_PIN_FAILURES - 1; i++) expect((await pair('1111')).status).toBe(403);
+    const locked = await pair('1111');
+    expect(locked.status).toBe(429);
+    expect((await locked.json()).error).toMatch(/15 min/);
+    // Même le bon PIN est refusé pendant le blocage.
+    expect((await pair('4821')).status).toBe(429);
   });
 });

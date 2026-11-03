@@ -1,5 +1,5 @@
-// Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `token` : jeton du téléphone appairé,
-// envoyé avec chaque requête (aucun sur la tablette).
+// Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `credentials` : jeton du téléphone
+// appairé, ou clé de la tablette, envoyés avec chaque requête.
 import type {
   DashboardData,
   Device,
@@ -47,7 +47,9 @@ export type Api = {
   addTask(task: NewTask, by?: string | null): Promise<ListTask>;
   setListTaskDone(id: string, done: boolean, by?: string | null): Promise<ListTask>;
   removeTask(id: string): Promise<void>;
-  createPairing(ownerId: string): Promise<PairingCode>;
+  /** Profils dont la tablette doit demander le PIN avant d'afficher le QR code. */
+  pairingPins(): Promise<{ protected: string[] }>;
+  createPairing(ownerId: string, pin?: string): Promise<PairingCode>;
   claimPairing(code: string, name: string): Promise<{ token: string; device: Device }>;
   devices(): Promise<Device[]>;
   removeDevice(id: string): Promise<void>;
@@ -55,14 +57,17 @@ export type Api = {
 
 export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
 
+export type Credentials = { token?: string | null; kioskKey?: string | null };
+
 export function createApi(
   fetchFn: typeof fetch = (...args) => fetch(...args),
   baseUrl = '/api',
-  token: () => string | null = () => null,
+  credentials: () => Credentials = () => ({}),
 ): Api {
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const auth = token();
-    const res = await fetchFn(`${baseUrl}${path}`, auth ? { ...init, headers: { ...init?.headers, Authorization: `Bearer ${auth}` } } : init);
+    const { token, kioskKey } = credentials();
+    const auth = { ...(token && { Authorization: `Bearer ${token}` }), ...(kioskKey && { 'X-Kiosk-Key': kioskKey }) };
+    const res = await fetchFn(`${baseUrl}${path}`, Object.keys(auth).length ? { ...init, headers: { ...init?.headers, ...auth } } : init);
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new ApiError(res.status, body?.error ?? `HTTP ${res.status}`);
@@ -97,7 +102,8 @@ export function createApi(
     addTask: (task, by) => send('POST', '/lists/tasks', { ...task, by }),
     setListTaskDone: (id, done, by) => send('PUT', `/lists/tasks/${encodeURIComponent(id)}`, { done, by }),
     removeTask: (id) => send('DELETE', `/lists/tasks/${encodeURIComponent(id)}`),
-    createPairing: (ownerId) => send('POST', '/pairing', { ownerId }),
+    pairingPins: () => request('/pairing/pins'),
+    createPairing: (ownerId, pin) => send('POST', '/pairing', { ownerId, pin }),
     claimPairing: (code, name) => send('POST', '/pairing/claim', { code, name }),
     devices: () => request('/devices'),
     removeDevice: (id) => send('DELETE', `/devices/${encodeURIComponent(id)}`),

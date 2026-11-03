@@ -22,10 +22,12 @@ COPY scripts/patch-pawnote.ts ./scripts/
 RUN npm ci --omit=dev && npm cache clean --force
 COPY shared ./shared
 COPY server ./server
+# Codes PIN des profils : sudo docker exec -it homehub node scripts/set-pin.ts <profil>
+COPY scripts/set-pin.ts ./scripts/
 COPY config/homehub.example.yaml ./config/
 COPY --from=build /app/web/dist ./web/dist
 
-# Dossier inscriptible (jeton Pronote) : à monter en volume pour qu'il survive aux mises à jour.
+# Dossier inscriptible (jeton Pronote, listes, téléphones, PIN) : à monter en volume pour qu'il survive aux mises à jour.
 RUN mkdir -p /state && chown node:node /state
 USER node
 EXPOSE 3000

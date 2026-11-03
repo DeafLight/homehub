@@ -1,14 +1,16 @@
 // Routes des listes (courses, tâches) et de l'appairage des téléphones. Lecture ouverte comme le reste de l'API ;
-// écriture réservée à la tablette et aux téléphones appairés ; appairage et gestion des téléphones : tablette seule.
+// écriture réservée à la tablette et aux téléphones appairés ; appairage et gestion des téléphones : tablette seule,
+// avec le PIN du profil quand il en a un.
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { FAMILY_ID, type Me } from '../shared/types.ts';
-import { authorOf, type Caller, identify } from './access.ts';
+import { authorOf, type Caller, identify, kioskKeyMatcher } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
+import type { PinStore } from './sources/pins.ts';
 
-export type ListsApiDeps = { config: ConfigStore; lists: ListsStore; devices: DeviceStore };
+export type ListsApiDeps = { config: ConfigStore; lists: ListsStore; devices: DeviceStore; pins: PinStore; kioskKey?: string };
 
 const label = z.string().trim().min(1).max(LABEL_MAX);
 const by = z.string().nullish();
@@ -23,15 +25,16 @@ const taskSchema = z.object({
   repeat: z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['day', 'week']) }).nullable().default(null),
   by,
 });
-const pairingSchema = z.object({ ownerId: z.string() });
+const pairingSchema = z.object({ ownerId: z.string(), pin: z.string().max(20).optional() });
 const claimSchema = z.object({ code: z.string().min(1).max(100), name: z.string().trim().min(1).max(60) });
 
 const body = async (c: Context) => c.req.json().catch(() => null);
 
-export function createListsApi({ config, lists, devices }: ListsApiDeps): Hono {
+export function createListsApi({ config, lists, devices, pins, kioskKey }: ListsApiDeps): Hono {
   const api = new Hono();
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
-  const caller = (c: Context) => identify(c, devices, config.current().kiosk.addresses);
+  const isKey = kioskKeyMatcher(kioskKey);
+  const caller = (c: Context) => identify(c, devices, { addresses: config.current().kiosk.addresses, isKey });
 
   /** Auteur de la modification, ou la réponse d'erreur à renvoyer (401 : téléphone retiré ; 403 : lecture seule). */
   function author(c: Context, who: Caller, byId: string | null | undefined) {
@@ -110,6 +113,12 @@ export function createListsApi({ config, lists, devices }: ListsApiDeps): Hono {
   const kioskOnly = async (c: Context) =>
     (await caller(c)).kiosk ? null : c.json({ error: 'Réservé à la tablette de la maison' }, 403);
 
+  /** Profils protégés par un PIN : la tablette le demande avant d'afficher leur QR code. */
+  api.get('/pairing/pins', async (c) => {
+    const denied = await kioskOnly(c);
+    return denied ?? c.json({ protected: await pins.protectedIds() });
+  });
+
   api.post('/pairing', async (c) => {
     const denied = await kioskOnly(c);
     if (denied) return denied;
@@ -117,7 +126,17 @@ export function createListsApi({ config, lists, devices }: ListsApiDeps): Hono {
     if (!input.success || !config.current().members.some((m) => m.id === input.data.ownerId)) {
       return c.json({ error: 'Profil inconnu' }, 400);
     }
-    return c.json(devices.createCode(input.data.ownerId), 201);
+    const { ownerId, pin } = input.data;
+    if ((await pins.protectedIds()).includes(ownerId)) {
+      if (!pin) return c.json({ error: 'Code PIN requis' }, 403);
+      const check = await pins.check(ownerId, pin);
+      if (!check.ok && check.reason === 'locked') {
+        const minutes = Math.max(1, Math.ceil(check.waitMs / 60_000));
+        return c.json({ error: `Trop d’essais : réessaie dans ${minutes} min` }, 429);
+      }
+      if (!check.ok) return c.json({ error: 'Code PIN incorrect' }, 403);
+    }
+    return c.json(devices.createCode(ownerId), 201);
   });
 
   api.post('/pairing/claim', async (c) => {

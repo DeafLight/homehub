@@ -10,6 +10,7 @@ import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore } from './sources/lists.ts';
+import { createPinStore } from './sources/pins.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
 
@@ -23,7 +24,8 @@ function setup(staticRoot?: string) {
   const dir = mkdtempSync(join(tmpdir(), 'homehub-app-'));
   const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
-  const app = createApp({ config, service, nas, lists, devices, clock: fixedClock, version: '9.9.9', staticRoot });
+  const pins = createPinStore({ path: join(dir, 'pins.json'), clock: fixedClock });
+  const app = createApp({ config, service, nas, lists, devices, pins, clock: fixedClock, version: '9.9.9', staticRoot });
   return { app, config };
 }
 

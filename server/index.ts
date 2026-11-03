@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { FAMILY_ID } from '../shared/types.ts';
+import { KIOSK_KEY_MIN_LENGTH } from './access.ts';
 import { createApp } from './app.ts';
 import { calendarsOf, hasCalendars, loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
@@ -14,6 +15,7 @@ import { createDeviceStore } from './sources/devices.ts';
 import { createListsStore, listsTaskSource } from './sources/lists.ts';
 import { createNasStatusSource } from './sources/nas-status.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
+import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
 import { createSampleSources } from './sources/sample.ts';
 import { createSourceStatus } from './sources/source-status.ts';
@@ -28,6 +30,11 @@ const stateDir = process.env.HOMEHUB_STATE_DIR ?? 'state';
 /** Relevé du NAS écrit par la tâche cron nas-status.sh (nas-config), à côté de la configuration. */
 const nasStatusPath = process.env.HOMEHUB_NAS_STATUS ?? join(dirname(configPath), 'nas-status.json');
 mkdirSync(stateDir, { recursive: true });
+/** Clé de la tablette, donnée une fois dans son adresse de démarrage (/#key=…) ; secret, dans app.env. */
+const kioskKey = process.env.HOMEHUB_KIOSK_KEY?.trim() || undefined;
+if (kioskKey && kioskKey.length < KIOSK_KEY_MIN_LENGTH) {
+  throw new Error(`HOMEHUB_KIOSK_KEY trop courte : au moins ${KIOSK_KEY_MIN_LENGTH} caractères (ex. openssl rand -base64 24)`);
+}
 
 // Au démarrage, une configuration invalide est fatale ; ensuite, elle est rechargée à chaud (voir config-store.ts).
 let initialConfig;
@@ -65,6 +72,7 @@ const ical = createIcalAgendaSource({
 });
 const lists = createListsStore({ path: join(stateDir, 'lists.json'), clock });
 const devices = createDeviceStore({ path: join(stateDir, 'devices.json'), clock });
+const pins = createPinStore({ path: join(stateDir, 'pins.json'), clock });
 const sources: Sources = {
   ...sample,
   tasks: listsTaskSource(lists, FAMILY_ID),
@@ -104,11 +112,11 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, devices, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, devices, pins, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
-    `HomeHub ${version} à l'écoute sur le port ${info.port} (${initialConfig.members.length} membres, ${configPath})`,
+    `HomeHub ${version} à l'écoute sur le port ${info.port} (${initialConfig.members.length} membres, ${configPath}, clé de tablette : ${kioskKey ? 'oui' : 'non'})`,
   );
 });
 
