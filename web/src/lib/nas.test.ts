@@ -5,7 +5,16 @@ import { formatGb, formatPast, nasBanner, nasRings, nasServices, nasTimeline, na
 
 /** Lundi 2 novembre 2026, 18:00, 5 minutes après le relevé. */
 const now = new Date(2026, 10, 2, 18, 0);
-const { schema: _schema, ...status } = fixture as NasStatus & { schema: number };
+const local = (...args: [number, number, number, number, number]) => new Date(...args).toISOString();
+const { schema: _schema, ...raw } = fixture as NasStatus & { schema: number };
+// Heures du relevé en heure locale : le test ne dépend pas du fuseau de la machine (le build Docker tourne en UTC).
+const status: NasStatus = {
+  ...raw,
+  generatedAt: local(2026, 10, 2, 17, 55),
+  bootTime: local(2026, 9, 9, 17, 33),
+  backup: { at: local(2026, 10, 2, 3, 5), result: 'OK' },
+  pools: raw.pools.map((p) => ({ ...p, lastScrub: { end: local(2026, 9, 18, 0, 2), errors: 0 } })),
+};
 const data = (patch: Partial<NasStatus> = {}, extra: Partial<NasData> = {}): NasData => ({
   status: { ...status, ...patch },
   sources: [],
