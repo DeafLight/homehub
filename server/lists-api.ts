@@ -1,12 +1,14 @@
-// Routes des listes (courses, tâches), des mots et de l'appairage des téléphones. Lecture ouverte comme le reste de l'API ;
-// écriture réservée à la tablette et aux téléphones appairés ; appairage et gestion des téléphones : tablette seule,
-// avec le PIN du profil quand il en a un (pour retirer un téléphone : ce PIN ou le code parent).
+// Routes des listes (courses, tâches), des mots, des visages et de l'appairage des téléphones. Lecture ouverte comme le
+// reste de l'API ; écriture : téléphones appairés (pour leur profil) et tablette (pour la personne reconnue), un parent
+// partout, un enfant sur son profil seulement. Appairage, téléphones et visages : tablette seule, avec le PIN du profil
+// quand il en a un (pour retirer un téléphone : ce PIN ou le code parent ; pour les visages : le code parent).
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { FAMILY_ID, type Me } from '../shared/types.ts';
-import { authorOf, type Caller, identify, kioskKeyMatcher } from './access.ts';
+import { type Access, ACTOR_HEADER } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DeviceStore } from './sources/devices.ts';
+import { type ActorSessions, embeddingSchema, type FaceStore } from './sources/faces.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
 import { NOTE_MAX, type NotesStore } from './sources/notes.ts';
 import { PARENT_PIN_ID, type PinStore } from './sources/pins.ts';
@@ -17,45 +19,52 @@ export type ListsApiDeps = {
   notes: NotesStore;
   devices: DeviceStore;
   pins: PinStore;
-  kioskKey?: string;
+  faces: FaceStore;
+  sessions: ActorSessions;
+  access: Access;
 };
 
 const label = z.string().trim().min(1).max(LABEL_MAX);
-const by = z.string().nullish();
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'jour AAAA-MM-JJ');
 
-const shoppingSchema = z.object({ label, by });
-const doneSchema = z.object({ done: z.boolean(), by });
+const shoppingSchema = z.object({ label });
+const doneSchema = z.object({ done: z.boolean() });
 const taskSchema = z.object({
   label,
   ownerId: z.string(),
   due: day.nullable().default(null),
   repeat: z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['day', 'week']) }).nullable().default(null),
-  by,
 });
-const noteSchema = z.object({ to: z.string(), text: z.string().trim().min(1).max(NOTE_MAX), by });
+/** `from` : profil ouvert sur la tablette (sur un téléphone, son profil, quoi qu'il annonce). */
+const noteSchema = z.object({ to: z.string(), from: z.string().nullish(), text: z.string().trim().min(1).max(NOTE_MAX) });
 const pin = z.string().max(20).optional();
 const pairingSchema = z.object({ ownerId: z.string(), pin });
 const removeSchema = z.object({ pin }).nullable();
 const deviceName = z.string().trim().min(1).max(60);
 const claimSchema = z.object({ code: z.string().min(1).max(100), name: deviceName, system: z.string().trim().max(40).nullish() });
 const renameSchema = z.object({ name: deviceName });
+const score = z.number().min(0).max(1);
+const identifySchema = z.object({ embedding: embeddingSchema, real: score, live: score });
+const enrollSchema = z.object({ embeddings: z.array(embeddingSchema).min(1).max(10), pin });
 
 const body = async (c: Context) => c.req.json().catch(() => null);
 
-export function createListsApi({ config, lists, notes, devices, pins, kioskKey }: ListsApiDeps): Hono {
+export function createListsApi({ config, lists, notes, devices, pins, faces, sessions, access }: ListsApiDeps): Hono {
   const api = new Hono();
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
-  const isKey = kioskKeyMatcher(kioskKey);
-  const caller = (c: Context) => identify(c, devices, { addresses: config.current().kiosk.addresses, isKey });
+  const caller = access.caller;
 
-  /** Auteur de la modification, ou la réponse d'erreur à renvoyer (401 : téléphone retiré ; 403 : lecture seule). */
-  function author(c: Context, who: Caller, byId: string | null | undefined) {
-    if (who.rejectedToken) return { error: c.json({ error: 'Téléphone non reconnu : à appairer de nouveau' }, 401) };
-    if (byId && !ownerIds().includes(byId)) return { error: c.json({ error: 'Profil inconnu' }, 400) };
-    const result = authorOf(who, byId);
-    return result ? { author: result } : { error: c.json({ error: 'Lecture seule : appareil non appairé' }, 403) };
+  /**
+   * Auteur de la modification sur le profil `target`, ou la réponse d'erreur (401 : téléphone retiré ; 403 : lecture
+   * seule, avec `identify` quand la tablette doit d'abord reconnaître quelqu'un).
+   */
+  async function author(c: Context, target: string | null) {
+    const who = await access.write(c, target);
+    return 'author' in who ? who : { error: c.json({ error: who.error, identify: who.identify }, who.status) };
   }
+
+  /** Profil d'une tâche des listes (tâche inconnue : null). */
+  const taskOwner = async (id: string) => (await lists.lists()).tasks.find((t) => t.id === id)?.ownerId ?? null;
 
   // Téléphone retiré : 401 dès l'ouverture, pas seulement à sa prochaine modification.
   api.get('/me', async (c) => {
@@ -69,29 +78,29 @@ export function createListsApi({ config, lists, notes, devices, pins, kioskKey }
   api.post('/lists/shopping', async (c) => {
     const input = shoppingSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: 'Corps attendu : { "label": "…" }' }, 400);
-    const who = author(c, await caller(c), input.data.by);
-    if (who.error) return who.error;
+    const who = await author(c, FAMILY_ID);
+    if ('error' in who) return who.error;
     return c.json(await lists.addShopping(input.data.label, who.author), 201);
   });
 
   api.put('/lists/shopping/:id', async (c) => {
     const input = doneSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: 'Corps attendu : { "done": true|false }' }, 400);
-    const who = author(c, await caller(c), input.data.by);
-    if (who.error) return who.error;
+    const who = await author(c, FAMILY_ID);
+    if ('error' in who) return who.error;
     const item = await lists.setShoppingDone(c.req.param('id'), input.data.done, who.author);
     return item ? c.json(item) : c.json({ error: 'Article inconnu' }, 404);
   });
 
   api.delete('/lists/shopping/:id', async (c) => {
-    const who = author(c, await caller(c), null);
-    if (who.error) return who.error;
+    const who = await author(c, FAMILY_ID);
+    if ('error' in who) return who.error;
     return (await lists.removeShopping(c.req.param('id'))) ? c.body(null, 204) : c.json({ error: 'Article inconnu' }, 404);
   });
 
   api.post('/lists/shopping/clear', async (c) => {
-    const who = author(c, await caller(c), null);
-    if (who.error) return who.error;
+    const who = await author(c, FAMILY_ID);
+    if ('error' in who) return who.error;
     await lists.clearShopping();
     return c.body(null, 204);
   });
@@ -100,8 +109,8 @@ export function createListsApi({ config, lists, notes, devices, pins, kioskKey }
     const input = taskSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: z.prettifyError(input.error) }, 400);
     if (!ownerIds().includes(input.data.ownerId)) return c.json({ error: 'Profil inconnu' }, 400);
-    const who = author(c, await caller(c), input.data.by);
-    if (who.error) return who.error;
+    const who = await author(c, input.data.ownerId);
+    if ('error' in who) return who.error;
     const { label: text, ownerId, due, repeat } = input.data;
     return c.json(await lists.addTask({ label: text, ownerId, due, repeat }, who.author), 201);
   });
@@ -109,43 +118,46 @@ export function createListsApi({ config, lists, notes, devices, pins, kioskKey }
   api.put('/lists/tasks/:id', async (c) => {
     const input = doneSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: 'Corps attendu : { "done": true|false }' }, 400);
-    const who = author(c, await caller(c), input.data.by);
-    if (who.error) return who.error;
+    const owner = await taskOwner(c.req.param('id'));
+    if (!owner) return c.json({ error: 'Tâche inconnue' }, 404);
+    const who = await author(c, owner);
+    if ('error' in who) return who.error;
     const task = await lists.setTaskDone(c.req.param('id'), input.data.done, who.author);
     return task ? c.json(task) : c.json({ error: 'Tâche inconnue' }, 404);
   });
 
   api.delete('/lists/tasks/:id', async (c) => {
-    const who = author(c, await caller(c), null);
-    if (who.error) return who.error;
+    const owner = await taskOwner(c.req.param('id'));
+    if (!owner) return c.json({ error: 'Tâche inconnue' }, 404);
+    const who = await author(c, owner);
+    if ('error' in who) return who.error;
     return (await lists.removeTask(c.req.param('id'))) ? c.body(null, 204) : c.json({ error: 'Tâche inconnue' }, 404);
   });
 
-  // --- Mots : laissés par un membre (son téléphone, ou la tablette au nom du profil choisi) ---
+  // --- Mots : envoyés depuis un profil (celui du téléphone, ou celui ouvert sur la tablette), à un autre ---
 
   api.get('/notes', async (c) => c.json(await notes.list()));
 
   api.post('/notes', async (c) => {
     const input = noteSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: `Corps attendu : { "to": "…", "text": "…" } (${NOTE_MAX} caractères max)` }, 400);
-    if (!ownerIds().includes(input.data.to)) return c.json({ error: 'Destinataire inconnu' }, 400);
-    const who = author(c, await caller(c), input.data.by);
-    if (who.error) return who.error;
-    // Un mot est signé : sur la tablette, il faut dire qui l'écrit.
-    if (!who.author.ownerId || who.author.ownerId === FAMILY_ID) return c.json({ error: 'Auteur du mot attendu' }, 400);
-    return c.json(await notes.add(input.data.to, input.data.text, who.author), 201);
+    const { to, text } = input.data;
+    const { device } = await caller(c);
+    const from = device?.ownerId ?? input.data.from;
+    if (!from || !ownerIds().includes(from)) return c.json({ error: 'Profil d’envoi attendu' }, 400);
+    if (!ownerIds().includes(to)) return c.json({ error: 'Destinataire inconnu' }, 400);
+    if (to === from) return c.json({ error: 'Un mot va à un autre profil' }, 400);
+    const who = await author(c, from);
+    if ('error' in who) return who.error;
+    return c.json(await notes.add(to, text, { ownerId: from, via: who.author.via }), 201);
   });
 
-  /** Un téléphone ne marque vus que les mots de son profil, ou ceux de toute la famille. */
+  /** Marquer « Vu » : un mot du profil (droit d'écriture sur ce profil), ou un mot à toute la famille (n'importe qui). */
   api.put('/notes/:id/seen', async (c) => {
-    const input = z.object({ by }).nullable().safeParse(await body(c));
-    const who = author(c, await caller(c), input.success ? input.data?.by : null);
-    if (who.error) return who.error;
     const note = (await notes.list()).find((n) => n.id === c.req.param('id'));
     if (!note) return c.json({ error: 'Mot inconnu' }, 404);
-    if (who.author.via === 'phone' && note.to !== who.author.ownerId && note.to !== FAMILY_ID) {
-      return c.json({ error: 'Ce mot est pour quelqu’un d’autre' }, 403);
-    }
+    const who = await author(c, note.to === FAMILY_ID ? null : note.to);
+    if ('error' in who) return who.error;
     return c.json(await notes.markSeen(note.id, who.author));
   });
 
@@ -208,6 +220,70 @@ export function createListsApi({ config, lists, notes, devices, pins, kioskKey }
     if (!input.success) return c.json({ error: 'Nom attendu (60 caractères max)' }, 400);
     const device = await devices.rename(c.req.param('id'), input.data.name);
     return device ? c.json(device) : c.json({ error: 'Téléphone inconnu' }, 404);
+  });
+
+  // --- Visages : enregistrés avec le code parent ; reconnus pour savoir qui écrit sur la tablette ---
+
+  api.get('/faces', async (c) => {
+    const denied = await kioskOnly(c);
+    return denied ?? c.json({ enrolled: await faces.enrolled() });
+  });
+
+  /**
+   * La tablette envoie l'empreinte du visage qu'elle voit et ses scores contre une photo (`real`) ou un écran (`live`).
+   * Reconnu : une session, présentée ensuite dans l'en-tête X-Actor-Session.
+   */
+  api.post('/faces/identify', async (c) => {
+    const denied = await kioskOnly(c);
+    if (denied) return denied;
+    const input = identifySchema.safeParse(await body(c));
+    if (!input.success) return c.json({ error: 'Empreinte de visage attendue' }, 400);
+    const rules = config.current().faces;
+    const { embedding, real, live } = input.data;
+    if (real < rules.antispoof || live < rules.liveness) {
+      console.info(`visages : refusé (photo ou écran ?) real=${real} live=${live}`);
+      return c.json({ error: 'Visage non reconnu : approche-toi de la tablette' }, 401);
+    }
+    const match = await faces.closest(embedding);
+    console.info(`visages : ${match ? `${match.ownerId} ${match.score}, suivant ${match.next}` : 'aucun enregistré'}`);
+    const known = match && config.current().members.some((m) => m.id === match.ownerId);
+    if (!match || !known || match.score < rules.threshold || match.score - match.next < rules.margin) {
+      return c.json({ error: 'Visage non reconnu' }, 401);
+    }
+    return c.json({ ownerId: match.ownerId, ...sessions.open(match.ownerId, rules.sessionMinutes) });
+  });
+
+  api.delete('/faces/session', (c) => {
+    sessions.close(c.req.header(ACTOR_HEADER));
+    return c.body(null, 204);
+  });
+
+  /** Enregistrer ou retirer un visage : code parent obligatoire (sans lui, n'importe qui pourrait se faire passer pour un parent). */
+  async function parentDenied(c: Context, pin: string | undefined) {
+    if (!(await pins.protectedIds()).includes(PARENT_PIN_ID)) return c.json({ error: 'Définis d’abord le code parent' }, 403);
+    return pinDenied(c, [PARENT_PIN_ID], pin);
+  }
+
+  api.post('/faces/:ownerId', async (c) => {
+    const denied = await kioskOnly(c);
+    if (denied) return denied;
+    const ownerId = c.req.param('ownerId');
+    if (!config.current().members.some((m) => m.id === ownerId)) return c.json({ error: 'Profil inconnu' }, 400);
+    const input = enrollSchema.safeParse(await body(c));
+    if (!input.success) return c.json({ error: 'Empreintes de visage attendues' }, 400);
+    const pinError = await parentDenied(c, input.data.pin);
+    if (pinError) return pinError;
+    await faces.enroll(ownerId, input.data.embeddings);
+    return c.body(null, 204);
+  });
+
+  api.delete('/faces/:ownerId', async (c) => {
+    const denied = await kioskOnly(c);
+    if (denied) return denied;
+    const input = removeSchema.safeParse(await body(c));
+    const pinError = await parentDenied(c, input.success ? input.data?.pin : undefined);
+    if (pinError) return pinError;
+    return (await faces.remove(c.req.param('ownerId'))) ? c.body(null, 204) : c.json({ error: 'Visage inconnu' }, 404);
   });
 
   api.delete('/devices/:id', async (c) => {

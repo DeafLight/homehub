@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Note, Task } from '../../../shared/types.ts';
+  import { FAMILY_ID, type Note, type Task } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
@@ -23,39 +23,45 @@
   type Props = { ownerId: string };
   let { ownerId }: Props = $props();
 
-  const { api, profiles, clock, navigate } = getAppContext();
+  const { api, actor, profiles, clock, navigate } = getAppContext();
   const profile = $derived(profiles.find((p) => p.id === ownerId));
   const dashboard = createResource(() => api.dashboard(ownerId), DASHBOARD_REFRESH_MS);
   onDestroy(dashboard.destroy);
 
-  const members = profiles.filter((p) => !p.isFamily);
   let writing = $state(false);
 
-  // Un mot vu disparaît tout de suite ; le suivant prend sa place.
+  // Un mot vu disparaît tout de suite ; le suivant prend sa place. Un mot à toute la famille : n'importe qui le voit.
   async function seeNote(note: Note) {
+    if (!(await actor.allow(note.to === FAMILY_ID ? null : note.to))) return;
     const data = dashboard.data;
     if (!data) return;
     dashboard.set({ ...data, notes: data.notes.filter((n) => n.id !== note.id) });
     try {
-      await api.markNoteSeen(note.id, ownerId);
+      await api.markNoteSeen(note.id);
     } catch {
       await dashboard.refresh();
     }
   }
 
-  async function writeNote({ to, text, from }: { to: string; text: string; from: string | null }) {
-    await api.addNote(to, text, from);
+  // Un mot part du profil ouvert : il faut pouvoir écrire sur ce profil.
+  async function startNote() {
+    if (await actor.allow(ownerId)) writing = true;
+  }
+
+  async function writeNote({ to, text }: { to: string; text: string }) {
+    await api.addNote(to, text, ownerId);
     writing = false;
     await dashboard.refresh();
   }
 
   // Mise à jour optimiste : la case change tout de suite, et on resynchronise si le serveur refuse.
   async function toggleTask(task: Task, done: boolean) {
+    if (!(await actor.allow(ownerId))) return;
     const data = dashboard.data;
     if (!data) return;
     dashboard.set({ ...data, tasks: data.tasks.map((t) => (t.id === task.id ? { ...t, done } : t)) });
     try {
-      await api.setTaskDone(ownerId, task.id, done, ownerId);
+      await api.setTaskDone(ownerId, task.id, done);
     } catch {
       await dashboard.refresh();
     }
@@ -96,7 +102,7 @@
             <div class="column">
               <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
               <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
-              <NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={() => (writing = true)} />
+              <NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={startNote} />
             </div>
           </div>
         {:else}
@@ -109,7 +115,7 @@
               onToggle={toggleTask}
             />
             <UpcomingList events={data.upcoming} now={clock.now} />
-            <NoteCard notes={data.notes} {profiles} now={clock.now} onSeen={seeNote} onWrite={() => (writing = true)} />
+            <NoteCard notes={data.notes} {profiles} now={clock.now} onSeen={seeNote} onWrite={startNote} />
           </div>
         {/if}
       {:else if dashboard.error}
@@ -124,10 +130,10 @@
   </div>
 {/if}
 
-{#if writing}
+{#if writing && profile}
   <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (writing = false)}>
     <div class="dialog" role="dialog" aria-modal="true" aria-label="Laisser un mot">
-      <NoteForm {profiles} to={ownerId} authors={members} onSubmit={writeNote} onCancel={() => (writing = false)} />
+      <NoteForm from={profile} profiles={profiles.filter((p) => p.id !== ownerId)} onSubmit={writeNote} onCancel={() => (writing = false)} />
     </div>
   </div>
 {/if}

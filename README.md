@@ -20,9 +20,9 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   Courses : saisie rapide, articles fréquents en un geste, articles cochés « dans le panier » jusqu'à « Vider ».
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
   personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
-  courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom du profil d'origine.
-- **Mots** : un membre en laisse un à un autre, ou à toute la famille (200 caractères), depuis son téléphone (onglet
-  Mots, signé de son profil) ou la tablette (bloc « Mots » d'un dashboard, en choisissant qui l'écrit). Le
+  courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
+- **Mots** : envoyés depuis un profil à un autre, ou à toute la famille (200 caractères) : depuis son téléphone
+  (onglet Mots) ou la tablette (bloc « Mots » d'un dashboard, envoyé depuis ce profil ; on choisit seulement à qui). Le
   destinataire le voit sur son dashboard et son téléphone, touche « Vu » et il disparaît ; sinon il s'efface au bout
   de 7 jours (`notes.json`).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
@@ -36,6 +36,18 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   sur le serveur : `node scripts/set-pin.ts <profil>` ou `--parent` (dans le conteneur :
   `docker exec -it homehub node scripts/set-pin.ts <profil>`, `--supprimer` pour l'enlever, sans argument : la liste).
   Sans aucun code défini, le retrait se confirme d'un second geste.
+- **Qui écrit** (tablette) : tout le monde lit tous les profils ; au premier geste qui modifie (cocher, ajouter,
+  laisser un mot, « Vu »), la caméra reconnaît la personne devant la tablette, jusqu'au retour à l'accueil (ou
+  « Terminer » dans le rail, ou 10 min sans geste). Un **parent** (`parent: true` dans la configuration) modifie tous
+  les profils ; un enfant, seulement le sien (pas la liste de courses ni le profil de la famille) : sinon, « Lecture
+  seule : profil de … ». Même règle pour les téléphones, chacun au nom de son profil ; un mot à toute la famille peut
+  être marqué « Vu » par n'importe qui. Les visages s'enregistrent par la roue dentée (**Visages**, `/visages`) :
+  quelques prises, puis le code parent (obligatoire). La tablette ne calcule qu'une empreinte du visage (bibliothèque
+  [Human](https://github.com/vladmandic/human), modèles servis par HomeHub) ; le serveur la compare aux empreintes
+  enregistrées (`faces.json`) et ouvre une session courte. Aucune image ne quitte la tablette. Limites : la tablette
+  est de confiance (sa clé suffit à se faire passer pour elle) ; les contrôles « photo » et « écran » réduisent, sans
+  l'exclure, la ruse d'une photo. Fully Kiosk : activer *Web Content Settings › Enable Webcam Access* et autoriser la
+  caméra à Fully dans Android.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -106,7 +118,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -157,11 +169,11 @@ web/src/
 | `GET /api/home` | météo, résumé de chaque profil, prochain événement familial |
 | `GET /api/dashboard/:id` | dashboard d'un membre ou de `famille` (404 si inconnu) |
 | `GET /api/nas` | relevé du NAS (`null` s'il est absent), état des sources, version et démarrage de HomeHub |
-| `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true, "by"? }` → la tâche mise à jour (écriture) |
+| `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour (écriture) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |
-| `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, by? }` (sur la tablette, `by` : qui l'écrit) |
-| `PUT /api/notes/:id/seen` | marque un mot vu (un téléphone : seulement les siens et ceux de la famille) |
+| `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |
+| `PUT /api/notes/:id/seen` | marque un mot vu (droit d'écriture sur son destinataire ; un mot à la famille : n'importe qui) |
 | `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
 | `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
 | `GET /api/pairing/pins` | `{ protected, parent }` : profils qui ont un PIN, code parent défini (tablette seulement) |
@@ -169,13 +181,18 @@ web/src/
 | `POST /api/pairing/claim` | `{ code, name, system? }` → `{ token, device }` (410 si le code a expiré ou a servi) |
 | `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) ; retrait : `{ pin }`, PIN du propriétaire ou code parent s'il en existe un |
 | `PATCH /api/devices/:id` | `{ name }` : renomme un téléphone (tablette seulement) |
+| `GET /api/faces` | `{ enrolled }` : profils dont le visage est enregistré (tablette seulement) |
+| `POST /api/faces/identify` | `{ embedding, real, live }` → `{ ownerId, token, expiresAt }` (401 : non reconnu ; tablette seulement) |
+| `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
+| `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire |
 
 **Écriture** : la tablette est reconnue à sa clé (`HOMEHUB_KIOSK_KEY`, lue une fois dans `#key=…` puis envoyée dans
 l'en-tête `X-Kiosk-Key` ; placée après `#`, elle n'apparaît jamais dans les journaux du proxy) ou à son adresse
 (`kiosk.addresses`, lue dans `X-Real-IP` posé par le proxy ; `127.0.0.1` compte toujours comme tablette, pour le
 développement), un téléphone relié à son jeton
-(`Authorization: Bearer`). Tout autre appareil lit sans écrire (403). Le `by` envoyé par la tablette dit au nom de
-quel profil elle agit ; un téléphone agit toujours au nom du sien. Les icônes de la PWA se régénèrent avec
+(`Authorization: Bearer`). Tout autre appareil lit sans écrire (403). La tablette agit au nom de la personne reconnue
+(en-tête `X-Actor-Session` ; sans elle : 403 avec `identify: true`), un téléphone au nom de son profil ; un parent
+écrit partout, un enfant sur son profil seulement (`shared/rights.ts`). Les icônes de la PWA se régénèrent avec
 `node scripts/make-icons.ts`.
 
 ## Développement

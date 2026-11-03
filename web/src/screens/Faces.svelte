@@ -1,0 +1,310 @@
+<script lang="ts">
+  import { onDestroy } from 'svelte';
+  import Avatar from '../components/Avatar.svelte';
+  import BackButton from '../components/BackButton.svelte';
+  import PinPad from '../components/PinPad.svelte';
+  import { ApiError } from '../lib/api.ts';
+  import { getAppContext } from '../lib/context.ts';
+  import { cameraError, prepareFaces, readFace, startCamera } from '../lib/face.ts';
+  import type { Profile } from '../lib/profiles.ts';
+  import { createResource } from '../lib/resource.svelte.ts';
+  import type { PageRoute } from '../lib/route.ts';
+
+  // Visages de la famille, ouverts depuis la roue dentée (tablette seulement) : chacun se place devant la caméra le
+  // temps de quelques prises, puis un parent valide avec le code parent (scripts/set-pin.ts --parent). Seules les
+  // empreintes des visages sont gardées, sur le serveur ; aucune photo.
+  const SAMPLES = 5;
+  const PAUSE_MS = 500;
+
+  type Props = { back: PageRoute };
+  let { back }: Props = $props();
+
+  const { api, config, profiles } = getAppContext();
+  const me = createResource(() => api.me(), 60_000);
+  const faces = createResource(() => api.faces(), 60_000);
+  onDestroy(() => {
+    me.destroy();
+    faces.destroy();
+  });
+
+  const members = profiles.filter((p) => !p.isFamily);
+  const isParent = (id: string) => config.members.find((m) => m.id === id)?.parent ?? false;
+
+  /** Prises en cours pour ce profil, puis code parent ; ou effacement (code parent). */
+  let capturing = $state<Profile | null>(null);
+  let samples = $state<number[][]>([]);
+  let erasing = $state<Profile | null>(null);
+  let message = $state<string | null>(null);
+  let pinError = $state<string | null>(null);
+  let video = $state<HTMLVideoElement>();
+
+  const ready = $derived(samples.length >= SAMPLES);
+
+  $effect(() => {
+    if (!video || !capturing) return;
+    const el = video;
+    let stopped = false;
+    let stopCamera = () => {};
+    (async () => {
+      try {
+        const stop = await startCamera(el);
+        if (stopped) return stop();
+        stopCamera = stop;
+        message = 'Préparation…';
+        await prepareFaces();
+        message = 'Regarde la tablette, tourne un peu la tête';
+        while (!stopped && samples.length < SAMPLES) {
+          const reading = await readFace(el);
+          if (stopped) return;
+          if (reading) samples = [...samples, reading.embedding];
+          await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
+        }
+      } catch (err) {
+        if (!stopped) message = cameraError(err);
+      } finally {
+        stopCamera();
+      }
+    })();
+    return () => {
+      stopped = true;
+      stopCamera();
+    };
+  });
+
+  function start(profile: Profile) {
+    samples = [];
+    message = null;
+    pinError = null;
+    capturing = profile;
+  }
+
+  function close() {
+    capturing = null;
+    erasing = null;
+    samples = [];
+    pinError = null;
+  }
+
+  /** Code parent refusé : on le redemande (false) ; autre refus : affiché, la saisie reste ouverte. */
+  async function withParentCode(action: () => Promise<void>): Promise<boolean> {
+    pinError = null;
+    try {
+      await action();
+      close();
+      await faces.refresh();
+      return true;
+    } catch (err) {
+      pinError = err instanceof ApiError ? err.message : (err as Error).message;
+      return false;
+    }
+  }
+</script>
+
+<div class="faces-page">
+  <header>
+    <BackButton {back} />
+    <h1>Visages</h1>
+  </header>
+
+  {#if !me.data?.kiosk}
+    {#if me.data}<p class="muted">Réservé à la tablette.</p>{/if}
+  {:else if capturing && ready}
+    {@const profile = capturing}
+    <PinPad
+      {profile}
+      title="Visage de {profile.name}"
+      hint="Code parent"
+      error={pinError}
+      onSubmit={(pin) => withParentCode(() => api.enrollFace(profile.id, samples, pin))}
+      onCancel={close}
+    />
+  {:else if capturing}
+    <div class="capture">
+      <h2>{capturing.name}</h2>
+      <div class="camera">
+        <!-- svelte-ignore a11y_media_has_caption -->
+        <video bind:this={video} muted playsinline></video>
+      </div>
+      <div class="progress" aria-label="{samples.length} prises sur {SAMPLES}">
+        {#each Array.from({ length: SAMPLES }, (_, i) => i) as i (i)}
+          <span class:done={i < samples.length}></span>
+        {/each}
+      </div>
+      {#if message}<p class="status">{message}</p>{/if}
+      <button type="button" class="secondary" onclick={close}>Annuler</button>
+    </div>
+  {:else if erasing}
+    {@const profile = erasing}
+    <PinPad
+      {profile}
+      title="Effacer le visage de {profile.name}"
+      hint="Code parent"
+      error={pinError}
+      onSubmit={(pin) => withParentCode(() => api.removeFace(profile.id, pin))}
+      onCancel={close}
+    />
+  {:else}
+    <p class="muted intro">
+      Sur la tablette, chacun est reconnu à son visage avant de modifier quelque chose. Un parent modifie tous les
+      profils ; un enfant, seulement le sien. Les autres profils restent lisibles par tous.
+    </p>
+    <ul class="members">
+      {#each members as profile (profile.id)}
+        {@const enrolled = faces.data?.enrolled.includes(profile.id) ?? false}
+        <li>
+          <Avatar {profile} size={56} />
+          <div class="who">
+            <span class="name">{profile.name}</span>
+            <span class="muted">{isParent(profile.id) ? 'Parent' : 'Enfant'} · {enrolled ? 'visage enregistré' : 'pas encore de visage'}</span>
+          </div>
+          <button type="button" class="primary" onclick={() => start(profile)}>{enrolled ? 'Compléter' : 'Enregistrer'}</button>
+          {#if enrolled}
+            <button type="button" class="secondary" onclick={() => ((erasing = profile), (pinError = null))}>Effacer</button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    {#if faces.error}<p class="error">{faces.error}</p>{/if}
+  {/if}
+</div>
+
+<style>
+  .faces-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 28px 40px 36px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 600;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.8rem;
+  }
+
+  .muted {
+    color: var(--fg-muted);
+  }
+
+  .intro {
+    max-width: 760px;
+    margin: 0;
+    font-size: 1.15rem;
+  }
+
+  .members {
+    max-width: 760px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .members li {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--surface-2);
+  }
+
+  .members li:last-child {
+    border-bottom: 0;
+  }
+
+  .who {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .name {
+    font-size: 1.3rem;
+    font-weight: 600;
+  }
+
+  .capture {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .camera {
+    width: 320px;
+    height: 320px;
+    overflow: hidden;
+    border: 4px solid var(--rain);
+    border-radius: 50%;
+    background: var(--bg);
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  .progress {
+    display: flex;
+    gap: 10px;
+  }
+
+  .progress span {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface-2);
+  }
+
+  .progress span.done {
+    background: var(--rain);
+  }
+
+  .status {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  .error {
+    color: var(--danger-fg);
+  }
+
+  button {
+    min-height: 52px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: 16px;
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .primary {
+    background: var(--rain);
+    color: var(--bg);
+  }
+
+  .secondary {
+    background: var(--surface-2);
+    color: var(--fg);
+  }
+</style>

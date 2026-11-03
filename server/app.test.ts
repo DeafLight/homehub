@@ -9,6 +9,7 @@ import { createConfigStore } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { createDeviceStore } from './sources/devices.ts';
+import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createPinStore } from './sources/pins.ts';
@@ -27,16 +28,19 @@ function setup(staticRoot?: string) {
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
   const pins = createPinStore({ path: join(dir, 'pins.json'), clock: fixedClock });
   const notes = createNotesStore({ path: join(dir, 'notes.json'), clock: fixedClock });
-  const app = createApp({ config, service, nas, lists, notes, devices, pins, clock: fixedClock, version: '9.9.9', staticRoot });
-  return { app, config };
+  const faces = createFaceStore({ path: join(dir, 'faces.json') });
+  const sessions = createActorSessions(fixedClock);
+  const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, clock: fixedClock, version: '9.9.9', staticRoot });
+  // Alex reconnu devant la tablette (configuration de test : pas de parent, chacun écrit sur son profil).
+  const { token } = sessions.open('alex', 10);
+  /** Requête de la tablette (en test, l'adresse locale compte comme la tablette), au nom d'Alex sauf `actor: null`. */
+  const put = (body: unknown, { address = '127.0.0.1', actor = token as string | null } = {}) => ({
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Real-IP': address, ...(actor && { 'X-Actor-Session': actor }) },
+    body: JSON.stringify(body),
+  });
+  return { app, config, put };
 }
-
-/** Requête de la tablette (en test, l'adresse locale compte comme la tablette). */
-const put = (body: unknown, address = '127.0.0.1') => ({
-  method: 'PUT',
-  headers: { 'Content-Type': 'application/json', 'X-Real-IP': address },
-  body: JSON.stringify(body),
-});
 
 describe('API', () => {
   it('GET /api/health', async () => {
@@ -107,7 +111,7 @@ describe('API', () => {
   });
 
   it('PUT une tâche : 200, puis visible dans le dashboard', async () => {
-    const { app } = setup();
+    const { app, put } = setup();
     const res = await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }));
     expect(res.status).toBe(200);
     const dashboard = await (await app.request('/api/dashboard/alex')).json();
@@ -115,11 +119,17 @@ describe('API', () => {
   });
 
   it('PUT une tâche : 400 si le corps est invalide, 404 si la tâche est inconnue', async () => {
-    const { app } = setup();
+    const { app, put } = setup();
     expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: 'oui' }))).status).toBe(400);
     expect((await app.request('/api/dashboard/alex/tasks/absente', put({ done: true }))).status).toBe(404);
     // Autre appareil du réseau, non appairé : lecture seule.
-    expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }, '192.168.1.20'))).status).toBe(403);
+    expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }, { address: '192.168.1.20' }))).status).toBe(403);
+    // Tablette, personne reconnue : elle le demande.
+    const anonymous = await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }, { actor: null }));
+    expect(anonymous.status).toBe(403);
+    expect((await anonymous.json()).identify).toBe(true);
+    // Alex n'est pas parent : pas sur le profil de Léa.
+    expect((await app.request('/api/dashboard/lea/tasks/t1', put({ done: true }))).status).toBe(403);
   });
 
   it('route API inconnue : 404 en JSON', async () => {

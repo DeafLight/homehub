@@ -13,6 +13,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // La bibliothèque de reconnaissance faciale (≈ 1,5 Mo), chargée à part au premier usage sur la tablette.
+    chunkSizeWarningLimit: 1600,
   },
   server: {
     host: true,

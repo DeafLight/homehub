@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import FaceCheck from './components/FaceCheck.svelte';
   import StatusBanner from './components/StatusBanner.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
@@ -7,6 +8,7 @@
   import { HOME_PATH, isPhoneRoute, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
+  import Faces from './screens/Faces.svelte';
   import Home from './screens/Home.svelte';
   import Lists from './screens/Lists.svelte';
   import Nas from './screens/Nas.svelte';
@@ -18,9 +20,14 @@
 
   const VERSION_CHECK_MS = 30_000;
 
-  const { api, config, router } = getAppContext();
+  const { api, actor, config, router } = getAppContext();
 
   let reachable = $state(true);
+
+  // De retour à l'accueil (geste, ou inactivité) : la personne reconnue n'est plus devant la tablette.
+  $effect(() => {
+    if (router.route.name === 'home') untrack(() => actor.end());
+  });
 
   onMount(() => {
     const stopVersion = watchVersion({
@@ -54,6 +61,8 @@
   <Lists back={router.route.back} />
 {:else if router.route.name === 'phones'}
   <Phones back={router.route.back} />
+{:else if router.route.name === 'faces'}
+  <Faces back={router.route.back} />
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}
@@ -70,6 +79,31 @@
   <Home />
 {/if}
 
+{#if actor.asking}
+  <FaceCheck />
+{/if}
+
+{#if actor.notice}
+  <div class="notice" role="status">{actor.notice}</div>
+{/if}
+
 {#if !reachable}
   <StatusBanner message="Serveur injoignable, nouvel essai en cours…" />
 {/if}
+
+<style>
+  .notice {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    z-index: 40;
+    transform: translateX(-50%);
+    padding: 16px 28px;
+    border-radius: 999px;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 1.2rem;
+    font-weight: 600;
+    pointer-events: none;
+  }
+</style>

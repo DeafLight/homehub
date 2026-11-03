@@ -9,6 +9,8 @@ export type Member = {
   name: string;
   /** Couleur d'accent, au format #rrggbb. */
   color: string;
+  /** Parent : écrit sur tous les profils ; sinon (enfant), seulement sur le sien. */
+  parent: boolean;
 };
 
 /** Configuration visible par le front (aucun secret). */

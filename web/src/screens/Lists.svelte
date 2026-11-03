@@ -14,13 +14,13 @@
   const LISTS_REFRESH_MS = 10_000;
 
   // Courses et tâches de la famille sur la tablette, ouvertes depuis un dashboard ou l'accueil : ce qui est coché ou
-  // ajouté l'est au nom du profil d'origine.
+  // ajouté l'est au nom de la personne reconnue devant la tablette (un enfant : ses tâches seulement).
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
-  const { api, profiles, clock } = getAppContext();
+  const { api, actor, profiles, clock } = getAppContext();
   const origin = $derived(back.name === 'dashboard' ? back.ownerId : null);
-  const lists = createListsState(api, () => origin, LISTS_REFRESH_MS);
+  const lists = createListsState(api, { refreshMs: LISTS_REFRESH_MS, guard: actor.allow });
   const me = createResource(() => api.me(), 60_000);
   onDestroy(() => {
     lists.destroy();

@@ -6,11 +6,13 @@
   import Icon from './Icon.svelte';
   import SettingsMenu from './SettingsMenu.svelte';
 
-  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, et roue dentée (tablette seulement).
+  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, personne reconnue devant la tablette (qui
+  // peut terminer sa session) et roue dentée (tablette seulement).
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
-  const { profiles, clock, navigate } = getAppContext();
+  const { actor, profiles, clock, navigate } = getAppContext();
+  const actorProfile = $derived(profiles.find((p) => p.id === actor.current?.id));
 </script>
 
 <nav class="rail" aria-label="Profils">
@@ -31,7 +33,15 @@
       <Avatar {profile} size={64} dimmed={!current} />
     </button>
   {/each}
-  <div class="settings"><SettingsMenu placement="side" size={64} /></div>
+  <div class="bottom">
+    {#if actorProfile}
+      <button class="actor" type="button" aria-label="Terminer la session de {actorProfile.name}" onclick={() => actor.end()}>
+        <Avatar profile={actorProfile} size={48} />
+        <span>Terminer</span>
+      </button>
+    {/if}
+    <SettingsMenu placement="side" size={64} />
+  </div>
   <div class="time">{formatTime(clock.now)}</div>
 </nav>
 
@@ -92,9 +102,25 @@
     box-sizing: border-box;
   }
 
-  .settings {
+  .bottom {
     margin-top: auto;
     padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .actor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    font-size: 0.85rem;
+    font-weight: 600;
   }
 
   .time {

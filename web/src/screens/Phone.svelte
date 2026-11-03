@@ -36,7 +36,7 @@
     clearPairing();
     revoked = true;
   }
-  const lists = createListsState(api, () => null, LISTS_REFRESH_MS, forget);
+  const lists = createListsState(api, { refreshMs: LISTS_REFRESH_MS, onUnauthorized: forget });
   // Le serveur reconnaît-il encore ce téléphone ? Vérifié à l'ouverture puis régulièrement.
   const check = createResource(async () => {
     if (!pairing) return null;
@@ -224,7 +224,7 @@
     {#if writing}
       <div class="sheet-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && (writing = false)}>
         <div class="sheet" role="dialog" aria-modal="true" aria-label="Laisser un mot">
-          <NoteForm profiles={profiles.filter((p) => p.id !== me.id)} to={FAMILY_ID} onSubmit={writeNote} onCancel={() => (writing = false)} />
+          <NoteForm from={me} profiles={profiles.filter((p) => p.id !== me.id)} onSubmit={writeNote} onCancel={() => (writing = false)} />
         </div>
       </div>
     {/if}

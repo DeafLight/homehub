@@ -22,6 +22,7 @@ describe('route', () => {
     ['/nas', { name: 'nas', back: { name: 'home' } }],
     ['/listes/p/lea', { name: 'lists', back: { name: 'dashboard', ownerId: 'lea' } }],
     ['/m/mots', { name: 'phone', tab: 'notes' }],
+    ['/visages', { name: 'faces', back: { name: 'home' } }],
     ['/telephones/p/lea', { name: 'phones', back: { name: 'dashboard', ownerId: 'lea' } }],
     ['/m', { name: 'phone', tab: 'shopping' }],
     ['/m/', { name: 'phone', tab: 'shopping' }],
@@ -89,13 +90,23 @@ describe('api', () => {
     );
   });
 
-  it('tablette : pas d’en-tête d’autorisation', async () => {
+  it('tablette : sa clé et la session de la personne reconnue', async () => {
     const fetchFn = vi.fn(async () => Response.json({ id: 's1' }, { status: 201 }));
-    await createApi(fetchFn).addShopping('Lait', 'alex');
+    await createApi(fetchFn, '/api', () => ({ kioskKey: 'cle', actor: 'session' })).addShopping('Lait');
     expect(fetchFn).toHaveBeenCalledWith('/api/lists/shopping', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"label":"Lait","by":"alex"}',
+      headers: { 'Content-Type': 'application/json', 'X-Kiosk-Key': 'cle', 'X-Actor-Session': 'session' },
+      body: '{"label":"Lait"}',
     });
+  });
+
+  it('refus faute de personne reconnue : signalé avant de remonter', async () => {
+    const fetchFn = vi.fn(async () => Response.json({ error: 'Qui es-tu ?', identify: true }, { status: 403 }));
+    const onError = vi.fn();
+    await expect(createApi(fetchFn, '/api', () => ({}), onError).addShopping('Lait')).rejects.toMatchObject({
+      status: 403,
+      identify: true,
+    });
+    expect(onError).toHaveBeenCalledOnce();
   });
 });

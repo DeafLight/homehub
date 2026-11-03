@@ -1,5 +1,5 @@
 // Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `credentials` : jeton du téléphone
-// appairé, ou clé de la tablette, envoyés avec chaque requête.
+// appairé, ou clé de la tablette et session de la personne reconnue devant elle, envoyés avec chaque requête.
 import type {
   DashboardData,
   Device,
@@ -21,13 +21,18 @@ import type {
 
 export class ApiError extends Error {
   readonly status: number;
+  /** Refus de la tablette faute de personne reconnue : il faut d'abord regarder la caméra. */
+  readonly identify: boolean;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, identify = false) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.identify = identify;
   }
 }
+
+export type FaceSession = { ownerId: string; token: string; expiresAt: string };
 
 export type Api = {
   health(): Promise<Health>;
@@ -37,21 +42,28 @@ export type Api = {
   weather(): Promise<{ forecast: WeatherForecast | null }>;
   week(offset: number): Promise<WeekData>;
   nas(): Promise<NasData>;
-  /** `by` : profil ouvert sur la tablette (ignoré pour un téléphone, qui agit au nom du sien). */
-  setTaskDone(ownerId: string, taskId: string, done: boolean, by?: string | null): Promise<Task>;
+  setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task>;
   me(): Promise<Me>;
   lists(): Promise<Lists>;
-  addShopping(label: string, by?: string | null): Promise<ShoppingItem>;
-  setShoppingDone(id: string, done: boolean, by?: string | null): Promise<ShoppingItem>;
+  addShopping(label: string): Promise<ShoppingItem>;
+  setShoppingDone(id: string, done: boolean): Promise<ShoppingItem>;
   removeShopping(id: string): Promise<void>;
   clearShopping(): Promise<void>;
-  addTask(task: NewTask, by?: string | null): Promise<ListTask>;
-  setListTaskDone(id: string, done: boolean, by?: string | null): Promise<ListTask>;
+  addTask(task: NewTask): Promise<ListTask>;
+  setListTaskDone(id: string, done: boolean): Promise<ListTask>;
   removeTask(id: string): Promise<void>;
-  /** Mots des 7 derniers jours, vus ou non. `by` : sur la tablette, qui écrit (ou qui l'a vu). */
+  /** Mots des 7 derniers jours, vus ou non. */
   notes(): Promise<Note[]>;
-  addNote(to: string, text: string, by?: string | null): Promise<Note>;
-  markNoteSeen(id: string, by?: string | null): Promise<Note>;
+  /** `from` : profil ouvert sur la tablette (un téléphone envoie toujours depuis le sien). */
+  addNote(to: string, text: string, from?: string | null): Promise<Note>;
+  markNoteSeen(id: string): Promise<Note>;
+  /** Visages enregistrés (tablette seule). */
+  faces(): Promise<{ enrolled: string[] }>;
+  identifyFace(reading: { embedding: number[]; real: number; live: number }): Promise<FaceSession>;
+  endFaceSession(): Promise<void>;
+  /** Enregistrer ou retirer un visage : code parent. */
+  enrollFace(ownerId: string, embeddings: number[][], pin: string): Promise<void>;
+  removeFace(ownerId: string, pin: string): Promise<void>;
   /** Profils dont la tablette doit demander le PIN avant d'afficher le QR code ; code parent défini. */
   pairingPins(): Promise<{ protected: string[]; parent: boolean }>;
   createPairing(ownerId: string, pin?: string): Promise<PairingCode>;
@@ -64,20 +76,28 @@ export type Api = {
 
 export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
 
-export type Credentials = { token?: string | null; kioskKey?: string | null };
+export type Credentials = { token?: string | null; kioskKey?: string | null; actor?: string | null };
 
 export function createApi(
   fetchFn: typeof fetch = (...args) => fetch(...args),
   baseUrl = '/api',
   credentials: () => Credentials = () => ({}),
+  /** Appelé à chaque refus du serveur, avant que l'erreur remonte. */
+  onError: (err: ApiError) => void = () => {},
 ): Api {
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const { token, kioskKey } = credentials();
-    const auth = { ...(token && { Authorization: `Bearer ${token}` }), ...(kioskKey && { 'X-Kiosk-Key': kioskKey }) };
+    const { token, kioskKey, actor } = credentials();
+    const auth = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(kioskKey && { 'X-Kiosk-Key': kioskKey }),
+      ...(actor && { 'X-Actor-Session': actor }),
+    };
     const res = await fetchFn(`${baseUrl}${path}`, Object.keys(auth).length ? { ...init, headers: { ...init?.headers, ...auth } } : init);
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new ApiError(res.status, body?.error ?? `HTTP ${res.status}`);
+      const err = new ApiError(res.status, body?.error ?? `HTTP ${res.status}`, body?.identify === true);
+      onError(err);
+      throw err;
     }
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
@@ -99,19 +119,24 @@ export function createApi(
     weather: () => request('/weather'),
     week: (offset) => request(`/week?offset=${offset}`),
     nas: () => request('/nas'),
-    setTaskDone: (ownerId, taskId, done, by) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done, by }),
+    setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
     me: () => request('/me'),
     lists: () => request('/lists'),
-    addShopping: (label, by) => send('POST', '/lists/shopping', { label, by }),
-    setShoppingDone: (id, done, by) => send('PUT', `/lists/shopping/${encodeURIComponent(id)}`, { done, by }),
+    addShopping: (label) => send('POST', '/lists/shopping', { label }),
+    setShoppingDone: (id, done) => send('PUT', `/lists/shopping/${encodeURIComponent(id)}`, { done }),
     removeShopping: (id) => send('DELETE', `/lists/shopping/${encodeURIComponent(id)}`),
     clearShopping: () => send('POST', '/lists/shopping/clear'),
-    addTask: (task, by) => send('POST', '/lists/tasks', { ...task, by }),
-    setListTaskDone: (id, done, by) => send('PUT', `/lists/tasks/${encodeURIComponent(id)}`, { done, by }),
+    addTask: (task) => send('POST', '/lists/tasks', task),
+    setListTaskDone: (id, done) => send('PUT', `/lists/tasks/${encodeURIComponent(id)}`, { done }),
     removeTask: (id) => send('DELETE', `/lists/tasks/${encodeURIComponent(id)}`),
     notes: () => request('/notes'),
-    addNote: (to, text, by) => send('POST', '/notes', { to, text, by }),
-    markNoteSeen: (id, by) => send('PUT', `/notes/${encodeURIComponent(id)}/seen`, { by }),
+    addNote: (to, text, from) => send('POST', '/notes', { to, text, from }),
+    markNoteSeen: (id) => send('PUT', `/notes/${encodeURIComponent(id)}/seen`),
+    faces: () => request('/faces'),
+    identifyFace: (reading) => send('POST', '/faces/identify', reading),
+    endFaceSession: () => send('DELETE', '/faces/session'),
+    enrollFace: (ownerId, embeddings, pin) => send('POST', `/faces/${encodeURIComponent(ownerId)}`, { embeddings, pin }),
+    removeFace: (ownerId, pin) => send('DELETE', `/faces/${encodeURIComponent(ownerId)}`, { pin }),
     pairingPins: () => request('/pairing/pins'),
     createPairing: (ownerId, pin) => send('POST', '/pairing', { ownerId, pin }),
     claimPairing: (code, name, system) => send('POST', '/pairing/claim', { code, name, system }),

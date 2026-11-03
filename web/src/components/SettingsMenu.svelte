@@ -5,7 +5,7 @@
   import { type DetailName, detailPath } from '../lib/route.ts';
   import Icon from './Icon.svelte';
 
-  // Roue dentée de la tablette : pages d'administration, rarement utiles (téléphones reliés, état du NAS).
+  // Roue dentée de la tablette : pages d'administration, rarement utiles (téléphones reliés, visages, état du NAS).
   // Absente sur tout autre appareil. Le menu s'ouvre au-dessus du bouton (accueil) ou à sa droite (rail) ; il est
   // placé par rapport à l'écran, car le rail fait défiler (et rognerait) ce qu'il contient.
   type Props = { placement: 'above' | 'side'; size: number };
@@ -57,6 +57,7 @@
     <div class="backdrop" role="presentation" onclick={() => (position = null)}></div>
     <div class="menu" role="menu" style={position}>
       <button type="button" role="menuitem" onclick={() => go('phones')}><Icon name="phone" size={28} /> Téléphones</button>
+      <button type="button" role="menuitem" onclick={() => go('faces')}><Icon name="face" size={28} /> Visages</button>
       <button type="button" role="menuitem" onclick={() => go('nas')}><Icon name="server" size={28} /> État du NAS</button>
       <div class="version">HomeHub v{__APP_VERSION__}</div>
     </div>

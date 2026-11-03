@@ -15,6 +15,8 @@ const memberSchema = z.object({
     .refine((id) => id !== FAMILY_ID, `« ${FAMILY_ID} » est réservé au dashboard commun`),
   name: z.string().trim().min(1).max(40),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'couleur au format #rrggbb'),
+  /** Parent : écrit sur tous les profils. Un enfant (par défaut) n'écrit que sur le sien. */
+  parent: z.boolean().default(false),
   calendars: calendarsSchema,
   /** Prénom de l'élève sur ÉcoleDirecte : affiche son emploi du temps sur ce profil. */
   ecoledirecte: z.string().trim().min(1).max(40).optional(),
@@ -45,6 +47,20 @@ export const configSchema = z.object({
   ui: z
     .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
     .default({ idleTimeoutSeconds: 180 }),
+  /**
+   * Reconnaissance faciale de la tablette, pour savoir qui écrit. `threshold` : ressemblance minimale (0 à 1) avec un
+   * visage enregistré ; `margin` : avance minimale sur la personne suivante ; `antispoof` et `liveness` : scores
+   * minimaux contre une photo ou un écran ; `sessionMinutes` : durée d'une identification sans geste.
+   */
+  faces: z
+    .object({
+      threshold: z.number().min(0).max(1).default(0.55),
+      margin: z.number().min(0).max(1).default(0.05),
+      antispoof: z.number().min(0).max(1).default(0.5),
+      liveness: z.number().min(0).max(1).default(0.5),
+      sessionMinutes: z.number().int().min(1).max(60).default(10),
+    })
+    .default({ threshold: 0.55, margin: 0.05, antispoof: 0.5, liveness: 0.5, sessionMinutes: 10 }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({
@@ -92,7 +108,7 @@ export async function loadConfig(path: string): Promise<AppConfig> {
 
 export function toPublicConfig(config: AppConfig, revision: string): PublicConfig {
   return {
-    members: config.members.map(({ id, name, color }) => ({ id, name, color })),
+    members: config.members.map(({ id, name, color, parent }) => ({ id, name, color, parent })),
     family: { name: config.family.name },
     ui: config.ui,
     revision,

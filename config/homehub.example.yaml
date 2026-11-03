@@ -8,6 +8,8 @@
 #   id    : identifiant court (minuscules, chiffres, tirets), utilisé dans l'URL : /p/<id>
 #   name  : prénom affiché
 #   color : couleur d'accent du profil, au format #rrggbb
+#   parent (facultatif, false par défaut) : modifie tous les profils sur la tablette et son téléphone ; un enfant
+#     ne modifie que le sien (ni la liste de courses, ni le profil de la famille).
 #   calendars (facultatif) : agendas iCal du profil, désignés par le NOM d'une variable d'environnement
 #     qui contient l'adresse secrète (Google Agenda : Paramètres de l'agenda → Intégrer l'agenda →
 #     « Adresse secrète au format iCal »). Les adresses vont dans app.env, jamais dans ce fichier.
@@ -20,6 +22,7 @@
 members:
   - id: alex
     name: Alex
+    parent: true
     color: "#5b8def"
     # calendars: [CAL_ALEX]
   - id: sam
@@ -57,6 +60,20 @@ pronote:
 # appairés écrivent au nom de leur profil. En développement, l'accès local (127.0.0.1) est toujours accepté.
 kiosk:
   addresses: []
+
+# Reconnaissance faciale de la tablette (qui modifie). Valeurs par défaut ci-dessous ; les scores de chaque essai
+# apparaissent dans les logs (« visages : … ») pour les ajuster.
+#   threshold      : ressemblance minimale avec un visage enregistré (0 à 1)
+#   margin         : avance minimale sur la personne suivante (deux frères et sœurs proches : l'augmenter)
+#   antispoof      : score minimal « vrai visage » plutôt qu'une photo
+#   liveness       : score minimal « visage vivant » plutôt qu'un écran
+#   sessionMinutes : durée d'une identification sans geste
+# faces:
+#   threshold: 0.55
+#   margin: 0.05
+#   antispoof: 0.5
+#   liveness: 0.5
+#   sessionMinutes: 10
 
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).

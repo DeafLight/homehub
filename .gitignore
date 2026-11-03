@@ -8,3 +8,5 @@ config/homehub.yaml
 config/nas-status.json
 # État local de dev (jeton Pronote)
 state/
+# Modèles de visage, copiés de node_modules par scripts/copy-face-models.ts
+web/public/models/

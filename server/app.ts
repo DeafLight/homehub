@@ -3,13 +3,14 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { type Health, WEEKS_AHEAD } from '../shared/types.ts';
-import { authorOf, identify, kioskKeyMatcher } from './access.ts';
+import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
 import { createListsApi } from './lists-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
+import type { ActorSessions, FaceStore } from './sources/faces.ts';
 import type { PinStore } from './sources/pins.ts';
 import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
@@ -23,6 +24,8 @@ export type AppDeps = {
   notes: NotesStore;
   devices: DeviceStore;
   pins: PinStore;
+  faces: FaceStore;
+  sessions: ActorSessions;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
   clock: Clock;
@@ -31,13 +34,19 @@ export type AppDeps = {
   staticRoot?: string;
 };
 
-const taskUpdateSchema = z.object({ done: z.boolean(), by: z.string().nullish() });
+const taskUpdateSchema = z.object({ done: z.boolean() });
 const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
-export function createApp({ config, service, nas, lists, notes, devices, pins, kioskKey, clock, version, staticRoot }: AppDeps): Hono {
-  const isKey = kioskKeyMatcher(kioskKey);
+export function createApp(deps: AppDeps): Hono {
+  const { config, service, nas, devices, sessions, kioskKey, clock, version, staticRoot } = deps;
+  const access: Access = createAccess({
+    config,
+    devices,
+    isKey: kioskKeyMatcher(kioskKey),
+    actorOf: (token) => sessions.get(token, config.current().faces.sessionMinutes),
+  });
   const app = new Hono();
   const api = new Hono();
 
@@ -67,13 +76,13 @@ export function createApp({ config, service, nas, lists, notes, devices, pins, k
   api.put('/dashboard/:ownerId/tasks/:taskId', async (c) => {
     const body = taskUpdateSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'Corps attendu : { "done": true|false }' }, 400);
-    const author = authorOf(await identify(c, devices, { addresses: config.current().kiosk.addresses, isKey }), body.data.by);
-    if (!author) return c.json({ error: 'Lecture seule : appareil non appairé' }, 403);
-    const task = await service.setTaskDone(c.req.param('ownerId'), c.req.param('taskId'), body.data.done, author);
+    const who = await access.write(c, c.req.param('ownerId'));
+    if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
+    const task = await service.setTaskDone(c.req.param('ownerId'), c.req.param('taskId'), body.data.done, who.author);
     return task ? c.json(task) : c.json({ error: 'Tâche inconnue' }, 404);
   });
 
-  api.route('/', createListsApi({ config, lists, notes, devices, pins, kioskKey }));
+  api.route('/', createListsApi({ ...deps, access }));
 
   app.route('/api', api);
   // Avant le front : une route d'API inconnue ne doit pas renvoyer index.html.
