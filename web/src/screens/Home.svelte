@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import ActorBadge from '../components/ActorBadge.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
   import DetailLink from '../components/DetailLink.svelte';
@@ -92,7 +93,10 @@
         <Icon name="chevron" size={32} color="var(--fg-muted)" strokeWidth={2} />
       </button>
     {/each}
-    <div class="settings"><SettingsMenu placement="above" size={72} /></div>
+    <div class="settings">
+      <ActorBadge row />
+      <SettingsMenu placement="above" size={72} />
+    </div>
   </section>
 </div>
 
@@ -246,7 +250,9 @@
 
   .settings {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 16px;
     margin-top: auto;
     padding-top: 8px;
   }

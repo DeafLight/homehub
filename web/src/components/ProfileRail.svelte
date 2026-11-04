@@ -2,6 +2,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { formatTime } from '../lib/format.ts';
   import { dashboardPath, HOME_PATH } from '../lib/route.ts';
+  import ActorBadge from './ActorBadge.svelte';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
   import SettingsMenu from './SettingsMenu.svelte';
@@ -11,8 +12,7 @@
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
-  const { actor, profiles, clock, navigate } = getAppContext();
-  const actorProfile = $derived(profiles.find((p) => p.id === actor.current?.id));
+  const { profiles, clock, navigate } = getAppContext();
 </script>
 
 <nav class="rail" aria-label="Profils">
@@ -34,17 +34,7 @@
     </button>
   {/each}
   <div class="bottom">
-    {#if actorProfile}
-      <div class="actor" role="status" aria-label="Reconnu : {actorProfile.name}">
-        <Avatar profile={actorProfile} size={48} />
-        <span>{actorProfile.name}</span>
-      </div>
-    {:else if actor.camera === 'on'}
-      <div class="actor nobody" role="status" aria-label="Personne n'est reconnu">
-        <Icon name="face" size={32} />
-        <span>Personne</span>
-      </div>
-    {/if}
+    <ActorBadge />
     <SettingsMenu placement="side" size={64} />
   </div>
   <div class="time">{formatTime(clock.now)}</div>
@@ -114,23 +104,6 @@
     flex-direction: column;
     align-items: center;
     gap: 16px;
-  }
-
-  .actor {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 8px 10px;
-    border-radius: var(--radius-md);
-    background: var(--surface-2);
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  .actor.nobody {
-    color: var(--fg-muted);
-    background: none;
   }
 
   .time {
