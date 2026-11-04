@@ -76,6 +76,13 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   routine et ne casse pas la série. Elles sont
   cochées comme ses tâches (mêmes droits) et remises à zéro chaque jour (`routines.json`). Avancement sur l'accueil ;
   « Bravo, c'est fini ! » et le nombre de jours de suite où la routine a été faite en entier.
+- **Page Routines** (roue dentée de la tablette) : les étapes de chacun et les heures, réglées au doigt : un membre à
+  la fois, matin et soir côte à côte ; pour chaque étape, son nom, ses jours (L M M J V S D, tous allumés : tous les
+  jours), monter ou descendre, supprimer ; « Nouvelle étape » ; heures en semaine et, au besoin, le week-end. Tout le
+  monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre. Enregistrés dans
+  `routine-plans.json`, ces réglages remplacent ensuite ceux de la configuration (qui ne servent plus qu'au départ, et
+  pour un membre ajouté plus tard). Chaque étape garde un identifiant : la renommer ou la déplacer ne perd ni ses
+  cases du jour ni les jours de suite.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail : un nom (Cuisson, Écrans, Devoirs…) puis
   une durée (1 min à 1 h). En cours, ils restent en bas de l'écran (et sous l'horloge de la veille) ; à la fin, ils
   prennent tout l'écran, réveillent la tablette et sonnent (trois bips répétés, 2 min au plus) jusqu'à « Arrêter ».
@@ -151,7 +158,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -177,6 +184,7 @@ server/
   services/nas.ts          page NAS : relevé, état des sources, version
   sources/lists.ts         courses et tâches (lists.json), tâches qui reviennent, articles fréquents
   sources/routines.ts      routines du matin et du soir cochées (routines.json), jours de suite
+  sources/routine-plans.ts réglages des routines modifiés sur la tablette (routine-plans.json)
   sources/timers.ts        minuteurs (en mémoire)
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
@@ -206,6 +214,7 @@ web/src/
 | `GET /api/nas` | relevé du NAS (`null` s'il est absent), état des sources, version et démarrage de HomeHub |
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour (écriture) |
 | `PUT /api/dashboard/:id/routine/:itemId` | `{ "done": true }` → l'étape de la routine du jour (`morning-0`, `evening-2`…) (écriture) |
+| `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ source, windows, members }` ; enregistrer : `{ windows, members }`, un parent |
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |

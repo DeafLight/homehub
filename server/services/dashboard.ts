@@ -16,6 +16,7 @@ import {
 } from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { localDay } from '../sources/lists.ts';
+import { effectiveRoutines, type RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
 
@@ -48,9 +49,11 @@ export type DashboardServiceDeps = {
   logger: Logger;
   /** Routines cochées ; absent (tests) : aucune routine. */
   routines?: RoutineStore;
+  /** Étapes et heures des routines ; absent : celles de la configuration. */
+  plans?: Pick<RoutinePlanStore, 'current'>;
 };
 
-export function createDashboardService({ config, sources, clock, logger, routines }: DashboardServiceDeps): DashboardService {
+export function createDashboardService({ config, sources, clock, logger, routines, plans }: DashboardServiceDeps): DashboardService {
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
   const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
 
@@ -105,29 +108,29 @@ export function createDashboardService({ config, sources, clock, logger, routine
     return courses?.find((c) => !c.cancelled && new Date(c.start) >= range.from) ?? null;
   }
 
-  const stepsOf = (ownerId: string, period: RoutinePeriod) =>
-    config.current().members.find((m) => m.id === ownerId)?.routines[period] ?? [];
+  const routineSettings = () => plans?.current() ?? effectiveRoutines(config.current(), null);
+  const stepsOf = (ownerId: string, period: RoutinePeriod) => routineSettings().members[ownerId]?.[period] ?? [];
 
   /**
    * Routine du moment de `ownerId` : étapes prévues aujourd'hui, cochées ou non ; null hors de ses heures ou sans étape
-   * prévue. Identifiant d'une étape : son rang dans la configuration, qui ne dépend pas du jour.
+   * prévue. Identifiant d'une étape pour l'API : son rang dans les réglages, qui ne dépend pas du jour.
    */
   async function routineOf(ownerId: string): Promise<Routine | null> {
     const now = clock();
-    const period = currentPeriod(now, config.current().routines);
+    const period = currentPeriod(now, routineSettings().windows);
     if (!routines || !period) return null;
-    const all = stepsOf(ownerId, period).map((step, i) => ({ ...step, id: `${period}-${i}` }));
+    const all = stepsOf(ownerId, period).map((step, i) => ({ ...step, itemId: `${period}-${i}` }));
     const steps = stepsOn(all, now);
     if (steps.length === 0) return null;
     const today = localDay(now);
-    const keyOf = (label: string) => stepKey(ownerId, period, label);
+    const keyOf = (stepId: string) => stepKey(ownerId, period, stepId);
     const [done, streak] = await Promise.all([
       routines.doneOn(today),
-      routines.streak((date) => stepsOn(all, date).map((s) => keyOf(s.label)), today),
+      routines.streak((date) => stepsOn(all, date).map((s) => keyOf(s.id)), today),
     ]);
     return {
       period,
-      items: steps.map((s) => ({ id: s.id, label: s.label, done: done.has(keyOf(s.label)) })),
+      items: steps.map((s) => ({ id: s.itemId, label: s.label, done: done.has(keyOf(s.id)) })),
       streak,
     };
   }
@@ -223,7 +226,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
       const step = stepsOf(ownerId, period)[Number(match[2])];
       const now = clock();
       if (!step || stepsOn([step], now).length === 0) return null; // pas prévue aujourd'hui
-      await routines.setDone(localDay(now), stepKey(ownerId, period, step.label), done, by);
+      await routines.setDone(localDay(now), stepKey(ownerId, period, step.id), done, by);
       return { id: itemId, label: step.label, done };
     },
   };

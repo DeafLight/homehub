@@ -1,9 +1,9 @@
-// Routines du matin et du soir des membres (étapes dans homehub.yaml) : ce qui a été coché, jour par jour, est
+// Routines du matin et du soir des membres (étapes : routine-plans.ts) : ce qui a été coché, jour par jour, est
 // enregistré dans le dossier d'état (routines.json) ; la liste repart de zéro chaque jour. Les jours anciens sont
 // oubliés au bout de ROUTINE_DAYS_KEPT jours, assez pour compter les jours de suite.
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
-import type { Author, RoutinePeriod } from '../../shared/types.ts';
+import type { Author, RoutinePeriod, RoutineWindows } from '../../shared/types.ts';
 import { localDay } from './lists.ts';
 import type { Clock } from './types.ts';
 
@@ -18,8 +18,6 @@ const fileSchema = z.object({
 
 type RoutinesFile = z.infer<typeof fileSchema>;
 
-export type TimeWindow = { from: string; to: string };
-export type RoutineWindows = Record<RoutinePeriod, TimeWindow> & { weekend?: Partial<Record<RoutinePeriod, TimeWindow>> };
 
 const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
 
@@ -27,16 +25,19 @@ const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
 export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: Date) =>
   steps.filter((s) => !s.days || s.days.includes(date.getDay()));
 
-/** Clé d'une étape : son libellé plutôt que son rang, pour qu'une étape ajoutée ne décale pas les autres. */
-export const stepKey = (ownerId: string, period: RoutinePeriod, label: string) => `${ownerId}|${period}|${label}`;
+/**
+ * Clé d'une étape : son identifiant stable plutôt que son rang, pour qu'une étape ajoutée ne décale pas les autres
+ * (et qu'une étape renommée garde ses cases cochées). Venue de homehub.yaml, son identifiant est son libellé.
+ */
+export const stepKey = (ownerId: string, period: RoutinePeriod, stepId: string) => `${ownerId}|${period}|${stepId}`;
 
 /** Routine affichée à cette heure-ci, d'après les plages de la configuration (heure locale ; le week-end, les siennes). */
 export function currentPeriod(now: Date, windows: RoutineWindows): RoutinePeriod | null {
   const pad = (n: number) => String(n).padStart(2, '0');
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   for (const period of ['morning', 'evening'] as const) {
-    const window = (isWeekend(now) && windows.weekend?.[period]) || windows[period];
-    if (window.from <= time && time < window.to) return period;
+    const range = (isWeekend(now) && windows.weekend?.[period]) || windows[period];
+    if (range.from <= time && time < range.to) return period;
   }
   return null;
 }

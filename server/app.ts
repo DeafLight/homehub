@@ -2,7 +2,7 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
-import { type Health, WEEKS_AHEAD } from '../shared/types.ts';
+import { FAMILY_ID, type Health, WEEKS_AHEAD } from '../shared/types.ts';
 import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -12,6 +12,7 @@ import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import type { ActorSessions, FaceStore } from './sources/faces.ts';
 import type { PinStore } from './sources/pins.ts';
+import { type RoutinePlanStore, routineSettingsInput } from './sources/routine-plans.ts';
 import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
 import { MAX_TIMERS, TIMER_LABEL_MAX, TIMER_MAX_SECONDS, type TimerStore } from './sources/timers.ts';
@@ -28,6 +29,7 @@ export type AppDeps = {
   faces: FaceStore;
   sessions: ActorSessions;
   timers: TimerStore;
+  plans: RoutinePlanStore;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
   clock: Clock;
@@ -46,7 +48,7 @@ const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
 export function createApp(deps: AppDeps): Hono {
-  const { config, service, nas, devices, sessions, timers, kioskKey, clock, version, staticRoot } = deps;
+  const { config, service, nas, devices, sessions, timers, plans, kioskKey, clock, version, staticRoot } = deps;
   const access: Access = createAccess({
     config,
     devices,
@@ -96,6 +98,26 @@ export function createApp(deps: AppDeps): Hono {
     if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
     const item = await service.setRoutineDone(c.req.param('ownerId'), c.req.param('itemId'), body.data.done, who.author);
     return item ? c.json(item) : c.json({ error: 'Étape inconnue' }, 404);
+  });
+
+  /** Réglages des routines (page « Routines ») : lus par tous, modifiés par un parent seulement. */
+  api.get('/routines', (c) => c.json(plans.current()));
+
+  api.put('/routines', async (c) => {
+    const body = routineSettingsInput.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      const issue = body.error.issues[0];
+      return c.json({ error: `Réglages refusés : ${issue?.message ?? 'format inattendu'}` }, 400);
+    }
+    const who = await access.write(c, null);
+    if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
+    const { members } = config.current();
+    if (!members.find((m) => m.id === who.author.ownerId)?.parent) {
+      return c.json({ error: 'Seul un parent peut modifier les routines' }, 403);
+    }
+    const unknown = Object.keys(body.data.members).find((id) => id === FAMILY_ID || !members.some((m) => m.id === id));
+    if (unknown) return c.json({ error: `Profil inconnu : ${unknown}` }, 400);
+    return c.json(await plans.save(body.data, who.author));
   });
 
   // Minuteurs : à personne en particulier ; il faut seulement être reconnu (tablette) ou un téléphone appairé.

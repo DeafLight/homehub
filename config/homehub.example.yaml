@@ -21,7 +21,9 @@
 #     HOMEHUB_STATE_DIR/pronote.json, obtenu avec : node scripts/pronote-pair.ts (voir README)
 #   routines (facultatif) : étapes des routines du matin (morning) et du soir (evening), 12 au plus, cochées chaque
 #     jour sur le dashboard du membre aux heures de la section `routines` plus bas. Une étape écrite seule vaut tous
-#     les jours ; { step: …, days: [...] } seulement ces jours-là (lun mar mer jeu ven sam dim, semaine, week-end)
+#     les jours ; { step: …, days: [...] } seulement ces jours-là (lun mar mer jeu ven sam dim, semaine, week-end).
+#     Plus simple : la page Routines de la tablette (roue dentée). Une fois enregistrées là, les routines (et leurs
+#     heures, plus bas) de ce fichier ne servent plus.
 members:
   - id: alex
     name: Alex

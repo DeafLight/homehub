@@ -13,6 +13,7 @@ import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createPinStore } from './sources/pins.ts';
+import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { createTimerStore } from './sources/timers.ts';
 import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
@@ -32,7 +33,8 @@ function setup(staticRoot?: string, clock = fixedClock) {
   const faces = createFaceStore({ path: join(dir, 'faces.json') });
   const sessions = createActorSessions(fixedClock);
   const timers = createTimerStore(clock);
-  const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, clock, version: '9.9.9', staticRoot });
+  const plans = createRoutinePlanStore({ path: join(dir, 'routine-plans.json'), clock: fixedClock, config });
+  const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, clock, version: '9.9.9', staticRoot });
   // Alex reconnu devant la tablette (configuration de test : pas de parent, chacun écrit sur son profil).
   const { token } = sessions.open('alex', 10);
   /** Requête de la tablette (en test, l'adresse locale compte comme la tablette), au nom d'Alex sauf `actor: null`. */
@@ -41,10 +43,30 @@ function setup(staticRoot?: string, clock = fixedClock) {
     headers: { 'Content-Type': 'application/json', 'X-Real-IP': address, ...(actor && { 'X-Actor-Session': actor }) },
     body: JSON.stringify(body),
   });
-  return { app, config, put };
+  return { app, config, put, sessions };
 }
 
 describe('API', () => {
+  it('routines : lues par tous, modifiées par un parent seulement', async () => {
+    const { app, config, put, sessions } = setup();
+    const windows = { morning: { from: '06:30', to: '08:30' }, evening: { from: '19:00', to: '21:00' } };
+    const body = { members: { lea: { morning: [{ id: 'x1', label: 'Dents', days: null }], evening: [] } }, windows };
+    expect((await (await app.request('/api/routines')).json()).source).toBe('config');
+
+    expect((await app.request('/api/routines', put(body))).status).toBe(403); // Alex n'est pas parent
+    expect((await app.request('/api/routines', put(body, { actor: null }))).status).toBe(403);
+    config.set(parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def', parent: true }, { id: 'lea', name: 'Léa', color: '#3fb8a8' }] }));
+    expect((await app.request('/api/routines', put({ ...body, members: { zoe: body.members.lea } }))).status).toBe(400);
+    expect((await app.request('/api/routines', put({ ...body, windows: { ...windows, evening: { from: '22:00', to: '21:00' } } }))).status).toBe(400);
+    const lea = sessions.open('lea', 10).token;
+    expect((await app.request('/api/routines', put(body, { actor: lea }))).status).toBe(403); // enfant
+
+    const res = await app.request('/api/routines', put(body));
+    expect(res.status).toBe(200);
+    const saved = await app.request('/api/routines');
+    expect(await saved.json()).toMatchObject({ source: 'tablet', windows, members: { lea: body.members.lea, alex: { morning: [], evening: [] } } });
+  });
+
   it('minuteurs : lancés et arrêtés par une personne reconnue, visibles par tous', async () => {
     const { app, put } = setup();
     const send = (method: string, path: string, body?: unknown, actor?: string | null) =>

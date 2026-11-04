@@ -11,6 +11,7 @@
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Faces from './screens/Faces.svelte';
+  import Routines from './screens/Routines.svelte';
   import Home from './screens/Home.svelte';
   import Lists from './screens/Lists.svelte';
   import Nas from './screens/Nas.svelte';
@@ -60,6 +61,8 @@
   <Phones back={router.route.back} />
 {:else if router.route.name === 'faces'}
   <Faces back={router.route.back} />
+{:else if router.route.name === 'routines'}
+  <Routines back={router.route.back} />
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { FAMILY_ID } from '../../shared/types.ts';
 import { parseConfig } from '../config.ts';
 import { createConfigStore } from '../config-store.ts';
+import { createRoutinePlanStore } from '../sources/routine-plans.ts';
 import { createRoutineStore } from '../sources/routines.ts';
 import { event, fakeSources, fixedClock, silentLogger, testConfig } from '../testing.ts';
 import { createDashboardService } from './dashboard.ts';
@@ -213,5 +214,41 @@ describe('routines', () => {
     await svc.setRoutineDone('lea', 'evening-0', true, by);
     await svc.setRoutineDone('lea', 'evening-2', true, by);
     expect((await svc.dashboard('lea'))?.routine?.streak).toBe(1);
+  });
+
+  it('réglages de la tablette : une étape renommée ou déplacée garde ses cases cochées', async () => {
+    const store = createConfigStore(
+      parseConfig({ members: [{ id: 'lea', name: 'Léa', color: '#4caf7d', routines: { evening: ['Pyjama', 'Dents'] } }] }),
+    );
+    const routines = createRoutineStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-svc-')), 'routines.json'), clock: fixedClock });
+    const plans = createRoutinePlanStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-svc-')), 'plans.json'), clock: fixedClock, config: store });
+    const svc = createDashboardService({ config: store, sources, clock: fixedClock, logger: silentLogger(), routines, plans });
+    const by = { ownerId: 'lea', via: 'tablet' as const };
+    await svc.setRoutineDone('lea', 'evening-1', true, by); // Dents, cochée avec les étapes du yaml
+
+    const windows = store.current().routines;
+    await plans.save(
+      {
+        members: {
+          lea: {
+            morning: [],
+            evening: [
+              { id: 'new', label: 'Douche', days: null },
+              { id: 'Dents', label: 'Se brosser les dents', days: null },
+              { id: 'Pyjama', label: 'Pyjama', days: null },
+            ],
+          },
+        },
+        windows,
+      },
+      by,
+    );
+    expect((await svc.dashboard('lea'))?.routine?.items).toEqual([
+      { id: 'evening-0', label: 'Douche', done: false },
+      { id: 'evening-1', label: 'Se brosser les dents', done: true },
+      { id: 'evening-2', label: 'Pyjama', done: false },
+    ]);
+    await plans.save({ members: {}, windows: { ...windows, evening: { from: '19:00', to: '23:00' } } }, by);
+    expect((await svc.dashboard('lea'))?.routine).toBeNull(); // 18 h : plus l'heure du soir
   });
 });

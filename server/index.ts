@@ -13,6 +13,7 @@ import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } 
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions, createFaceStore } from './sources/faces.ts';
+import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createRoutineStore } from './sources/routines.ts';
 import { createTimerStore } from './sources/timers.ts';
 import { createListsStore, listsTaskSource } from './sources/lists.ts';
@@ -81,6 +82,8 @@ const notes = createNotesStore({ path: join(stateDir, 'notes.json'), clock });
 const faces = createFaceStore({ path: join(stateDir, 'faces.json') });
 const sessions = createActorSessions(clock);
 const routines = createRoutineStore({ path: join(stateDir, 'routines.json'), clock });
+const plans = createRoutinePlanStore({ path: join(stateDir, 'routine-plans.json'), clock, config });
+await plans.load();
 const timers = createTimerStore(clock);
 const sources: Sources = {
   ...sample,
@@ -115,14 +118,14 @@ const sources: Sources = {
     }),
   ),
 };
-const service = createDashboardService({ config, sources, clock, logger: console, routines });
+const service = createDashboardService({ config, sources, clock, logger: console, routines, plans });
 const nas = createNasService({
   nasStatus: createNasStatusSource({ path: nasStatusPath, logger: console }),
   sourceStatus,
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

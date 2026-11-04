@@ -13,6 +13,7 @@ import type {
   PairingCode,
   PublicConfig,
   Repeat,
+  RoutineSettings,
   ShoppingItem,
   Task,
   Timer,
@@ -56,6 +57,9 @@ export type Api = {
   /** Étape de la routine du jour (`itemId` : `<période>-<rang>`). */
   setRoutineDone(ownerId: string, itemId: string, done: boolean): Promise<Task>;
   timers(): Promise<Timer[]>;
+  /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
+  routines(): Promise<RoutineSettings>;
+  saveRoutines(settings: Omit<RoutineSettings, 'source'>): Promise<RoutineSettings>;
   startTimer(label: string, seconds: number): Promise<Timer>;
   stopTimer(id: string): Promise<void>;
   me(): Promise<Me>;
@@ -139,6 +143,8 @@ export function createApi(
     setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
     setRoutineDone: (ownerId, itemId, done) => send('PUT', `${ownerPath(ownerId)}/routine/${encodeURIComponent(itemId)}`, { done }),
     timers: () => request('/timers'),
+    routines: () => request('/routines'),
+    saveRoutines: (settings) => send('PUT', '/routines', settings),
     startTimer: (label, seconds) => send('POST', '/timers', { label, seconds }),
     stopTimer: (id) => send('DELETE', `/timers/${encodeURIComponent(id)}`),
     me: () => request('/me'),
