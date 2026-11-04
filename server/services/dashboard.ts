@@ -16,7 +16,7 @@ import {
 } from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { localDay } from '../sources/lists.ts';
-import { currentPeriod, type RoutineStore, stepKey } from '../sources/routines.ts';
+import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
 
 const UPCOMING_DAYS = 7;
@@ -108,18 +108,26 @@ export function createDashboardService({ config, sources, clock, logger, routine
   const stepsOf = (ownerId: string, period: RoutinePeriod) =>
     config.current().members.find((m) => m.id === ownerId)?.routines[period] ?? [];
 
-  /** Routine du moment de `ownerId` (étapes cochées aujourd'hui), ou null hors de ses heures ou sans étapes. */
+  /**
+   * Routine du moment de `ownerId` : étapes prévues aujourd'hui, cochées ou non ; null hors de ses heures ou sans étape
+   * prévue. Identifiant d'une étape : son rang dans la configuration, qui ne dépend pas du jour.
+   */
   async function routineOf(ownerId: string): Promise<Routine | null> {
     const now = clock();
     const period = currentPeriod(now, config.current().routines);
-    const steps = period ? stepsOf(ownerId, period) : [];
-    if (!routines || !period || steps.length === 0) return null;
+    if (!routines || !period) return null;
+    const all = stepsOf(ownerId, period).map((step, i) => ({ ...step, id: `${period}-${i}` }));
+    const steps = stepsOn(all, now);
+    if (steps.length === 0) return null;
     const today = localDay(now);
-    const keys = steps.map((label) => stepKey(ownerId, period, label));
-    const [done, streak] = await Promise.all([routines.doneOn(today), routines.streak(keys, today)]);
+    const keyOf = (label: string) => stepKey(ownerId, period, label);
+    const [done, streak] = await Promise.all([
+      routines.doneOn(today),
+      routines.streak((date) => stepsOn(all, date).map((s) => keyOf(s.label)), today),
+    ]);
     return {
       period,
-      items: steps.map((label, i) => ({ id: `${period}-${i}`, label, done: done.has(keys[i]) })),
+      items: steps.map((s) => ({ id: s.id, label: s.label, done: done.has(keyOf(s.label)) })),
       streak,
     };
   }
@@ -212,10 +220,11 @@ export function createDashboardService({ config, sources, clock, logger, routine
       const match = /^(morning|evening)-(\d+)$/.exec(itemId);
       if (!routines || !match) return null;
       const period = match[1] as RoutinePeriod;
-      const label = stepsOf(ownerId, period)[Number(match[2])];
-      if (label === undefined) return null;
-      await routines.setDone(localDay(clock()), stepKey(ownerId, period, label), done, by);
-      return { id: itemId, label, done };
+      const step = stepsOf(ownerId, period)[Number(match[2])];
+      const now = clock();
+      if (!step || stepsOn([step], now).length === 0) return null; // pas prévue aujourd'hui
+      await routines.setDone(localDay(now), stepKey(ownerId, period, step.label), done, by);
+      return { id: itemId, label: step.label, done };
     },
   };
 }

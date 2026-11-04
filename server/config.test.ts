@@ -56,4 +56,26 @@ describe('loadConfig', () => {
   it('signale un fichier absent', async () => {
     await expect(loadConfig('config/absent.yaml')).rejects.toThrow(/Impossible de lire/);
   });
+
+  it('routines : étapes de tous les jours ou de certains jours, heures du week-end', () => {
+    const config = parseConfig({
+      members: [
+        {
+          id: 'lea',
+          name: 'Léa',
+          color: '#3fb8a8',
+          routines: { morning: ['Dents', { step: 'Sport', days: ['mer', 'week-end'] }, { step: 'Cartable', days: ['semaine'] }] },
+        },
+      ],
+      routines: { weekend: { morning: { from: '08:00', to: '12:00' } } },
+    });
+    expect(config.members[0].routines.morning).toEqual([
+      { label: 'Dents', days: null },
+      { label: 'Sport', days: [0, 3, 6] },
+      { label: 'Cartable', days: [1, 2, 3, 4, 5] },
+    ]);
+    expect(config.routines.weekend?.morning).toEqual({ from: '08:00', to: '12:00' });
+    expect(() => parseConfig({ members: [{ id: 'a', name: 'A', color: '#000000', routines: { morning: [{ step: 'X', days: ['lundi'] }] } }] })).toThrow();
+    expect(() => parseConfig({ members: [{ id: 'a', name: 'A', color: '#000000', routines: { evening: ['X', { step: 'X', days: ['mar'] }] } }] })).toThrow();
+  });
 });

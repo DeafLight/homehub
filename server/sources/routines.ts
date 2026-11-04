@@ -19,16 +19,24 @@ const fileSchema = z.object({
 type RoutinesFile = z.infer<typeof fileSchema>;
 
 export type TimeWindow = { from: string; to: string };
+export type RoutineWindows = Record<RoutinePeriod, TimeWindow> & { weekend?: Partial<Record<RoutinePeriod, TimeWindow>> };
+
+const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
+
+/** Étapes prévues le jour de `date` (celles sans jours précisés : tous les jours). */
+export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: Date) =>
+  steps.filter((s) => !s.days || s.days.includes(date.getDay()));
 
 /** Clé d'une étape : son libellé plutôt que son rang, pour qu'une étape ajoutée ne décale pas les autres. */
 export const stepKey = (ownerId: string, period: RoutinePeriod, label: string) => `${ownerId}|${period}|${label}`;
 
-/** Routine affichée à cette heure-ci, d'après les plages de la configuration (heure locale). */
-export function currentPeriod(now: Date, windows: Record<RoutinePeriod, TimeWindow>): RoutinePeriod | null {
+/** Routine affichée à cette heure-ci, d'après les plages de la configuration (heure locale ; le week-end, les siennes). */
+export function currentPeriod(now: Date, windows: RoutineWindows): RoutinePeriod | null {
   const pad = (n: number) => String(n).padStart(2, '0');
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   for (const period of ['morning', 'evening'] as const) {
-    if (windows[period].from <= time && time < windows[period].to) return period;
+    const window = (isWeekend(now) && windows.weekend?.[period]) || windows[period];
+    if (window.from <= time && time < window.to) return period;
   }
   return null;
 }
@@ -37,8 +45,11 @@ export type RoutineStore = {
   /** Étapes cochées le jour `day`, par clé. */
   doneOn(day: string): Promise<Set<string>>;
   setDone(day: string, key: string, done: boolean, by: Author): Promise<void>;
-  /** Jours de suite (jusqu'à `today`, sans le compter s'il n'est pas complet) où toutes les clés étaient cochées. */
-  streak(keys: string[], today: string): Promise<number>;
+  /**
+   * Jours de suite (jusqu'à `today`, sans le compter s'il n'est pas complet) où toutes les étapes prévues ce jour-là
+   * (`keysOn`) étaient cochées ; un jour sans étape prévue ne compte pas et ne casse pas la série.
+   */
+  streak(keysOn: (date: Date) => string[], today: string): Promise<number>;
 };
 
 export function createRoutineStore({ path, clock }: { path: string; clock: Clock }): RoutineStore {
@@ -90,17 +101,22 @@ export function createRoutineStore({ path, clock }: { path: string; clock: Clock
       });
     },
 
-    async streak(keys, today) {
-      if (keys.length === 0) return 0;
+    async streak(keysOn, today) {
       await queue;
       const { days } = await load();
-      const complete = (day: string) => keys.every((key) => key in (days[day] ?? {}));
       const [y, m, d] = today.split('-').map(Number);
+      /** null : rien de prévu ce jour-là. */
+      const complete = (offset: number) => {
+        const date = new Date(y, m - 1, d - offset);
+        const keys = keysOn(date);
+        return keys.length === 0 ? null : keys.every((key) => key in (days[localDay(date)] ?? {}));
+      };
       let count = 0;
       // Aujourd'hui compte s'il est déjà complet ; sinon, la série d'hier tient encore.
-      for (let offset = complete(today) ? 0 : 1; offset <= ROUTINE_DAYS_KEPT; offset++) {
-        if (!complete(localDay(new Date(y, m - 1, d - offset)))) break;
-        count++;
+      for (let offset = complete(0) ? 0 : 1; offset <= ROUTINE_DAYS_KEPT; offset++) {
+        const result = complete(offset);
+        if (result === false) break;
+        if (result) count++;
       }
       return count;
     },

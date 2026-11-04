@@ -185,7 +185,7 @@ describe('routines', () => {
       parseConfig({
         members: [
           { id: 'alex', name: 'Alex', color: '#5b8def', parent: true },
-          { id: 'lea', name: 'Léa', color: '#4caf7d', routines: { morning: ['Dents'], evening: ['Pyjama', 'Dents', 'Cartable'] } },
+          { id: 'lea', name: 'Léa', color: '#4caf7d', routines: { morning: ['Dents'], evening: ['Pyjama', 'Dents', 'Cartable', { step: 'Piscine', days: ['mer', 'week-end'] }] } },
         ],
       }),
     );
@@ -206,6 +206,7 @@ describe('routines', () => {
     expect(await svc.setRoutineDone('lea', 'evening-1', true, by)).toEqual({ id: 'evening-1', label: 'Dents', done: true });
     expect(await svc.setRoutineDone('lea', 'evening-9', true, by)).toBeNull();
     expect(await svc.setRoutineDone('lea', 'nuit-0', true, by)).toBeNull();
+    expect(await svc.setRoutineDone('lea', 'evening-3', true, by)).toBeNull(); // Piscine : pas le lundi
     expect((await svc.dashboard('lea'))?.routine?.items[1].done).toBe(true);
     expect((await svc.home()).profiles[1].routine).toEqual({ period: 'evening', done: 1, total: 3 });
 

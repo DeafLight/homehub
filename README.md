@@ -70,7 +70,10 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   pas encore vus, et l'indicateur de la personne reconnue (accueil et rail) le sien, à toucher pour ouvrir son
   dashboard.
 - **Routines** du matin et du soir : étapes propres à chaque membre (`routines` du membre dans la configuration),
-  affichées sur son dashboard aux heures de `routines` (5 h–11 h et 17 h–23 h par défaut) à la place de « À venir »,
+  affichées sur son dashboard aux heures de `routines` (5 h–11 h et 17 h–23 h par défaut ; d'autres heures possibles
+  le week-end, `routines.weekend`) à la place de « À venir ». Une étape peut ne valoir que certains jours
+  (`{ step: Devoirs, days: [lun, mar, jeu] }`, ou `semaine`, `week-end`) ; un jour sans étape prévue n'affiche pas de
+  routine et ne casse pas la série. Elles sont
   cochées comme ses tâches (mêmes droits) et remises à zéro chaque jour (`routines.json`). Avancement sur l'accueil ;
   « Bravo, c'est fini ! » et le nombre de jours de suite où la routine a été faite en entier.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail : un nom (Cuisson, Écrans, Devoirs…) puis
