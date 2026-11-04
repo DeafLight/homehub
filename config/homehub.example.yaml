@@ -78,6 +78,9 @@ kiosk:
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).
   idleTimeoutSeconds: 180
+  # Veille de la tablette après ce délai sans contact ni visage devant la caméra (minutes ; 0 : jamais) : écran noir,
+  # horloge qui se déplace. Un contact ou un visage la réveille.
+  screensaverMinutes: 5
 
 # Météo (Open-Meteo, modèles Météo-France). Sans cette section, le bloc météo est masqué.
 #   label          : nom du lieu affiché

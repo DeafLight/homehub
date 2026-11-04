@@ -59,7 +59,7 @@
         while (!stopped && samples.length < SAMPLES) {
           const reading = await readFace(el);
           if (stopped) return;
-          if (!reading) message = 'Regarde la tablette';
+          if (!reading?.embedding.length) message = 'Regarde la tablette';
           else if (reading.size < MIN_SIZE) message = 'Approche-toi';
           else if (reading.size > MAX_SIZE) message = 'Recule un peu';
           else {

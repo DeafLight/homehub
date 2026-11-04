@@ -51,13 +51,16 @@ function load(): Promise<Human> {
 /** Prépare la bibliothèque et ses modèles (quelques secondes la première fois). */
 export const prepareFaces = () => load().then(() => undefined);
 
-/** Visage vu par la caméra, ou null s'il n'y en a pas de net. */
+/**
+ * Visage vu par la caméra, ou null s'il n'y en a pas. Trop flou ou trop loin pour en tirer une empreinte : `embedding`
+ * vide (quelqu'un est là, sans qu'on puisse dire qui).
+ */
 export async function readFace(video: HTMLVideoElement): Promise<FaceReading | null> {
   const result = await (await load()).detect(video);
   const face = result.face[0];
-  if (!face?.embedding?.length) return null;
+  if (!face) return null;
   const size = face.boxRaw?.[2] ?? 0;
-  return { embedding: Array.from(face.embedding), real: face.real ?? 0, live: face.live ?? 0, size };
+  return { embedding: Array.from(face.embedding ?? []), real: face.real ?? 0, live: face.live ?? 0, size };
 }
 
 /** Message à afficher quand la caméra ou la bibliothèque ne démarre pas. */

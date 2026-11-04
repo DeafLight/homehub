@@ -1,6 +1,6 @@
 // Personne reconnue devant la tablette, en continu et sans rien demander : la caméra (Presence.svelte) envoie environ
 // une analyse par seconde ; il en faut deux de suite sur la même personne pour la retenir, et elle est oubliée après
-// un moment sans être vue. Un geste qui modifie passe tout de suite si elle peut écrire sur ce profil (un parent :
+// 10 s sans être vue. Un geste qui modifie passe tout de suite si elle peut écrire sur ce profil (un parent :
 // partout ; un enfant : le sien) ; si personne n'est encore reconnu, il attend quelques secondes qu'elle le soit
 // (petite bulle « Regarde la tablette »). Sinon, un avis « Lecture seule ». Le serveur vérifie de toute façon.
 // Sur un téléphone, rien de tout cela : il agit pour son profil, et le serveur décide.
@@ -13,7 +13,7 @@ type Member = PublicConfig['members'][number];
 /** Analyses identiques de suite pour retenir une personne. */
 const VOTES = 2;
 /** Sans être vue pendant ce délai, la personne est oubliée. */
-const ABSENT_MS = 30_000;
+const ABSENT_MS = 10_000;
 /** Attente d'une reconnaissance quand un geste arrive avant elle. */
 const WAIT_MS = 6_000;
 const NOTICE_MS = 4_000;
@@ -28,6 +28,8 @@ export type Actor = {
   /** Avis « Lecture seule : profil de … », quelques secondes. */
   readonly notice: string | null;
   readonly camera: CameraState;
+  /** Dernière fois qu'un visage, connu ou non, a été vu (ms) : présence devant la tablette, pour la veille. */
+  readonly lastFace: number;
   /** Jeton de session, envoyé avec chaque requête. */
   token(): string | null;
   /** Vrai sur la tablette de la maison (demandé une fois au serveur). */
@@ -37,6 +39,8 @@ export type Actor = {
   /** Résultat d'une analyse de la caméra : la personne reconnue par le serveur, ou null (personne, ou inconnu). */
   report(result: FaceSession | null): void;
   setCamera(state: CameraState, error?: string): void;
+  /** Un visage est devant la caméra (même trop loin pour savoir qui). */
+  sawFace(): void;
   /** Oublie la personne (et ferme sa session sur le serveur). */
   end(): void;
   /** Erreur de l'API : session inconnue du serveur (redémarré, expirée) : on l'oublie. */
@@ -55,6 +59,7 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
   let waiting = $state(false);
   let notice = $state<string | null>(null);
   let camera = $state<CameraState>('off');
+  let lastFace = $state(0);
   let cameraError: string | null = null;
   let token: string | null = null;
   let lastSeen = 0;
@@ -107,6 +112,9 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
     },
     get camera() {
       return camera;
+    },
+    get lastFace() {
+      return lastFace;
     },
     token: () => token,
     isKiosk,
@@ -163,6 +171,10 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
         end();
         for (const wake of [...waiters]) wake();
       }
+    },
+
+    sawFace() {
+      lastFace = now();
     },
 
     end,

@@ -17,7 +17,7 @@ export type Member = {
 export type PublicConfig = {
   members: Member[];
   family: { name: string };
-  ui: { idleTimeoutSeconds: number };
+  ui: { idleTimeoutSeconds: number; screensaverMinutes: number };
   /** Empreinte de la configuration : change à chaque modification du fichier. */
   revision: string;
 };

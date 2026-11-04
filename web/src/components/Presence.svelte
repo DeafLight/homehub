@@ -4,9 +4,10 @@
   import { cameraError, prepareFaces, readFace, startCamera } from '../lib/face.ts';
   import { isPhoneRoute } from '../lib/route.ts';
 
-  // Caméra de la tablette, discrète : environ une analyse par seconde tant que l'écran est allumé, pour savoir qui est
-  // devant (voir lib/actor.svelte.ts). Invisible, sauf quand un geste attend une reconnaissance : une petite bulle
-  // montre alors l'image de la caméra. Éteinte sur les téléphones et sur la page Visages (qui a besoin de la caméra).
+  // Caméra de la tablette, discrète : environ une analyse par seconde tant que l'écran est allumé (veille comprise),
+  // pour savoir qui est devant (voir lib/actor.svelte.ts) et réveiller la tablette quand quelqu'un arrive. Invisible,
+  // sauf quand un geste attend une reconnaissance : une petite bulle montre alors l'image de la caméra. Éteinte sur
+  // les téléphones et sur la page Visages (qui a besoin de la caméra).
   const TICK_MS = 1_000;
   /** Un geste attend : on analyse plus souvent. */
   const FAST_TICK_MS = 300;
@@ -46,7 +47,8 @@
           while (!stopped) {
             const reading = await readFace(el);
             if (stopped) return;
-            if (!reading) {
+            if (reading) actor.sawFace();
+            if (!reading?.embedding.length) {
               actor.report(null);
             } else {
               const { embedding, real, live } = reading;

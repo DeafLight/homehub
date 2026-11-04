@@ -38,7 +38,7 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   Sans aucun code défini, le retrait se confirme d'un second geste.
 - **Qui écrit** (tablette) : tout le monde lit tous les profils. La caméra reconnaît en continu, sans rien demander,
   la personne devant la tablette (environ une analyse par seconde tant que l'écran est allumé ; deux analyses de
-  suite sur la même personne pour la retenir ; oubliée après 30 s sans être vue). Elle s'affiche en bas du rail, et
+  suite sur la même personne pour la retenir ; oubliée après 10 s sans être vue). Elle s'affiche en bas du rail, et
   son profil ressort sur l'accueil. Un geste qui modifie (cocher, ajouter, laisser un mot, « Vu », relier, renommer ou
   retirer un téléphone) passe tout de suite si elle en a le droit ; si personne n'est encore reconnu, une petite bulle
   « Regarde la tablette » l'attend quelques secondes. Un **parent** (`parent: true` dans la configuration) modifie
@@ -53,6 +53,10 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   l'exclure, la ruse d'une photo ; la caméra reste allumée tant que l'écran l'est (éteinte sur la page Visages, et
   quand la page est masquée). Fully Kiosk : activer *Web Content Settings › Enable Webcam Access* et autoriser la
   caméra à Fully dans Android ; la détection de mouvement de Fully se sert aussi de la caméra et peut l'empêcher.
+- **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
+  écran noir où seule l'horloge reste, déplacée au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
+  l'interface JavaScript de Fully Kiosk, la luminosité baisse aussi. Un visage devant la caméra ou un contact la
+  réveille ; le contact qui réveille n'ouvre ni ne coche rien.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 

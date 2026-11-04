@@ -44,9 +44,16 @@ export const configSchema = z.object({
    * appairer des téléphones sans jeton. Les autres appareils lisent seulement, sauf les téléphones appairés.
    */
   kiosk: z.object({ addresses: z.array(z.union([z.ipv4(), z.ipv6()])).default([]) }).default({ addresses: [] }),
+  /**
+   * `idleTimeoutSeconds` : retour à l'accueil sans contact ; `screensaverMinutes` : veille de la tablette (écran noir,
+   * horloge qui se déplace) sans contact ni visage devant la caméra, 0 : jamais.
+   */
   ui: z
-    .object({ idleTimeoutSeconds: z.number().int().min(15).max(3600) })
-    .default({ idleTimeoutSeconds: 180 }),
+    .object({
+      idleTimeoutSeconds: z.number().int().min(15).max(3600),
+      screensaverMinutes: z.number().int().min(0).max(240).default(5),
+    })
+    .default({ idleTimeoutSeconds: 180, screensaverMinutes: 5 }),
   /**
    * Reconnaissance faciale de la tablette, pour savoir qui écrit. `threshold` : ressemblance minimale (0 à 1) avec un
    * visage enregistré ; `margin` : avance minimale sur la personne suivante ; `antispoof` et `liveness` : scores

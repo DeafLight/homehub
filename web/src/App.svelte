@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Presence from './components/Presence.svelte';
+  import Screensaver from './components/Screensaver.svelte';
   import StatusBanner from './components/StatusBanner.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
@@ -75,6 +76,7 @@
 {/if}
 
 <Presence />
+<Screensaver />
 
 {#if actor.notice}
   <div class="notice" role="status">{actor.notice}</div>

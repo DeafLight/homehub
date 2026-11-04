@@ -9,6 +9,7 @@ describe('parseConfig', () => {
     const config = parseConfig({ members: [alex] });
     expect(config.family.name).toBe('Famille');
     expect(config.ui.idleTimeoutSeconds).toBe(180);
+    expect(config.ui.screensaverMinutes).toBe(5);
   });
 
   it.each([
