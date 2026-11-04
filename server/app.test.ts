@@ -32,7 +32,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
   const notes = createNotesStore({ path: join(dir, 'notes.json'), clock: fixedClock });
   const faces = createFaceStore({ path: join(dir, 'faces.json') });
   const sessions = createActorSessions(fixedClock);
-  const timers = createTimerStore(clock);
+  const timers = createTimerStore({ clock });
   const plans = createRoutinePlanStore({ path: join(dir, 'routine-plans.json'), clock: fixedClock, config });
   const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, clock, version: '9.9.9', staticRoot });
   // Alex reconnu devant la tablette (configuration de test : pas de parent, chacun écrit sur son profil).

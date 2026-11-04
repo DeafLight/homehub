@@ -84,7 +84,7 @@ const sessions = createActorSessions(clock);
 const routines = createRoutineStore({ path: join(stateDir, 'routines.json'), clock });
 const plans = createRoutinePlanStore({ path: join(stateDir, 'routine-plans.json'), clock, config });
 await plans.load();
-const timers = createTimerStore(clock);
+const timers = createTimerStore({ clock, path: join(stateDir, 'timers.json') });
 const sources: Sources = {
   ...sample,
   tasks: listsTaskSource(lists, FAMILY_ID),

@@ -1,12 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
+  import Icon from './Icon.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { formatLongDate, formatTime } from '../lib/format.ts';
+  import { createResource } from '../lib/resource.svelte.ts';
   import { isPhoneRoute } from '../lib/route.ts';
   import { formatCountdown, secondsLeft, timerLook, timerName } from '../lib/timers.ts';
+  import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
   // Veille de la tablette : après `ui.screensaverMinutes` sans contact ni visage devant la caméra, écran noir où seule
-  // l'horloge reste, et se déplace au hasard (pour ne pas marquer l'écran). Un contact, ou un visage vu par la caméra
+  // l'horloge (avec la date et la météo du moment) reste, et se déplace au hasard (pour ne pas marquer l'écran). Un contact, ou un visage vu par la caméra
   // (Presence.svelte), la réveille ; le contact qui réveille ne fait rien d'autre. Avec l'interface JavaScript de Fully
   // Kiosk, la luminosité baisse aussi pendant la veille. Les minuteurs en cours restent affichés sous l'horloge ; celui
   // qui se termine réveille la tablette (Timers.svelte l'affiche par-dessus).
@@ -15,10 +18,15 @@
   const DIM_BRIGHTNESS = 10;
   /** Après le réveil, l'écran noir reste un instant (fondu) pour absorber la fin du contact qui a réveillé. */
   const FADE_MS = 400;
+  /** La météo change lentement : relue toutes les 10 minutes (le serveur la garde en cache). */
+  const WEATHER_REFRESH_MS = 10 * 60_000;
 
   type Fully = { getScreenBrightness(): number; setScreenBrightness(level: number): void };
 
-  const { actor, config, clock, router, timers } = getAppContext();
+  const { actor, api, config, clock, router, timers } = getAppContext();
+  /** Météo du moment, sur la tablette seulement (null : pas configurée). */
+  const weather = createResource(async () => ((await actor.isKiosk()) ? (await api.home()).weather : null), WEATHER_REFRESH_MS);
+  onDestroy(weather.destroy);
   const running = $derived(timers.list.filter((t) => secondsLeft(t, clock.now) > 0));
   const ringing = $derived(timers.list.some((t) => secondsLeft(t, clock.now) === 0));
 
@@ -119,6 +127,14 @@
     <div class="clock" style:left="{position.x}%" style:top="{position.y}%">
       <div class="time">{formatTime(clock.now)}</div>
       <div class="date">{formatLongDate(clock.now)}</div>
+      {#if weather.data}
+        {@const now = weather.data}
+        <div class="weather">
+          <span class="weather-icon"><Icon name={weatherIcon(now.weatherCode, now.isDay)} size={44} color={weatherIconColor(now.weatherCode, now.isDay)} /></span>
+          {formatTemperature(now.temperatureC)} · {weatherLabel(now.weatherCode)}
+        </div>
+        <div class="outlook">{weatherOutlook(now, clock.now)}</div>
+      {/if}
       {#each running as timer (timer.id)}
         <div class="timer">{timerLook(timer.label).emoji} {timerName(timer)} · {formatCountdown(secondsLeft(timer, clock.now))}</div>
       {/each}
@@ -161,6 +177,27 @@
   .date {
     margin-top: 8px;
     font-size: 1.6rem;
+  }
+
+  .weather {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 18px;
+    font-size: 1.8rem;
+  }
+
+  /* Couleurs de l'icône adoucies : la veille reste sombre. */
+  .weather-icon {
+    display: inline-grid;
+    opacity: 0.6;
+  }
+
+  .outlook {
+    margin-top: 4px;
+    font-size: 1.2rem;
+    color: #6b7079;
   }
 
   .timer {
