@@ -8,12 +8,16 @@
     tasks: Task[];
     color: string;
     onToggle(task: Task, done: boolean): void;
+    /** Le titre ouvre les listes (faux pour une routine, qui ne s'y trouve pas). */
+    linked?: boolean;
+    /** Ligne sous la liste (encouragement d'une routine). */
+    footer?: string | null;
   };
-  let { title, tasks, color, onToggle }: Props = $props();
+  let { title, tasks, color, onToggle, linked = true, footer = null }: Props = $props();
 </script>
 
 <!-- Le titre ouvre les listes, pour ajouter ou voir les tâches de chacun. -->
-<Card {title} link={{ to: 'lists', label: `${title} : ouvrir les listes` }}>
+<Card {title} link={linked ? { to: 'lists', label: `${title} : ouvrir les listes` } : undefined}>
   {#if tasks.length === 0}
     <p class="empty">Rien à faire !</p>
   {:else}
@@ -33,6 +37,7 @@
       {/each}
     </ul>
   {/if}
+  {#if footer}<p class="footer">{footer}</p>{/if}
 </Card>
 
 <style>
@@ -50,6 +55,13 @@
     min-height: 52px;
     font-size: 1.3rem;
     cursor: pointer;
+  }
+
+  .footer {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--sun);
   }
 
   label.done {

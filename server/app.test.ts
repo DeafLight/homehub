@@ -14,9 +14,10 @@ import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createSourceStatus } from './sources/source-status.ts';
+import { createTimerStore } from './sources/timers.ts';
 import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
 
-function setup(staticRoot?: string) {
+function setup(staticRoot?: string, clock = fixedClock) {
   const config = createConfigStore(testConfig);
   const sources = fakeSources({ tasks: { alex: [{ id: 't1', label: 'Poubelles', done: false }] } });
   const service = createDashboardService({ config, sources, clock: fixedClock, logger: silentLogger() });
@@ -30,7 +31,8 @@ function setup(staticRoot?: string) {
   const notes = createNotesStore({ path: join(dir, 'notes.json'), clock: fixedClock });
   const faces = createFaceStore({ path: join(dir, 'faces.json') });
   const sessions = createActorSessions(fixedClock);
-  const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, clock: fixedClock, version: '9.9.9', staticRoot });
+  const timers = createTimerStore(clock);
+  const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, clock, version: '9.9.9', staticRoot });
   // Alex reconnu devant la tablette (configuration de test : pas de parent, chacun écrit sur son profil).
   const { token } = sessions.open('alex', 10);
   /** Requête de la tablette (en test, l'adresse locale compte comme la tablette), au nom d'Alex sauf `actor: null`. */
@@ -43,6 +45,35 @@ function setup(staticRoot?: string) {
 }
 
 describe('API', () => {
+  it('minuteurs : lancés et arrêtés par une personne reconnue, visibles par tous', async () => {
+    const { app, put } = setup();
+    const send = (method: string, path: string, body?: unknown, actor?: string | null) =>
+      app.request(path, { ...put(body ?? {}, actor === undefined ? {} : { actor }), method });
+
+    expect((await send('POST', '/api/timers', { label: 'Cuisson', seconds: 300 }, null)).status).toBe(403); // personne reconnu
+    expect((await send('POST', '/api/timers', { seconds: 5 })).status).toBe(400);
+    const started = await send('POST', '/api/timers', { label: 'Cuisson', seconds: 300 });
+    expect(started.status).toBe(201);
+    const timer = await started.json();
+    expect(timer).toMatchObject({ label: 'Cuisson', durationSeconds: 300, endsAt: new Date(NOW.getTime() + 300_000).toISOString() });
+    expect(await (await app.request('/api/timers')).json()).toEqual([timer]);
+    expect((await send('DELETE', `/api/timers/${timer.id}`, undefined, null)).status).toBe(403);
+    expect((await send('DELETE', `/api/timers/${timer.id}`)).status).toBe(204);
+    expect((await send('DELETE', `/api/timers/${timer.id}`)).status).toBe(404);
+  });
+
+  it("minuteur qui sonne : la tablette l'arrête sans personne reconnue, un appareil inconnu non", async () => {
+    let now = NOW.getTime();
+    const { app, put } = setup(undefined, () => new Date(now));
+    const send = (method: string, path: string, options: { actor?: string | null; address?: string } = {}) =>
+      app.request(path, { ...put({ seconds: 10 }, options), method });
+    const { id } = await (await send('POST', '/api/timers')).json();
+    expect((await send('DELETE', `/api/timers/${id}`, { actor: null })).status).toBe(403); // en cours
+    now += 20_000;
+    expect((await send('DELETE', `/api/timers/${id}`, { actor: null, address: '192.0.2.9' })).status).toBe(403);
+    expect((await send('DELETE', `/api/timers/${id}`, { actor: null })).status).toBe(204);
+  });
+
   it('GET /api/health', async () => {
     const { app, config } = setup();
     const res = await app.request('/api/health');

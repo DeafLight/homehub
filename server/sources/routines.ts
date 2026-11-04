@@ -1,0 +1,108 @@
+// Routines du matin et du soir des membres (étapes dans homehub.yaml) : ce qui a été coché, jour par jour, est
+// enregistré dans le dossier d'état (routines.json) ; la liste repart de zéro chaque jour. Les jours anciens sont
+// oubliés au bout de ROUTINE_DAYS_KEPT jours, assez pour compter les jours de suite.
+import { readFile, rename, writeFile } from 'node:fs/promises';
+import { z } from 'zod';
+import type { Author, RoutinePeriod } from '../../shared/types.ts';
+import { localDay } from './lists.ts';
+import type { Clock } from './types.ts';
+
+const ROUTINE_DAYS_KEPT = 60;
+
+const authorSchema = z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) });
+const fileSchema = z.object({
+  version: z.literal(1),
+  /** Jour local AAAA-MM-JJ → clé d'étape (voir `stepKey`) → qui l'a cochée, et quand. */
+  days: z.record(z.string(), z.record(z.string(), z.object({ at: z.string(), by: authorSchema }))),
+});
+
+type RoutinesFile = z.infer<typeof fileSchema>;
+
+export type TimeWindow = { from: string; to: string };
+
+/** Clé d'une étape : son libellé plutôt que son rang, pour qu'une étape ajoutée ne décale pas les autres. */
+export const stepKey = (ownerId: string, period: RoutinePeriod, label: string) => `${ownerId}|${period}|${label}`;
+
+/** Routine affichée à cette heure-ci, d'après les plages de la configuration (heure locale). */
+export function currentPeriod(now: Date, windows: Record<RoutinePeriod, TimeWindow>): RoutinePeriod | null {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  for (const period of ['morning', 'evening'] as const) {
+    if (windows[period].from <= time && time < windows[period].to) return period;
+  }
+  return null;
+}
+
+export type RoutineStore = {
+  /** Étapes cochées le jour `day`, par clé. */
+  doneOn(day: string): Promise<Set<string>>;
+  setDone(day: string, key: string, done: boolean, by: Author): Promise<void>;
+  /** Jours de suite (jusqu'à `today`, sans le compter s'il n'est pas complet) où toutes les clés étaient cochées. */
+  streak(keys: string[], today: string): Promise<number>;
+};
+
+export function createRoutineStore({ path, clock }: { path: string; clock: Clock }): RoutineStore {
+  let data: RoutinesFile | undefined;
+  let queue: Promise<unknown> = Promise.resolve();
+
+  async function load(): Promise<RoutinesFile> {
+    if (data) return data;
+    let text: string;
+    try {
+      text = await readFile(path, 'utf8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      return (data = { version: 1, days: {} });
+    }
+    const parsed = fileSchema.safeParse(JSON.parse(text));
+    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
+    return (data = parsed.data);
+  }
+
+  function change(apply: (file: RoutinesFile) => void): Promise<void> {
+    const run = queue.then(async () => {
+      const file = await load();
+      apply(file);
+      const limit = new Date(clock());
+      limit.setDate(limit.getDate() - ROUTINE_DAYS_KEPT);
+      const oldest = localDay(limit);
+      for (const day of Object.keys(file.days)) if (day < oldest) delete file.days[day];
+      const tmp = `${path}.tmp`;
+      await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
+      await rename(tmp, path);
+    });
+    queue = run.catch(() => undefined);
+    return run;
+  }
+
+  return {
+    async doneOn(day) {
+      await queue;
+      return new Set(Object.keys((await load()).days[day] ?? {}));
+    },
+
+    setDone(day, key, done, by) {
+      return change((file) => {
+        const entries = (file.days[day] ??= {});
+        if (done) entries[key] ??= { at: clock().toISOString(), by };
+        else delete entries[key];
+        if (Object.keys(entries).length === 0) delete file.days[day];
+      });
+    },
+
+    async streak(keys, today) {
+      if (keys.length === 0) return 0;
+      await queue;
+      const { days } = await load();
+      const complete = (day: string) => keys.every((key) => key in (days[day] ?? {}));
+      const [y, m, d] = today.split('-').map(Number);
+      let count = 0;
+      // Aujourd'hui compte s'il est déjà complet ; sinon, la série d'hier tient encore.
+      for (let offset = complete(today) ? 0 : 1; offset <= ROUTINE_DAYS_KEPT; offset++) {
+        if (!complete(localDay(new Date(y, m - 1, d - offset)))) break;
+        count++;
+      }
+      return count;
+    },
+  };
+}

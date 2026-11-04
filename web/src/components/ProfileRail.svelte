@@ -12,7 +12,7 @@
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
-  const { profiles, clock, navigate } = getAppContext();
+  const { profiles, clock, navigate, timers } = getAppContext();
 </script>
 
 <nav class="rail" aria-label="Profils">
@@ -35,6 +35,9 @@
   {/each}
   <div class="bottom">
     <ActorBadge />
+    <button type="button" class="timer" aria-label="Minuteur" onclick={() => (timers.dialog = true)}>
+      <Icon name="timer" size={32} />
+    </button>
     <SettingsMenu placement="side" size={64} />
   </div>
   <div class="time">{formatTime(clock.now)}</div>
@@ -95,6 +98,18 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
+  }
+
+  .timer {
+    width: 64px;
+    height: 64px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--fg);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
   }
 
   .bottom {

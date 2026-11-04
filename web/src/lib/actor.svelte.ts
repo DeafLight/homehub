@@ -34,8 +34,11 @@ export type Actor = {
   token(): string | null;
   /** Vrai sur la tablette de la maison (demandé une fois au serveur). */
   isKiosk(): Promise<boolean>;
-  /** La personne reconnue peut-elle écrire sur `ownerId` ? Attend d'abord sa reconnaissance au besoin. */
-  allow(ownerId: string): Promise<boolean>;
+  /**
+   * La personne reconnue peut-elle écrire sur `ownerId` (null : sur rien en particulier, il suffit d'être reconnu) ?
+   * Attend d'abord sa reconnaissance au besoin.
+   */
+  allow(ownerId: string | null): Promise<boolean>;
   /** Résultat d'une analyse de la caméra : la personne reconnue par le serveur, ou null (personne, ou inconnu). */
   report(result: FaceSession | null): void;
   setCamera(state: CameraState, error?: string): void;
@@ -135,7 +138,7 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
         show('Visage non reconnu : regarde la tablette');
         return false;
       }
-      if (canWrite(who, ownerId)) return true;
+      if (ownerId === null || canWrite(who, ownerId)) return true;
       show(`Lecture seule : profil de ${nameOf(ownerId)}`);
       return false;
     },

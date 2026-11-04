@@ -7,6 +7,7 @@ import type { Api } from './api.ts';
 import type { Clock } from './clock.svelte.ts';
 import type { Profile } from './profiles.ts';
 import type { Router } from './router.svelte.ts';
+import type { Timers } from './timers.svelte.ts';
 
 export type AppContext = {
   api: Api;
@@ -16,6 +17,8 @@ export type AppContext = {
   profiles: Profile[];
   clock: Clock;
   router: Router;
+  /** Minuteurs de la maison (tablette). */
+  timers: Timers;
   navigate(path: string): void;
 };
 

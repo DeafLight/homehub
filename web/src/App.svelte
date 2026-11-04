@@ -3,6 +3,7 @@
   import Presence from './components/Presence.svelte';
   import Screensaver from './components/Screensaver.svelte';
   import StatusBanner from './components/StatusBanner.svelte';
+  import Timers from './components/Timers.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
   import { sharedText } from './lib/lists.ts';
@@ -77,6 +78,7 @@
 
 <Presence />
 <Screensaver />
+<Timers />
 
 {#if actor.notice}
   <div class="notice" role="status">{actor.notice}</div>

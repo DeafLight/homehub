@@ -1,7 +1,11 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FAMILY_ID } from '../../shared/types.ts';
 import { parseConfig } from '../config.ts';
 import { createConfigStore } from '../config-store.ts';
+import { createRoutineStore } from '../sources/routines.ts';
 import { event, fakeSources, fixedClock, silentLogger, testConfig } from '../testing.ts';
 import { createDashboardService } from './dashboard.ts';
 
@@ -24,8 +28,14 @@ describe('home', () => {
   it('résume chaque membre puis la famille', async () => {
     const home = await service.home();
     expect(home.profiles.map((p) => p.ownerId)).toEqual(['alex', 'lea', FAMILY_ID]);
-    expect(home.profiles[0]).toMatchObject({ nextEvent: { id: 'ce-soir' }, pendingTasks: 1 });
-    expect(home.profiles[1]).toMatchObject({ nextEvent: null, pendingTasks: 0 });
+    expect(home.profiles[0]).toMatchObject({
+      nextEvent: { id: 'ce-soir' },
+      pendingTasks: 1,
+      nextTasks: ['Poubelles'],
+      unreadNotes: 1,
+      routine: null,
+    });
+    expect(home.profiles[1]).toMatchObject({ nextEvent: null, pendingTasks: 0, nextTasks: [], unreadNotes: 0 });
     expect(home.familyHighlight?.id).toBe('diner');
   });
 });
@@ -166,5 +176,41 @@ describe('semaine', () => {
     expect(next.start).toBe(new Date(2026, 10, 9).toISOString());
     expect(next.owners[0].events.map((e) => e.id)).toEqual(['lundi-suivant']);
     expect(next.owners[0].courses).toEqual([]);
+  });
+});
+
+describe('routines', () => {
+  it('routine du moment (18 h : le soir), cochée par étape, avancement sur l\'accueil', async () => {
+    const store = createConfigStore(
+      parseConfig({
+        members: [
+          { id: 'alex', name: 'Alex', color: '#5b8def', parent: true },
+          { id: 'lea', name: 'Léa', color: '#4caf7d', routines: { morning: ['Dents'], evening: ['Pyjama', 'Dents', 'Cartable'] } },
+        ],
+      }),
+    );
+    const routines = createRoutineStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-svc-')), 'routines.json'), clock: fixedClock });
+    const svc = createDashboardService({ config: store, sources, clock: fixedClock, logger: silentLogger(), routines });
+    const by = { ownerId: 'lea', via: 'tablet' as const };
+
+    expect((await svc.dashboard('alex'))?.routine).toBeNull(); // pas de routine
+    expect((await svc.dashboard('lea'))?.routine).toEqual({
+      period: 'evening',
+      items: [
+        { id: 'evening-0', label: 'Pyjama', done: false },
+        { id: 'evening-1', label: 'Dents', done: false },
+        { id: 'evening-2', label: 'Cartable', done: false },
+      ],
+      streak: 0,
+    });
+    expect(await svc.setRoutineDone('lea', 'evening-1', true, by)).toEqual({ id: 'evening-1', label: 'Dents', done: true });
+    expect(await svc.setRoutineDone('lea', 'evening-9', true, by)).toBeNull();
+    expect(await svc.setRoutineDone('lea', 'nuit-0', true, by)).toBeNull();
+    expect((await svc.dashboard('lea'))?.routine?.items[1].done).toBe(true);
+    expect((await svc.home()).profiles[1].routine).toEqual({ period: 'evening', done: 1, total: 3 });
+
+    await svc.setRoutineDone('lea', 'evening-0', true, by);
+    await svc.setRoutineDone('lea', 'evening-2', true, by);
+    expect((await svc.dashboard('lea'))?.routine?.streak).toBe(1);
   });
 });

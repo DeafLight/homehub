@@ -75,7 +75,7 @@ export const pluralize = (count: number, singular: string, plural = `${singular}
   `${count} ${count > 1 ? plural : singular}`;
 
 /** Ligne de résumé d'un profil sur l'écran d'accueil. */
-export function profileHeadline(summary: ProfileSummary, now: Date): string {
+export function profileHeadline(summary: Pick<ProfileSummary, 'nextEvent' | 'nextCourse' | 'pendingTasks'>, now: Date): string {
   // Cours et rendez-vous au même niveau : le premier qui arrive l'emporte.
   const { nextEvent, nextCourse } = summary;
   if (nextCourse && (!nextEvent || new Date(nextCourse.start) < new Date(nextEvent.start))) {

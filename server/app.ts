@@ -14,6 +14,7 @@ import type { ActorSessions, FaceStore } from './sources/faces.ts';
 import type { PinStore } from './sources/pins.ts';
 import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
+import { MAX_TIMERS, TIMER_LABEL_MAX, TIMER_MAX_SECONDS, type TimerStore } from './sources/timers.ts';
 import type { Clock } from './sources/types.ts';
 
 export type AppDeps = {
@@ -26,6 +27,7 @@ export type AppDeps = {
   pins: PinStore;
   faces: FaceStore;
   sessions: ActorSessions;
+  timers: TimerStore;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
   clock: Clock;
@@ -35,12 +37,16 @@ export type AppDeps = {
 };
 
 const taskUpdateSchema = z.object({ done: z.boolean() });
+const timerSchema = z.object({
+  label: z.string().trim().max(TIMER_LABEL_MAX).default(''),
+  seconds: z.number().int().min(10).max(TIMER_MAX_SECONDS),
+});
 const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
 export function createApp(deps: AppDeps): Hono {
-  const { config, service, nas, devices, sessions, kioskKey, clock, version, staticRoot } = deps;
+  const { config, service, nas, devices, sessions, timers, kioskKey, clock, version, staticRoot } = deps;
   const access: Access = createAccess({
     config,
     devices,
@@ -80,6 +86,43 @@ export function createApp(deps: AppDeps): Hono {
     if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
     const task = await service.setTaskDone(c.req.param('ownerId'), c.req.param('taskId'), body.data.done, who.author);
     return task ? c.json(task) : c.json({ error: 'Tâche inconnue' }, 404);
+  });
+
+  /** Routine du jour : mêmes droits que les tâches du profil. */
+  api.put('/dashboard/:ownerId/routine/:itemId', async (c) => {
+    const body = taskUpdateSchema.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'Corps attendu : { "done": true|false }' }, 400);
+    const who = await access.write(c, c.req.param('ownerId'));
+    if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
+    const item = await service.setRoutineDone(c.req.param('ownerId'), c.req.param('itemId'), body.data.done, who.author);
+    return item ? c.json(item) : c.json({ error: 'Étape inconnue' }, 404);
+  });
+
+  // Minuteurs : à personne en particulier ; il faut seulement être reconnu (tablette) ou un téléphone appairé.
+  api.get('/timers', (c) => c.json(timers.list()));
+
+  api.post('/timers', async (c) => {
+    const body = timerSchema.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: `Durée attendue : de 10 s à ${TIMER_MAX_SECONDS / 3600} h` }, 400);
+    const who = await access.write(c, null);
+    if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
+    const timer = timers.start(body.data.label, body.data.seconds, who.author);
+    return timer ? c.json(timer, 201) : c.json({ error: `${MAX_TIMERS} minuteurs au plus` }, 409);
+  });
+
+  /** Arrêter un minuteur qui sonne : n'importe qui à la tablette (ou un téléphone) ; en cours : quelqu'un de reconnu. */
+  api.delete('/timers/:id', async (c) => {
+    const timer = timers.list().find((t) => t.id === c.req.param('id'));
+    if (!timer) return c.json({ error: 'Minuteur inconnu' }, 404);
+    if (new Date(timer.endsAt) <= clock()) {
+      const caller = await access.caller(c);
+      if (!caller.kiosk && !caller.device) return c.json({ error: 'Lecture seule : appareil non appairé' }, 403);
+    } else {
+      const who = await access.write(c, null);
+      if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
+    }
+    timers.stop(timer.id);
+    return c.body(null, 204);
   });
 
   api.route('/', createListsApi({ ...deps, access }));

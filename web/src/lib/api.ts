@@ -15,6 +15,7 @@ import type {
   Repeat,
   ShoppingItem,
   Task,
+  Timer,
   WeatherForecast,
   WeekData,
 } from '../../../shared/types.ts';
@@ -52,6 +53,11 @@ export type Api = {
   week(offset: number): Promise<WeekData>;
   nas(): Promise<NasData>;
   setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task>;
+  /** Étape de la routine du jour (`itemId` : `<période>-<rang>`). */
+  setRoutineDone(ownerId: string, itemId: string, done: boolean): Promise<Task>;
+  timers(): Promise<Timer[]>;
+  startTimer(label: string, seconds: number): Promise<Timer>;
+  stopTimer(id: string): Promise<void>;
   me(): Promise<Me>;
   lists(): Promise<Lists>;
   addShopping(label: string): Promise<ShoppingItem>;
@@ -131,6 +137,10 @@ export function createApi(
     week: (offset) => request(`/week?offset=${offset}`),
     nas: () => request('/nas'),
     setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
+    setRoutineDone: (ownerId, itemId, done) => send('PUT', `${ownerPath(ownerId)}/routine/${encodeURIComponent(itemId)}`, { done }),
+    timers: () => request('/timers'),
+    startTimer: (label, seconds) => send('POST', '/timers', { label, seconds }),
+    stopTimer: (id) => send('DELETE', `/timers/${encodeURIComponent(id)}`),
     me: () => request('/me'),
     lists: () => request('/lists'),
     addShopping: (label) => send('POST', '/lists/shopping', { label }),

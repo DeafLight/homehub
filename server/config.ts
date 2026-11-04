@@ -8,6 +8,14 @@ const calendarsSchema = z
   .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/, "nom de variable d'environnement (MAJUSCULES, chiffres, _)"))
   .default([]);
 
+const routineStep = z.string().trim().min(1).max(60);
+const routineSteps = z
+  .array(routineStep)
+  .max(12)
+  .refine((steps) => new Set(steps).size === steps.length, 'étapes en double')
+  .default([]);
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'heure HH:MM');
+
 const memberSchema = z.object({
   id: z
     .string()
@@ -22,7 +30,14 @@ const memberSchema = z.object({
   ecoledirecte: z.string().trim().min(1).max(40).optional(),
   /** Prénom de l'enfant sur Pronote (compte parent appairé, voir README). */
   pronote: z.string().trim().min(1).max(40).optional(),
+  /** Étapes des routines du matin et du soir, cochées chaque jour sur le dashboard (aux heures de `routines`). */
+  routines: z
+    .object({ morning: routineSteps, evening: routineSteps })
+    .default({ morning: [], evening: [] }),
 });
+
+/** Plage horaire HH:MM–HH:MM. */
+const timeWindow = z.object({ from: hhmm, to: hhmm }).refine((w) => w.from < w.to, 'début avant la fin');
 
 export const configSchema = z.object({
   members: z
@@ -32,6 +47,13 @@ export const configSchema = z.object({
   family: z
     .object({ name: z.string().trim().min(1).max(40), calendars: calendarsSchema })
     .default({ name: 'Famille', calendars: [] }),
+  /** Heures où les routines du matin et du soir s'affichent. */
+  routines: z
+    .object({
+      morning: timeWindow.default({ from: '05:00', to: '11:00' }),
+      evening: timeWindow.default({ from: '17:00', to: '23:00' }),
+    })
+    .default({ morning: { from: '05:00', to: '11:00' }, evening: { from: '17:00', to: '23:00' } }),
   agenda: z.object({ refreshMinutes: z.number().int().min(1).max(180).default(10) }).default({ refreshMinutes: 10 }),
   ecoledirecte: z
     .object({ refreshMinutes: z.number().int().min(15).max(1440).default(60) })

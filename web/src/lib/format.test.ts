@@ -33,7 +33,7 @@ describe('profileHeadline', () => {
   it('prochain événement en priorité', () => {
     const start = new Date(2026, 10, 3, 17, 30).toISOString();
     const headline = profileHeadline(
-      { ownerId: 'lea', nextEvent: { id: 'e', title: 'Piscine', start }, nextCourse: null, pendingTasks: 2 },
+      { nextEvent: { id: 'e', title: 'Piscine', start }, nextCourse: null, pendingTasks: 2 },
       now,
     );
     expect(headline).toBe('Piscine · demain à 17:30');
@@ -43,22 +43,22 @@ describe('profileHeadline', () => {
     const at = (h: number) => new Date(2026, 10, 3, h).toISOString();
     const nextCourse = { id: 'c', subject: 'Mathématiques', start: at(8), end: at(9), cancelled: false };
     const piscine = { id: 'e', title: 'Piscine', start: at(17) };
-    expect(profileHeadline({ ownerId: 'a', nextEvent: piscine, nextCourse, pendingTasks: 0 }, now)).toBe(
+    expect(profileHeadline({ nextEvent: piscine, nextCourse, pendingTasks: 0 }, now)).toBe(
       'Mathématiques · demain à 08:00',
     );
     expect(
-      profileHeadline({ ownerId: 'a', nextEvent: { ...piscine, start: at(7) }, nextCourse, pendingTasks: 0 }, now),
+      profileHeadline({ nextEvent: { ...piscine, start: at(7) }, nextCourse, pendingTasks: 0 }, now),
     ).toBe('Piscine · demain à 07:00');
-    expect(profileHeadline({ ownerId: 'a', nextEvent: null, nextCourse, pendingTasks: 3 }, now)).toBe(
+    expect(profileHeadline({ nextEvent: null, nextCourse, pendingTasks: 3 }, now)).toBe(
       'Mathématiques · demain à 08:00',
     );
   });
 
   it('sinon les tâches, sinon rien', () => {
-    expect(profileHeadline({ ownerId: 'a', nextEvent: null, nextCourse: null, pendingTasks: 1 }, now)).toBe(
+    expect(profileHeadline({ nextEvent: null, nextCourse: null, pendingTasks: 1 }, now)).toBe(
       '1 tâche à faire',
     );
-    expect(profileHeadline({ ownerId: 'a', nextEvent: null, nextCourse: null, pendingTasks: 0 }, now)).toBe(
+    expect(profileHeadline({ nextEvent: null, nextCourse: null, pendingTasks: 0 }, now)).toBe(
       'Rien de prévu',
     );
   });

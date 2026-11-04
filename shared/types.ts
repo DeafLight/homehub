@@ -130,6 +130,17 @@ export type SchoolDays = {
   tomorrow: SchoolCourse[];
 };
 
+export type RoutinePeriod = 'morning' | 'evening';
+
+/** Routine du moment (matin ou soir) d'un membre : liste qui repart de zéro chaque jour. */
+export type Routine = {
+  period: RoutinePeriod;
+  /** Une étape par élément ; `id` : `<période>-<rang>`. */
+  items: Task[];
+  /** Jours de suite où la routine de cette période a été faite en entier (aujourd'hui compris s'il l'est déjà). */
+  streak: number;
+};
+
 /** Résumé d'un profil (un membre, ou la famille) pour l'écran d'accueil. */
 export type ProfileSummary = {
   ownerId: string;
@@ -137,6 +148,12 @@ export type ProfileSummary = {
   /** Prochain cours non annulé qui n'a pas encore commencé (7 jours), null sans emploi du temps. */
   nextCourse: SchoolCourse | null;
   pendingTasks: number;
+  /** Les premières tâches à faire (3 au plus). */
+  nextTasks: string[];
+  /** Mots pas encore vus, laissés à ce profil. */
+  unreadNotes: number;
+  /** Avancement de la routine du moment, s'il y en a une. */
+  routine: { period: RoutinePeriod; done: number; total: number } | null;
 };
 
 export type HomeData = {
@@ -158,6 +175,19 @@ export type DashboardData = {
   weather: Weather | null;
   /** null si le profil n'a pas d'emploi du temps (ou s'il est indisponible). */
   school: SchoolDays | null;
+  /** Routine du moment (matin ou soir), null en dehors de ses heures ou sans routine. */
+  routine: Routine | null;
+};
+
+/** Minuteur de la maison, visible sur la tablette (et en veille). */
+export type Timer = {
+  id: string;
+  /** « Cuisson », « Écrans »… ; vide : « Minuteur ». */
+  label: string;
+  durationSeconds: number;
+  startedAt: string;
+  endsAt: string;
+  startedBy: Author;
 };
 
 /** Nombre de semaines consultables après la semaine en cours (limité par la fenêtre des emplois du temps). */

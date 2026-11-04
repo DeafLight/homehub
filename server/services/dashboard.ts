@@ -5,6 +5,8 @@ import {
   type DashboardData,
   type HomeData,
   type ProfileSummary,
+  type Routine,
+  type RoutinePeriod,
   type SchoolCourse,
   type SchoolDays,
   type Task,
@@ -13,10 +15,14 @@ import {
   type WeekData,
 } from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
+import { localDay } from '../sources/lists.ts';
+import { currentPeriod, type RoutineStore, stepKey } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
 
 const UPCOMING_DAYS = 7;
 const UPCOMING_LIMIT = 5;
+/** Tâches citées dans le résumé de l'accueil. */
+const SUMMARY_TASKS = 3;
 
 export type DashboardService = {
   /** Vrai si l'identifiant désigne un membre configuré ou la famille. */
@@ -30,6 +36,8 @@ export type DashboardService = {
   week(offset: number): Promise<WeekData>;
   /** null si le profil ou la tâche n'existe pas. */
   setTaskDone(ownerId: string, taskId: string, done: boolean, by?: Author): Promise<Task | null>;
+  /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
+  setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
 };
 
 export type DashboardServiceDeps = {
@@ -38,9 +46,11 @@ export type DashboardServiceDeps = {
   sources: Sources;
   clock: Clock;
   logger: Logger;
+  /** Routines cochées ; absent (tests) : aucune routine. */
+  routines?: RoutineStore;
 };
 
-export function createDashboardService({ config, sources, clock, logger }: DashboardServiceDeps): DashboardService {
+export function createDashboardService({ config, sources, clock, logger, routines }: DashboardServiceDeps): DashboardService {
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
   const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
 
@@ -95,17 +105,42 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
     return courses?.find((c) => !c.cancelled && new Date(c.start) >= range.from) ?? null;
   }
 
+  const stepsOf = (ownerId: string, period: RoutinePeriod) =>
+    config.current().members.find((m) => m.id === ownerId)?.routines[period] ?? [];
+
+  /** Routine du moment de `ownerId` (étapes cochées aujourd'hui), ou null hors de ses heures ou sans étapes. */
+  async function routineOf(ownerId: string): Promise<Routine | null> {
+    const now = clock();
+    const period = currentPeriod(now, config.current().routines);
+    const steps = period ? stepsOf(ownerId, period) : [];
+    if (!routines || !period || steps.length === 0) return null;
+    const today = localDay(now);
+    const keys = steps.map((label) => stepKey(ownerId, period, label));
+    const [done, streak] = await Promise.all([routines.doneOn(today), routines.streak(keys, today)]);
+    return {
+      period,
+      items: steps.map((label, i) => ({ id: `${period}-${i}`, label, done: done.has(keys[i]) })),
+      streak,
+    };
+  }
+
   async function summary(ownerId: string): Promise<ProfileSummary> {
-    const [events, course, tasks] = await Promise.all([
+    const [events, course, tasks, notes, routine] = await Promise.all([
       sources.agenda.eventsFor(ownerId, upcomingRange()),
       nextCourse(ownerId),
       sources.tasks.tasksFor(ownerId),
+      sources.notes.unseenFor(ownerId),
+      routineOf(ownerId),
     ]);
+    const pending = tasks.filter((t) => !t.done);
     return {
       ownerId,
       nextEvent: events[0] ?? null,
       nextCourse: course,
-      pendingTasks: tasks.filter((t) => !t.done).length,
+      pendingTasks: pending.length,
+      nextTasks: pending.slice(0, SUMMARY_TASKS).map((t) => t.label),
+      unreadNotes: notes.length,
+      routine: routine && { period: routine.period, done: routine.items.filter((i) => i.done).length, total: routine.items.length },
     };
   }
 
@@ -129,12 +164,13 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, notes, currentWeather, school] = await Promise.all([
+      const [events, tasks, notes, currentWeather, school, routine] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
         sources.notes.unseenFor(ownerId),
         weather(),
         schoolDays(ownerId),
+        routineOf(ownerId),
       ]);
       const [nextEvent = null, ...rest] = events;
       return {
@@ -146,6 +182,7 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
         notes,
         weather: currentWeather,
         school,
+        routine,
       };
     },
 
@@ -169,6 +206,16 @@ export function createDashboardService({ config, sources, clock, logger }: Dashb
     async setTaskDone(ownerId, taskId, done, by) {
       if (!hasOwner(ownerId)) return null;
       return sources.tasks.setDone(ownerId, taskId, done, by);
+    },
+
+    async setRoutineDone(ownerId, itemId, done, by) {
+      const match = /^(morning|evening)-(\d+)$/.exec(itemId);
+      if (!routines || !match) return null;
+      const period = match[1] as RoutinePeriod;
+      const label = stepsOf(ownerId, period)[Number(match[2])];
+      if (label === undefined) return null;
+      await routines.setDone(localDay(clock()), stepKey(ownerId, period, label), done, by);
+      return { id: itemId, label, done };
     },
   };
 }

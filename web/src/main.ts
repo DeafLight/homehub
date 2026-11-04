@@ -9,6 +9,7 @@ import { loadKioskKey, takeKioskKeyFromUrl } from './lib/kiosk.ts';
 import { loadPairing } from './lib/phone.ts';
 import { buildProfiles } from './lib/profiles.ts';
 import { createRouter } from './lib/router.svelte.ts';
+import { createTimers } from './lib/timers.svelte.ts';
 import './app.css';
 
 const CONFIG_RETRY_MS = 10_000;
@@ -37,6 +38,8 @@ async function start() {
     const config = await api.config();
     actor = createActor({ config, isKiosk, endSession: api.endFaceSession });
     const router = createRouter();
+    const currentActor = actor;
+    const timers = createTimers(api, () => currentActor.allow(null));
     target.textContent = '';
     target.className = '';
     mount(App, {
@@ -48,6 +51,7 @@ async function start() {
         profiles: buildProfiles(config),
         clock: createClock(),
         router,
+        timers,
         navigate: router.navigate,
       }),
     });

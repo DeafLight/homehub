@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Note, Task } from '../../../shared/types.ts';
+  import type { Note, Routine, Task } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
@@ -14,6 +14,7 @@
   import { addDays, dayPlan, eventsAfter, timelineHours } from '../lib/day.ts';
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
+  import { routineFooter, routineTitle } from '../lib/routine.ts';
   import { HOME_PATH } from '../lib/route.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel } from '../lib/weather.ts';
 
@@ -54,6 +55,19 @@
     await dashboard.refresh();
   }
 
+  // Routine du moment : mêmes droits que les tâches du profil, mise à jour optimiste.
+  async function toggleRoutine(item: Task, done: boolean) {
+    if (!(await actor.allow(ownerId))) return;
+    const data = dashboard.data;
+    if (!data?.routine) return;
+    dashboard.set({ ...data, routine: { ...data.routine, items: data.routine.items.map((i) => (i.id === item.id ? { ...i, done } : i)) } });
+    try {
+      await api.setRoutineDone(ownerId, item.id, done);
+    } finally {
+      await dashboard.refresh(); // jours de suite recalculés par le serveur
+    }
+  }
+
   // Mise à jour optimiste : la case change tout de suite, et on resynchronise si le serveur refuse.
   async function toggleTask(task: Task, done: boolean) {
     if (!(await actor.allow(ownerId))) return;
@@ -67,6 +81,17 @@
     }
   }
 </script>
+
+{#snippet routine(current: Routine)}
+  <TaskList
+    title={routineTitle(current)}
+    tasks={current.items}
+    color={profile?.color ?? 'var(--fg)'}
+    linked={false}
+    footer={routineFooter(current)}
+    onToggle={toggleRoutine}
+  />
+{/snippet}
 
 {#if profile}
   <div class="dashboard">
@@ -100,7 +125,11 @@
             <DayTimeline title="Aujourd’hui" day={clock.now} plan={today} {hours} {allDayRows} now={clock.now} color={profile.color} />
             <DayTimeline title="Demain" day={tomorrow} plan={next} {hours} {allDayRows} now={clock.now} color={profile.color} />
             <div class="column">
-              <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
+              {#if data.routine}
+                {@render routine(data.routine)}
+              {:else}
+                <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
+              {/if}
               <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
               <NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={startNote} />
             </div>
@@ -114,7 +143,11 @@
               color={profile.color}
               onToggle={toggleTask}
             />
-            <UpcomingList events={data.upcoming} now={clock.now} />
+            {#if data.routine}
+              {@render routine(data.routine)}
+            {:else}
+              <UpcomingList events={data.upcoming} now={clock.now} />
+            {/if}
             <NoteCard notes={data.notes} {profiles} now={clock.now} onSeen={seeNote} onWrite={startNote} />
           </div>
         {/if}

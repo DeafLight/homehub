@@ -19,6 +19,8 @@
 #     obtenus avec : node scripts/ecoledirecte-pair.ts
 #   pronote (facultatif) : prénom de l'enfant sur Pronote (compte parent), même affichage. Le jeton est dans
 #     HOMEHUB_STATE_DIR/pronote.json, obtenu avec : node scripts/pronote-pair.ts (voir README)
+#   routines (facultatif) : étapes des routines du matin (morning) et du soir (evening), 12 au plus, cochées chaque
+#     jour sur le dashboard du membre aux heures de la section `routines` plus bas
 members:
   - id: alex
     name: Alex
@@ -33,6 +35,9 @@ members:
     color: "#3fb8a8"
     # ecoledirecte: Léa
     # pronote: Léa
+    # routines:
+    #   morning: [S'habiller, Petit-déjeuner, Dents, Cartable]
+    #   evening: [Douche, Pyjama, Dents, Cartable prêt]
   - id: tom
     name: Tom
     color: "#d96aa7"
@@ -41,6 +46,11 @@ members:
 family:
   name: Famille
   # calendars: [CAL_FAMILLE]
+
+# Heures où s'affichent les routines du matin et du soir (HH:MM, fin exclue). Valeurs par défaut :
+# routines:
+#   morning: { from: "05:00", to: "11:00" }
+#   evening: { from: "17:00", to: "23:00" }
 
 agenda:
   # Intervalle entre deux téléchargements de chaque agenda (minutes, 1 à 180).

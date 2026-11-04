@@ -3,11 +3,13 @@
   import { getAppContext } from '../lib/context.ts';
   import { formatLongDate, formatTime } from '../lib/format.ts';
   import { isPhoneRoute } from '../lib/route.ts';
+  import { formatCountdown, secondsLeft, timerName } from '../lib/timers.ts';
 
   // Veille de la tablette : après `ui.screensaverMinutes` sans contact ni visage devant la caméra, écran noir où seule
   // l'horloge reste, et se déplace au hasard (pour ne pas marquer l'écran). Un contact, ou un visage vu par la caméra
   // (Presence.svelte), la réveille ; le contact qui réveille ne fait rien d'autre. Avec l'interface JavaScript de Fully
-  // Kiosk, la luminosité baisse aussi pendant la veille.
+  // Kiosk, la luminosité baisse aussi pendant la veille. Les minuteurs en cours restent affichés sous l'horloge ; celui
+  // qui se termine réveille la tablette (Timers.svelte l'affiche par-dessus).
   const MOVE_MS = 12_000;
   const CHECK_MS = 1_000;
   const DIM_BRIGHTNESS = 10;
@@ -16,7 +18,9 @@
 
   type Fully = { getScreenBrightness(): number; setScreenBrightness(level: number): void };
 
-  const { actor, config, clock, router } = getAppContext();
+  const { actor, config, clock, router, timers } = getAppContext();
+  const running = $derived(timers.list.filter((t) => secondsLeft(t, clock.now) > 0));
+  const ringing = $derived(timers.list.some((t) => secondsLeft(t, clock.now) === 0));
 
   let kiosk = $state(false);
   let asleep = $state(false);
@@ -90,6 +94,10 @@
   $effect(() => {
     if (!enabled && asleep) wake();
   });
+
+  $effect(() => {
+    if (asleep && ringing) wake();
+  });
 </script>
 
 {#if shown}
@@ -111,6 +119,9 @@
     <div class="clock" style:left="{position.x}%" style:top="{position.y}%">
       <div class="time">{formatTime(clock.now)}</div>
       <div class="date">{formatLongDate(clock.now)}</div>
+      {#each running as timer (timer.id)}
+        <div class="timer">{timerName(timer)} · {formatCountdown(secondsLeft(timer, clock.now))}</div>
+      {/each}
     </div>
   </div>
 {/if}
@@ -150,5 +161,12 @@
   .date {
     margin-top: 8px;
     font-size: 1.6rem;
+  }
+
+  .timer {
+    margin-top: 10px;
+    font-size: 1.8rem;
+    font-variant-numeric: tabular-nums;
+    color: #b8963e;
   }
 </style>
