@@ -31,6 +31,8 @@
   const profileOf = (id: string) => profiles.find((p) => p.id === id);
   const pct = (value: number) => `${Math.round(value * 100)} %`;
   const num = (value: number) => value.toFixed(2);
+  /** Pour le CSS : sans l'espace de `pct` (« 62 % » serait ignoré). */
+  const css = (value: number) => `${Math.round(value * 100)}%`;
 
   $effect(() => {
     if (!video) return;
@@ -184,8 +186,8 @@
               {#if profile}<Avatar {profile} size={32} />{/if}
               <span class="who">{nameOf(ownerId)}</span>
               <span class="bar">
-                <span class="fill" class:pass={score >= diagnosis.rules.threshold} style:width={pct(score)}></span>
-                <span class="mark" style:left={pct(diagnosis.rules.threshold)}></span>
+                <span class="fill" class:pass={score >= diagnosis.rules.threshold} style:width={css(score)}></span>
+                <span class="mark" style:left={css(diagnosis.rules.threshold)}></span>
               </span>
               <span class="value">{num(score)}</span>
             </li>
