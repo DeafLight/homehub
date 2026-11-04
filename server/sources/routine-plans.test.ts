@@ -5,46 +5,43 @@ import { describe, expect, it } from 'vitest';
 import { parseConfig } from '../config.ts';
 import { createConfigStore } from '../config-store.ts';
 import { fixedClock } from '../testing.ts';
-import { createRoutinePlanStore, routineSettingsInput } from './routine-plans.ts';
+import { createRoutinePlanStore, DEFAULT_ROUTINE_WINDOWS, routineSettingsInput } from './routine-plans.ts';
 
 const config = createConfigStore(
   parseConfig({
     members: [
       { id: 'alex', name: 'Alex', color: '#5b8def', parent: true },
-      { id: 'lea', name: 'Léa', color: '#4caf7d', routines: { morning: ['Dents', { step: 'Piscine', days: ['mer'] }] } },
+      { id: 'lea', name: 'Léa', color: '#4caf7d' },
     ],
-    routines: { evening: { from: '18:00', to: '21:00' } },
   }),
 );
 const by = { ownerId: 'alex', via: 'tablet' as const };
 const windows = { morning: { from: '06:30', to: '08:30' }, evening: { from: '19:00', to: '21:00' } };
+const tempPath = () => join(mkdtempSync(join(tmpdir(), 'homehub-plans-')), 'p.json');
 
 describe('réglages des routines', () => {
-  it("ceux de homehub.yaml tant que rien n'est enregistré (identifiant : le libellé)", async () => {
-    const store = createRoutinePlanStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-plans-')), 'p.json'), clock: fixedClock, config });
+  it("avant tout enregistrement : aucune étape, heures par défaut", async () => {
+    const store = createRoutinePlanStore({ path: tempPath(), clock: fixedClock, config });
     await store.load();
-    const current = store.current();
-    expect(current.source).toBe('config');
-    expect(current.windows.evening).toEqual({ from: '18:00', to: '21:00' });
-    expect(current.members.lea.morning).toEqual([
-      { id: 'Dents', label: 'Dents', days: null },
-      { id: 'Piscine', label: 'Piscine', days: [3] },
-    ]);
-    expect(current.members.alex).toEqual({ morning: [], evening: [] });
+    expect(store.current()).toEqual({
+      windows: DEFAULT_ROUTINE_WINDOWS,
+      members: { alex: { morning: [], evening: [] }, lea: { morning: [], evening: [] } },
+    });
   });
 
   it('enregistrés, puis relus ; les membres absents de l’envoi gardent leurs étapes', async () => {
-    const path = join(mkdtempSync(join(tmpdir(), 'homehub-plans-')), 'p.json');
+    const path = tempPath();
     const store = createRoutinePlanStore({ path, clock: fixedClock, config });
     await store.load();
+    await store.save(routineSettingsInput.parse({ members: { lea: { morning: [{ id: 'l1', label: 'Dents', days: [3] }], evening: [] } }, windows }), by);
     const input = routineSettingsInput.parse({
       members: { alex: { morning: [{ id: 'a1', label: ' Café ', days: [0, 1, 2, 3, 4, 5, 6] }], evening: [] } },
       windows,
     });
     const saved = await store.save(input, by);
-    expect(saved.source).toBe('tablet');
+    expect(saved.windows).toEqual(windows);
     expect(saved.members.alex.morning).toEqual([{ id: 'a1', label: 'Café', days: null }]); // tous les jours : null
-    expect(saved.members.lea.morning).toHaveLength(2);
+    expect(saved.members.lea.morning).toEqual([{ id: 'l1', label: 'Dents', days: [3] }]);
 
     const reread = createRoutinePlanStore({ path, clock: fixedClock, config });
     await reread.load();

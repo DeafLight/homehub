@@ -59,7 +59,7 @@ export type Api = {
   timers(): Promise<Timer[]>;
   /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
   routines(): Promise<RoutineSettings>;
-  saveRoutines(settings: Omit<RoutineSettings, 'source'>): Promise<RoutineSettings>;
+  saveRoutines(settings: RoutineSettings): Promise<RoutineSettings>;
   startTimer(label: string, seconds: number): Promise<Timer>;
   stopTimer(id: string): Promise<void>;
   me(): Promise<Me>;

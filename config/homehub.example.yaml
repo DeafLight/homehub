@@ -19,11 +19,7 @@
 #     obtenus avec : node scripts/ecoledirecte-pair.ts
 #   pronote (facultatif) : prénom de l'enfant sur Pronote (compte parent), même affichage. Le jeton est dans
 #     HOMEHUB_STATE_DIR/pronote.json, obtenu avec : node scripts/pronote-pair.ts (voir README)
-#   routines (facultatif) : étapes des routines du matin (morning) et du soir (evening), 12 au plus, cochées chaque
-#     jour sur le dashboard du membre aux heures de la section `routines` plus bas. Une étape écrite seule vaut tous
-#     les jours ; { step: …, days: [...] } seulement ces jours-là (lun mar mer jeu ven sam dim, semaine, week-end).
-#     Plus simple : la page Routines de la tablette (roue dentée). Une fois enregistrées là, les routines (et leurs
-#     heures, plus bas) de ce fichier ne servent plus.
+# Les routines du matin et du soir (étapes, jours, heures) se règlent sur la tablette : roue dentée › Routines.
 members:
   - id: alex
     name: Alex
@@ -38,17 +34,6 @@ members:
     color: "#3fb8a8"
     # ecoledirecte: Léa
     # pronote: Léa
-    # routines:
-    #   morning:
-    #     - S'habiller
-    #     - Petit-déjeuner
-    #     - Dents
-    #     - { step: Cartable, days: [lun, mar, jeu, ven] }
-    #     - { step: Sac de sport, days: [mer] }
-    #   evening:
-    #     - Douche
-    #     - Pyjama
-    #     - { step: Devoirs, days: [lun, mar, jeu] }
   - id: tom
     name: Tom
     color: "#d96aa7"
@@ -57,14 +42,6 @@ members:
 family:
   name: Famille
   # calendars: [CAL_FAMILLE]
-
-# Heures où s'affichent les routines du matin et du soir (HH:MM, fin exclue). Valeurs par défaut ; `weekend`
-# (facultatif) : d'autres heures le samedi et le dimanche, pour l'une ou les deux routines.
-# routines:
-#   morning: { from: "05:00", to: "11:00" }
-#   evening: { from: "17:00", to: "23:00" }
-#   weekend:
-#     morning: { from: "08:00", to: "12:00" }
 
 agenda:
   # Intervalle entre deux téléchargements de chaque agenda (minutes, 1 à 180).

@@ -27,11 +27,11 @@ export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: D
 
 /**
  * Clé d'une étape : son identifiant stable plutôt que son rang, pour qu'une étape ajoutée ne décale pas les autres
- * (et qu'une étape renommée garde ses cases cochées). Venue de homehub.yaml, son identifiant est son libellé.
+ * (et qu'une étape renommée garde ses cases cochées).
  */
 export const stepKey = (ownerId: string, period: RoutinePeriod, stepId: string) => `${ownerId}|${period}|${stepId}`;
 
-/** Routine affichée à cette heure-ci, d'après les plages de la configuration (heure locale ; le week-end, les siennes). */
+/** Routine affichée à cette heure-ci, d'après les plages réglées (heure locale ; le week-end, les siennes). */
 export function currentPeriod(now: Date, windows: RoutineWindows): RoutinePeriod | null {
   const pad = (n: number) => String(n).padStart(2, '0');
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;

@@ -8,30 +8,6 @@ const calendarsSchema = z
   .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/, "nom de variable d'environnement (MAJUSCULES, chiffres, _)"))
   .default([]);
 
-/** Jours de la semaine, dans l'ordre de `Date.getDay()` (0 : dimanche). */
-export const DAY_NAMES = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'] as const;
-const DAY_GROUPS: Record<string, number[]> = { semaine: [1, 2, 3, 4, 5], 'week-end': [0, 6] };
-const dayName = z.enum([...DAY_NAMES, 'semaine', 'week-end']);
-
-/** Étape de routine : un libellé (tous les jours), ou `{ step, days }` (seulement ces jours-là). */
-export type RoutineStep = { label: string; days: number[] | null };
-const stepLabel = z.string().trim().min(1).max(60);
-const routineStep = z.union([
-  stepLabel.transform((label): RoutineStep => ({ label, days: null })),
-  z
-    .object({ step: stepLabel, days: z.array(dayName).min(1) })
-    .transform(({ step, days }): RoutineStep => ({
-      label: step,
-      days: [...new Set(days.flatMap((d) => DAY_GROUPS[d] ?? [DAY_NAMES.indexOf(d as (typeof DAY_NAMES)[number])]))].sort(),
-    })),
-]);
-const routineSteps = z
-  .array(routineStep)
-  .max(12)
-  .refine((steps) => new Set(steps.map((s) => s.label)).size === steps.length, 'étapes en double')
-  .default([]);
-const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'heure HH:MM');
-
 const memberSchema = z.object({
   id: z
     .string()
@@ -46,14 +22,7 @@ const memberSchema = z.object({
   ecoledirecte: z.string().trim().min(1).max(40).optional(),
   /** Prénom de l'enfant sur Pronote (compte parent appairé, voir README). */
   pronote: z.string().trim().min(1).max(40).optional(),
-  /** Étapes des routines du matin et du soir, cochées chaque jour sur le dashboard (aux heures de `routines`). */
-  routines: z
-    .object({ morning: routineSteps, evening: routineSteps })
-    .default({ morning: [], evening: [] }),
 });
-
-/** Plage horaire HH:MM–HH:MM. */
-const timeWindow = z.object({ from: hhmm, to: hhmm }).refine((w) => w.from < w.to, 'début avant la fin');
 
 export const configSchema = z.object({
   members: z
@@ -63,14 +32,6 @@ export const configSchema = z.object({
   family: z
     .object({ name: z.string().trim().min(1).max(40), calendars: calendarsSchema })
     .default({ name: 'Famille', calendars: [] }),
-  /** Heures où les routines du matin et du soir s'affichent ; `weekend` : autres heures le samedi et le dimanche. */
-  routines: z
-    .object({
-      morning: timeWindow.default({ from: '05:00', to: '11:00' }),
-      evening: timeWindow.default({ from: '17:00', to: '23:00' }),
-      weekend: z.object({ morning: timeWindow.optional(), evening: timeWindow.optional() }).optional(),
-    })
-    .default({ morning: { from: '05:00', to: '11:00' }, evening: { from: '17:00', to: '23:00' } }),
   agenda: z.object({ refreshMinutes: z.number().int().min(1).max(180).default(10) }).default({ refreshMinutes: 10 }),
   ecoledirecte: z
     .object({ refreshMinutes: z.number().int().min(15).max(1440).default(60) })

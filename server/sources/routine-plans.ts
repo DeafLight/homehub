@@ -1,17 +1,20 @@
 // Réglages des routines (étapes de chaque membre, heures d'affichage), modifiés depuis la page « Routines » de la
-// tablette et enregistrés dans le dossier d'état (routine-plans.json). Tant que rien n'y est enregistré, ce sont ceux
-// de homehub.yaml ; ensuite, le fichier l'emporte (un membre ajouté plus tard dans homehub.yaml garde ses étapes du
-// yaml jusqu'au premier enregistrement qui le concerne). Chaque étape a un identifiant stable, qui sert de clé aux
-// cases cochées (routines.json) : la renommer ne perd ni les cases du jour ni les jours de suite. Une étape venue du
-// yaml prend son libellé pour identifiant, la clé qu'elle avait déjà.
+// tablette et enregistrés dans le dossier d'état (routine-plans.json). Avant le premier enregistrement : aucune étape,
+// heures par défaut. Chaque étape a un identifiant stable, qui sert de clé aux cases cochées (routines.json) : la
+// renommer ne perd ni les cases du jour ni les jours de suite.
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
-import type { Author, RoutinePeriod, RoutinePlan, RoutineSettings, RoutineStepPlan } from '../../shared/types.ts';
-import type { AppConfig } from '../config.ts';
+import type { Author, RoutinePlan, RoutineSettings, RoutineWindows } from '../../shared/types.ts';
 import type { ConfigProvider } from '../config-store.ts';
 import type { Clock } from './types.ts';
 
 export const MAX_ROUTINE_STEPS = 12;
+
+/** Heures d'affichage tant que rien n'est enregistré. */
+export const DEFAULT_ROUTINE_WINDOWS: RoutineWindows = {
+  morning: { from: '05:00', to: '11:00' },
+  evening: { from: '17:00', to: '23:00' },
+};
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'heure HH:MM');
 const timeWindow = z.object({ from: hhmm, to: hhmm }).refine((w) => w.from < w.to, 'le début doit précéder la fin');
@@ -51,25 +54,12 @@ const fileSchema = routineSettingsInput.extend({
 });
 type PlansFile = z.infer<typeof fileSchema>;
 
-/** Étapes d'un membre telles que décrites dans homehub.yaml. */
-function planFromConfig(member: AppConfig['members'][number]): RoutinePlan {
-  const steps = (period: RoutinePeriod): RoutineStepPlan[] =>
-    member.routines[period].map((s) => ({ id: s.label, label: s.label, days: s.days }));
-  return { morning: steps('morning'), evening: steps('evening') };
-}
-
-/** Réglages en vigueur : ceux enregistrés depuis la tablette, sinon ceux de homehub.yaml. */
-export function effectiveRoutines(config: AppConfig, saved: RoutineSettingsInput | null): RoutineSettings {
-  return {
-    source: saved ? 'tablet' : 'config',
-    windows: saved?.windows ?? config.routines,
-    members: Object.fromEntries(config.members.map((m) => [m.id, saved?.members[m.id] ?? planFromConfig(m)])),
-  };
-}
+const NO_STEPS: RoutinePlan = { morning: [], evening: [] };
 
 export type RoutinePlanStore = {
   /** Lit le fichier (au démarrage). */
   load(): Promise<void>;
+  /** Réglages en vigueur, pour chaque membre de la configuration (sans étape s'il n'en a pas). */
   current(): RoutineSettings;
   /** Enregistre les réglages (membres inconnus de la configuration : refusés avant, par l'API). */
   save(input: RoutineSettingsInput, by: Author): Promise<RoutineSettings>;
@@ -78,6 +68,11 @@ export type RoutinePlanStore = {
 export function createRoutinePlanStore({ path, clock, config }: { path: string; clock: Clock; config: ConfigProvider }): RoutinePlanStore {
   let saved: PlansFile | null = null;
   let queue: Promise<unknown> = Promise.resolve();
+
+  const current = (): RoutineSettings => ({
+    windows: saved?.windows ?? DEFAULT_ROUTINE_WINDOWS,
+    members: Object.fromEntries(config.current().members.map((m) => [m.id, saved?.members[m.id] ?? NO_STEPS])),
+  });
 
   return {
     async load() {
@@ -93,18 +88,18 @@ export function createRoutinePlanStore({ path, clock, config }: { path: string; 
       saved = parsed.data;
     },
 
-    current: () => effectiveRoutines(config.current(), saved),
+    current,
 
     save(input, by) {
       const run = queue.then(async () => {
-        // Les membres qui ne sont pas dans l'envoi gardent leurs étapes en vigueur.
-        const members = { ...effectiveRoutines(config.current(), saved).members, ...input.members };
+        // Les membres absents de l'envoi gardent leurs étapes.
+        const members = { ...saved?.members, ...input.members };
         const file: PlansFile = { version: 1, members, windows: input.windows, updatedAt: clock().toISOString(), by };
         const tmp = `${path}.tmp`;
         await writeFile(tmp, JSON.stringify(file, null, 2), { mode: 0o600 });
         await rename(tmp, path);
         saved = file;
-        return effectiveRoutines(config.current(), saved);
+        return current();
       });
       queue = run.catch(() => undefined);
       return run;

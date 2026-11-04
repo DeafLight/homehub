@@ -69,20 +69,16 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   rendez-vous ; la toucher ouvre son dashboard. Chaque profil de « Qui est là ? » montre aussi le nombre de ses mots
   pas encore vus, et l'indicateur de la personne reconnue (accueil et rail) le sien, à toucher pour ouvrir son
   dashboard.
-- **Routines** du matin et du soir : étapes propres à chaque membre (`routines` du membre dans la configuration),
-  affichées sur son dashboard aux heures de `routines` (5 h–11 h et 17 h–23 h par défaut ; d'autres heures possibles
-  le week-end, `routines.weekend`) à la place de « À venir ». Une étape peut ne valoir que certains jours
-  (`{ step: Devoirs, days: [lun, mar, jeu] }`, ou `semaine`, `week-end`) ; un jour sans étape prévue n'affiche pas de
-  routine et ne casse pas la série. Elles sont
-  cochées comme ses tâches (mêmes droits) et remises à zéro chaque jour (`routines.json`). Avancement sur l'accueil ;
+- **Routines** du matin et du soir : étapes propres à chaque membre, affichées sur son dashboard à leurs heures (5 h–11 h
+  et 17 h–23 h par défaut, d'autres possibles le week-end) à la place de « À venir ». Une étape peut ne valoir que
+  certains jours ; un jour sans étape prévue n'affiche pas de routine et ne casse pas la série. Elles sont cochées
+  comme ses tâches (mêmes droits) et remises à zéro chaque jour (`routines.json`). Avancement sur l'accueil ;
   « Bravo, c'est fini ! » et le nombre de jours de suite où la routine a été faite en entier.
 - **Page Routines** (roue dentée de la tablette) : les étapes de chacun et les heures, réglées au doigt : un membre à
   la fois, matin et soir côte à côte ; pour chaque étape, son nom, ses jours (L M M J V S D, tous allumés : tous les
   jours), monter ou descendre, supprimer ; « Nouvelle étape » ; heures en semaine et, au besoin, le week-end. Tout le
-  monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre. Enregistrés dans
-  `routine-plans.json`, ces réglages remplacent ensuite ceux de la configuration (qui ne servent plus qu'au départ, et
-  pour un membre ajouté plus tard). Chaque étape garde un identifiant : la renommer ou la déplacer ne perd ni ses
-  cases du jour ni les jours de suite.
+  monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre (`routine-plans.json`). Chaque
+  étape garde un identifiant : la renommer ou la déplacer ne perd ni ses cases du jour ni les jours de suite.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail : un nom (Cuisson, Écrans, Devoirs…) puis
   une durée (1 min à 1 h). En cours, ils restent en bas de l'écran (et sous l'horloge de la veille) ; à la fin, ils
   prennent tout l'écran, réveillent la tablette et sonnent (trois bips répétés, 2 min au plus) jusqu'à « Arrêter ».
@@ -214,7 +210,7 @@ web/src/
 | `GET /api/nas` | relevé du NAS (`null` s'il est absent), état des sources, version et démarrage de HomeHub |
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour (écriture) |
 | `PUT /api/dashboard/:id/routine/:itemId` | `{ "done": true }` → l'étape de la routine du jour (`morning-0`, `evening-2`…) (écriture) |
-| `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ source, windows, members }` ; enregistrer : `{ windows, members }`, un parent |
+| `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ windows, members }` ; enregistrer : `{ windows, members }`, un parent |
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |

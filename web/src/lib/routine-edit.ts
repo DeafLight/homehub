@@ -73,8 +73,8 @@ export function draftProblem(settings: RoutineSettings, nameOf: (ownerId: string
   return null;
 }
 
-/** Réglages à envoyer : libellés sans espaces autour, sans la source. */
-export const toInput = (settings: RoutineSettings) => ({
+/** Réglages à envoyer : libellés sans espaces autour. */
+export const toInput = (settings: RoutineSettings): RoutineSettings => ({
   windows: settings.windows,
   members: Object.fromEntries(
     Object.entries(settings.members).map(([id, plan]) => [

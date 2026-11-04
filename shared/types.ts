@@ -137,8 +137,8 @@ export type RoutineStepPlan = { id: string; label: string; days: number[] | null
 export type RoutinePlan = Record<RoutinePeriod, RoutineStepPlan[]>;
 export type TimeWindow = { from: string; to: string };
 export type RoutineWindows = Record<RoutinePeriod, TimeWindow> & { weekend?: Partial<Record<RoutinePeriod, TimeWindow>> };
-/** Réglages des routines (page « Routines ») ; `source` : homehub.yaml tant que rien n'a été enregistré. */
-export type RoutineSettings = { source: 'config' | 'tablet'; windows: RoutineWindows; members: Record<string, RoutinePlan> };
+/** Réglages des routines (page « Routines ») : heures, et étapes de chaque membre. */
+export type RoutineSettings = { windows: RoutineWindows; members: Record<string, RoutinePlan> };
 
 /** Routine du moment (matin ou soir) d'un membre : liste qui repart de zéro chaque jour. */
 export type Routine = {

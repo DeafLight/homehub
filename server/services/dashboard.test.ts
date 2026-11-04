@@ -181,18 +181,38 @@ describe('semaine', () => {
 });
 
 describe('routines', () => {
-  it('routine du moment (18 h : le soir), cochée par étape, avancement sur l\'accueil', async () => {
+  const by = { ownerId: 'lea', via: 'tablet' as const };
+  const windows = { morning: { from: '05:00', to: '11:00' }, evening: { from: '17:00', to: '23:00' } };
+  const step = (id: string, label = id, days: number[] | null = null) => ({ id, label, days });
+
+  function routineSetup() {
     const store = createConfigStore(
       parseConfig({
         members: [
           { id: 'alex', name: 'Alex', color: '#5b8def', parent: true },
-          { id: 'lea', name: 'Léa', color: '#4caf7d', routines: { morning: ['Dents'], evening: ['Pyjama', 'Dents', 'Cartable', { step: 'Piscine', days: ['mer', 'week-end'] }] } },
+          { id: 'lea', name: 'Léa', color: '#4caf7d' },
         ],
       }),
     );
-    const routines = createRoutineStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-svc-')), 'routines.json'), clock: fixedClock });
-    const svc = createDashboardService({ config: store, sources, clock: fixedClock, logger: silentLogger(), routines });
-    const by = { ownerId: 'lea', via: 'tablet' as const };
+    const dir = mkdtempSync(join(tmpdir(), 'homehub-svc-'));
+    const routines = createRoutineStore({ path: join(dir, 'routines.json'), clock: fixedClock });
+    const plans = createRoutinePlanStore({ path: join(dir, 'plans.json'), clock: fixedClock, config: store });
+    const svc = createDashboardService({ config: store, sources, clock: fixedClock, logger: silentLogger(), routines, plans });
+    return { svc, plans };
+  }
+
+  it("routine du moment (18 h : le soir), cochée par étape, avancement sur l'accueil", async () => {
+    const { svc, plans } = routineSetup();
+    expect((await svc.dashboard('lea'))?.routine).toBeNull(); // rien de réglé
+    await plans.save(
+      {
+        members: {
+          lea: { morning: [step('Dents')], evening: [step('Pyjama'), step('Dents'), step('Cartable'), step('Piscine', 'Piscine', [0, 3, 6])] },
+        },
+        windows,
+      },
+      by,
+    );
 
     expect((await svc.dashboard('alex'))?.routine).toBeNull(); // pas de routine
     expect((await svc.dashboard('lea'))?.routine).toEqual({
@@ -216,31 +236,13 @@ describe('routines', () => {
     expect((await svc.dashboard('lea'))?.routine?.streak).toBe(1);
   });
 
-  it('réglages de la tablette : une étape renommée ou déplacée garde ses cases cochées', async () => {
-    const store = createConfigStore(
-      parseConfig({ members: [{ id: 'lea', name: 'Léa', color: '#4caf7d', routines: { evening: ['Pyjama', 'Dents'] } }] }),
-    );
-    const routines = createRoutineStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-svc-')), 'routines.json'), clock: fixedClock });
-    const plans = createRoutinePlanStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-svc-')), 'plans.json'), clock: fixedClock, config: store });
-    const svc = createDashboardService({ config: store, sources, clock: fixedClock, logger: silentLogger(), routines, plans });
-    const by = { ownerId: 'lea', via: 'tablet' as const };
-    await svc.setRoutineDone('lea', 'evening-1', true, by); // Dents, cochée avec les étapes du yaml
+  it('une étape renommée ou déplacée garde ses cases cochées ; heures modifiées', async () => {
+    const { svc, plans } = routineSetup();
+    await plans.save({ members: { lea: { morning: [], evening: [step('p', 'Pyjama'), step('d', 'Dents')] } }, windows }, by);
+    await svc.setRoutineDone('lea', 'evening-1', true, by); // Dents
 
-    const windows = store.current().routines;
     await plans.save(
-      {
-        members: {
-          lea: {
-            morning: [],
-            evening: [
-              { id: 'new', label: 'Douche', days: null },
-              { id: 'Dents', label: 'Se brosser les dents', days: null },
-              { id: 'Pyjama', label: 'Pyjama', days: null },
-            ],
-          },
-        },
-        windows,
-      },
+      { members: { lea: { morning: [], evening: [step('n', 'Douche'), step('d', 'Se brosser les dents'), step('p', 'Pyjama')] } }, windows },
       by,
     );
     expect((await svc.dashboard('lea'))?.routine?.items).toEqual([

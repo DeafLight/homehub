@@ -35,7 +35,6 @@ describe('page Routines', () => {
 
   it('problèmes avant enregistrement', () => {
     const settings = (morning: ReturnType<typeof step>[], w = windows): RoutineSettings => ({
-      source: 'tablet',
       windows: w,
       members: { lea: { morning, evening: [] } },
     });

@@ -16,7 +16,7 @@ import {
 } from '../../shared/types.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { localDay } from '../sources/lists.ts';
-import { effectiveRoutines, type RoutinePlanStore } from '../sources/routine-plans.ts';
+import type { RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
 
@@ -49,7 +49,7 @@ export type DashboardServiceDeps = {
   logger: Logger;
   /** Routines cochées ; absent (tests) : aucune routine. */
   routines?: RoutineStore;
-  /** Étapes et heures des routines ; absent : celles de la configuration. */
+  /** Étapes et heures des routines (page « Routines ») ; absent, comme `routines` : pas de routine. */
   plans?: Pick<RoutinePlanStore, 'current'>;
 };
 
@@ -108,8 +108,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
     return courses?.find((c) => !c.cancelled && new Date(c.start) >= range.from) ?? null;
   }
 
-  const routineSettings = () => plans?.current() ?? effectiveRoutines(config.current(), null);
-  const stepsOf = (ownerId: string, period: RoutinePeriod) => routineSettings().members[ownerId]?.[period] ?? [];
+  const stepsOf = (ownerId: string, period: RoutinePeriod) => plans?.current().members[ownerId]?.[period] ?? [];
 
   /**
    * Routine du moment de `ownerId` : étapes prévues aujourd'hui, cochées ou non ; null hors de ses heures ou sans étape
@@ -117,8 +116,9 @@ export function createDashboardService({ config, sources, clock, logger, routine
    */
   async function routineOf(ownerId: string): Promise<Routine | null> {
     const now = clock();
-    const period = currentPeriod(now, routineSettings().windows);
-    if (!routines || !period) return null;
+    if (!routines || !plans) return null;
+    const period = currentPeriod(now, plans.current().windows);
+    if (!period) return null;
     const all = stepsOf(ownerId, period).map((step, i) => ({ ...step, itemId: `${period}-${i}` }));
     const steps = stepsOn(all, now);
     if (steps.length === 0) return null;

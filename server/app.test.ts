@@ -51,7 +51,7 @@ describe('API', () => {
     const { app, config, put, sessions } = setup();
     const windows = { morning: { from: '06:30', to: '08:30' }, evening: { from: '19:00', to: '21:00' } };
     const body = { members: { lea: { morning: [{ id: 'x1', label: 'Dents', days: null }], evening: [] } }, windows };
-    expect((await (await app.request('/api/routines')).json()).source).toBe('config');
+    expect((await (await app.request('/api/routines')).json()).members.lea).toEqual({ morning: [], evening: [] });
 
     expect((await app.request('/api/routines', put(body))).status).toBe(403); // Alex n'est pas parent
     expect((await app.request('/api/routines', put(body, { actor: null }))).status).toBe(403);
@@ -64,7 +64,7 @@ describe('API', () => {
     const res = await app.request('/api/routines', put(body));
     expect(res.status).toBe(200);
     const saved = await app.request('/api/routines');
-    expect(await saved.json()).toMatchObject({ source: 'tablet', windows, members: { lea: body.members.lea, alex: { morning: [], evening: [] } } });
+    expect(await saved.json()).toMatchObject({ windows, members: { lea: body.members.lea, alex: { morning: [], evening: [] } } });
   });
 
   it('minuteurs : lancés et arrêtés par une personne reconnue, visibles par tous', async () => {
