@@ -80,8 +80,11 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   jours), monter ou descendre, supprimer ; « Nouvelle étape » ; heures en semaine et, au besoin, le week-end. Tout le
   monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre (`routine-plans.json`). Chaque
   étape garde un identifiant : la renommer ou la déplacer ne perd ni ses cases du jour ni les jours de suite.
-- **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail : un nom (Cuisson, Écrans, Devoirs…) puis
-  une durée (1 min à 1 h). En cours, ils restent en bas de l'écran (et sous l'horloge de la veille) ; à la fin, ils
+- **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail. La durée se choisit sur une roue (glisser
+  le doigt autour du cadran, 1 min à 1 h ; − 1, + 1, + 5 ; raccourcis qui font tourner la roue) qui montre l'heure de
+  fin ; l'activité, facultative (🍝 Cuisson, 📺 Écrans, 📚 Devoirs, 🦷 Dents, 🚿 Douche, 🎲 Jeux), donne son emoji et
+  sa couleur à la roue, aux pastilles et à l'alerte ; puis « Lancer ». En cours, ils restent en bas de l'écran, avec un
+  anneau qui se vide (et sous l'horloge de la veille) ; à la fin, ils
   prennent tout l'écran, réveillent la tablette et sonnent (trois bips répétés, 2 min au plus) jusqu'à « Arrêter ».
   Lancer ou annuler un minuteur demande quelqu'un de reconnu (n'importe qui, enfant compris) ; arrêter celui qui
   sonne, non. En mémoire seulement : un redémarrage du serveur les efface.

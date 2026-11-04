@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { routineFooter, routineTitle } from './routine.ts';
-import { formatCountdown, formatDuration, secondsLeft, timerName } from './timers.ts';
+import { dialMinutes, endsAtText, formatCountdown, formatDuration, secondsLeft, timerLook, timerName, timerProgress } from './timers.ts';
 
 const items = (...done: boolean[]) => done.map((d, i) => ({ id: `evening-${i}`, label: `Étape ${i}`, done: d }));
 
@@ -31,5 +31,24 @@ describe('minuteurs', () => {
     expect(formatDuration(90)).toBe('1 h 30');
     expect(timerName({ label: '' })).toBe('Minuteur');
     expect(timerName({ label: 'Cuisson' })).toBe('Cuisson');
+    expect(timerLook('Cuisson')).toEqual({ emoji: '🍝', color: '#f2b84b' });
+    expect(timerLook('').emoji).toBe('⏱️');
+    expect(endsAtText(now, 75)).toBe('fin à 19 h 15');
+  });
+
+  it('roue du temps : angle en minutes, butées en haut', () => {
+    const at = (minutes: number) => (minutes / 60) * 2 * Math.PI;
+    expect(dialMinutes(at(15), 10)).toBe(15);
+    expect(dialMinutes(at(44.6), 40)).toBe(45);
+    expect(dialMinutes(at(2), 58)).toBe(60); // on dépasse le haut en montant : butée à 60
+    expect(dialMinutes(at(57), 3)).toBe(0); // en descendant : butée à 0
+    expect(dialMinutes(at(59.8), 50)).toBe(60);
+    expect(dialMinutes(-at(5), 30)).toBe(55);
+  });
+
+  it('part du temps restant', () => {
+    const timer = { durationSeconds: 600, endsAt: new Date(now.getTime() + 150_000).toISOString() };
+    expect(timerProgress(timer, now)).toBe(0.25);
+    expect(timerProgress({ ...timer, endsAt: now.toISOString() }, now)).toBe(0);
   });
 });

@@ -3,7 +3,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { formatLongDate, formatTime } from '../lib/format.ts';
   import { isPhoneRoute } from '../lib/route.ts';
-  import { formatCountdown, secondsLeft, timerName } from '../lib/timers.ts';
+  import { formatCountdown, secondsLeft, timerLook, timerName } from '../lib/timers.ts';
 
   // Veille de la tablette : après `ui.screensaverMinutes` sans contact ni visage devant la caméra, écran noir où seule
   // l'horloge reste, et se déplace au hasard (pour ne pas marquer l'écran). Un contact, ou un visage vu par la caméra
@@ -120,7 +120,7 @@
       <div class="time">{formatTime(clock.now)}</div>
       <div class="date">{formatLongDate(clock.now)}</div>
       {#each running as timer (timer.id)}
-        <div class="timer">{timerName(timer)} · {formatCountdown(secondsLeft(timer, clock.now))}</div>
+        <div class="timer">{timerLook(timer.label).emoji} {timerName(timer)} · {formatCountdown(secondsLeft(timer, clock.now))}</div>
       {/each}
     </div>
   </div>
