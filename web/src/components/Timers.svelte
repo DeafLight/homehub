@@ -7,7 +7,6 @@
   import { isPhoneRoute } from '../lib/route.ts';
   import {
     DIAL_DEFAULT_MINUTES,
-    DIAL_MAX_MINUTES,
     endsAtText,
     formatCountdown,
     formatDuration,
@@ -16,6 +15,7 @@
     TIMER_PRESETS,
     timerLook,
     timerName,
+    TIMER_MAX_MINUTES,
     timerProgress,
   } from '../lib/timers.ts';
 
@@ -98,7 +98,7 @@
     spin = requestAnimationFrame(step);
   }
 
-  const nudge = (delta: number) => (minutes = Math.max(0, Math.min(DIAL_MAX_MINUTES, minutes + delta)));
+  const nudge = (delta: number) => (minutes = Math.max(0, Math.min(TIMER_MAX_MINUTES, minutes + delta)));
 
   async function start() {
     if (minutes < 1 || starting) return;
@@ -139,6 +139,7 @@
             <button type="button" onclick={() => nudge(-1)} aria-label="Une minute de moins">− 1</button>
             <button type="button" onclick={() => nudge(1)} aria-label="Une minute de plus">+ 1</button>
             <button type="button" onclick={() => nudge(5)} aria-label="Cinq minutes de plus">+ 5</button>
+            <button type="button" onclick={() => nudge(60)} aria-label="Une heure de plus">+ 1 h</button>
           </div>
         </div>
 
@@ -310,7 +311,7 @@
   }
 
   .nudges button {
-    width: 84px;
+    width: 76px;
     min-height: 52px;
     border-radius: 16px;
     background: var(--surface-2);

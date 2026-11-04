@@ -2,13 +2,12 @@
 // tablette. En mémoire seulement : un redémarrage du serveur les perd, ce qui est acceptable pour quelques minutes.
 // Un minuteur terminé reste là (la tablette sonne) jusqu'à ce qu'on l'arrête, ou ENDED_KEPT_MS au plus.
 import { randomUUID } from 'node:crypto';
-import type { Author, Timer } from '../../shared/types.ts';
+import { type Author, type Timer, TIMER_MAX_SECONDS } from '../../shared/types.ts';
 import type { Clock } from './types.ts';
 
 export const MAX_TIMERS = 6;
 export const TIMER_LABEL_MAX = 30;
-/** Durée maximale d'un minuteur : 4 h. */
-export const TIMER_MAX_SECONDS = 4 * 3600;
+export { TIMER_MAX_SECONDS };
 const ENDED_KEPT_MS = 30 * 60_000;
 
 export type TimerStore = {

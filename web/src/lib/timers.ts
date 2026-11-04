@@ -1,11 +1,12 @@
 // Minuteurs : activités proposées, roue du temps et affichage du temps restant (logique pure, testée).
-import type { Timer } from '../../../shared/types.ts';
+import { type Timer, TIMER_MAX_SECONDS } from '../../../shared/types.ts';
 
 /** Raccourcis de durée, en minutes (la roue tourne jusque-là). */
-export const TIMER_PRESETS = [1, 3, 5, 15, 20, 30, 45, 60];
-/** Durée de la roue à l'ouverture, et sa limite (un tour). */
+export const TIMER_PRESETS = [1, 3, 5, 15, 20, 30, 45, 60, 90, 120];
+/** Durée de la roue à l'ouverture. Un tour de roue : une heure ; on peut en faire plusieurs, jusqu'au maximum. */
 export const DIAL_DEFAULT_MINUTES = 10;
-export const DIAL_MAX_MINUTES = 60;
+export const DIAL_LAP_MINUTES = 60;
+export const TIMER_MAX_MINUTES = TIMER_MAX_SECONDS / 60;
 
 /** Activités proposées (facultatives : sans, « Minuteur ») : un emoji et une couleur, reprise partout. */
 export const TIMER_ACTIVITIES = [
@@ -24,27 +25,42 @@ export function timerLook(label: string): { emoji: string; color: string } {
   return activity ? { emoji: activity.emoji, color: activity.color } : DEFAULT_LOOK;
 }
 
-/**
- * Minutes indiquées par la roue pour un angle (radians, 0 en haut, sens horaire). Passer le haut ne fait pas sauter de
- * 60 à 0 (ni de 0 à 60) : depuis une valeur proche, on reste en butée.
- */
-export function dialMinutes(angle: number, previous: number): number {
+/** Position sur le cadran (0 à 60, non arrondie) d'un angle en radians (0 en haut, sens horaire). */
+export function dialPosition(angle: number): number {
   const turn = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-  const minutes = Math.round((turn / (2 * Math.PI)) * DIAL_MAX_MINUTES) % DIAL_MAX_MINUTES;
-  const quarter = DIAL_MAX_MINUTES / 4;
-  if (previous >= DIAL_MAX_MINUTES - quarter && minutes <= quarter) return DIAL_MAX_MINUTES;
-  if (previous <= quarter && minutes >= DIAL_MAX_MINUTES - quarter) return 0;
-  return minutes;
+  return (turn / (2 * Math.PI)) * DIAL_LAP_MINUTES;
+}
+
+const clampMinutes = (minutes: number) => Math.max(0, Math.min(TIMER_MAX_MINUTES, minutes));
+
+/**
+ * Le doigt passe de la position `from` à `to` sur le cadran : la durée avance (ou recule) d'autant, en passant le haut
+ * sans sauter (un tour de plus ou de moins). Jamais sous 0 ni au-delà du maximum.
+ */
+export function dialTurn(minutes: number, from: number, to: number): number {
+  let delta = to - from;
+  if (delta > DIAL_LAP_MINUTES / 2) delta -= DIAL_LAP_MINUTES;
+  if (delta < -DIAL_LAP_MINUTES / 2) delta += DIAL_LAP_MINUTES;
+  return clampMinutes(minutes + delta);
+}
+
+/** Toucher le cadran à la position `at` : la durée la plus proche de l'actuelle qui tombe à cet endroit. */
+export function dialTap(minutes: number, at: number): number {
+  const lap = Math.floor(minutes / DIAL_LAP_MINUTES);
+  const candidates = [lap - 1, lap, lap + 1].map((l) => l * DIAL_LAP_MINUTES + at).filter((m) => m >= 0);
+  const nearest = candidates.reduce((best, m) => (Math.abs(m - minutes) < Math.abs(best - minutes) ? m : best));
+  return clampMinutes(nearest);
 }
 
 /** Part du temps qui reste (1 : tout juste lancé, 0 : terminé). */
 export const timerProgress = (timer: Pick<Timer, 'endsAt' | 'durationSeconds'>, now: Date) =>
   timer.durationSeconds > 0 ? Math.min(1, secondsLeft(timer, now) / timer.durationSeconds) : 0;
 
-/** « fin à 19 h 52 ». */
+/** « fin à 19 h 52 », « fin demain à 2 h 10 ». */
 export function endsAtText(now: Date, minutes: number): string {
   const end = new Date(now.getTime() + minutes * 60_000);
-  return `fin à ${end.getHours()} h ${String(end.getMinutes()).padStart(2, '0')}`;
+  const nextDay = end.toDateString() !== now.toDateString();
+  return `fin ${nextDay ? 'demain ' : ''}à ${end.getHours()} h ${String(end.getMinutes()).padStart(2, '0')}`;
 }
 
 export const timerName = (timer: Pick<Timer, 'label'>) => timer.label || 'Minuteur';

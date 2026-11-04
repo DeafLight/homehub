@@ -81,7 +81,8 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre (`routine-plans.json`). Chaque
   étape garde un identifiant : la renommer ou la déplacer ne perd ni ses cases du jour ni les jours de suite.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail. La durée se choisit sur une roue (glisser
-  le doigt autour du cadran, 1 min à 1 h ; − 1, + 1, + 5 ; raccourcis qui font tourner la roue) qui montre l'heure de
+  le doigt autour du cadran : un tour, une heure, autant de tours qu'on veut jusqu'à 24 h ; − 1, + 1, + 5, + 1 h ;
+  raccourcis jusqu'à 2 h qui font tourner la roue) qui montre l'heure de
   fin ; l'activité, facultative (🍝 Cuisson, 📺 Écrans, 📚 Devoirs, 🦷 Dents, 🚿 Douche, 🎲 Jeux), donne son emoji et
   sa couleur à la roue, aux pastilles et à l'alerte ; puis « Lancer ». En cours, ils restent en bas de l'écran, avec un
   anneau qui se vide (et sous l'horloge de la veille) ; à la fin, ils

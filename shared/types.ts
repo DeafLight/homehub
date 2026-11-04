@@ -201,6 +201,9 @@ export type Timer = {
 /** Nombre de semaines consultables après la semaine en cours (limité par la fenêtre des emplois du temps). */
 export const WEEKS_AHEAD = 2;
 
+/** Durée maximale d'un minuteur : 24 h (la roue de la tablette s'y arrête). */
+export const TIMER_MAX_SECONDS = 24 * 3600;
+
 /** Agenda et cours d'un profil sur la semaine affichée. */
 export type WeekOwner = {
   ownerId: string;

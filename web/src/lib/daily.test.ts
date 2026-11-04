@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { routineFooter, routineTitle } from './routine.ts';
-import { dialMinutes, endsAtText, formatCountdown, formatDuration, secondsLeft, timerLook, timerName, timerProgress } from './timers.ts';
+import { dialPosition, dialTap, dialTurn, endsAtText, formatCountdown, formatDuration, secondsLeft, timerLook, timerName, timerProgress } from './timers.ts';
 
 const items = (...done: boolean[]) => done.map((d, i) => ({ id: `evening-${i}`, label: `Étape ${i}`, done: d }));
 
@@ -34,16 +34,20 @@ describe('minuteurs', () => {
     expect(timerLook('Cuisson')).toEqual({ emoji: '🍝', color: '#f2b84b' });
     expect(timerLook('').emoji).toBe('⏱️');
     expect(endsAtText(now, 75)).toBe('fin à 19 h 15');
+    expect(endsAtText(now, 8 * 60 + 10)).toBe('fin demain à 2 h 10');
   });
 
-  it('roue du temps : angle en minutes, butées en haut', () => {
-    const at = (minutes: number) => (minutes / 60) * 2 * Math.PI;
-    expect(dialMinutes(at(15), 10)).toBe(15);
-    expect(dialMinutes(at(44.6), 40)).toBe(45);
-    expect(dialMinutes(at(2), 58)).toBe(60); // on dépasse le haut en montant : butée à 60
-    expect(dialMinutes(at(57), 3)).toBe(0); // en descendant : butée à 0
-    expect(dialMinutes(at(59.8), 50)).toBe(60);
-    expect(dialMinutes(-at(5), 30)).toBe(55);
+  it('roue du temps : plusieurs tours, jamais sous 0', () => {
+    expect(dialPosition((15 / 60) * 2 * Math.PI)).toBeCloseTo(15);
+    expect(dialPosition(-(5 / 60) * 2 * Math.PI)).toBeCloseTo(55);
+    expect(dialTurn(10, 10, 25)).toBe(25);
+    expect(dialTurn(58, 58, 3)).toBe(63); // passer le haut en montant : un tour de plus
+    expect(dialTurn(63, 3, 57)).toBe(57); // et en redescendant
+    expect(dialTurn(2, 2, 50)).toBe(0); // pas sous 0
+    expect(dialTurn(24 * 60 - 1, 59, 5)).toBe(24 * 60); // 24 h au plus
+    expect(dialTap(10, 40)).toBe(40);
+    expect(dialTap(70, 5)).toBe(65); // toucher dans le tour en cours
+    expect(dialTap(118, 2)).toBe(122); // ou le suivant, s'il est plus près
   });
 
   it('part du temps restant', () => {
