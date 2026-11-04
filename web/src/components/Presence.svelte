@@ -7,14 +7,15 @@
   // Caméra de la tablette, discrète : environ une analyse par seconde tant que l'écran est allumé (veille comprise),
   // pour savoir qui est devant (voir lib/actor.svelte.ts) et réveiller la tablette quand quelqu'un arrive. Invisible,
   // sauf quand un geste attend une reconnaissance : une petite bulle montre alors l'image de la caméra. Éteinte sur
-  // les téléphones et sur la page Visages (qui a besoin de la caméra).
+  // les téléphones et sur la page Visages (qui a besoin de la caméra). Un visage plus petit que `faces.minSize` (trop
+  // loin pour une empreinte fiable) réveille la tablette sans être reconnu.
   const TICK_MS = 1_000;
   /** Un geste attend : on analyse plus souvent. */
   const FAST_TICK_MS = 300;
   /** Caméra refusée ou absente : nouvel essai après ce délai. */
   const RETRY_MS = 60_000;
 
-  const { api, actor, router } = getAppContext();
+  const { api, actor, config, router } = getAppContext();
 
   let kiosk = $state(false);
   let visible = $state(document.visibilityState === 'visible');
@@ -45,10 +46,10 @@
           await prepareFaces();
           actor.setCamera('on');
           while (!stopped) {
-            const reading = await readFace(el);
+            const reading = await readFace(el, config.faces.minConfidence);
             if (stopped) return;
             if (reading) actor.sawFace();
-            if (!reading?.embedding.length) {
+            if (!reading?.embedding.length || reading.size < config.faces.minSize) {
               actor.report(null);
             } else {
               const { embedding, real, live } = reading;

@@ -61,19 +61,27 @@ pronote:
 kiosk:
   addresses: []
 
-# Reconnaissance faciale de la tablette (qui modifie). Valeurs par défaut ci-dessous ; les scores de chaque essai
-# apparaissent dans les logs (« visages : … ») pour les ajuster.
+# Reconnaissance faciale de la tablette (qui modifie). Valeurs par défaut ci-dessous ; pour les ajuster : roue dentée ›
+# Visages › Diagnostic, sur la tablette (et les logs, « visages : … »).
 #   threshold      : ressemblance minimale avec un visage enregistré (0 à 1)
 #   margin         : avance minimale sur la personne suivante (deux frères et sœurs proches : l'augmenter)
 #   antispoof      : score minimal « vrai visage » plutôt qu'une photo
 #   liveness       : score minimal « visage vivant » plutôt qu'un écran
 #   sessionMinutes : durée d'une identification sans geste
+#   minConfidence  : confiance minimale du détecteur pour voir un visage (plus bas : de plus loin, plus d'erreurs)
+#   minSize        : largeur minimale du visage, en part de l'image, pour tenter de le reconnaître (0 : aucune) ;
+#                    plus petit, il réveille seulement la tablette
+#   learnMinutes   : au plus une empreinte apprise par personne et par période, lors d'une reconnaissance sûre
+#                    (0 : jamais)
 # faces:
 #   threshold: 0.55
 #   margin: 0.05
 #   antispoof: 0.2
 #   liveness: 0.2
 #   sessionMinutes: 10
+#   minConfidence: 0.5
+#   minSize: 0
+#   learnMinutes: 30
 
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).

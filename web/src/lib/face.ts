@@ -11,7 +11,12 @@ export type FaceReading = {
   live: number;
   /** Largeur du visage, en part de celle de l'image (0 à 1) : pour guider la distance. */
   size: number;
+  /** Confiance du détecteur qu'il s'agit bien d'un visage (0 à 1). */
+  confidence: number;
 };
+
+/** Confiance minimale du détecteur, par défaut (`faces.minConfidence` de homehub.yaml). */
+export const DEFAULT_MIN_CONFIDENCE = 0.5;
 
 let human: Promise<Human> | null = null;
 
@@ -30,7 +35,7 @@ function load(): Promise<Human> {
       segmentation: { enabled: false },
       face: {
         enabled: true,
-        detector: { rotation: false, maxDetected: 1, minConfidence: 0.5 },
+        detector: { rotation: false, maxDetected: 1, minConfidence: DEFAULT_MIN_CONFIDENCE },
         mesh: { enabled: true },
         attention: { enabled: false },
         iris: { enabled: false },
@@ -52,15 +57,20 @@ function load(): Promise<Human> {
 export const prepareFaces = () => load().then(() => undefined);
 
 /**
- * Visage vu par la caméra, ou null s'il n'y en a pas. Trop flou ou trop loin pour en tirer une empreinte : `embedding`
- * vide (quelqu'un est là, sans qu'on puisse dire qui).
+ * Visage vu par la caméra, ou null s'il n'y en a pas (`minConfidence` : confiance minimale du détecteur). Trop flou ou
+ * trop loin pour en tirer une empreinte : `embedding` vide (quelqu'un est là, sans qu'on puisse dire qui).
  */
-export async function readFace(video: HTMLVideoElement): Promise<FaceReading | null> {
-  const result = await (await load()).detect(video);
+export async function readFace(video: HTMLVideoElement, minConfidence = DEFAULT_MIN_CONFIDENCE): Promise<FaceReading | null> {
+  const result = await (await load()).detect(video, { face: { detector: { minConfidence } } });
   const face = result.face[0];
   if (!face) return null;
-  const size = face.boxRaw?.[2] ?? 0;
-  return { embedding: Array.from(face.embedding ?? []), real: face.real ?? 0, live: face.live ?? 0, size };
+  return {
+    embedding: Array.from(face.embedding ?? []),
+    real: face.real ?? 0,
+    live: face.live ?? 0,
+    size: face.boxRaw?.[2] ?? 0,
+    confidence: face.boxScore ?? face.score ?? 0,
+  };
 }
 
 /** Message à afficher quand la caméra ou la bibliothèque ne démarre pas. */

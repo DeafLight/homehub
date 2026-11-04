@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
   import BackButton from '../components/BackButton.svelte';
+  import FaceDiagnostic from '../components/FaceDiagnostic.svelte';
   import PinPad from '../components/PinPad.svelte';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
@@ -13,7 +14,7 @@
   // Visages de la famille, ouverts depuis la roue dentée (tablette seulement) : chacun se place devant la caméra, à sa
   // place habituelle, le temps de quelques prises (guidées : ni trop loin, ni trop près), puis un parent valide avec le
   // code parent (scripts/set-pin.ts --parent). Seules les empreintes des visages sont gardées, sur le serveur ; aucune
-  // photo.
+  // photo. Le diagnostic montre en direct pourquoi un visage est reconnu ou non, pour régler les seuils.
   const SAMPLES = 10;
   const PAUSE_MS = 400;
   /** Largeur du visage acceptée, en part de l'image : en dehors, on guide (« approche-toi », « recule un peu »). */
@@ -33,11 +34,14 @@
 
   const members = profiles.filter((p) => !p.isFamily);
   const isParent = (id: string) => config.members.find((m) => m.id === id)?.parent ?? false;
+  const samplesText = (count: { enrolled: number; learned: number } | undefined) =>
+    !count ? '' : ` (${count.enrolled} prises${count.learned ? `, ${count.learned} apprise${count.learned > 1 ? 's' : ''}` : ''})`;
 
   /** Prises en cours pour ce profil, puis code parent ; ou effacement (code parent). */
   let capturing = $state<Profile | null>(null);
   let samples = $state<number[][]>([]);
   let erasing = $state<Profile | null>(null);
+  let diagnosing = $state(false);
   let message = $state<string | null>(null);
   let pinError = $state<string | null>(null);
   let video = $state<HTMLVideoElement>();
@@ -57,7 +61,7 @@
         message = 'Préparation…';
         await prepareFaces();
         while (!stopped && samples.length < SAMPLES) {
-          const reading = await readFace(el);
+          const reading = await readFace(el, config.faces.minConfidence);
           if (stopped) return;
           if (!reading?.embedding.length) message = 'Regarde la tablette';
           else if (reading.size < MIN_SIZE) message = 'Approche-toi';
@@ -117,6 +121,8 @@
 
   {#if !me.data?.kiosk}
     {#if me.data}<p class="muted">Réservé à la tablette.</p>{/if}
+  {:else if diagnosing}
+    <FaceDiagnostic onClose={() => (diagnosing = false)} />
   {:else if capturing && ready}
     {@const profile = capturing}
     <PinPad
@@ -160,11 +166,12 @@
     <ul class="members">
       {#each members as profile (profile.id)}
         {@const enrolled = faces.data?.enrolled.includes(profile.id) ?? false}
+        {@const count = faces.data?.samples?.[profile.id]}
         <li>
           <Avatar {profile} size={56} />
           <div class="who">
             <span class="name">{profile.name}</span>
-            <span class="muted">{isParent(profile.id) ? 'Parent' : 'Enfant'} · {enrolled ? 'visage enregistré' : 'pas encore de visage'}</span>
+            <span class="muted">{isParent(profile.id) ? 'Parent' : 'Enfant'} · {enrolled ? `visage enregistré${samplesText(count)}` : 'pas encore de visage'}</span>
           </div>
           <button type="button" class="primary" onclick={() => start(profile)}>{enrolled ? 'Compléter' : 'Enregistrer'}</button>
           {#if enrolled}
@@ -173,6 +180,12 @@
         </li>
       {/each}
     </ul>
+    {#if faces.data?.enrolled.length}
+      <div class="tools">
+        <button type="button" class="secondary" onclick={() => (diagnosing = true)}>Diagnostic</button>
+        <span class="muted">Pourquoi un visage est reconnu ou non, en direct, avec des pistes de réglage.</span>
+      </div>
+    {/if}
     {#if faces.error}<p class="error">{faces.error}</p>{/if}
   {/if}
 </div>
@@ -246,6 +259,13 @@
   .name {
     font-size: 1.3rem;
     font-weight: 600;
+  }
+
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: 760px;
   }
 
   .capture {

@@ -9,7 +9,15 @@ import { FAMILY_ID, type Me } from '../shared/types.ts';
 import { type Access, ACTOR_HEADER } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DeviceStore } from './sources/devices.ts';
-import { type ActorSessions, embeddingSchema, type FaceStore, MAX_SAMPLES } from './sources/faces.ts';
+import {
+  type ActorSessions,
+  embeddingSchema,
+  type FaceStore,
+  type FaceVerdict,
+  judge,
+  MAX_SAMPLES,
+  worthLearning,
+} from './sources/faces.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
 import { NOTE_MAX, type NotesStore } from './sources/notes.ts';
 import { PARENT_PIN_ID, type PinStore } from './sources/pins.ts';
@@ -242,8 +250,21 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
 
   api.get('/faces', async (c) => {
     const denied = await kioskOnly(c);
-    return denied ?? c.json({ enrolled: await faces.enrolled() });
+    return denied ?? c.json({ enrolled: await faces.enrolled(), samples: await faces.counts() });
   });
+
+  /** Juge une analyse de la tablette, sur les membres actuels seulement (un profil retiré n'est plus reconnu). */
+  async function verdictOf(reading: z.infer<typeof identifySchema>) {
+    const members = new Set(config.current().members.map((m) => m.id));
+    const scores = (await faces.scores(reading.embedding)).filter((s) => members.has(s.ownerId));
+    return { scores, verdict: judge(reading, scores, config.current().faces) };
+  }
+
+  const describe = ({ result, ownerId, score, next }: FaceVerdict, { real, live }: { real: number; live: number }) =>
+    `${result} : ${ownerId ?? '-'} ${score}, suivant ${next}, real=${real} live=${live}`;
+
+  /** Dernière empreinte apprise, par personne. */
+  const lastLearned = new Map<string, number>();
 
   /** Journal des visages : chaque reconnaissance nouvelle, et un refus toutes les 10 s au plus (la tablette en envoie un par seconde). */
   let lastRejectLog = 0;
@@ -264,25 +285,39 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
     const input = identifySchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: 'Empreinte de visage attendue' }, 400);
     const rules = config.current().faces;
-    const { embedding, real, live } = input.data;
-    if (real < rules.antispoof || live < rules.liveness) {
-      logReject(`refusé (photo ou écran ?) real=${real} live=${live}`);
-      return c.json({ error: 'Visage non reconnu : approche-toi de la tablette' }, 401);
+    const { verdict } = await verdictOf(input.data);
+    if (verdict.result !== 'ok' || !verdict.ownerId) {
+      logReject(`non reconnu, ${describe(verdict, input.data)}`);
+      const far = verdict.result === 'photo' || verdict.result === 'screen';
+      return c.json({ error: far ? 'Visage non reconnu : approche-toi de la tablette' : 'Visage non reconnu' }, 401);
     }
-    const match = await faces.closest(embedding);
-    const scores = match ? `${match.ownerId} ${match.score}, suivant ${match.next}, real=${real} live=${live}` : 'aucun enregistré';
-    const known = match && config.current().members.some((m) => m.id === match.ownerId);
-    if (!match || !known || match.score < rules.threshold || match.score - match.next < rules.margin) {
-      logReject(`non reconnu : ${scores}`);
-      return c.json({ error: 'Visage non reconnu' }, 401);
+    const ownerId = verdict.ownerId;
+    const now = Date.now();
+    if (rules.learnMinutes > 0 && worthLearning(verdict, rules) && now - (lastLearned.get(ownerId) ?? 0) >= rules.learnMinutes * 60_000) {
+      lastLearned.set(ownerId, now);
+      await faces.learn(ownerId, input.data.embedding);
+      console.info(`visages : empreinte apprise, ${describe(verdict, input.data)}`);
     }
     const presented = c.req.header(ACTOR_HEADER);
-    if (presented && sessions.get(presented, rules.sessionMinutes) === match.ownerId) {
-      return c.json({ ownerId: match.ownerId, token: presented });
+    if (presented && sessions.get(presented, rules.sessionMinutes) === ownerId) {
+      return c.json({ ownerId, token: presented });
     }
     sessions.close(presented);
-    console.info(`visages : reconnu ${scores}`);
-    return c.json({ ownerId: match.ownerId, ...sessions.open(match.ownerId, rules.sessionMinutes) });
+    console.info(`visages : reconnu, ${describe(verdict, input.data)}`);
+    return c.json({ ownerId, ...sessions.open(ownerId, rules.sessionMinutes) });
+  });
+
+  /**
+   * Diagnostic (page Visages) : le verdict d'une analyse et la ressemblance avec chaque personne, avec les seuils en
+   * vigueur ; n'ouvre aucune session et n'apprend rien.
+   */
+  api.post('/faces/diagnose', async (c) => {
+    const denied = await kioskOnly(c);
+    if (denied) return denied;
+    const input = identifySchema.safeParse(await body(c));
+    if (!input.success) return c.json({ error: 'Empreinte de visage attendue' }, 400);
+    const { threshold, margin, antispoof, liveness } = config.current().faces;
+    return c.json({ ...(await verdictOf(input.data)), rules: { threshold, margin, antispoof, liveness } });
   });
 
   api.delete('/faces/session', (c) => {

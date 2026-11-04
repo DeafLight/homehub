@@ -57,7 +57,11 @@ export const configSchema = z.object({
   /**
    * Reconnaissance faciale de la tablette, pour savoir qui écrit. `threshold` : ressemblance minimale (0 à 1) avec un
    * visage enregistré ; `margin` : avance minimale sur la personne suivante ; `antispoof` et `liveness` : scores
-   * minimaux contre une photo ou un écran ; `sessionMinutes` : durée d'une identification sans geste.
+   * minimaux contre une photo ou un écran ; `sessionMinutes` : durée d'une identification sans geste. Détection, sur la
+   * tablette : `minConfidence`, confiance minimale pour voir un visage (plus bas : de plus loin, plus de fausses
+   * détections) ; `minSize`, largeur minimale du visage (part de l'image, 0 : aucune) pour tenter de le reconnaître
+   * (plus petit, il réveille seulement la tablette). `learnMinutes` : au plus une empreinte apprise par personne et
+   * par période, lors d'une reconnaissance sûre (0 : jamais).
    */
   faces: z
     .object({
@@ -66,8 +70,20 @@ export const configSchema = z.object({
       antispoof: z.number().min(0).max(1).default(0.2),
       liveness: z.number().min(0).max(1).default(0.2),
       sessionMinutes: z.number().int().min(1).max(60).default(10),
+      minConfidence: z.number().min(0.1).max(0.95).default(0.5),
+      minSize: z.number().min(0).max(0.6).default(0),
+      learnMinutes: z.number().int().min(0).max(10_080).default(30),
     })
-    .default({ threshold: 0.55, margin: 0.05, antispoof: 0.2, liveness: 0.2, sessionMinutes: 10 }),
+    .default({
+      threshold: 0.55,
+      margin: 0.05,
+      antispoof: 0.2,
+      liveness: 0.2,
+      sessionMinutes: 10,
+      minConfidence: 0.5,
+      minSize: 0,
+      learnMinutes: 30,
+    }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({
@@ -118,6 +134,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     members: config.members.map(({ id, name, color, parent }) => ({ id, name, color, parent })),
     family: { name: config.family.name },
     ui: config.ui,
+    faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize },
     revision,
   };
 }

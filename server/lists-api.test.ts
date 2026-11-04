@@ -252,7 +252,10 @@ describe('API des listes', () => {
     expect((await enroll('inconnu', 1, '9753')).status).toBe(400);
     expect((await enroll('alex', 1, '9753')).status).toBe(204);
     expect((await enroll('tom', -1, '9753')).status).toBe(204);
-    expect(await (await call('GET', '/faces', { key: KEY })).json()).toEqual({ enrolled: ['alex', 'tom'] });
+    expect(await (await call('GET', '/faces', { key: KEY })).json()).toEqual({
+      enrolled: ['alex', 'tom'],
+      samples: { alex: { enrolled: 1, learned: 0 }, tom: { enrolled: 1, learned: 0 } },
+    });
 
     const found = await identify(0.98);
     expect(found.status).toBe(200);
@@ -265,12 +268,41 @@ describe('API des listes', () => {
     expect((await identify(1, 0.9, 0.1)).status).toBe(401); // écran
     expect((await call('POST', '/faces/identify', { body: { embedding: face(1), real: 1, live: 1 } })).status).toBe(403);
 
+    // Diagnostic : verdict et ressemblances, sans session ni apprentissage.
+    const diagnose = await call('POST', '/faces/diagnose', { key: KEY, body: { embedding: face(0), real: 0.9, live: 0.9 } });
+    expect(await diagnose.json()).toMatchObject({
+      verdict: { result: 'close' },
+      scores: [{ score: 0.67 }, { score: 0.67 }],
+      rules: { threshold: 0.55, margin: 0.05 },
+    });
+    expect((await call('POST', '/faces/diagnose', { body: { embedding: face(1), real: 1, live: 1 } })).status).toBe(403);
+
     expect((await call('DELETE', '/faces/session', { key: KEY, actor: token })).status).toBe(204);
     expect((await call('POST', '/lists/shopping', { key: KEY, actor: token, body: { label: 'Pain' } })).status).toBe(403);
 
     expect((await call('DELETE', '/faces/tom', { key: KEY })).status).toBe(403);
     expect((await call('DELETE', '/faces/tom', { key: KEY, body: { pin: '9753' } })).status).toBe(204);
     expect((await call('DELETE', '/faces/tom', { key: KEY, body: { pin: '9753' } })).status).toBe(404);
+  });
+
+  it('visages : une reconnaissance sûre et nouvelle apprend une empreinte, au plus une par période', async () => {
+    const { call, pins } = setup();
+    await pins.set(PARENT_PIN_ID, '9753');
+    await call('POST', '/faces/alex', { key: KEY, body: { embeddings: [face(1)], pin: '9753' } });
+    await call('POST', '/faces/tom', { key: KEY, body: { embeddings: [face(-1)], pin: '9753' } });
+    const identify = (value: number) =>
+      call('POST', '/faces/identify', { key: KEY, body: { embedding: face(value), real: 0.9, live: 0.9 } });
+    const learned = async () => (await (await call('GET', '/faces', { key: KEY })).json()).samples.alex.learned;
+
+    expect((await identify(0.98)).status).toBe(200); // ressemblance 1 : rien de nouveau
+    expect(await learned()).toBe(0);
+    expect((await identify(0.2)).status).toBe(200); // sûre, et différente des empreintes connues
+    expect(await learned()).toBe(1);
+    // Tout aussi sûre et nouvelle (même par rapport à celle apprise), mais une seule par période.
+    const other = Array.from({ length: 64 }, (_, i) => (i % 2 ? 1.8 : 0.2));
+    const again = await call('POST', '/faces/identify', { key: KEY, body: { embedding: other, real: 0.9, live: 0.9 } });
+    expect(again.status).toBe(200);
+    expect(await learned()).toBe(1);
   });
 
   it('renommer un téléphone : tablette seulement, nom non vide', async () => {

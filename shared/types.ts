@@ -18,6 +18,8 @@ export type PublicConfig = {
   members: Member[];
   family: { name: string };
   ui: { idleTimeoutSeconds: number; screensaverMinutes: number };
+  /** Détection des visages sur la tablette (voir `faces` dans homehub.yaml). */
+  faces: { minConfidence: number; minSize: number };
   /** Empreinte de la configuration : change à chaque modification du fichier. */
   revision: string;
 };

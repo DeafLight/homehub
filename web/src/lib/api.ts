@@ -34,6 +34,15 @@ export class ApiError extends Error {
 
 export type FaceSession = { ownerId: string; token: string; expiresAt: string };
 
+export type FaceReadingInput = { embedding: number[]; real: number; live: number };
+
+/** Verdict du serveur sur une analyse (voir server/sources/faces.ts), pour le diagnostic. */
+export type FaceDiagnosis = {
+  verdict: { result: 'ok' | 'photo' | 'screen' | 'none' | 'low' | 'close'; ownerId: string | null; score: number; next: number };
+  scores: { ownerId: string; score: number }[];
+  rules: { threshold: number; margin: number; antispoof: number; liveness: number };
+};
+
 export type Api = {
   health(): Promise<Health>;
   config(): Promise<PublicConfig>;
@@ -58,8 +67,10 @@ export type Api = {
   addNote(to: string, text: string, from?: string | null): Promise<Note>;
   markNoteSeen(id: string): Promise<Note>;
   /** Visages enregistrés (tablette seule). */
-  faces(): Promise<{ enrolled: string[] }>;
-  identifyFace(reading: { embedding: number[]; real: number; live: number }): Promise<FaceSession>;
+  faces(): Promise<{ enrolled: string[]; samples: Record<string, { enrolled: number; learned: number }> }>;
+  identifyFace(reading: FaceReadingInput): Promise<FaceSession>;
+  /** Verdict détaillé d'une analyse, sans session (diagnostic). */
+  diagnoseFace(reading: FaceReadingInput): Promise<FaceDiagnosis>;
   endFaceSession(): Promise<void>;
   /** Enregistrer ou retirer un visage : code parent. */
   enrollFace(ownerId: string, embeddings: number[][], pin: string): Promise<void>;
@@ -134,6 +145,7 @@ export function createApi(
     markNoteSeen: (id) => send('PUT', `/notes/${encodeURIComponent(id)}/seen`),
     faces: () => request('/faces'),
     identifyFace: (reading) => send('POST', '/faces/identify', reading),
+    diagnoseFace: (reading) => send('POST', '/faces/diagnose', reading),
     endFaceSession: () => send('DELETE', '/faces/session'),
     enrollFace: (ownerId, embeddings, pin) => send('POST', `/faces/${encodeURIComponent(ownerId)}`, { embeddings, pin }),
     removeFace: (ownerId, pin) => send('DELETE', `/faces/${encodeURIComponent(ownerId)}`, { pin }),
