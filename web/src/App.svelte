@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
-  import FaceCheck from './components/FaceCheck.svelte';
+  import { onMount } from 'svelte';
+  import Presence from './components/Presence.svelte';
   import StatusBanner from './components/StatusBanner.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
@@ -23,11 +23,6 @@
   const { api, actor, config, router } = getAppContext();
 
   let reachable = $state(true);
-
-  // De retour à l'accueil (geste, ou inactivité) : la personne reconnue n'est plus devant la tablette.
-  $effect(() => {
-    if (router.route.name === 'home') untrack(() => actor.end());
-  });
 
   onMount(() => {
     const stopVersion = watchVersion({
@@ -79,9 +74,7 @@
   <Home />
 {/if}
 
-{#if actor.asking}
-  <FaceCheck />
-{/if}
+<Presence />
 
 {#if actor.notice}
   <div class="notice" role="status">{actor.notice}</div>

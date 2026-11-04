@@ -4,6 +4,7 @@
   import type { Profile } from '../lib/profiles.ts';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
+  import { revert } from '../lib/checkbox.ts';
 
   // Tâches de la famille, triées par le serveur (échéance, puis sans date, puis faites aujourd'hui), avec un filtre
   // par personne. Tailles réglables par le parent (--list-font, --list-row) : tablette ou téléphone.
@@ -58,7 +59,7 @@
             checked={task.done}
             disabled={readOnly}
             style:accent-color={owner?.color ?? 'var(--ok)'}
-            onchange={(e) => onToggle(task, e.currentTarget.checked)}
+            onchange={(e) => onToggle(task, revert(e.currentTarget, task.done))}
           />
           <span class="text">
             <span class="label">{task.label}</span>

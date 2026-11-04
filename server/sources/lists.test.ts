@@ -105,5 +105,8 @@ describe('listes', () => {
     expect(await source.tasksFor('famille')).toMatchObject([{ label: 'Pommes', done: false }]);
     expect(await source.tasksFor('lea')).toEqual([{ id: task.id, label: 'Devoirs', done: false }]);
     expect(await source.setDone('lea', task.id, true)).toEqual({ id: task.id, label: 'Devoirs', done: true });
+    // Depuis le dashboard d'un autre profil : refusée (le droit d'écrire a été vérifié sur ce profil-là).
+    expect(await source.setDone('tom', task.id, false)).toBeNull();
+    expect(await source.tasksFor('lea')).toMatchObject([{ done: true }]);
   });
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ShoppingItem } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
+  import { revert } from '../lib/checkbox.ts';
 
   // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter puis « dans le panier » jusqu'à
   // ce qu'on le vide. Tailles réglables par le parent (--list-font, --list-row) : tablette ou téléphone.
@@ -79,7 +80,7 @@
 {#snippet row(item: ShoppingItem)}
   <li>
     <label class:done={item.done}>
-      <input type="checkbox" checked={item.done} disabled={readOnly} onchange={(e) => onToggle(item, e.currentTarget.checked)} />
+      <input type="checkbox" checked={item.done} disabled={readOnly} onchange={(e) => onToggle(item, revert(e.currentTarget, item.done))} />
       <span class="label">{item.label}</span>
     </label>
     {#if !readOnly}

@@ -20,7 +20,7 @@
   const DEVICES_REFRESH_MS = 15_000;
   const PAIRING_REFRESH_MS = 2_000;
 
-  const { api, profiles, clock } = getAppContext();
+  const { api, actor, profiles, clock } = getAppContext();
   const members = profiles.filter((p) => !p.isFamily);
   const nameOf = (id: string) => profiles.find((p) => p.id === id)?.name ?? id;
 
@@ -87,6 +87,7 @@
 
   /** Vrai si le code est affiché ; sinon l'erreur est montrée (sous le PIN quand on le saisit). */
   async function start(ownerId: string, pin?: string): Promise<boolean> {
+    if (!(await actor.allow(ownerId))) return false;
     try {
       known = new Set((devices.data ?? []).map((d) => d.id));
       pairing = await api.createPairing(ownerId, pin);
@@ -99,7 +100,8 @@
     }
   }
 
-  function askRemove(device: Device) {
+  async function askRemove(device: Device) {
+    if (!(await actor.allow(device.ownerId))) return;
     if (hasPin(device.ownerId) || hasParent) {
       asking = null;
       pinError = null;
@@ -126,7 +128,8 @@
     }
   }
 
-  function startRename(device: Device) {
+  async function startRename(device: Device) {
+    if (!(await actor.allow(device.ownerId))) return;
     editing = device.id;
     draft = readableModel(device.name);
     renameError = null;

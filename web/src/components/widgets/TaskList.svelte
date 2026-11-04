@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Task } from '../../../../shared/types.ts';
   import Card from '../Card.svelte';
+  import { revert } from '../../lib/checkbox.ts';
 
   type Props = {
     title: string;
@@ -24,7 +25,7 @@
               type="checkbox"
               checked={task.done}
               style:accent-color={color}
-              onchange={(e) => onToggle(task, e.currentTarget.checked)}
+              onchange={(e) => onToggle(task, revert(e.currentTarget, task.done))}
             />
             {task.label}
           </label>

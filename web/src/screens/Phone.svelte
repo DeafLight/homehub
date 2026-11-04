@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
+  import { canWrite } from '../../../shared/rights.ts';
   import { FAMILY_ID, type Note } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import Avatar from '../components/Avatar.svelte';
@@ -26,9 +27,12 @@
   type Props = { tab: PhoneTab; shared?: string };
   let { tab, shared }: Props = $props();
 
-  const { api, profiles, clock, navigate } = getAppContext();
+  const { api, config, profiles, clock, navigate } = getAppContext();
   const pairing = loadPairing();
   const me = profiles.find((p) => p.id === pairing?.ownerId);
+  /** « Vu » : sur les mots de mon profil ; ceux de toute la famille, seulement pour un parent. */
+  const member = config.members.find((m) => m.id === pairing?.ownerId);
+  const canMarkSeen = (note: Note) => member !== undefined && canWrite(member, note.to);
 
   /** Le serveur ne reconnaît plus le téléphone (retiré depuis la tablette). */
   let revoked = $state(false);
@@ -66,7 +70,7 @@
       .filter((n) => (n.to === me?.id || n.to === FAMILY_ID) && n.from.ownerId !== me?.id)
       .sort((a, b) => Number(Boolean(a.seenAt)) - Number(Boolean(b.seenAt))),
   );
-  const unseen = $derived(received.filter((n) => !n.seenAt).length);
+  const unseen = $derived(received.filter((n) => !n.seenAt && canMarkSeen(n)).length);
 
   async function seeNote(note: Note) {
     noteError = null;
@@ -140,7 +144,7 @@
                     {author?.name ?? 'Tablette'}{note.to === FAMILY_ID ? ' · pour la famille' : ''} · {formatAgo(new Date(note.at), clock.now)}
                   </span>
                 </div>
-                {#if !note.seenAt}
+                {#if !note.seenAt && canMarkSeen(note)}
                   <button type="button" class="seen" onclick={() => seeNote(note)}>Vu</button>
                 {/if}
               </li>

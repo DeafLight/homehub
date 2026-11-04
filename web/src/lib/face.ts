@@ -9,6 +9,8 @@ export type FaceReading = {
   real: number;
   /** Visage vivant plutôt qu'un écran (0 à 1). */
   live: number;
+  /** Largeur du visage, en part de celle de l'image (0 à 1) : pour guider la distance. */
+  size: number;
 };
 
 let human: Promise<Human> | null = null;
@@ -54,7 +56,8 @@ export async function readFace(video: HTMLVideoElement): Promise<FaceReading | n
   const result = await (await load()).detect(video);
   const face = result.face[0];
   if (!face?.embedding?.length) return null;
-  return { embedding: Array.from(face.embedding), real: face.real ?? 0, live: face.live ?? 0 };
+  const size = face.boxRaw?.[2] ?? 0;
+  return { embedding: Array.from(face.embedding), real: face.real ?? 0, live: face.live ?? 0, size };
 }
 
 /** Message à afficher quand la caméra ou la bibliothèque ne démarre pas. */

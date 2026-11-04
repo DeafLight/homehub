@@ -12,7 +12,7 @@
 
   const HOME_REFRESH_MS = 60_000;
 
-  const { api, profiles, config, clock, navigate } = getAppContext();
+  const { api, actor, profiles, config, clock, navigate } = getAppContext();
   const home = createResource(() => api.home(), HOME_REFRESH_MS);
   onDestroy(home.destroy);
 
@@ -72,6 +72,7 @@
       <button
         class="profile"
         class:family={profile.isFamily}
+        class:recognized={actor.current?.id === profile.id}
         type="button"
         onclick={() => navigate(dashboardPath(profile.id))}
       >
@@ -217,6 +218,11 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+
+  /* Personne reconnue par la caméra : son profil ressort. */
+  .profile.recognized {
+    border-color: var(--fg);
   }
 
   .profile:active {

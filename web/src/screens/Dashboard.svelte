@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { FAMILY_ID, type Note, type Task } from '../../../shared/types.ts';
+  import type { Note, Task } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
@@ -30,9 +30,9 @@
 
   let writing = $state(false);
 
-  // Un mot vu disparaît tout de suite ; le suivant prend sa place. Un mot à toute la famille : n'importe qui le voit.
+  // Un mot vu disparaît tout de suite ; le suivant prend sa place. Un mot à toute la famille : un parent.
   async function seeNote(note: Note) {
-    if (!(await actor.allow(note.to === FAMILY_ID ? null : note.to))) return;
+    if (!(await actor.allow(note.to))) return;
     const data = dashboard.data;
     if (!data) return;
     dashboard.set({ ...data, notes: data.notes.filter((n) => n.id !== note.id) });

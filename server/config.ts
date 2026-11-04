@@ -56,11 +56,11 @@ export const configSchema = z.object({
     .object({
       threshold: z.number().min(0).max(1).default(0.55),
       margin: z.number().min(0).max(1).default(0.05),
-      antispoof: z.number().min(0).max(1).default(0.5),
-      liveness: z.number().min(0).max(1).default(0.5),
+      antispoof: z.number().min(0).max(1).default(0.2),
+      liveness: z.number().min(0).max(1).default(0.2),
       sessionMinutes: z.number().int().min(1).max(60).default(10),
     })
-    .default({ threshold: 0.55, margin: 0.05, antispoof: 0.5, liveness: 0.5, sessionMinutes: 10 }),
+    .default({ threshold: 0.55, margin: 0.05, antispoof: 0.2, liveness: 0.2, sessionMinutes: 10 }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({

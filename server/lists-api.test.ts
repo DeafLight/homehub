@@ -43,6 +43,7 @@ function setup() {
   const api = createListsApi({ config, lists, notes, devices, pins, faces, sessions, access });
   /** Session de la personne reconnue devant la tablette. */
   const as = (ownerId: string) => sessions.open(ownerId, 10).token;
+  const parent = as('alex');
   const call = (method: string, path: string, { from = OTHER, token, key, actor, body }: CallOptions = {}) =>
     api.request(path, {
       method,
@@ -55,12 +56,12 @@ function setup() {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-  return { call, pins, as };
+  return { call, pins, as, parent };
 }
 
 describe('API des listes', () => {
   it('la tablette écrit pour la personne reconnue ; les autres appareils lisent seulement', async () => {
-    const { call, as } = setup();
+    const { call, as, parent } = setup();
     const anonymous = await call('POST', '/lists/shopping', { from: TABLET, body: { label: 'Lait' } });
     expect(anonymous.status).toBe(403);
     expect(await anonymous.json()).toMatchObject({ identify: true });
@@ -78,7 +79,7 @@ describe('API des listes', () => {
   });
 
   it('droits : un parent écrit partout, un enfant sur son profil seulement', async () => {
-    const { call, as } = setup();
+    const { call, as, parent } = setup();
     const tom = as('tom');
     const alex = as('alex');
     const add = (ownerId: string, actor: string) => call('POST', '/lists/tasks', { from: TABLET, actor, body: { label: 'A', ownerId } });
@@ -100,9 +101,9 @@ describe('API des listes', () => {
   });
 
   it('appairage : code créé par la tablette seule, téléphone lié au profil du code', async () => {
-    const { call } = setup();
+    const { call, as, parent } = setup();
     expect((await call('POST', '/pairing', { body: { ownerId: 'tom' } })).status).toBe(403);
-    const { code } = await (await call('POST', '/pairing', { from: TABLET, body: { ownerId: 'tom' } })).json();
+    const { code } = await (await call('POST', '/pairing', { from: TABLET, actor: parent, body: { ownerId: 'tom' } })).json();
 
     const claimed = await call('POST', '/pairing/claim', { body: { code, name: 'Pixel 8' } });
     expect(claimed.status).toBe(201);
@@ -118,10 +119,14 @@ describe('API des listes', () => {
     expect((await task.json()).addedBy).toEqual({ ownerId: 'tom', via: 'phone' });
     expect((await call('POST', '/lists/tasks', { token, body: { label: 'Dentiste', ownerId: 'alex' } })).status).toBe(403);
 
+    // Relier un téléphone : il faut pouvoir écrire sur ce profil.
+    expect((await call('POST', '/pairing', { from: TABLET, body: { ownerId: 'tom' } })).status).toBe(403);
+    expect((await call('POST', '/pairing', { from: TABLET, actor: as('tom'), body: { ownerId: 'alex' } })).status).toBe(403);
+
     // Le téléphone ne gère pas les autres téléphones.
     expect((await call('GET', '/devices', { token })).status).toBe(403);
     const [device] = await (await call('GET', '/devices', { from: TABLET })).json();
-    expect((await call('DELETE', `/devices/${device.id}`, { from: TABLET })).status).toBe(204);
+    expect((await call('DELETE', `/devices/${device.id}`, { from: TABLET, actor: parent })).status).toBe(204);
 
     // Retiré : 401, pour que le téléphone propose de se réappairer.
     expect((await call('POST', '/lists/shopping', { token, body: { label: 'Lait' } })).status).toBe(401);
@@ -129,7 +134,7 @@ describe('API des listes', () => {
   });
 
   it('tâches : profil, échéance et répétition validés', async () => {
-    const { call, as } = setup();
+    const { call, as, parent } = setup();
     const actor = as('alex');
     const add = (body: unknown) => call('POST', '/lists/tasks', { from: TABLET, actor, body });
     expect((await add({ label: 'A', ownerId: 'inconnu' })).status).toBe(400);
@@ -142,7 +147,7 @@ describe('API des listes', () => {
   });
 
   it('clé de la tablette : reconnue d’où qu’elle vienne ; une mauvaise clé ne donne rien', async () => {
-    const { call, as } = setup();
+    const { call, as, parent } = setup();
     expect((await (await call('GET', '/me', { key: KEY })).json()).kiosk).toBe(true);
     expect((await call('POST', '/lists/shopping', { key: KEY, actor: as('alex'), body: { label: 'Lait' } })).status).toBe(201);
     expect((await (await call('GET', '/me', { key: 'mauvaise-cle-de-la-tablette' })).json()).kiosk).toBe(false);
@@ -150,13 +155,13 @@ describe('API des listes', () => {
   });
 
   it('PIN : demandé pour un profil protégé, bloqué après trop d’erreurs', async () => {
-    const { call, pins } = setup();
+    const { call, pins, parent } = setup();
     await pins.set('alex', '4821');
-    const pair = (pin?: string) => call('POST', '/pairing', { key: KEY, body: { ownerId: 'alex', pin } });
+    const pair = (pin?: string) => call('POST', '/pairing', { key: KEY, actor: parent, body: { ownerId: 'alex', pin } });
 
     expect(await (await call('GET', '/pairing/pins', { key: KEY })).json()).toEqual({ protected: ['alex'], parent: false });
     expect((await call('GET', '/pairing/pins')).status).toBe(403);
-    expect((await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).status).toBe(201);
+    expect((await call('POST', '/pairing', { key: KEY, actor: parent, body: { ownerId: 'tom' } })).status).toBe(201);
     expect((await pair()).status).toBe(403);
     expect((await pair('0000')).status).toBe(403);
     expect((await pair('4821')).status).toBe(201);
@@ -170,12 +175,12 @@ describe('API des listes', () => {
   });
 
   it('retirer un téléphone : PIN du propriétaire ou code parent, quand l’un d’eux est défini', async () => {
-    const { call, pins } = setup();
+    const { call, pins, parent } = setup();
     const link = async (ownerId: string) => {
-      const { code } = await (await call('POST', '/pairing', { key: KEY, body: { ownerId } })).json();
+      const { code } = await (await call('POST', '/pairing', { key: KEY, actor: parent, body: { ownerId } })).json();
       return (await (await call('POST', '/pairing/claim', { body: { code, name: 'Pixel' } })).json()).device.id as string;
     };
-    const remove = (id: string, pin?: string) => call('DELETE', `/devices/${id}`, { key: KEY, body: pin ? { pin } : undefined });
+    const remove = (id: string, pin?: string) => call('DELETE', `/devices/${id}`, { key: KEY, actor: parent, body: pin ? { pin } : undefined });
 
     // Aucun code défini : retrait direct (la tablette demande seulement de confirmer).
     expect((await remove(await link('tom'))).status).toBe(204);
@@ -197,8 +202,8 @@ describe('API des listes', () => {
   });
 
   it('mots : envoyés depuis un profil, à un autre ; vus par leur destinataire', async () => {
-    const { call, as } = setup();
-    const { code } = await (await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).json();
+    const { call, as, parent } = setup();
+    const { code } = await (await call('POST', '/pairing', { key: KEY, actor: parent, body: { ownerId: 'tom' } })).json();
     const { token } = await (await call('POST', '/pairing/claim', { body: { code, name: 'Pixel' } })).json();
     const alex = as('alex');
     const tom = as('tom');
@@ -225,14 +230,15 @@ describe('API des listes', () => {
     expect((await call('PUT', `/notes/${fromTablet.id}/seen`, { token })).status).toBe(200);
     expect((await call('PUT', `/notes/${fromPhone.id}/seen`, { key: KEY, actor: alex })).status).toBe(200);
     const family = await (await send({ to: 'famille', from: 'alex', text: 'Bonne journée' })).json();
-    expect((await call('PUT', `/notes/${family.id}/seen`, { token })).status).toBe(200); // à toute la famille : n'importe qui
+    expect((await call('PUT', `/notes/${family.id}/seen`, { token })).status).toBe(403); // à toute la famille : un parent
+    expect((await call('PUT', `/notes/${family.id}/seen`, { key: KEY, actor: alex })).status).toBe(200);
     expect((await call('PUT', '/notes/inconnu/seen', { key: KEY, actor: alex })).status).toBe(404);
     const all = await (await call('GET', '/notes')).json();
     expect(all.filter((n: { seenAt?: string }) => !n.seenAt)).toHaveLength(1); // « Repas à 19 h », pas encore vu
   });
 
   it('visages : enregistrés avec le code parent, reconnus avec une marge sur la personne suivante', async () => {
-    const { call, pins } = setup();
+    const { call, pins, parent } = setup();
     const enroll = (ownerId: string, value: number, pin?: string) =>
       call('POST', `/faces/${ownerId}`, { key: KEY, body: { embeddings: [face(value)], pin } });
     const identify = (value: number, real = 0.9, live = 0.9) =>
@@ -255,8 +261,8 @@ describe('API des listes', () => {
     expect((await call('POST', '/lists/shopping', { key: KEY, actor: token, body: { label: 'Lait' } })).status).toBe(201);
 
     expect((await identify(0)).status).toBe(401); // à égale distance des deux : trop incertain
-    expect((await identify(1, 0.2)).status).toBe(401); // photo
-    expect((await identify(1, 0.9, 0.2)).status).toBe(401); // écran
+    expect((await identify(1, 0.1)).status).toBe(401); // photo
+    expect((await identify(1, 0.9, 0.1)).status).toBe(401); // écran
     expect((await call('POST', '/faces/identify', { body: { embedding: face(1), real: 1, live: 1 } })).status).toBe(403);
 
     expect((await call('DELETE', '/faces/session', { key: KEY, actor: token })).status).toBe(204);
@@ -268,15 +274,15 @@ describe('API des listes', () => {
   });
 
   it('renommer un téléphone : tablette seulement, nom non vide', async () => {
-    const { call } = setup();
-    const { code } = await (await call('POST', '/pairing', { key: KEY, body: { ownerId: 'tom' } })).json();
+    const { call, parent } = setup();
+    const { code } = await (await call('POST', '/pairing', { key: KEY, actor: parent, body: { ownerId: 'tom' } })).json();
     const claimed = await call('POST', '/pairing/claim', { body: { code, name: 'SM-A556B', system: 'Android 15' } });
     const { device } = await claimed.json();
     expect(device).toMatchObject({ name: 'SM-A556B', system: 'Android 15' });
-    const rename = (name: unknown, key?: string) => call('PATCH', `/devices/${device.id}`, { key, body: { name } });
+    const rename = (name: unknown, key?: string) => call('PATCH', `/devices/${device.id}`, { key, actor: parent, body: { name } });
     expect((await rename('Galaxy de Tom')).status).toBe(403);
     expect((await rename('  ', KEY)).status).toBe(400);
     expect(await (await rename(' Galaxy de Tom ', KEY)).json()).toMatchObject({ name: 'Galaxy de Tom' });
-    expect((await call('PATCH', '/devices/inconnu', { key: KEY, body: { name: 'X' } })).status).toBe(404);
+    expect((await call('PATCH', '/devices/inconnu', { key: KEY, actor: parent, body: { name: 'X' } })).status).toBe(404);
   });
 });

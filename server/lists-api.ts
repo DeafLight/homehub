@@ -1,14 +1,15 @@
 // Routes des listes (courses, tâches), des mots, des visages et de l'appairage des téléphones. Lecture ouverte comme le
 // reste de l'API ; écriture : téléphones appairés (pour leur profil) et tablette (pour la personne reconnue), un parent
-// partout, un enfant sur son profil seulement. Appairage, téléphones et visages : tablette seule, avec le PIN du profil
-// quand il en a un (pour retirer un téléphone : ce PIN ou le code parent ; pour les visages : le code parent).
+// partout (famille comprise), un enfant sur son profil seulement. Appairage et téléphones : tablette seule, personne
+// reconnue qui a ce droit sur le profil, et le PIN du profil quand il en a un (pour retirer un téléphone : ce PIN ou le
+// code parent). Visages : tablette seule et code parent (personne n'est encore reconnu au premier enregistrement).
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { FAMILY_ID, type Me } from '../shared/types.ts';
 import { type Access, ACTOR_HEADER } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { DeviceStore } from './sources/devices.ts';
-import { type ActorSessions, embeddingSchema, type FaceStore } from './sources/faces.ts';
+import { type ActorSessions, embeddingSchema, type FaceStore, MAX_SAMPLES } from './sources/faces.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
 import { NOTE_MAX, type NotesStore } from './sources/notes.ts';
 import { PARENT_PIN_ID, type PinStore } from './sources/pins.ts';
@@ -45,7 +46,7 @@ const claimSchema = z.object({ code: z.string().min(1).max(100), name: deviceNam
 const renameSchema = z.object({ name: deviceName });
 const score = z.number().min(0).max(1);
 const identifySchema = z.object({ embedding: embeddingSchema, real: score, live: score });
-const enrollSchema = z.object({ embeddings: z.array(embeddingSchema).min(1).max(10), pin });
+const enrollSchema = z.object({ embeddings: z.array(embeddingSchema).min(1).max(MAX_SAMPLES), pin });
 
 const body = async (c: Context) => c.req.json().catch(() => null);
 
@@ -152,11 +153,11 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
     return c.json(await notes.add(to, text, { ownerId: from, via: who.author.via }), 201);
   });
 
-  /** Marquer « Vu » : un mot du profil (droit d'écriture sur ce profil), ou un mot à toute la famille (n'importe qui). */
+  /** Marquer « Vu » : droit d'écriture sur le destinataire (un mot à toute la famille : un parent). */
   api.put('/notes/:id/seen', async (c) => {
     const note = (await notes.list()).find((n) => n.id === c.req.param('id'));
     if (!note) return c.json({ error: 'Mot inconnu' }, 404);
-    const who = await author(c, note.to === FAMILY_ID ? null : note.to);
+    const who = await author(c, note.to);
     if ('error' in who) return who.error;
     return c.json(await notes.markSeen(note.id, who.author));
   });
@@ -165,6 +166,14 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
 
   const kioskOnly = async (c: Context) =>
     (await caller(c)).kiosk ? null : c.json({ error: 'Réservé à la tablette de la maison' }, 403);
+
+  /** Tablette, et personne reconnue qui peut écrire sur `ownerId` : sinon la réponse d'erreur. */
+  async function kioskWriteDenied(c: Context, ownerId: string) {
+    const denied = await kioskOnly(c);
+    if (denied) return denied;
+    const who = await author(c, ownerId);
+    return 'error' in who ? who.error : null;
+  }
 
   /** Vérifie `pin` contre l'un des codes `ids` (aucun : rien à vérifier) ; renvoie la réponse d'erreur, ou null. */
   async function pinDenied(c: Context, ids: string[], pin: string | undefined) {
@@ -187,14 +196,17 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
     return c.json({ protected: ids.filter((id) => id !== PARENT_PIN_ID), parent: ids.includes(PARENT_PIN_ID) });
   });
 
+  /** Relier un téléphone donne le droit d'écrire sur son profil : il faut soi-même ce droit. */
   api.post('/pairing', async (c) => {
-    const denied = await kioskOnly(c);
-    if (denied) return denied;
+    const kiosk = await kioskOnly(c);
+    if (kiosk) return kiosk;
     const input = pairingSchema.safeParse(await body(c));
     if (!input.success || !config.current().members.some((m) => m.id === input.data.ownerId)) {
       return c.json({ error: 'Profil inconnu' }, 400);
     }
     const { ownerId } = input.data;
+    const denied = await kioskWriteDenied(c, ownerId);
+    if (denied) return denied;
     const protectedIds = await pins.protectedIds();
     const pinError = await pinDenied(c, protectedIds.includes(ownerId) ? [ownerId] : [], input.data.pin);
     return pinError ?? c.json(devices.createCode(ownerId), 201);
@@ -214,11 +226,15 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
 
   /** Nom donné sur la tablette (« Téléphone de Léa ») à la place du modèle annoncé. */
   api.patch('/devices/:id', async (c) => {
-    const denied = await kioskOnly(c);
+    const kiosk = await kioskOnly(c);
+    if (kiosk) return kiosk;
+    const found = (await devices.list()).find((d) => d.id === c.req.param('id'));
+    if (!found) return c.json({ error: 'Téléphone inconnu' }, 404);
+    const denied = await kioskWriteDenied(c, found.ownerId);
     if (denied) return denied;
     const input = renameSchema.safeParse(await body(c));
     if (!input.success) return c.json({ error: 'Nom attendu (60 caractères max)' }, 400);
-    const device = await devices.rename(c.req.param('id'), input.data.name);
+    const device = await devices.rename(found.id, input.data.name);
     return device ? c.json(device) : c.json({ error: 'Téléphone inconnu' }, 404);
   });
 
@@ -229,9 +245,18 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
     return denied ?? c.json({ enrolled: await faces.enrolled() });
   });
 
+  /** Journal des visages : chaque reconnaissance nouvelle, et un refus toutes les 10 s au plus (la tablette en envoie un par seconde). */
+  let lastRejectLog = 0;
+  const logReject = (message: string) => {
+    if (Date.now() - lastRejectLog < 10_000) return;
+    lastRejectLog = Date.now();
+    console.info(`visages : ${message}`);
+  };
+
   /**
-   * La tablette envoie l'empreinte du visage qu'elle voit et ses scores contre une photo (`real`) ou un écran (`live`).
-   * Reconnu : une session, présentée ensuite dans l'en-tête X-Actor-Session.
+   * La tablette envoie, environ une fois par seconde, l'empreinte du visage qu'elle voit et ses scores contre une photo
+   * (`real`) ou un écran (`live`). Reconnu : une session, présentée ensuite dans l'en-tête X-Actor-Session ; la même,
+   * prolongée, tant que c'est la même personne.
    */
   api.post('/faces/identify', async (c) => {
     const denied = await kioskOnly(c);
@@ -241,15 +266,22 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
     const rules = config.current().faces;
     const { embedding, real, live } = input.data;
     if (real < rules.antispoof || live < rules.liveness) {
-      console.info(`visages : refusé (photo ou écran ?) real=${real} live=${live}`);
+      logReject(`refusé (photo ou écran ?) real=${real} live=${live}`);
       return c.json({ error: 'Visage non reconnu : approche-toi de la tablette' }, 401);
     }
     const match = await faces.closest(embedding);
-    console.info(`visages : ${match ? `${match.ownerId} ${match.score}, suivant ${match.next}` : 'aucun enregistré'}`);
+    const scores = match ? `${match.ownerId} ${match.score}, suivant ${match.next}, real=${real} live=${live}` : 'aucun enregistré';
     const known = match && config.current().members.some((m) => m.id === match.ownerId);
     if (!match || !known || match.score < rules.threshold || match.score - match.next < rules.margin) {
+      logReject(`non reconnu : ${scores}`);
       return c.json({ error: 'Visage non reconnu' }, 401);
     }
+    const presented = c.req.header(ACTOR_HEADER);
+    if (presented && sessions.get(presented, rules.sessionMinutes) === match.ownerId) {
+      return c.json({ ownerId: match.ownerId, token: presented });
+    }
+    sessions.close(presented);
+    console.info(`visages : reconnu ${scores}`);
     return c.json({ ownerId: match.ownerId, ...sessions.open(match.ownerId, rules.sessionMinutes) });
   });
 
@@ -287,10 +319,12 @@ export function createListsApi({ config, lists, notes, devices, pins, faces, ses
   });
 
   api.delete('/devices/:id', async (c) => {
-    const denied = await kioskOnly(c);
-    if (denied) return denied;
+    const kiosk = await kioskOnly(c);
+    if (kiosk) return kiosk;
     const device = (await devices.list()).find((d) => d.id === c.req.param('id'));
     if (!device) return c.json({ error: 'Téléphone inconnu' }, 404);
+    const denied = await kioskWriteDenied(c, device.ownerId);
+    if (denied) return denied;
     const input = removeSchema.safeParse(await body(c));
     // Le PIN du propriétaire ou le code parent, quand l'un d'eux est défini.
     const protectedIds = await pins.protectedIds();

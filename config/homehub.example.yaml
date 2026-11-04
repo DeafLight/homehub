@@ -71,8 +71,8 @@ kiosk:
 # faces:
 #   threshold: 0.55
 #   margin: 0.05
-#   antispoof: 0.5
-#   liveness: 0.5
+#   antispoof: 0.2
+#   liveness: 0.2
 #   sessionMinutes: 10
 
 ui:

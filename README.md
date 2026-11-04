@@ -36,18 +36,23 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   sur le serveur : `node scripts/set-pin.ts <profil>` ou `--parent` (dans le conteneur :
   `docker exec -it homehub node scripts/set-pin.ts <profil>`, `--supprimer` pour l'enlever, sans argument : la liste).
   Sans aucun code défini, le retrait se confirme d'un second geste.
-- **Qui écrit** (tablette) : tout le monde lit tous les profils ; au premier geste qui modifie (cocher, ajouter,
-  laisser un mot, « Vu »), la caméra reconnaît la personne devant la tablette, jusqu'au retour à l'accueil (ou
-  « Terminer » dans le rail, ou 10 min sans geste). Un **parent** (`parent: true` dans la configuration) modifie tous
-  les profils ; un enfant, seulement le sien (pas la liste de courses ni le profil de la famille) : sinon, « Lecture
-  seule : profil de … ». Même règle pour les téléphones, chacun au nom de son profil ; un mot à toute la famille peut
-  être marqué « Vu » par n'importe qui. Les visages s'enregistrent par la roue dentée (**Visages**, `/visages`) :
-  quelques prises, puis le code parent (obligatoire). La tablette ne calcule qu'une empreinte du visage (bibliothèque
+- **Qui écrit** (tablette) : tout le monde lit tous les profils. La caméra reconnaît en continu, sans rien demander,
+  la personne devant la tablette (environ une analyse par seconde tant que l'écran est allumé ; deux analyses de
+  suite sur la même personne pour la retenir ; oubliée après 30 s sans être vue). Elle s'affiche en bas du rail, et
+  son profil ressort sur l'accueil. Un geste qui modifie (cocher, ajouter, laisser un mot, « Vu », relier, renommer ou
+  retirer un téléphone) passe tout de suite si elle en a le droit ; si personne n'est encore reconnu, une petite bulle
+  « Regarde la tablette » l'attend quelques secondes. Un **parent** (`parent: true` dans la configuration) modifie
+  tous les profils, famille comprise ; un enfant, seulement le sien (ni la liste de courses, ni le profil de la
+  famille, ni « Vu » sur un mot à toute la famille) : sinon, « Lecture seule : profil de … ». Même règle pour les
+  téléphones, chacun au nom de son profil. Les visages s'enregistrent par la roue dentée (**Visages**, `/visages`) :
+  10 prises guidées (« approche-toi », « recule un peu »), à faire à sa place habituelle, puis le code parent
+  (obligatoire). La tablette ne calcule qu'une empreinte du visage (bibliothèque
   [Human](https://github.com/vladmandic/human), modèles servis par HomeHub) ; le serveur la compare aux empreintes
   enregistrées (`faces.json`) et ouvre une session courte. Aucune image ne quitte la tablette. Limites : la tablette
   est de confiance (sa clé suffit à se faire passer pour elle) ; les contrôles « photo » et « écran » réduisent, sans
-  l'exclure, la ruse d'une photo. Fully Kiosk : activer *Web Content Settings › Enable Webcam Access* et autoriser la
-  caméra à Fully dans Android.
+  l'exclure, la ruse d'une photo ; la caméra reste allumée tant que l'écran l'est (éteinte sur la page Visages, et
+  quand la page est masquée). Fully Kiosk : activer *Web Content Settings › Enable Webcam Access* et autoriser la
+  caméra à Fully dans Android ; la détection de mouvement de Fully se sert aussi de la caméra et peut l'empêcher.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -173,16 +178,16 @@ web/src/
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent }` |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |
-| `PUT /api/notes/:id/seen` | marque un mot vu (droit d'écriture sur son destinataire ; un mot à la famille : n'importe qui) |
+| `PUT /api/notes/:id/seen` | marque un mot vu (droit d'écriture sur son destinataire ; un mot à la famille : un parent) |
 | `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
 | `POST /api/lists/tasks`, `PUT`/`DELETE …/tasks/:id` | tâches (écriture) |
 | `GET /api/pairing/pins` | `{ protected, parent }` : profils qui ont un PIN, code parent défini (tablette seulement) |
-| `POST /api/pairing` | `{ ownerId, pin? }` → code d'appairage (tablette seulement ; 403 si le PIN manque ou est faux, 429 si bloqué) |
+| `POST /api/pairing` | `{ ownerId, pin? }` → code d'appairage (tablette, personne reconnue qui peut écrire sur ce profil ; 403 si le PIN manque ou est faux, 429 si bloqué) |
 | `POST /api/pairing/claim` | `{ code, name, system? }` → `{ token, device }` (410 si le code a expiré ou a servi) |
-| `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) ; retrait : `{ pin }`, PIN du propriétaire ou code parent s'il en existe un |
-| `PATCH /api/devices/:id` | `{ name }` : renomme un téléphone (tablette seulement) |
+| `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) ; retrait : personne reconnue qui peut écrire sur ce profil, et `{ pin }`, PIN du propriétaire ou code parent s'il en existe un |
+| `PATCH /api/devices/:id` | `{ name }` : renomme un téléphone (tablette, personne reconnue qui peut écrire sur ce profil) |
 | `GET /api/faces` | `{ enrolled }` : profils dont le visage est enregistré (tablette seulement) |
-| `POST /api/faces/identify` | `{ embedding, real, live }` → `{ ownerId, token, expiresAt }` (401 : non reconnu ; tablette seulement) |
+| `POST /api/faces/identify` | `{ embedding, real, live }` → `{ ownerId, token }` (même session prolongée pour la même personne ; 401 : non reconnu ; tablette seulement) |
 | `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
 | `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire |
 

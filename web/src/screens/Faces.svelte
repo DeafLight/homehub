@@ -10,11 +10,15 @@
   import { createResource } from '../lib/resource.svelte.ts';
   import type { PageRoute } from '../lib/route.ts';
 
-  // Visages de la famille, ouverts depuis la roue dentée (tablette seulement) : chacun se place devant la caméra le
-  // temps de quelques prises, puis un parent valide avec le code parent (scripts/set-pin.ts --parent). Seules les
-  // empreintes des visages sont gardées, sur le serveur ; aucune photo.
-  const SAMPLES = 5;
-  const PAUSE_MS = 500;
+  // Visages de la famille, ouverts depuis la roue dentée (tablette seulement) : chacun se place devant la caméra, à sa
+  // place habituelle, le temps de quelques prises (guidées : ni trop loin, ni trop près), puis un parent valide avec le
+  // code parent (scripts/set-pin.ts --parent). Seules les empreintes des visages sont gardées, sur le serveur ; aucune
+  // photo.
+  const SAMPLES = 10;
+  const PAUSE_MS = 400;
+  /** Largeur du visage acceptée, en part de l'image : en dehors, on guide (« approche-toi », « recule un peu »). */
+  const MIN_SIZE = 0.18;
+  const MAX_SIZE = 0.6;
 
   type Props = { back: PageRoute };
   let { back }: Props = $props();
@@ -52,11 +56,16 @@
         stopCamera = stop;
         message = 'Préparation…';
         await prepareFaces();
-        message = 'Regarde la tablette, tourne un peu la tête';
         while (!stopped && samples.length < SAMPLES) {
           const reading = await readFace(el);
           if (stopped) return;
-          if (reading) samples = [...samples, reading.embedding];
+          if (!reading) message = 'Regarde la tablette';
+          else if (reading.size < MIN_SIZE) message = 'Approche-toi';
+          else if (reading.size > MAX_SIZE) message = 'Recule un peu';
+          else {
+            message = 'Tourne un peu la tête, doucement';
+            samples = [...samples, reading.embedding];
+          }
           await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
         }
       } catch (err) {

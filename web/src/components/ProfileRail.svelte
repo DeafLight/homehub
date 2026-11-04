@@ -6,8 +6,8 @@
   import Icon from './Icon.svelte';
   import SettingsMenu from './SettingsMenu.svelte';
 
-  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, personne reconnue devant la tablette (qui
-  // peut terminer sa session) et roue dentée (tablette seulement).
+  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, personne reconnue devant la tablette et
+  // roue dentée (tablette seulement).
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
@@ -35,10 +35,15 @@
   {/each}
   <div class="bottom">
     {#if actorProfile}
-      <button class="actor" type="button" aria-label="Terminer la session de {actorProfile.name}" onclick={() => actor.end()}>
+      <div class="actor" role="status" aria-label="Reconnu : {actorProfile.name}">
         <Avatar profile={actorProfile} size={48} />
-        <span>Terminer</span>
-      </button>
+        <span>{actorProfile.name}</span>
+      </div>
+    {:else if actor.camera === 'on'}
+      <div class="actor nobody" role="status" aria-label="Personne n'est reconnu">
+        <Icon name="face" size={32} />
+        <span>Personne</span>
+      </div>
     {/if}
     <SettingsMenu placement="side" size={64} />
   </div>
@@ -121,6 +126,11 @@
     background: var(--surface-2);
     font-size: 0.85rem;
     font-weight: 600;
+  }
+
+  .actor.nobody {
+    color: var(--fg-muted);
+    background: none;
   }
 
   .time {

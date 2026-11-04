@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type { Clock } from './types.ts';
 
 /** Empreintes enregistrées par personne, au plus (les plus récentes). */
-export const MAX_SAMPLES = 10;
+export const MAX_SAMPLES = 20;
 
 export const embeddingSchema = z.array(z.number()).min(64).max(2048);
 const fileSchema = z.object({

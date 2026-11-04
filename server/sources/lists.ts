@@ -246,8 +246,11 @@ export function listsTaskSource(store: ListsStore, familyId: string): TaskSource
     },
     async setDone(ownerId, taskId, done, by) {
       const author = by ?? { ownerId: null, via: 'tablet' };
-      const item =
-        ownerId === familyId ? await store.setShoppingDone(taskId, done, author) : await store.setTaskDone(taskId, done, author);
+      if (ownerId === familyId) return (await store.setShoppingDone(taskId, done, author).then((item) => item && toTask(item)));
+      // Seulement une tâche de ce profil : le droit d'écrire a été vérifié sur lui, pas sur le profil de la tâche.
+      const { tasks } = await store.lists();
+      if (!tasks.some((t) => t.id === taskId && t.ownerId === ownerId)) return null;
+      const item = await store.setTaskDone(taskId, done, author);
       return item && toTask(item);
     },
   };
