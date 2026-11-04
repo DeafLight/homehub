@@ -13,6 +13,7 @@ import type {
   PairingCode,
   PublicConfig,
   Repeat,
+  Routine,
   RoutineSettings,
   ShoppingItem,
   Task,
@@ -56,6 +57,8 @@ export type Api = {
   setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task>;
   /** Étape de la routine du jour (`itemId` : `<période>-<rang>`). */
   setRoutineDone(ownerId: string, itemId: string, done: boolean): Promise<Task>;
+  /** Routine du moment seule (appli du téléphone). */
+  routine(ownerId: string): Promise<{ routine: Routine | null }>;
   timers(): Promise<Timer[]>;
   /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
   routines(): Promise<RoutineSettings>;
@@ -141,6 +144,7 @@ export function createApi(
     week: (offset) => request(`/week?offset=${offset}`),
     nas: () => request('/nas'),
     setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
+    routine: (ownerId) => request(`${ownerPath(ownerId)}/routine`),
     setRoutineDone: (ownerId, itemId, done) => send('PUT', `${ownerPath(ownerId)}/routine/${encodeURIComponent(itemId)}`, { done }),
     timers: () => request('/timers'),
     routines: () => request('/routines'),

@@ -230,6 +230,9 @@ describe('routines', () => {
     expect(await svc.setRoutineDone('lea', 'evening-3', true, by)).toBeNull(); // Piscine : pas le lundi
     expect((await svc.dashboard('lea'))?.routine?.items[1].done).toBe(true);
     expect((await svc.home()).profiles[1].routine).toEqual({ period: 'evening', done: 1, total: 3 });
+    expect((await svc.routine('lea'))?.items.map((i) => i.done)).toEqual([false, true, false]);
+    expect(await svc.routine('alex')).toBeNull();
+    expect(await svc.routine('zoe')).toBeNull();
 
     await svc.setRoutineDone('lea', 'evening-0', true, by);
     await svc.setRoutineDone('lea', 'evening-2', true, by);

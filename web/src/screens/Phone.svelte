@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { canWrite } from '../../../shared/rights.ts';
-  import { FAMILY_ID, type Note } from '../../../shared/types.ts';
+  import { FAMILY_ID, type Note, type Task } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
@@ -15,15 +15,17 @@
   import { clearPairing, loadPairing } from '../lib/phone.ts';
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
+  import { routineFooter, routineTitle } from '../lib/routine.ts';
   import { type PhoneTab, phonePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
   const ME_REFRESH_MS = 60_000;
   const NOTES_REFRESH_MS = 30_000;
+  const ROUTINE_REFRESH_MS = 60_000;
 
-  // Appli du téléphone relié à un profil : courses, tâches, agenda des 7 prochains jours et mots reçus. Tout ce qui est coché ou
-  // ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
+  // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
+  // jours et mots reçus. Tout ce qui est coché ou ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
   type Props = { tab: PhoneTab; shared?: string };
   let { tab, shared }: Props = $props();
 
@@ -53,7 +55,13 @@
   }, ME_REFRESH_MS);
   const agenda = createResource(() => Promise.all([api.week(0), api.week(1)]), AGENDA_REFRESH_MS);
   const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
+  const routine = createResource(async () => (pairing ? (await api.routine(pairing.ownerId)).routine : null), ROUTINE_REFRESH_MS);
+  // Rouverte (téléphone sorti de la poche) : la routine a pu changer de période ou être cochée sur la tablette.
+  const onVisible = () => document.visibilityState === 'visible' && void routine.refresh();
+  document.addEventListener('visibilitychange', onVisible);
   onDestroy(() => {
+    document.removeEventListener('visibilitychange', onVisible);
+    routine.destroy();
     lists.destroy();
     agenda.destroy();
     notes.destroy();
@@ -71,6 +79,24 @@
       .sort((a, b) => Number(Boolean(a.seenAt)) - Number(Boolean(b.seenAt))),
   );
   const unseen = $derived(received.filter((n) => !n.seenAt && canMarkSeen(n)).length);
+  /** Étapes de la routine du moment pas encore cochées (pastille de l'onglet Tâches). */
+  const routineLeft = $derived(routine.data?.items.filter((i) => !i.done).length ?? 0);
+  let routineError = $state<string | null>(null);
+
+  async function toggleRoutine(item: Task, done: boolean) {
+    const current = routine.data;
+    if (!current || !me) return;
+    routineError = null;
+    routine.set({ ...current, items: current.items.map((i) => (i.id === item.id ? { ...i, done } : i)) });
+    try {
+      await api.setRoutineDone(me.id, item.id, done);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) forget();
+      routineError = (err as Error).message;
+    } finally {
+      await routine.refresh();
+    }
+  }
 
   async function seeNote(note: Note) {
     noteError = null;
@@ -188,6 +214,25 @@
             onClear={lists.clearShopping}
           />
         {:else}
+          {#if routine.data}
+            {@const current = routine.data}
+            {@const footer = routineFooter(current)}
+            <section class="routine" aria-label={routineTitle(current)}>
+              <h2>{routineTitle(current)}</h2>
+              {#if routineError}<p class="error">{routineError}</p>{/if}
+              <ul>
+                {#each current.items as item (item.id)}
+                  <li>
+                    <label class:done={item.done}>
+                      <input type="checkbox" checked={item.done} style:accent-color={me.color} onchange={(e) => toggleRoutine(item, e.currentTarget.checked)} />
+                      {item.label}
+                    </label>
+                  </li>
+                {/each}
+              </ul>
+              {#if footer}<p class="routine-footer">{footer}</p>{/if}
+            </section>
+          {/if}
           <TasksPanel
             tasks={lists.data.tasks}
             {profiles}
@@ -219,6 +264,7 @@
           <span class="tab-icon">
             <Icon name={item.icon} size={26} />
             {#if item.tab === 'notes' && unseen > 0}<span class="badge">{unseen}</span>{/if}
+            {#if item.tab === 'tasks' && routineLeft > 0}<span class="badge routine-badge">{routineLeft}</span>{/if}
           </span>
           {item.label}
         </button>
@@ -391,6 +437,62 @@
     color: var(--bg);
     font: inherit;
     font-weight: 700;
+  }
+
+  .routine {
+    margin-bottom: 18px;
+    padding: 12px 14px 6px;
+    border-radius: 18px;
+    background: var(--surface);
+  }
+
+  .routine h2 {
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+
+  .routine ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .routine li {
+    border-bottom: 1px solid var(--surface-2);
+  }
+
+  .routine li:last-child {
+    border-bottom: 0;
+  }
+
+  .routine label {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: var(--list-row);
+    font-size: var(--list-font);
+  }
+
+  .routine label.done {
+    color: var(--fg-muted);
+    text-decoration: line-through;
+  }
+
+  .routine input {
+    width: 26px;
+    height: 26px;
+    margin: 0;
+  }
+
+  .routine-footer {
+    margin: 4px 0 8px;
+    color: var(--ok-fg);
+    font-weight: 600;
+  }
+
+  .badge.routine-badge {
+    background: var(--rain-soft);
   }
 
   .tab-icon {

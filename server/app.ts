@@ -90,6 +90,13 @@ export function createApp(deps: AppDeps): Hono {
     return task ? c.json(task) : c.json({ error: 'Tâche inconnue' }, 404);
   });
 
+  /** Routine du moment seule (appli du téléphone, sans le reste du dashboard). */
+  api.get('/dashboard/:ownerId/routine', async (c) => {
+    const ownerId = c.req.param('ownerId');
+    if (!service.hasOwner(ownerId)) return c.json({ error: 'Profil inconnu' }, 404);
+    return c.json({ routine: await service.routine(ownerId) });
+  });
+
   /** Routine du jour : mêmes droits que les tâches du profil. */
   api.put('/dashboard/:ownerId/routine/:itemId', async (c) => {
     const body = taskUpdateSchema.safeParse(await c.req.json().catch(() => null));

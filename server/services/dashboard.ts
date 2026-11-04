@@ -37,6 +37,8 @@ export type DashboardService = {
   week(offset: number): Promise<WeekData>;
   /** null si le profil ou la tâche n'existe pas. */
   setTaskDone(ownerId: string, taskId: string, done: boolean, by?: Author): Promise<Task | null>;
+  /** Routine du moment de `ownerId` (appli du téléphone) ; null hors de ses heures, sans étape ou profil inconnu. */
+  routine(ownerId: string): Promise<Routine | null>;
   /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
   setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
 };
@@ -218,6 +220,8 @@ export function createDashboardService({ config, sources, clock, logger, routine
       if (!hasOwner(ownerId)) return null;
       return sources.tasks.setDone(ownerId, taskId, done, by);
     },
+
+    routine: (ownerId) => (hasOwner(ownerId) ? routineOf(ownerId) : Promise.resolve(null)),
 
     async setRoutineDone(ownerId, itemId, done, by) {
       const match = /^(morning|evening)-(\d+)$/.exec(itemId);
