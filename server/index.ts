@@ -24,7 +24,10 @@ import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
 import { createSampleSources } from './sources/sample.ts';
 import { createSourceStatus } from './sources/source-status.ts';
+import { searchAddress } from './sources/geocode.ts';
+import { createGtfsSource } from './sources/gtfs.ts';
 import { createIrigoClient, createTransitSource } from './sources/irigo.ts';
+import { createTransitSettingsStore } from './sources/transit-settings.ts';
 import { type Clock, type Sources, firstSchoolSource } from './sources/types.ts';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -126,14 +129,19 @@ const transit = createTransitSource({
   logger: console,
   status: sourceStatus,
 });
-const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit });
+const transitSettings = createTransitSettingsStore({ path: join(stateDir, 'transit-settings.json'), clock, config });
+await transitSettings.load();
+const gtfs = createGtfsSource({ path: join(stateDir, 'irigo-gtfs.zip'), clock, logger: console, status: sourceStatus });
+// Lu en arrière-plan dès le démarrage : la page « Transports » et le trajet du matin en ont besoin.
+void gtfs.index();
+const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit, transitSettings, gtfs });
 const nas = createNasService({
   nasStatus: createNasStatusSource({ path: nasStatusPath, logger: console }),
   sourceStatus,
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

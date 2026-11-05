@@ -2,7 +2,7 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
-import { FAMILY_ID, type Health, WEEKS_AHEAD } from '../shared/types.ts';
+import { type AddressMatch, FAMILY_ID, type Health, WEEKS_AHEAD } from '../shared/types.ts';
 import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -16,6 +16,8 @@ import { type RoutinePlanStore, routineSettingsInput } from './sources/routine-p
 import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
 import { MAX_TIMERS, TIMER_LABEL_MAX, TIMER_MAX_SECONDS, type TimerStore } from './sources/timers.ts';
+import type { GtfsSource } from './sources/gtfs.ts';
+import { type TransitSettingsStore, transitSettingsInput } from './sources/transit-settings.ts';
 import type { Clock } from './sources/types.ts';
 
 export type AppDeps = {
@@ -30,6 +32,10 @@ export type AppDeps = {
   sessions: ActorSessions;
   timers: TimerStore;
   plans: RoutinePlanStore;
+  /** Page « Transports » ; absents (tests) : page indisponible. */
+  transitSettings?: TransitSettingsStore;
+  gtfs?: GtfsSource;
+  searchAddress?: (query: string, near?: { lat: number; lon: number }) => Promise<AddressMatch[]>;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
   clock: Clock;
@@ -44,11 +50,18 @@ const timerSchema = z.object({
   seconds: z.number().int().min(10).max(TIMER_MAX_SECONDS),
 });
 const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
+const latLonSchema = z
+  .string()
+  .regex(/^-?\d{1,3}(\.\d+)?,-?\d{1,3}(\.\d+)?$/u)
+  .transform((v) => {
+    const [lat, lon] = v.split(',').map(Number);
+    return { lat, lon };
+  });
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
 
 export function createApp(deps: AppDeps): Hono {
-  const { config, service, nas, devices, sessions, timers, plans, kioskKey, clock, version, staticRoot } = deps;
+  const { config, service, nas, devices, sessions, timers, plans, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot } = deps;
   const access: Access = createAccess({
     config,
     devices,
@@ -135,6 +148,77 @@ export function createApp(deps: AppDeps): Hono {
     const unknown = Object.keys(body.data.members).find((id) => id === FAMILY_ID || !members.some((m) => m.id === id));
     if (unknown) return c.json({ error: `Profil inconnu : ${unknown}` }, 400);
     return c.json(await plans.save(body.data, who.author));
+  });
+
+  // Page « Transports » : réservée à la tablette et aux téléphones appairés (les adresses de la famille y sont).
+  const trusted = async (c: Context) => {
+    const caller = await access.caller(c);
+    return caller.kiosk || caller.device !== null;
+  };
+  const gtfsIndex = async () => (gtfs ? await gtfs.index() : null);
+
+  api.get('/transit/settings', async (c) => {
+    if (!transitSettings) return c.json({ error: 'Réglages des transports indisponibles' }, 404);
+    if (!(await trusted(c))) return c.json({ error: 'Réservé à la tablette' }, 403);
+    return c.json(transitSettings.current());
+  });
+
+  api.put('/transit/settings', async (c) => {
+    if (!transitSettings) return c.json({ error: 'Réglages des transports indisponibles' }, 404);
+    const body = transitSettingsInput.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      const issue = body.error.issues[0];
+      return c.json({ error: `Réglages refusés : ${issue?.message ?? 'format inattendu'}` }, 400);
+    }
+    const who = await access.write(c, null);
+    if (!('author' in who)) return c.json({ error: who.error, identify: who.identify }, who.status);
+    const { members } = config.current();
+    if (!members.find((m) => m.id === who.author.ownerId)?.parent) {
+      return c.json({ error: 'Seul un parent peut modifier les transports' }, 403);
+    }
+    const unknown = Object.keys(body.data.commutes).find((id) => !members.some((m) => m.id === id));
+    if (unknown) return c.json({ error: `Profil inconnu : ${unknown}` }, 400);
+    return c.json(await transitSettings.save(body.data, who.author));
+  });
+
+  /** Adresses correspondant à la saisie (Géoplateforme), autour du lieu de la météo s'il est réglé. */
+  api.get('/transit/addresses', async (c) => {
+    const query = (c.req.query('q') ?? '').trim();
+    if (!searchAddress) return c.json({ error: 'Recherche d’adresse indisponible' }, 404);
+    if (!(await trusted(c))) return c.json({ error: 'Réservé à la tablette' }, 403);
+    if (query.length < 3 || query.length > 200) return c.json({ addresses: [] });
+    const weather = config.current().weather;
+    try {
+      return c.json({ addresses: await searchAddress(query, weather && { lat: weather.latitude, lon: weather.longitude }) });
+    } catch (err) {
+      console.error(`Recherche d'adresse : ${(err as Error).message}`);
+      return c.json({ error: 'Recherche d’adresse indisponible' }, 503);
+    }
+  });
+
+  /** Arrêts : par nom (`q`) ou près d'un point (`near=lat,lon`). */
+  api.get('/transit/stops', async (c) => {
+    if (!(await trusted(c))) return c.json({ error: 'Réservé à la tablette' }, 403);
+    const index = await gtfsIndex();
+    if (!index) return c.json({ error: 'Horaires Irigo indisponibles' }, 503);
+    const near = c.req.query('near');
+    if (near !== undefined) {
+      const point = latLonSchema.safeParse(near);
+      if (!point.success) return c.json({ error: 'near attendu : lat,lon' }, 400);
+      return c.json({ stops: index.nearby(point.data) });
+    }
+    return c.json({ stops: index.search(c.req.query('q') ?? '') });
+  });
+
+  /** Lignes directes entre deux points (`from=lat,lon&to=lat,lon`). */
+  api.get('/transit/routes', async (c) => {
+    if (!(await trusted(c))) return c.json({ error: 'Réservé à la tablette' }, 403);
+    const from = latLonSchema.safeParse(c.req.query('from'));
+    const to = latLonSchema.safeParse(c.req.query('to'));
+    if (!from.success || !to.success) return c.json({ error: 'from et to attendus : lat,lon' }, 400);
+    const index = await gtfsIndex();
+    if (!index) return c.json({ error: 'Horaires Irigo indisponibles' }, 503);
+    return c.json({ routes: index.routes(from.data, to.data) });
   });
 
   // Minuteurs : à personne en particulier ; il faut seulement être reconnu (tablette) ou un téléphone appairé.

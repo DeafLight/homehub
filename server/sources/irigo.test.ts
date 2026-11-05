@@ -65,10 +65,10 @@ describe('SIRI', () => {
     const { name, departures } = parseStopMonitoring(VISITS);
     expect(name).toBe('Mairie & Parc');
     expect(departures).toEqual([
-      { line: '3', destination: 'Centre-ville', at: at(-4), realtime: true },
+      { line: '3', destination: 'Centre-ville', at: at(-4), realtime: true, aimed: at(-5) },
       { line: 'A', destination: 'Verneau', at: at(2), realtime: false },
-      { line: '3', destination: 'Lycée', at: at(5), realtime: true, cancelled: true },
-      { line: '3', destination: 'Centre-ville', at: at(10), realtime: true },
+      { line: '3', destination: 'Lycée', at: at(5), realtime: true, aimed: at(4), cancelled: true },
+      { line: '3', destination: 'Centre-ville', at: at(10), realtime: true, aimed: at(9) },
     ]);
   });
 

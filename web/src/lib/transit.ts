@@ -31,6 +31,10 @@ export function departureRows(departures: Departure[], now: Date, perRow = 2): D
 /** Tram (lettre) ou bus (numéro) : pour la couleur de la pastille de ligne. */
 export const isTram = (line: string) => /^[A-Z]$/u.test(line);
 
+const vehicle = (line: string) => (isTram(line) ? `le tram ${line}` : `le bus ${line}`);
+/** Écart toléré entre l'horaire théorique et celui du temps réel pour reconnaître la même course. */
+const SAME_TRIP_MS = 90_000;
+
 export type CommuteState = {
   tone: 'go' | 'hurry' | 'late' | 'none';
   /** Minutes avant de partir de la maison (« Pars dans 2 min »). */
@@ -45,11 +49,11 @@ export type CommuteState = {
  * connu est déjà manqué ; sans passage : rien d'annoncé (la nuit, ou une ligne qui ne passe plus).
  */
 export function commuteState(commute: Commute, now: Date): CommuteState {
-  const vehicle = (line: string) => (isTram(line) ? `le tram ${line}` : `le bus ${line}`);
+  const where = `${commute.stop}${commute.label ? ` → ${commute.label}` : ''} · ${commute.walkMinutes} min à pied`;
+  if (commute.plan) return plannedState(commute, commute.plan, now, where);
   const live = commute.departures.filter((d) => !d.cancelled);
   const leaveOf = (d: Departure) => (Date.parse(d.at) - now.getTime()) / 60_000 - commute.walkMinutes;
   const [next, after] = live.filter((d) => leaveOf(d) >= 0);
-  const where = `${commute.stop}${commute.label ? ` → ${commute.label}` : ''} · ${commute.walkMinutes} min à pied`;
   if (!next) {
     const missed = live.at(-1);
     return missed
@@ -61,4 +65,36 @@ export function commuteState(commute: Commute, now: Date): CommuteState {
   const detail = `${where}${after ? ` · suivant à ${formatTime(new Date(after.at))}` : ''}`;
   if (leaveIn <= 1) return { tone: 'hurry', leaveIn, title: `Pars maintenant pour ${vehicle(commute.line)} de ${at}`, detail };
   return { tone: 'go', leaveIn, title: `Pars dans ${leaveIn} min pour ${vehicle(commute.line)} de ${at}`, detail };
+}
+
+/**
+ * Trajet calé sur l'emploi du temps : la course retenue (dernière qui fait arriver à temps), reconnue parmi les
+ * passages annoncés par son horaire théorique. Pas encore annoncée (plus d'une heure avant) : son horaire prévu.
+ * Supprimée : le prochain passage qu'on peut attraper, en le disant. Manquée : « Trop tard », et le suivant.
+ */
+function plannedState(commute: Commute, plan: NonNullable<Commute['plan']>, now: Date, where: string): CommuteState {
+  const departs = Date.parse(plan.departs);
+  const scheduled = formatTime(new Date(departs));
+  const planned = commute.departures.find((d) => Math.abs(Date.parse(d.aimed ?? d.at) - departs) <= SAME_TRIP_MS);
+  const course = `1er cours à ${formatTime(new Date(plan.firstCourse))}${plan.firstCancelled ? ' (un cours plus tôt est annulé)' : ''}`;
+  if (planned?.cancelled) {
+    const fallback = commuteState({ ...commute, plan: undefined, departures: commute.departures.filter((d) => d !== planned) }, now);
+    return { ...fallback, detail: `${vehicle(commute.line).replace(/^l/u, "L")} de ${scheduled} est supprimé · ${fallback.detail}` };
+  }
+  const at = planned ? Date.parse(planned.at) : departs;
+  const leaveMinutes = (at - now.getTime()) / 60_000 - commute.walkMinutes;
+  const announced = !planned ? ' · horaire prévu' : planned.realtime && Math.abs(at - departs) >= 60_000 ? ` · annoncé à ${formatTime(new Date(at))}` : '';
+  const detail = `${where} · ${course}${announced}`;
+  if (leaveMinutes < 0) {
+    const next = commute.departures.find((d) => !d.cancelled && Date.parse(d.at) > at && (Date.parse(d.at) - now.getTime()) / 60_000 >= commute.walkMinutes);
+    return {
+      tone: 'late',
+      leaveIn: null,
+      title: `Trop tard pour ${vehicle(commute.line)} de ${scheduled}`,
+      detail: next ? `${where} · suivant à ${formatTime(new Date(next.at))}, après l’heure prévue` : detail,
+    };
+  }
+  const leaveIn = Math.floor(leaveMinutes);
+  if (leaveIn <= 1) return { tone: 'hurry', leaveIn, title: `Pars maintenant pour ${vehicle(commute.line)} de ${scheduled}`, detail };
+  return { tone: 'go', leaveIn, title: `Pars dans ${leaveIn} min pour ${vehicle(commute.line)} de ${scheduled}`, detail };
 }

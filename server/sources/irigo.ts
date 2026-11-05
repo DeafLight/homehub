@@ -77,6 +77,7 @@ export function parseStopMonitoring(xml: string): { name?: string; departures: D
       destination: cleanDestination(xmlText(journey, 'DestinationName') ?? xmlText(call, 'DestinationDisplay') ?? ''),
       at: new Date(at).toISOString(),
       realtime: expected !== undefined,
+      ...(expected !== undefined && aimed && !Number.isNaN(Date.parse(aimed)) && { aimed: new Date(aimed).toISOString() }),
       ...(/cancelled/iu.test(status) && { cancelled: true }),
     });
   }

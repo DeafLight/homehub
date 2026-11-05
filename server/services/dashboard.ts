@@ -17,9 +17,10 @@ import {
   type WeatherForecast,
   type WeekData,
 } from '../../shared/types.ts';
-import { WEEK_DAYS } from '../config.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
+import type { GtfsSource } from '../sources/gtfs.ts';
 import { lineLabel, type TransitSource } from '../sources/irigo.ts';
+import { type CommuteTrip, createTransitSettingsStore, type TransitSettingsStore } from '../sources/transit-settings.ts';
 import { localDay } from '../sources/lists.ts';
 import type { RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
@@ -64,15 +65,31 @@ export type DashboardServiceDeps = {
   plans?: Pick<RoutinePlanStore, 'current'>;
   /** Bus et tram ; absent (tests) : ni passages ni trajet. */
   transit?: TransitSource;
+  /** Réglages de la page « Transports » ; absent : ceux du YAML. */
+  transitSettings?: Pick<TransitSettingsStore, 'homeStops' | 'commuteFor'>;
+  /** Horaires théoriques, pour un trajet calé sur l'emploi du temps ; absent : pas de tel trajet. */
+  gtfs?: GtfsSource;
 };
 
 /** Passages gardés par arrêt et pour un trajet. */
 const STOP_DEPARTURES = 8;
 const COMMUTE_DEPARTURES = 4;
+/** Trajet selon l'emploi du temps : la carte reste un moment après l'heure de la course (« Trop tard », suivant). */
+const PLAN_LINGER_MS = 5 * 60_000;
+/** Écart toléré entre l'horaire théorique du GTFS et celui du temps réel pour reconnaître la même course. */
+const SAME_TRIP_MS = 90_000;
 const normalize = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const words = (s: string) => normalize(s).split(/[^a-z0-9]+/u).filter((w) => w.length > 3 && w !== 'angers');
+/** Même destination à peu près : le GTFS dit « ANGERS Bois Rinier », le temps réel peut dire « Bois Rinier ». */
+const sameDirection = (destination: string, headsigns: string[]) => {
+  const got = new Set(words(destination));
+  return headsigns.some((h) => words(h).some((w) => got.has(w)) || normalize(destination).includes(normalize(h)));
+};
 const hhmmOf = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-export function createDashboardService({ config, sources, clock, logger, routines, plans, transit }: DashboardServiceDeps): DashboardService {
+export function createDashboardService(deps: DashboardServiceDeps): DashboardService {
+  const { config, sources, clock, logger, routines, plans, transit, gtfs } = deps;
+  const transitSettings = deps.transitSettings ?? createTransitSettingsStore({ path: '', clock, config });
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
   const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
 
@@ -164,7 +181,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
   async function transitData(): Promise<TransitData> {
     const stops = (
       await Promise.all(
-        config.current().transit.stops.map(async (stop) => {
+        transitSettings.homeStops().map(async (stop) => {
           const data = await departuresAt(stop.id);
           if (!data) return null;
           const lines = stop.lines && new Set(stop.lines.map(lineLabel));
@@ -177,25 +194,76 @@ export function createDashboardService({ config, sources, clock, logger, routine
     return { stops: stops.map(({ lines: _, ...stop }) => stop), alerts: await alertsFor([...lines]) };
   }
 
-  /** Trajet du matin de `ownerId`, à ses jours et heures ; null en dehors, sans trajet ou si Irigo ne répond pas. */
+  /**
+   * Course à prendre aujourd'hui pour arriver avant le premier cours non annulé (marge et marche à l'arrivée
+   * comprises) : la dernière qui arrive à temps, d'après les horaires théoriques. null sans cours, sans horaires ou
+   * sans course qui convienne.
+   */
+  async function planOf(ownerId: string, trip: CommuteTrip, now: Date): Promise<Commute['plan'] | null> {
+    if (!gtfs || !trip.destination) return null;
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    const next = new Date(day);
+    next.setDate(next.getDate() + 1);
+    const courses = (await coursesIn(ownerId, { from: day, to: next }))?.sort((a, b) => a.start.localeCompare(b.start));
+    const first = courses?.find((c) => !c.cancelled);
+    if (!courses || !first) return null;
+    const index = await gtfs.index().catch((err) => {
+      logger.error(`Horaires Irigo indisponibles : ${(err as Error).message}`);
+      return null;
+    });
+    if (!index) return null;
+    const arriveBy = Date.parse(first.start) - (trip.arriveBefore + trip.walkTo) * 60_000;
+    const chosen = index
+      .trips({ line: trip.line, origin: trip.origin, destination: trip.destination }, now)
+      .filter((t) => t.arrives.getTime() <= arriveBy)
+      .at(-1);
+    if (!chosen) return null;
+    return {
+      departs: chosen.departs.toISOString(),
+      arrives: chosen.arrives.toISOString(),
+      leaveAt: new Date(chosen.departs.getTime() - trip.walkFrom * 60_000).toISOString(),
+      firstCourse: first.start,
+      firstCancelled: courses.some((c) => c.cancelled && c.start < first.start),
+    };
+  }
+
+  /**
+   * Trajet du matin de `ownerId` : selon l'emploi du temps (de `showBefore` minutes avant l'heure de partir jusqu'à
+   * peu après la course), ou sur sa plage horaire fixe ; null en dehors, sans trajet ou si Irigo ne répond pas.
+   */
   async function commuteOf(ownerId: string): Promise<Commute | null> {
-    const commute = config.current().members.find((m) => m.id === ownerId)?.commute;
-    if (!commute) return null;
+    const trip = transitSettings.commuteFor(ownerId);
+    if (!trip) return null;
     const now = clock();
-    const time = hhmmOf(now);
-    if (!commute.days.includes(WEEK_DAYS[now.getDay()]) || time < commute.from || time >= commute.to) return null;
-    const data = await departuresAt(commute.stop);
+    if (!trip.days.includes(now.getDay())) return null;
+    let plan: Commute['plan'] | null = null;
+    if (trip.mode === 'school') {
+      plan = await planOf(ownerId, trip, now);
+      if (!plan) return null;
+      const from = Date.parse(plan.leaveAt) - trip.showBefore * 60_000;
+      if (now.getTime() < from || now.getTime() > Date.parse(plan.departs) + PLAN_LINGER_MS) return null;
+    } else {
+      const time = hhmmOf(now);
+      if (time < trip.window.from || time >= trip.window.to) return null;
+    }
+    const data = await departuresAt(trip.origin);
     if (!data) return null;
-    const line = lineLabel(commute.line);
+    const line = lineLabel(trip.line);
+    const departures = data.departures.filter(
+      (d) => d.line === line && (trip.oneWay || trip.headsigns.length === 0 || sameDirection(d.destination, trip.headsigns)),
+    );
+    // La course prévue en tête, même au-delà des premiers passages ; puis les suivantes.
+    const planned = plan && departures.find((d) => Math.abs(Date.parse(d.aimed ?? d.at) - Date.parse(plan.departs)) <= SAME_TRIP_MS);
+    const kept = departures.filter((d) => !plan || Date.parse(d.at) >= Date.parse(plan.departs) - 30 * 60_000 || d === planned);
     return {
       line,
-      stop: data.name ?? commute.stop,
-      ...(commute.label && { label: commute.label }),
-      walkMinutes: commute.walkMinutes,
-      departures: data.departures
-        .filter((d) => d.line === line && (!commute.towards || normalize(d.destination).includes(normalize(commute.towards))))
-        .slice(0, COMMUTE_DEPARTURES),
+      stop: data.name ?? trip.origin,
+      ...(trip.label && { label: trip.label }),
+      walkMinutes: trip.walkFrom,
+      departures: kept.slice(0, COMMUTE_DEPARTURES),
       alerts: await alertsFor([line]),
+      ...(plan && { plan }),
     };
   }
 

@@ -1,6 +1,10 @@
 // Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `credentials` : jeton du téléphone
 // appairé, ou clé de la tablette et session de la personne reconnue devant elle, envoyés avec chaque requête.
 import type {
+  AddressMatch,
+  RouteOption,
+  StopChoice,
+  TransitSettings,
   Homework,
   TransitData,
   DashboardData,
@@ -69,6 +73,13 @@ export type Api = {
   /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
   routines(): Promise<RoutineSettings>;
   saveRoutines(settings: RoutineSettings): Promise<RoutineSettings>;
+  /** Page « Transports » : réglages (les enregistrer : un parent), adresses, arrêts, lignes directes. */
+  transitSettings(): Promise<TransitSettings>;
+  saveTransitSettings(settings: Omit<TransitSettings, 'saved'>): Promise<TransitSettings>;
+  searchAddresses(query: string): Promise<{ addresses: AddressMatch[] }>;
+  searchStops(query: string): Promise<{ stops: StopChoice[] }>;
+  stopsNear(point: { lat: number; lon: number }): Promise<{ stops: StopChoice[] }>;
+  transitRoutes(from: { lat: number; lon: number }, to: { lat: number; lon: number }): Promise<{ routes: RouteOption[] }>;
   startTimer(label: string, seconds: number): Promise<Timer>;
   stopTimer(id: string): Promise<void>;
   me(): Promise<Me>;
@@ -157,6 +168,12 @@ export function createApi(
     timers: () => request('/timers'),
     routines: () => request('/routines'),
     saveRoutines: (settings) => send('PUT', '/routines', settings),
+    transitSettings: () => request('/transit/settings'),
+    saveTransitSettings: (settings) => send('PUT', '/transit/settings', settings),
+    searchAddresses: (query) => request(`/transit/addresses?q=${encodeURIComponent(query)}`),
+    searchStops: (query) => request(`/transit/stops?q=${encodeURIComponent(query)}`),
+    stopsNear: (p) => request(`/transit/stops?near=${p.lat},${p.lon}`),
+    transitRoutes: (from, to) => request(`/transit/routes?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`),
     startTimer: (label, seconds) => send('POST', '/timers', { label, seconds }),
     stopTimer: (id) => send('DELETE', `/timers/${encodeURIComponent(id)}`),
     me: () => request('/me'),

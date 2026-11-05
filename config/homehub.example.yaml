@@ -19,7 +19,8 @@
 #     obtenus avec : node scripts/ecoledirecte-pair.ts
 #   pronote (facultatif) : prénom de l'enfant sur Pronote (compte parent), même affichage. Le jeton est dans
 #     HOMEHUB_STATE_DIR/pronote.json, obtenu avec : node scripts/pronote-pair.ts (voir README)
-#   commute (facultatif) : trajet du matin en bus ou tram Irigo, carte « Pars dans N min » sur le dashboard :
+#   commute (facultatif) : trajet du matin en bus ou tram Irigo, carte « Pars dans N min » sur le dashboard. Plus
+#     simple : roue dentée › Transports (adresses, lignes trouvées, selon l'emploi du temps), qui remplace ce réglage :
 #     stop (identifiant d'arrêt, voir node scripts/irigo-stops.ts <nom>), line, towards (partie du nom de la
 #     destination, si l'arrêt voit passer la ligne dans les deux sens), label (affiché), walkMinutes (marche jusqu'à
 #     l'arrêt, 5 par défaut), from/to (heures d'affichage, 07:00–08:30 par défaut), days (lun…dim, lun–ven par défaut)
@@ -97,7 +98,8 @@ ui:
   screensaverMinutes: 5
 
 # Bus et tram Irigo (Angers), temps réel en open data, sans clé : prochains passages sur l'accueil et la veille.
-# Sans arrêt, rien n'est affiché.
+# Sans arrêt, rien n'est affiché. Les arrêts se règlent aussi sur la tablette (roue dentée › Transports), qui remplace
+# alors `stops` ; refreshSeconds reste ici.
 #   stops          : 4 au plus ; id (node scripts/irigo-stops.ts <nom> ; un identifiant par sens), label (sinon le
 #                    nom Irigo), lines (sinon toutes les lignes de l'arrêt)
 #   refreshSeconds : intervalle entre deux appels à Irigo (30 à 600, 60 par défaut)

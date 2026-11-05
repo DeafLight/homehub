@@ -15,8 +15,10 @@ import { createNotesStore } from './sources/notes.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createSourceStatus } from './sources/source-status.ts';
+import { buildGtfsIndex, unzip } from './sources/gtfs.ts';
 import { createTimerStore } from './sources/timers.ts';
-import { fakeSources, fixedClock, NOW, silentLogger, testConfig } from './testing.ts';
+import { createTransitSettingsStore } from './sources/transit-settings.ts';
+import { fakeSources, fixedClock, GTFS_FILES, NOW, silentLogger, testConfig, zip } from './testing.ts';
 
 function setup(staticRoot?: string, clock = fixedClock) {
   const config = createConfigStore(testConfig);
@@ -34,7 +36,28 @@ function setup(staticRoot?: string, clock = fixedClock) {
   const sessions = createActorSessions(fixedClock);
   const timers = createTimerStore({ clock });
   const plans = createRoutinePlanStore({ path: join(dir, 'routine-plans.json'), clock: fixedClock, config });
-  const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, clock, version: '9.9.9', staticRoot });
+  const transitSettings = createTransitSettingsStore({ path: join(dir, 'transit-settings.json'), clock: fixedClock, config });
+  const index = buildGtfsIndex(unzip(zip(GTFS_FILES)));
+  const searchAddress = async (q: string) => [{ label: `${q}, Angers`, lat: 47.47, lon: -0.55 }];
+  const app = createApp({
+    config,
+    service,
+    nas,
+    lists,
+    notes,
+    devices,
+    pins,
+    faces,
+    sessions,
+    timers,
+    plans,
+    transitSettings,
+    gtfs: { index: async () => index },
+    searchAddress,
+    clock,
+    version: '9.9.9',
+    staticRoot,
+  });
   // Alex reconnu devant la tablette (configuration de test : pas de parent, chacun écrit sur son profil).
   const { token } = sessions.open('alex', 10);
   /** Requête de la tablette (en test, l'adresse locale compte comme la tablette), au nom d'Alex sauf `actor: null`. */
@@ -47,6 +70,32 @@ function setup(staticRoot?: string, clock = fixedClock) {
 }
 
 describe('API', () => {
+  it('transports : réservés à la tablette, adresses, arrêts et lignes ; enregistrés par un parent seulement', async () => {
+    const { app, config, put } = setup();
+    const local = { headers: { 'X-Real-IP': '127.0.0.1' } };
+    expect((await app.request('/api/transit/settings', { headers: { 'X-Real-IP': '192.168.1.50' } })).status).toBe(403);
+    expect(await (await app.request('/api/transit/settings', local)).json()).toEqual({ places: [], commutes: {}, stops: [], saved: false });
+    const { addresses } = await (await app.request('/api/transit/addresses?q=1%20rue%20Haute', local)).json();
+    expect(addresses).toEqual([{ label: '1 rue Haute, Angers', lat: 47.47, lon: -0.55 }]);
+    expect((await (await app.request('/api/transit/stops?q=mair', local)).json()).stops.map((s: { id: string }) => s.id)).toEqual(['1MAIR']); // 2MAIR : terminus seulement
+    expect((await (await app.request('/api/transit/stops?near=47.47,-0.55', local)).json()).stops[0].id).toBe('1MAIR');
+    expect((await app.request('/api/transit/stops?near=ici', local)).status).toBe(400);
+    const { routes } = await (await app.request('/api/transit/routes?from=47.47,-0.55&to=47.48,-0.55', local)).json();
+    expect(routes.map((r: { line: string }) => r.line)).toEqual(['A']);
+
+    const place = (id: string, label: string, lat: number) => ({ id, label, icon: 'place', address: label, lat, lon: -0.55 });
+    const { totalMinutes: _, ...route } = routes[0];
+    const commute = { from: 'p1', to: 'p2', route, mode: 'school', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: 3 };
+    const body = { places: [place('p1', 'Maison', 47.47), place('p2', 'Collège', 47.48)], commutes: { lea: commute }, stops: [{ id: '1MAIR', label: 'Mairie' }] };
+    expect((await app.request('/api/transit/settings', put(body))).status).toBe(403); // Alex n'est pas parent
+    config.set(parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def', parent: true }, { id: 'lea', name: 'Léa', color: '#3fb8a8' }] }));
+    expect((await app.request('/api/transit/settings', put({ ...body, commutes: { zoe: commute } }))).status).toBe(400);
+    expect((await app.request('/api/transit/settings', put({ ...body, commutes: { lea: { ...commute, to: 'p9' } } }))).status).toBe(400);
+    const saved = await (await app.request('/api/transit/settings', put(body))).json();
+    expect(saved).toMatchObject({ saved: true, stops: [{ id: '1MAIR', label: 'Mairie' }] });
+    expect(saved.commutes.lea.walkTo).toBe(3);
+  });
+
   it('routines : lues par tous, modifiées par un parent seulement', async () => {
     const { app, config, put, sessions } = setup();
     const windows = { morning: { from: '06:30', to: '08:30' }, evening: { from: '19:00', to: '21:00' } };

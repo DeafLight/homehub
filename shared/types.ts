@@ -157,6 +157,8 @@ export type Departure = {
   /** Heure de départ, ISO 8601 : prévue en temps réel si `realtime`, sinon théorique. */
   at: string;
   realtime: boolean;
+  /** Heure théorique (ISO 8601), quand le temps réel en annonce une autre : reconnaît la course prévue. */
+  aimed?: string;
   cancelled?: boolean;
 };
 
@@ -168,6 +170,17 @@ export type TransitAlert = { id: string; lines: string[]; title: string; url?: s
 /** Prochains passages aux arrêts suivis (accueil, veille) ; `stops` vide si rien n'est configuré. */
 export type TransitData = { stops: TransitStop[]; alerts: TransitAlert[] };
 
+/** Course retenue d'après l'emploi du temps : arriver avant le premier cours, marge comprise. */
+export type CommutePlan = {
+  /** Départ prévu de l'arrêt (horaire théorique), arrivée prévue à l'arrêt d'arrivée, départ de la maison. */
+  departs: string;
+  arrives: string;
+  leaveAt: string;
+  /** Premier cours non annulé ; `firstCancelled` : un cours plus tôt est annulé. */
+  firstCourse: string;
+  firstCancelled: boolean;
+};
+
 /** Trajet du matin d'un membre, à ses heures : prochains passages de sa ligne à son arrêt. */
 export type Commute = {
   line: string;
@@ -176,6 +189,68 @@ export type Commute = {
   walkMinutes: number;
   departures: Departure[];
   alerts: TransitAlert[];
+  /** Absent : trajet sur une plage horaire fixe (pas d'emploi du temps). */
+  plan?: CommutePlan;
+};
+
+// --- Page « Transports » ---
+
+export type PlaceIcon = 'home' | 'school' | 'sport' | 'place';
+/** Lieu de la famille (maison, école…), situé par son adresse. */
+export type TransitPlace = { id: string; label: string; icon: PlaceIcon; address: string; lat: number; lon: number };
+/** Résultat de la recherche d'adresse. */
+export type AddressMatch = { label: string; lat: number; lon: number };
+/** Arrêt Irigo : lignes qui y passent, destinations des courses (distinguent les deux quais). */
+export type StopChoice = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  lines: string[];
+  towards: string[];
+  /** Depuis le lieu demandé : distance à vol d'oiseau et marche estimée. */
+  meters?: number;
+  walkMinutes?: number;
+};
+/** Ligne directe entre deux lieux, d'après les horaires théoriques ; marches estimées. */
+export type CommuteRoute = {
+  line: string;
+  origin: string;
+  originName: string;
+  destination: string;
+  destinationName: string;
+  /** Destination la plus fréquente des courses ; `headsigns` : toutes celles qui desservent l'arrivée. */
+  towards: string;
+  headsigns: string[];
+  /** Vrai si toutes les courses de la ligne à l'arrêt de départ desservent l'arrivée (quai à sens unique). */
+  oneWay: boolean;
+  rideMinutes: number;
+  walkFrom: number;
+  walkTo: number;
+};
+export type RouteOption = CommuteRoute & { totalMinutes: number };
+/** Trajet réglé d'un membre. `days` : 0 = dimanche. Marches null : estimation de l'itinéraire. */
+export type CommuteSettings = {
+  from: string;
+  to: string;
+  route: CommuteRoute | null;
+  mode: 'school' | 'window';
+  days: number[];
+  window: TimeWindow;
+  /** Minutes : arriver avant le premier cours ; carte affichée avant l'heure de départ de la maison. */
+  arriveBefore: number;
+  showBefore: number;
+  walkFrom: number | null;
+  walkTo: number | null;
+};
+export type HomeStop = { id: string; label?: string; lines?: string[] };
+export type TransitSettings = {
+  places: TransitPlace[];
+  commutes: Record<string, CommuteSettings>;
+  /** Arrêts de l'accueil. */
+  stops: HomeStop[];
+  /** Faux tant que la page n'a jamais été enregistrée (réglages du fichier YAML). */
+  saved: boolean;
 };
 
 export type RoutinePeriod = 'morning' | 'evening';

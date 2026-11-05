@@ -48,3 +48,35 @@ describe('trajet du matin', () => {
     expect(commuteState({ ...commute([dep('A', 'Gare', 12)]), line: 'A' }, now).title).toBe('Pars dans 8 min pour le tram A de 07:42');
   });
 });
+
+describe('trajet selon l’emploi du temps', () => {
+  // Course de 07:50 retenue pour un 1er cours à 08:30 ; 4 min à pied : partir à 07:46.
+  const plan = { departs: at(20), arrives: at(32), leaveAt: at(16), firstCourse: at(60), firstCancelled: false };
+  const planned = (departures: Departure[]): Commute => ({ line: '3', stop: 'Mairie', label: 'Collège', walkMinutes: 4, departures, alerts: [], plan });
+
+  it('annonce la course prévue, à son horaire théorique tant qu’elle n’est pas annoncée', () => {
+    expect(commuteState(planned([dep('3', 'Centre', 5)]), now)).toEqual({
+      tone: 'go',
+      leaveIn: 16,
+      title: 'Pars dans 16 min pour le bus 3 de 07:50',
+      detail: 'Mairie → Collège · 4 min à pied · 1er cours à 08:30 · horaire prévu',
+    });
+  });
+
+  it('suit son retard annoncé, et dit si un cours plus tôt est annulé', () => {
+    const late = planned([dep('3', 'Centre', 23, { aimed: at(20) })]);
+    expect(commuteState({ ...late, plan: { ...plan, firstCancelled: true } }, now)).toMatchObject({
+      leaveIn: 19,
+      title: 'Pars dans 19 min pour le bus 3 de 07:50',
+      detail: 'Mairie → Collège · 4 min à pied · 1er cours à 08:30 (un cours plus tôt est annulé) · annoncé à 07:53',
+    });
+  });
+
+  it('course supprimée : le prochain passage possible ; manquée : trop tard, et le suivant', () => {
+    const cancelled = commuteState(planned([dep('3', 'Centre', 20, { cancelled: true }), dep('3', 'Centre', 30)]), now);
+    expect(cancelled).toMatchObject({ tone: 'go', title: 'Pars dans 26 min pour le bus 3 de 08:00' });
+    expect(cancelled.detail).toMatch(/^Le bus 3 de 07:50 est supprimé · /u);
+    const missed = commuteState(planned([dep('3', 'Centre', 20), dep('3', 'Centre', 35)]), new Date(now.getTime() + 18 * 60_000));
+    expect(missed).toMatchObject({ tone: 'late', title: 'Trop tard pour le bus 3 de 07:50', detail: 'Mairie → Collège · 4 min à pied · suivant à 08:05, après l’heure prévue' });
+  });
+});

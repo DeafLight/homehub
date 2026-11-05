@@ -6,8 +6,10 @@ import { FAMILY_ID } from '../../shared/types.ts';
 import { parseConfig } from '../config.ts';
 import { createConfigStore } from '../config-store.ts';
 import { createRoutinePlanStore } from '../sources/routine-plans.ts';
+import { buildGtfsIndex, unzip } from '../sources/gtfs.ts';
 import { createRoutineStore } from '../sources/routines.ts';
-import { event, fakeSources, fixedClock, silentLogger, testConfig } from '../testing.ts';
+import { createTransitSettingsStore } from '../sources/transit-settings.ts';
+import { event, fakeSources, fixedClock, GTFS_FILES, silentLogger, testConfig, zip } from '../testing.ts';
 import { createDashboardService } from './dashboard.ts';
 
 const sources = fakeSources({
@@ -256,6 +258,90 @@ describe('bus et tram', () => {
     expect((await make({ from: '07:00', to: '08:30' }).dashboard('lea'))?.commute).toBeNull();
     expect((await make({ from: '17:30', to: '18:30', days: ['mar'] }).dashboard('lea'))?.commute).toBeNull();
     expect((await service.dashboard('alex'))?.commute).toBeNull();
+  });
+});
+
+describe('trajet selon l’emploi du temps', () => {
+  const index = buildGtfsIndex(unzip(zip(GTFS_FILES)));
+  const gtfs = { index: async () => index };
+  const thursday = (h: number, m: number) => new Date(2026, 10, 5, h, m);
+  const course = (id: string, h: number, m: number, cancelled = false) => ({
+    id,
+    subject: id,
+    start: thursday(h, m).toISOString(),
+    end: thursday(h + 1, m).toISOString(),
+    cancelled,
+  });
+  const route = {
+    line: 'A',
+    origin: '1MAIR',
+    originName: 'Mairie',
+    destination: '1LYC',
+    destinationName: 'Lycée',
+    towards: 'Belle-Beille',
+    headsigns: ['Belle-Beille'],
+    oneWay: true,
+    rideMinutes: 12,
+    walkFrom: 1,
+    walkTo: 1,
+  };
+  const realtime = [
+    { line: 'A', destination: 'Belle-Beille', at: thursday(8, 2).toISOString(), aimed: thursday(8, 0).toISOString(), realtime: true },
+    { line: 'A', destination: 'Belle-Beille', at: thursday(8, 20).toISOString(), realtime: false },
+  ];
+  const transit = { departures: async () => ({ name: 'Mairie', departures: realtime }), alerts: async () => [] };
+
+  async function make(courses: ReturnType<typeof course>[], walkFrom: number | null = null) {
+    const config = createConfigStore(parseConfig({ members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', parent: true }] }));
+    const settings = createTransitSettingsStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-tr-')), 't.json'), clock: fixedClock, config });
+    const place = (id: string, label: string, lat: number) => ({ id, label, icon: 'place' as const, address: label, lat, lon: -0.55 });
+    await settings.save(
+      {
+        places: [place('p1', 'Maison', 47.47), place('p2', 'Collège', 47.48)],
+        commutes: {
+          lea: { from: 'p1', to: 'p2', route, mode: 'school', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom, walkTo: null },
+        },
+        stops: [],
+      },
+      { ownerId: 'lea', via: 'tablet' },
+    );
+    return (now: Date) =>
+      createDashboardService({
+        config,
+        sources: fakeSources({ courses: { lea: courses } }),
+        clock: () => new Date(now),
+        logger: silentLogger(),
+        transit,
+        transitSettings: settings,
+        gtfs,
+      });
+  }
+
+  it('retient la dernière course qui fait arriver avant le 1er cours, et la reconnaît dans le temps réel', async () => {
+    const at = await make([course('maths', 8, 30)]);
+    const commute = (await at(thursday(7, 35)).dashboard('lea'))?.commute;
+    // 8 h 30 − 10 min de marge − 1 min de marche : arrivée au Lycée à 8 h 19 au plus tard → la course de 8 h 00.
+    expect(commute?.plan).toEqual({
+      departs: thursday(8, 0).toISOString(),
+      arrives: thursday(8, 12).toISOString(),
+      leaveAt: thursday(7, 59).toISOString(),
+      firstCourse: thursday(8, 30).toISOString(),
+      firstCancelled: false,
+    });
+    expect(commute).toMatchObject({ line: 'A', stop: 'Mairie', label: 'Collège', walkMinutes: 1 });
+    expect(commute?.departures).toHaveLength(2);
+    // Carte affichée 30 min avant l'heure de partir (7 h 29), jusqu'à 5 min après la course.
+    expect((await at(thursday(7, 20)).dashboard('lea'))?.commute).toBeNull();
+    expect((await at(thursday(8, 6)).dashboard('lea'))?.commute).toBeNull();
+  });
+
+  it('suit le premier cours non annulé, la marche réglée à la main, et rien sans cours', async () => {
+    const late = await make([course('maths', 8, 30, true), course('svt', 10, 0)], 6);
+    expect((await late(thursday(7, 35)).dashboard('lea'))?.commute).toBeNull(); // trop tôt pour la course de 8 h 20
+    const commute = (await late(thursday(8, 0)).dashboard('lea'))?.commute;
+    expect(commute?.plan).toMatchObject({ departs: thursday(8, 20).toISOString(), leaveAt: thursday(8, 14).toISOString(), firstCancelled: true });
+    expect(commute?.walkMinutes).toBe(6);
+    expect((await (await make([]))(thursday(7, 35)).dashboard('lea'))?.commute).toBeNull();
   });
 });
 
