@@ -8,6 +8,29 @@ const calendarsSchema = z
   .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/, "nom de variable d'environnement (MAJUSCULES, chiffres, _)"))
   .default([]);
 
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'heure au format HH:MM');
+/** Identifiant d'arrêt Irigo (SIRI StopPointRef, un quai dans un sens) : scripts/irigo-stops.ts les liste. */
+const stopRef = z.string().trim().regex(/^[A-Za-z0-9_:.-]{1,40}$/, 'identifiant d’arrêt Irigo (voir scripts/irigo-stops.ts)');
+/** Ligne Irigo telle qu'affichée (« 3 », « A ») ; « 03 » et « 3 » désignent la même. */
+const lineRef = z.string().trim().min(1).max(10);
+export const WEEK_DAYS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'] as const;
+
+/** Trajet du matin vers l'école : carte « Pars dans N min » sur le dashboard, aux heures et jours donnés. */
+const commuteSchema = z
+  .object({
+    stop: stopRef,
+    line: lineRef,
+    /** Partie du nom de la destination (« Centre »), si l'arrêt voit passer la ligne dans les deux sens. */
+    towards: z.string().trim().min(1).max(40).optional(),
+    /** Où l'on va (affiché) : « Collège ». */
+    label: z.string().trim().min(1).max(40).optional(),
+    walkMinutes: z.number().int().min(0).max(60).default(5),
+    from: hhmm.default('07:00'),
+    to: hhmm.default('08:30'),
+    days: z.array(z.enum(WEEK_DAYS)).min(1).default(['lun', 'mar', 'mer', 'jeu', 'ven']),
+  })
+  .refine((c) => c.from < c.to, { message: '`from` doit précéder `to`' });
+
 const memberSchema = z.object({
   id: z
     .string()
@@ -22,6 +45,7 @@ const memberSchema = z.object({
   ecoledirecte: z.string().trim().min(1).max(40).optional(),
   /** Prénom de l'enfant sur Pronote (compte parent appairé, voir README). */
   pronote: z.string().trim().min(1).max(40).optional(),
+  commute: commuteSchema.optional(),
 });
 
 export const configSchema = z.object({
@@ -84,6 +108,19 @@ export const configSchema = z.object({
       minSize: 0,
       learnMinutes: 30,
     }),
+  /**
+   * Bus et tram Irigo (temps réel SIRI, open data d'Angers Loire Métropole) : prochains passages aux arrêts listés,
+   * sur l'accueil et la veille. Absent : rien n'est affiché (le trajet d'un membre marche aussi sans).
+   */
+  transit: z
+    .object({
+      stops: z
+        .array(z.object({ id: stopRef, label: z.string().trim().min(1).max(40).optional(), lines: z.array(lineRef).optional() }))
+        .max(4)
+        .default([]),
+      refreshSeconds: z.number().int().min(30).max(600).default(60),
+    })
+    .default({ stops: [], refreshSeconds: 60 }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({

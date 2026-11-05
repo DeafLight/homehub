@@ -3,7 +3,9 @@
 import {
   FAMILY_ID,
   type DashboardData,
+  type Commute,
   type HomeData,
+  type TransitData,
   type Homework,
   type ProfileSummary,
   type Routine,
@@ -15,7 +17,9 @@ import {
   type WeatherForecast,
   type WeekData,
 } from '../../shared/types.ts';
+import { WEEK_DAYS } from '../config.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
+import { lineLabel, type TransitSource } from '../sources/irigo.ts';
 import { localDay } from '../sources/lists.ts';
 import type { RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
@@ -42,6 +46,8 @@ export type DashboardService = {
   routine(ownerId: string): Promise<Routine | null>;
   /** Devoirs à faire de `ownerId` (appli du téléphone) ; null sans cahier de texte ou profil inconnu. */
   homework(ownerId: string): Promise<Homework[] | null>;
+  /** Prochains passages aux arrêts suivis (accueil, veille). */
+  transit(): Promise<TransitData>;
   /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
   setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
 };
@@ -56,9 +62,17 @@ export type DashboardServiceDeps = {
   routines?: RoutineStore;
   /** Étapes et heures des routines (page « Routines ») ; absent, comme `routines` : pas de routine. */
   plans?: Pick<RoutinePlanStore, 'current'>;
+  /** Bus et tram ; absent (tests) : ni passages ni trajet. */
+  transit?: TransitSource;
 };
 
-export function createDashboardService({ config, sources, clock, logger, routines, plans }: DashboardServiceDeps): DashboardService {
+/** Passages gardés par arrêt et pour un trajet. */
+const STOP_DEPARTURES = 8;
+const COMMUTE_DEPARTURES = 4;
+const normalize = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const hhmmOf = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+export function createDashboardService({ config, sources, clock, logger, routines, plans, transit }: DashboardServiceDeps): DashboardService {
   const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
   const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
 
@@ -124,6 +138,65 @@ export function createDashboardService({ config, sources, clock, logger, routine
     if (left.length === 0) return null;
     const due = left[0].due;
     return { due, left: left.filter((h) => h.due === due).length };
+  }
+
+  /** Passages d'un arrêt ; accessoires, comme la météo : une panne donne null (et un message). */
+  async function departuresAt(stopId: string) {
+    if (!transit) return null;
+    try {
+      return await transit.departures(stopId);
+    } catch (err) {
+      logger.error(`Irigo indisponible : ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async function alertsFor(lines: string[]) {
+    if (!transit || lines.length === 0) return [];
+    try {
+      return await transit.alerts(lines);
+    } catch (err) {
+      logger.error(`Perturbations Irigo indisponibles : ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  async function transitData(): Promise<TransitData> {
+    const stops = (
+      await Promise.all(
+        config.current().transit.stops.map(async (stop) => {
+          const data = await departuresAt(stop.id);
+          if (!data) return null;
+          const lines = stop.lines && new Set(stop.lines.map(lineLabel));
+          const departures = data.departures.filter((d) => !lines || lines.has(d.line)).slice(0, STOP_DEPARTURES);
+          return { id: stop.id, label: stop.label ?? data.name ?? stop.id, departures, lines: stop.lines };
+        }),
+      )
+    ).filter((s) => s !== null);
+    const lines = new Set(stops.flatMap((s) => s.lines?.map(lineLabel) ?? s.departures.map((d) => d.line)));
+    return { stops: stops.map(({ lines: _, ...stop }) => stop), alerts: await alertsFor([...lines]) };
+  }
+
+  /** Trajet du matin de `ownerId`, à ses jours et heures ; null en dehors, sans trajet ou si Irigo ne répond pas. */
+  async function commuteOf(ownerId: string): Promise<Commute | null> {
+    const commute = config.current().members.find((m) => m.id === ownerId)?.commute;
+    if (!commute) return null;
+    const now = clock();
+    const time = hhmmOf(now);
+    if (!commute.days.includes(WEEK_DAYS[now.getDay()]) || time < commute.from || time >= commute.to) return null;
+    const data = await departuresAt(commute.stop);
+    if (!data) return null;
+    const line = lineLabel(commute.line);
+    return {
+      line,
+      stop: data.name ?? commute.stop,
+      ...(commute.label && { label: commute.label }),
+      walkMinutes: commute.walkMinutes,
+      departures: data.departures
+        .filter((d) => d.line === line && (!commute.towards || normalize(d.destination).includes(normalize(commute.towards))))
+        .slice(0, COMMUTE_DEPARTURES),
+      alerts: await alertsFor([line]),
+    };
   }
 
   /** Prochain cours à venir, pour le résumé de l'accueil. */
@@ -202,7 +275,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, notes, currentWeather, school, routine, homework] = await Promise.all([
+      const [events, tasks, notes, currentWeather, school, routine, homework, commute] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
         sources.notes.unseenFor(ownerId),
@@ -210,6 +283,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
         schoolDays(ownerId),
         routineOf(ownerId),
         homeworkOf(ownerId),
+        commuteOf(ownerId),
       ]);
       const [nextEvent = null, ...rest] = events;
       return {
@@ -222,6 +296,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
         weather: currentWeather,
         school,
         homework,
+        commute,
         routine,
       };
     },
@@ -250,6 +325,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
 
     routine: (ownerId) => (hasOwner(ownerId) ? routineOf(ownerId) : Promise.resolve(null)),
     homework: (ownerId) => (hasOwner(ownerId) ? homeworkOf(ownerId) : Promise.resolve(null)),
+    transit: transitData,
 
     async setRoutineDone(ownerId, itemId, done, by) {
       const match = /^(morning|evening)-(\d+)$/.exec(itemId);

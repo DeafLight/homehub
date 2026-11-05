@@ -2,6 +2,7 @@
 // appairé, ou clé de la tablette et session de la personne reconnue devant elle, envoyés avec chaque requête.
 import type {
   Homework,
+  TransitData,
   DashboardData,
   Device,
   Health,
@@ -62,6 +63,8 @@ export type Api = {
   routine(ownerId: string): Promise<{ routine: Routine | null }>;
   /** Devoirs à faire seuls (appli du téléphone) ; null sans cahier de texte. */
   homework(ownerId: string): Promise<{ homework: Homework[] | null }>;
+  /** Prochains passages Irigo aux arrêts suivis. */
+  transit(): Promise<TransitData>;
   timers(): Promise<Timer[]>;
   /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
   routines(): Promise<RoutineSettings>;
@@ -149,6 +152,7 @@ export function createApi(
     setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
     routine: (ownerId) => request(`${ownerPath(ownerId)}/routine`),
     homework: (ownerId) => request(`${ownerPath(ownerId)}/homework`),
+    transit: () => request('/transit'),
     setRoutineDone: (ownerId, itemId, done) => send('PUT', `${ownerPath(ownerId)}/routine/${encodeURIComponent(itemId)}`, { done }),
     timers: () => request('/timers'),
     routines: () => request('/routines'),

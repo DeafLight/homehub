@@ -1,6 +1,6 @@
 <script lang="ts" module>
   // Icônes au trait (24×24), décoratives : le texte ou l'aria-label du parent porte le sens.
-  // Les icônes météo, la roue dentée, le crayon, la bulle et le visage reprennent les tracés de Lucide (licence ISC, https://lucide.dev).
+  // Les icônes météo, la roue dentée, le crayon, la bulle, le visage, le bus et l'antenne reprennent les tracés de Lucide (licence ISC, https://lucide.dev).
   const PATHS = {
     home: ['M3 10.5 12 3l9 7.5', 'M5 9.5V21h14V9.5', 'M10 21v-6h4v6'],
     chevron: ['m9 6 6 6-6 6'],
@@ -35,6 +35,12 @@
     ],
     face: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M8 14s1.5 2 4 2 4-2 4-2', 'M9 9h.01', 'M15 9h.01'],
     message: ['M7.9 20A9 9 0 1 0 4 16.1L2 22Z'],
+    bus: [
+      'M8 6v6M15 6v6M2 12h19.6',
+      'M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3',
+      'M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM9 18h5M16 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+    ],
+    live: ['M4.9 19.1C1 15.2 1 8.8 4.9 4.9', 'M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5', 'M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z', 'M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5', 'M19.1 4.9C23 8.8 23 15.1 19.1 19.1'],
     timer: ['M10 2h4', 'm12 14 3-3', 'M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z'],
     pencil: ['M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497Z', 'm15 5 4 4'],
     server: ['M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Z', 'M6 6h.01M6 18h.01'],

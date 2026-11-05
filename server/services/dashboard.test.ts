@@ -190,6 +190,75 @@ describe('devoirs', () => {
   });
 });
 
+describe('bus et tram', () => {
+  // NOW : lundi 2 novembre 18:00.
+  const at = (minutes: number) => new Date(fixedClock().getTime() + minutes * 60_000).toISOString();
+  const departures = [
+    { line: '3', destination: 'Centre', at: at(4), realtime: true },
+    { line: 'A', destination: 'Gare', at: at(6), realtime: false },
+    { line: '3', destination: 'Centre', at: at(19), realtime: true },
+  ];
+  const transit = {
+    departures: async (stopId: string) => {
+      if (stopId === 'PANNE') throw new Error('Irigo en panne');
+      return { name: 'Mairie', departures };
+    },
+    alerts: async (lines?: string[]) => (lines?.includes('3') ? [{ id: 'g', lines: ['3'], title: 'Grève' }] : []),
+  };
+  const configWith = (raw: object) =>
+    createConfigStore(
+      parseConfig({
+        members: [
+          { id: 'alex', name: 'Alex', color: '#5b8def' },
+          { id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', walkMinutes: 3, from: '17:30', to: '18:30', label: 'Collège' } },
+        ],
+        ...raw,
+      }),
+    );
+
+  it('donne les passages des arrêts suivis (lignes filtrées) et les perturbations de leurs lignes', async () => {
+    const service = createDashboardService({
+      config: configWith({ transit: { stops: [{ id: '1MAIR', lines: ['3'] }, { id: 'PANNE' }, { id: '2GARE', label: 'Gare' }] } }),
+      sources,
+      clock: fixedClock,
+      logger: silentLogger(),
+      transit,
+    });
+    const data = await service.transit();
+    expect(data.stops.map((s) => [s.label, s.departures.length])).toEqual([
+      ['Mairie', 2],
+      ['Gare', 3],
+    ]);
+    expect(data.alerts.map((a) => a.title)).toEqual(['Grève']);
+  });
+
+  it('montre le trajet du matin à ses heures et ses jours seulement', async () => {
+    const make = (commute: object) =>
+      createDashboardService({
+        config: createConfigStore(parseConfig({ members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', ...commute } }] })),
+        sources,
+        clock: fixedClock,
+        logger: silentLogger(),
+        transit,
+      });
+    const commute = (await make({ from: '17:30', to: '18:30', walkMinutes: 3, label: 'Collège' }).dashboard('lea'))?.commute;
+    expect(commute).toEqual({
+      line: '3',
+      stop: 'Mairie',
+      label: 'Collège',
+      walkMinutes: 3,
+      departures: [departures[0], departures[2]],
+      alerts: [{ id: 'g', lines: ['3'], title: 'Grève' }],
+    });
+    const towards = (await make({ from: '17:30', to: '18:30', towards: 'lycee' }).dashboard('lea'))?.commute;
+    expect(towards?.departures).toEqual([]);
+    expect((await make({ from: '17:30', to: '18:30', towards: 'centre' }).dashboard('lea'))?.commute?.departures).toHaveLength(2);
+    expect((await make({ from: '07:00', to: '08:30' }).dashboard('lea'))?.commute).toBeNull();
+    expect((await make({ from: '17:30', to: '18:30', days: ['mar'] }).dashboard('lea'))?.commute).toBeNull();
+    expect((await service.dashboard('alex'))?.commute).toBeNull();
+  });
+});
+
 describe('semaine', () => {
   it('donne, pour chaque profil, les événements et les cours du lundi au dimanche', async () => {
     const withSchool = fakeSources({

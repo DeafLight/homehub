@@ -149,6 +149,35 @@ export type Homework = {
   minutes?: number;
 };
 
+/** Passage d'un bus ou d'un tram Irigo à un arrêt. */
+export type Departure = {
+  /** Ligne affichée : « 3 », « A ». */
+  line: string;
+  destination: string;
+  /** Heure de départ, ISO 8601 : prévue en temps réel si `realtime`, sinon théorique. */
+  at: string;
+  realtime: boolean;
+  cancelled?: boolean;
+};
+
+export type TransitStop = { id: string; label: string; departures: Departure[] };
+
+/** Perturbation en cours sur une ou plusieurs lignes (flux d'alertes Irigo). */
+export type TransitAlert = { id: string; lines: string[]; title: string; url?: string };
+
+/** Prochains passages aux arrêts suivis (accueil, veille) ; `stops` vide si rien n'est configuré. */
+export type TransitData = { stops: TransitStop[]; alerts: TransitAlert[] };
+
+/** Trajet du matin d'un membre, à ses heures : prochains passages de sa ligne à son arrêt. */
+export type Commute = {
+  line: string;
+  stop: string;
+  label?: string;
+  walkMinutes: number;
+  departures: Departure[];
+  alerts: TransitAlert[];
+};
+
 export type RoutinePeriod = 'morning' | 'evening';
 
 /** Étape de routine réglée : `days` (0 : dimanche) null pour tous les jours ; `id` stable (clé des cases cochées). */
@@ -206,6 +235,8 @@ export type DashboardData = {
   school: SchoolDays | null;
   /** Devoirs à faire à partir d'aujourd'hui, par jour puis matière ; null sans cahier de texte (ou indisponible). */
   homework: Homework[] | null;
+  /** Trajet du matin (heures et jours réglés), null en dehors ou sans trajet. */
+  commute: Commute | null;
   /** Routine du moment (matin ou soir), null en dehors de ses heures ou sans routine. */
   routine: Routine | null;
 };

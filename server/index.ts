@@ -24,6 +24,7 @@ import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
 import { createSampleSources } from './sources/sample.ts';
 import { createSourceStatus } from './sources/source-status.ts';
+import { createIrigoClient, createTransitSource } from './sources/irigo.ts';
 import { type Clock, type Sources, firstSchoolSource } from './sources/types.ts';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -118,7 +119,14 @@ const sources: Sources = {
     }),
   ),
 };
-const service = createDashboardService({ config, sources, clock, logger: console, routines, plans });
+const transit = createTransitSource({
+  client: createIrigoClient(),
+  refreshSeconds: () => config.current().transit.refreshSeconds,
+  clock,
+  logger: console,
+  status: sourceStatus,
+});
+const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit });
 const nas = createNasService({
   nasStatus: createNasStatusSource({ path: nasStatusPath, logger: console }),
   sourceStatus,

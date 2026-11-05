@@ -5,6 +5,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
   import DetailLink from '../components/DetailLink.svelte';
+  import CommuteCard from '../components/widgets/CommuteCard.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
@@ -115,6 +116,9 @@
 
       {#if dashboard.data}
         {@const data = dashboard.data}
+        {#if data.commute}
+          <CommuteCard commute={data.commute} now={clock.now} />
+        {/if}
         {#if data.school}
           <!-- Profil avec emploi du temps : frises d'aujourd'hui et de demain (cours + agenda), puis la suite. -->
           {@const tomorrow = addDays(clock.now, 1)}

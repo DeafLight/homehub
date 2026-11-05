@@ -6,6 +6,7 @@
   import { createResource } from '../lib/resource.svelte.ts';
   import { isPhoneRoute } from '../lib/route.ts';
   import { formatCountdown, secondsLeft, timerLook, timerName } from '../lib/timers.ts';
+  import { departureRows, departureText } from '../lib/transit.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
   // Veille de la tablette : après `ui.screensaverMinutes` sans contact ni visage devant la caméra, écran noir où seule
@@ -27,6 +28,11 @@
   /** Météo du moment, sur la tablette seulement (null : pas configurée). */
   const weather = createResource(async () => ((await actor.isKiosk()) ? (await api.home()).weather : null), WEATHER_REFRESH_MS);
   onDestroy(weather.destroy);
+  /** Prochains bus et trams du premier arrêt suivi, sous la météo (tablette seulement). */
+  const TRANSIT_REFRESH_MS = 60_000;
+  const transit = createResource(async () => ((await actor.isKiosk()) ? await api.transit() : null), TRANSIT_REFRESH_MS);
+  onDestroy(transit.destroy);
+  const nextRides = $derived(transit.data?.stops[0] ? departureRows(transit.data.stops[0].departures, clock.now).slice(0, 2) : []);
   const running = $derived(timers.list.filter((t) => secondsLeft(t, clock.now) > 0));
   const ringing = $derived(timers.list.some((t) => secondsLeft(t, clock.now) === 0));
 
@@ -135,6 +141,12 @@
         </div>
         <div class="outlook">{weatherOutlook(now, clock.now)}</div>
       {/if}
+      {#each nextRides as row (`${row.line}→${row.destination}`)}
+        <div class="ride">
+          <Icon name="bus" size={22} />
+          {row.line} → {row.destination} : {row.next.map((d) => departureText(d, clock.now)).join(', ')}
+        </div>
+      {/each}
       {#each running as timer (timer.id)}
         <div class="timer">{timerLook(timer.label).emoji} {timerName(timer)} · {formatCountdown(secondsLeft(timer, clock.now))}</div>
       {/each}
@@ -196,6 +208,16 @@
 
   .outlook {
     margin-top: 4px;
+    font-size: 1.2rem;
+    color: #6b7079;
+  }
+
+  .ride {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
     font-size: 1.2rem;
     color: #6b7079;
   }

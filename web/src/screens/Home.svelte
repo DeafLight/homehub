@@ -5,6 +5,7 @@
   import Icon from '../components/Icon.svelte';
   import DetailLink from '../components/DetailLink.svelte';
   import SettingsMenu from '../components/SettingsMenu.svelte';
+  import TransitBoard from '../components/widgets/TransitBoard.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { eventLine, formatLongDate, formatTime, greeting, pluralize, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -16,8 +17,13 @@
   const HOME_REFRESH_MS = 60_000;
 
   const { api, actor, profiles, config, clock, navigate, timers } = getAppContext();
+  const TRANSIT_REFRESH_MS = 30_000;
+
   const home = createResource(() => api.home(), HOME_REFRESH_MS);
   onDestroy(home.destroy);
+  // Passages Irigo : le serveur ne recontacte Irigo qu'au rythme réglé (60 s) ; les minutes se recomptent à l'horloge.
+  const transit = createResource(() => api.transit(), TRANSIT_REFRESH_MS);
+  onDestroy(transit.destroy);
 
   const summaries = $derived(new Map(home.data?.profiles.map((p) => [p.ownerId, p]) ?? []));
   // Personne reconnue : son accueil à elle (mots, routine, tâches, prochain rendez-vous), en un coup d'œil.
@@ -83,6 +89,9 @@
               <span class="muted">{weatherOutlook(weather, clock.now)}</span>
             </span>
           </DetailLink>
+        {/if}
+        {#if transit.data && transit.data.stops.length > 0}
+          <TransitBoard transit={transit.data} now={clock.now} rows={transit.data.stops.length > 1 ? 2 : 3} />
         {/if}
         {#if familyHighlight}
           <DetailLink to="week" label="Semaine de la famille" variant="block">

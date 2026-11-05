@@ -97,6 +97,9 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ routine: await service.routine(ownerId) });
   });
 
+  /** Prochains passages Irigo aux arrêts suivis (accueil, veille). */
+  api.get('/transit', async (c) => c.json(await service.transit()));
+
   /** Devoirs seuls (appli du téléphone), en lecture : on les coche dans Pronote ou ÉcoleDirecte. */
   api.get('/dashboard/:ownerId/homework', async (c) => {
     const ownerId = c.req.param('ownerId');

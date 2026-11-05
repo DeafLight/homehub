@@ -19,6 +19,10 @@
 #     obtenus avec : node scripts/ecoledirecte-pair.ts
 #   pronote (facultatif) : prénom de l'enfant sur Pronote (compte parent), même affichage. Le jeton est dans
 #     HOMEHUB_STATE_DIR/pronote.json, obtenu avec : node scripts/pronote-pair.ts (voir README)
+#   commute (facultatif) : trajet du matin en bus ou tram Irigo, carte « Pars dans N min » sur le dashboard :
+#     stop (identifiant d'arrêt, voir node scripts/irigo-stops.ts <nom>), line, towards (partie du nom de la
+#     destination, si l'arrêt voit passer la ligne dans les deux sens), label (affiché), walkMinutes (marche jusqu'à
+#     l'arrêt, 5 par défaut), from/to (heures d'affichage, 07:00–08:30 par défaut), days (lun…dim, lun–ven par défaut)
 # Les routines du matin et du soir (étapes, jours, heures) se règlent sur la tablette : roue dentée › Routines.
 members:
   - id: alex
@@ -34,6 +38,7 @@ members:
     color: "#3fb8a8"
     # ecoledirecte: Léa
     # pronote: Léa
+    # commute: { stop: 1ANRO, line: A, label: Collège, walkMinutes: 6, from: "07:15", to: "08:15" }
   - id: tom
     name: Tom
     color: "#d96aa7"
@@ -90,6 +95,15 @@ ui:
   # Veille de la tablette après ce délai sans contact ni visage devant la caméra (minutes ; 0 : jamais) : écran noir,
   # horloge qui se déplace. Un contact ou un visage la réveille.
   screensaverMinutes: 5
+
+# Bus et tram Irigo (Angers), temps réel en open data, sans clé : prochains passages sur l'accueil et la veille.
+# Sans arrêt, rien n'est affiché.
+#   stops          : 4 au plus ; id (node scripts/irigo-stops.ts <nom> ; un identifiant par sens), label (sinon le
+#                    nom Irigo), lines (sinon toutes les lignes de l'arrêt)
+#   refreshSeconds : intervalle entre deux appels à Irigo (30 à 600, 60 par défaut)
+# transit:
+#   stops:
+#     - { id: 1ANRO, label: Roseraie, lines: [A] }
 
 # Météo (Open-Meteo, modèles Météo-France). Sans cette section, le bloc météo est masqué.
 #   label          : nom du lieu affiché
