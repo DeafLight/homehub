@@ -25,8 +25,14 @@ const NEAR_METERS = 800;
 
 // --- Archive zip et CSV --------------------------------------------------------------------------------------
 
-/** Fichiers d'une archive zip (stockés ou compressés « deflate »), lus par son répertoire central. */
-export function unzip(buf: Buffer): Map<string, Buffer> {
+/** Fichiers GTFS utiles (shapes.txt, 8 Mo, ne sert pas). */
+export const GTFS_FILES_USED = new Set(['stops.txt', 'routes.txt', 'trips.txt', 'stop_times.txt', 'calendar.txt', 'calendar_dates.txt']);
+
+/**
+ * Fichiers d'une archive zip (stockés ou compressés « deflate »), lus par son répertoire central ; seulement ceux de
+ * `wanted` s'il est donné (la décompression des autres serait de la mémoire perdue).
+ */
+export function unzip(buf: Buffer, wanted?: Set<string>): Map<string, Buffer> {
   let end = buf.length - 22;
   while (end >= 0 && buf.readUInt32LE(end) !== 0x06054b50) end--;
   if (end < 0) throw new Error('archive zip illisible');
@@ -42,44 +48,50 @@ export function unzip(buf: Buffer): Map<string, Buffer> {
     const local = buf.readUInt32LE(at + 42);
     const name = buf.toString('utf8', at + 46, at + 46 + nameLength);
     const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    at += 46 + nameLength + extra;
+    if (wanted && !wanted.has(name)) continue;
     const data = buf.subarray(start, start + size);
     if (method === 0) files.set(name, data);
     else if (method === 8) files.set(name, inflateRawSync(data));
-    at += 46 + nameLength + extra;
   }
   return files;
 }
 
-/** Lignes d'un CSV GTFS, en objets indexés par l'en-tête (guillemets gérés). */
-export function parseCsv(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
+/** Champs d'une ligne CSV (guillemets gérés ; pas de saut de ligne dans un champ, comme dans les GTFS). */
+function splitLine(line: string): string[] {
+  if (!line.includes('"')) return line.split(',');
+  const fields: string[] = [];
   let field = '';
   let quoted = false;
-  const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  for (let i = 0; i < body.length; i++) {
-    const ch = body[i];
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
     if (quoted) {
-      if (ch === '"' && body[i + 1] === '"') {
+      if (ch === '"' && line[i + 1] === '"') {
         field += '"';
         i++;
       } else if (ch === '"') quoted = false;
       else field += ch;
     } else if (ch === '"') quoted = true;
     else if (ch === ',') {
-      row.push(field);
+      fields.push(field);
       field = '';
-    } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && body[i + 1] === '\n') i++;
-      row.push(field);
-      field = '';
-      if (row.length > 1 || row[0] !== '') rows.push(row);
-      row = [];
     } else field += ch;
   }
-  if (field !== '' || row.length) rows.push([...row, field]);
-  const [header = [], ...data] = rows;
-  return data.map((r) => Object.fromEntries(header.map((h, i) => [h.trim(), r[i] ?? ''])));
+  fields.push(field);
+  return fields;
+}
+
+/** Lignes d'un (petit) CSV GTFS, en objets indexés par l'en-tête. */
+export function parseCsv(text: string): Record<string, string>[] {
+  const rows: Record<string, string>[] = [];
+  let header: string[] | null = null;
+  for (const line of text.slice(text.charCodeAt(0) === 0xfeff ? 1 : 0).split(/\r?\n/u)) {
+    if (!line) continue;
+    const fields = splitLine(line);
+    if (!header) header = fields.map((h) => h.trim());
+    else rows.push(Object.fromEntries(header.map((h, i) => [h, fields[i] ?? ''])));
+  }
+  return rows;
 }
 
 // --- Index des horaires -----------------------------------------------------------------------------------------
@@ -151,19 +163,57 @@ export function buildGtfsIndex(files: Map<string, Buffer>): GtfsIndex {
   for (const t of csv('trips.txt')) {
     trips.set(t.trip_id, { line: lineOf.get(t.route_id) ?? lineLabel(t.route_id), service: t.service_id, headsign: t.trip_headsign, stops: [], times: new Int32Array(0) });
   }
-  const calls = new Map<string, { seq: number; stop: string; time: number }[]>();
-  for (const st of csv('stop_times.txt')) {
-    const time = st.departure_time || st.arrival_time;
-    if (!time || !trips.has(st.trip_id)) continue;
-    let list = calls.get(st.trip_id);
-    if (!list) calls.set(st.trip_id, (list = []));
-    list.push({ seq: Number(st.stop_sequence), stop: st.stop_id, time: seconds(time) });
-  }
-  for (const [id, list] of calls) {
-    list.sort((a, b) => a.seq - b.seq);
-    const trip = trips.get(id) as TripRow;
-    trip.stops = list.map((c) => c.stop);
-    trip.times = Int32Array.from(list.map((c) => c.time));
+  // Passages (stop_times.txt : 15 Mo, 400 000 lignes ; le conteneur n'a que 256 Mo) : lus ligne à ligne dans le
+  // fichier décompressé, sans le convertir en un seul texte, et gardés dans des tableaux d'entiers (course, rang,
+  // arrêt, heure) avant d'être rangés par course. Les identifiants d'arrêt des courses sont ceux de stops.txt.
+  const stopIds = [...stops.keys()];
+  const stopIndex = new Map(stopIds.map((id, i) => [id, i]));
+  const tripList = [...trips.values()];
+  const tripIndex = new Map([...trips.keys()].map((id, i) => [id, i]));
+  const stopTimes = files.get('stop_times.txt');
+  if (stopTimes) {
+    let rows = 0;
+    for (let i = stopTimes.indexOf(10); i >= 0; i = stopTimes.indexOf(10, i + 1)) rows++;
+    const tripOf = new Int32Array(rows + 1);
+    const seqOf = new Int32Array(rows + 1);
+    const stopOf = new Int32Array(rows + 1);
+    const timeOf = new Int32Array(rows + 1);
+    let count = 0;
+    let columns: number[] | null = null;
+    let at = stopTimes[0] === 0xef ? 3 : 0; // BOM
+    while (at < stopTimes.length) {
+      let end = stopTimes.indexOf(10, at);
+      if (end < 0) end = stopTimes.length;
+      const line = stopTimes.toString('utf8', at, stopTimes[end - 1] === 13 ? end - 1 : end);
+      at = end + 1;
+      if (!line) continue;
+      const f = splitLine(line);
+      if (!columns) {
+        const header = f.map((h) => h.trim());
+        columns = ['trip_id', 'stop_id', 'stop_sequence', 'departure_time', 'arrival_time'].map((c) => header.indexOf(c));
+        continue;
+      }
+      const [tripCol, stopCol, seqCol, depCol, arrCol] = columns;
+      const trip = tripIndex.get(f[tripCol]);
+      const stop = stopIndex.get(f[stopCol]);
+      const time = f[depCol] || f[arrCol];
+      if (trip === undefined || stop === undefined || !time) continue;
+      tripOf[count] = trip;
+      seqOf[count] = Number(f[seqCol]);
+      stopOf[count] = stop;
+      timeOf[count] = seconds(time);
+      count++;
+    }
+    const order = new Uint32Array(count).map((_, i) => i).sort((a, b) => tripOf[a] - tripOf[b] || seqOf[a] - seqOf[b]);
+    for (let k = 0; k < count; ) {
+      let last = k;
+      while (last < count && tripOf[order[last]] === tripOf[order[k]]) last++;
+      const trip = tripList[tripOf[order[k]]];
+      const group = order.subarray(k, last);
+      trip.stops = Array.from(group, (i) => stopIds[stopOf[i]]);
+      trip.times = Int32Array.from(group, (i) => timeOf[i]);
+      k = last;
+    }
   }
   const services = new Map<string, Service>();
   const DAY_COLUMNS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -176,6 +226,8 @@ export function buildGtfsIndex(files: Map<string, Buffer>): GtfsIndex {
     if (!dates) exceptions.set(e.service_id, (dates = new Map()));
     dates.set(e.date, e.exception_type === '1');
   }
+  // Fin de la lecture : les fichiers décompressés ne doivent pas rester en mémoire avec l'index.
+  files = new Map();
   const runsOn = (service: string, day: Date) => {
     const date = ymd(day);
     const exception = exceptions.get(service)?.get(date);
@@ -328,7 +380,7 @@ export function createGtfsSource({ path, clock, logger, status, fetchFn = (...a)
     const res = await fetchFn(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
-    const next = buildGtfsIndex(unzip(buf)); // vérifie l'archive avant de remplacer la précédente
+    const next = buildGtfsIndex(unzip(buf, GTFS_FILES_USED)); // vérifie l'archive avant de remplacer la précédente
     await writeFile(`${path}.tmp`, buf);
     await rename(`${path}.tmp`, path);
     index = next;
@@ -341,7 +393,7 @@ export function createGtfsSource({ path, clock, logger, status, fetchFn = (...a)
     if (!index) {
       try {
         const file = await stat(path);
-        index = buildGtfsIndex(unzip(await readFile(path)));
+        index = buildGtfsIndex(unzip(await readFile(path), GTFS_FILES_USED));
         builtFrom = file.mtimeMs;
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') logger.error(`Horaires Irigo en cache illisibles : ${(err as Error).message}`);

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GTFS_FILES, NOW, silentLogger, zip } from '../testing.ts';
-import { buildGtfsIndex, createGtfsSource, distanceMeters, parseCsv, unzip, walkMinutes } from './gtfs.ts';
+import { buildGtfsIndex, createGtfsSource, distanceMeters, GTFS_FILES_USED, parseCsv, unzip, walkMinutes } from './gtfs.ts';
 
 const HOME = { lat: 47.47, lon: -0.55 };
 const SCHOOL = { lat: 47.48, lon: -0.55 };
@@ -14,6 +14,8 @@ describe('GTFS', () => {
   it('lit une archive zip et des CSV avec guillemets', () => {
     expect(parseCsv('a,b\n"x, ""y""",z\r\n')).toEqual([{ a: 'x, "y"', b: 'z' }]);
     expect(index.stop('GARE')?.name).toBe('Gare, parvis');
+    // Fichiers inutiles (tracés : 8 Mo) laissés compressés.
+    expect([...unzip(zip({ ...GTFS_FILES, 'shapes.txt': 'shape_id\n' }), GTFS_FILES_USED).keys()]).not.toContain('shapes.txt');
   });
 
   it('donne lignes et destinations de chaque quai, et les arrêts proches avec la marche estimée', () => {
