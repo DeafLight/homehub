@@ -5,6 +5,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
   import DetailLink from '../components/DetailLink.svelte';
+  import FocusDashboard from '../components/FocusDashboard.svelte';
   import CommuteCard from '../components/widgets/CommuteCard.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
@@ -16,6 +17,7 @@
   import { addDays, dayPlan, eventsAfter, timelineHours } from '../lib/day.ts';
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
+  import { dashboardLayout } from '../lib/layout.svelte.ts';
   import { routineFooter, routineTitle } from '../lib/routine.ts';
   import { HOME_PATH } from '../lib/route.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel } from '../lib/weather.ts';
@@ -119,7 +121,19 @@
         {#if data.commute}
           <CommuteCard commute={data.commute} now={clock.now} />
         {/if}
-        {#if data.school}
+        {#if data.school && dashboardLayout.current === 'focus'}
+          <!-- Essai : dashboard « focus » (roue dentée › Dashboard élève). -->
+          <FocusDashboard
+            data={{ ...data, school: data.school }}
+            {profile}
+            {profiles}
+            now={clock.now}
+            onToggleTask={toggleTask}
+            onToggleRoutine={toggleRoutine}
+            onSeenNote={seeNote}
+            onWriteNote={startNote}
+          />
+        {:else if data.school}
           <!-- Profil avec emploi du temps : frises d'aujourd'hui et de demain (cours + agenda), puis la suite. -->
           {@const tomorrow = addDays(clock.now, 1)}
           {@const today = dayPlan(data.school.today, data.events, clock.now)}

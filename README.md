@@ -81,6 +81,13 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   jours), monter ou descendre, supprimer ; « Nouvelle étape » ; heures en semaine et, au besoin, le week-end. Tout le
   monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre (`routine-plans.json`). Chaque
   étape garde un identifiant : la renommer ou la déplacer ne perd ni ses cases du jour ni les jours de suite.
+- **Dashboard « focus »** d'un élève (essai, à activer sur la tablette : roue dentée › Dashboard élève) : une seule
+  frise avec la bascule « Aujourd'hui | Demain » (demain d'office une fois la journée de cours finie), la carte du
+  moment en grand (routine du matin ; après l'école, les devoirs qui restent jusqu'à 19 h ; puis la routine du soir ;
+  sinon les rendez-vous), et le reste en tuiles (devoirs, routine, tâches, mots, prochain rendez-vous) : un chiffre
+  et un mot, bordées de la couleur du profil quand il y a du nouveau (mot, devoirs pour demain). Une tuile ouvre sa
+  carte complète dans un panneau, refermé d'un toucher à côté ou seul après 30 s. Le choix est gardé par l'appareil ;
+  le dashboard classique reste celui par défaut.
 - **Devoirs** (élève avec ÉcoleDirecte ou Pronote) : carte « Devoirs » sur son dashboard, à la place de « À venir » :
   par jour (« Pour demain », « Pour lundi » ; ceux du jour le matin seulement), matière, consigne (toucher pour la
   lire en entier), « Contrôle » quand ÉcoleDirecte l'annonce, pièces jointes et durée prévue s'il y en a. Aussi dans

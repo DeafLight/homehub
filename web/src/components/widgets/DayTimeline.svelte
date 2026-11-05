@@ -3,6 +3,7 @@
   import { mix } from '../../lib/color.ts';
   import { type DayPlan, startOfDay, timelinePercent, whenOnDay } from '../../lib/day.ts';
   import { formatTime } from '../../lib/format.ts';
+  import type { Snippet } from 'svelte';
   import Card from '../Card.svelte';
   import Icon from '../Icon.svelte';
 
@@ -16,8 +17,10 @@
     allDayRows: number;
     now: Date;
     color: string;
+    /** En tête de carte, à la place du titre (bascule aujourd'hui / demain du dashboard focus). */
+    header?: Snippet;
   };
-  let { title, day, plan, hours, allDayRows, now, color }: Props = $props();
+  let { title, day, plan, hours, allDayRows, now, color, header }: Props = $props();
 
   const accentBg = $derived(mix(color, '#0f1115', 0.3));
   const accentLight = $derived(mix(color, '#ffffff', 0.55));
@@ -34,7 +37,8 @@
   const nowVisible = $derived(isToday && now.getHours() >= hours.startHour && now.getHours() < hours.endHour);
 </script>
 
-<Card {title} link={{ to: 'week', label: 'Semaine détaillée' }}>
+<Card title={header ? undefined : title} link={{ to: 'week', label: 'Semaine détaillée' }}>
+  {#if header}{@render header()}{/if}
   {#if allDayRows > 0}
     <ul class="all-day">
       {#each plan.allDay as event (event.id)}
