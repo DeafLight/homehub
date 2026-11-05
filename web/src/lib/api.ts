@@ -1,6 +1,7 @@
 // Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `credentials` : jeton du téléphone
 // appairé, ou clé de la tablette et session de la personne reconnue devant elle, envoyés avec chaque requête.
 import type {
+  Homework,
   DashboardData,
   Device,
   Health,
@@ -59,6 +60,8 @@ export type Api = {
   setRoutineDone(ownerId: string, itemId: string, done: boolean): Promise<Task>;
   /** Routine du moment seule (appli du téléphone). */
   routine(ownerId: string): Promise<{ routine: Routine | null }>;
+  /** Devoirs à faire seuls (appli du téléphone) ; null sans cahier de texte. */
+  homework(ownerId: string): Promise<{ homework: Homework[] | null }>;
   timers(): Promise<Timer[]>;
   /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
   routines(): Promise<RoutineSettings>;
@@ -145,6 +148,7 @@ export function createApi(
     nas: () => request('/nas'),
     setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
     routine: (ownerId) => request(`${ownerPath(ownerId)}/routine`),
+    homework: (ownerId) => request(`${ownerPath(ownerId)}/homework`),
     setRoutineDone: (ownerId, itemId, done) => send('PUT', `${ownerPath(ownerId)}/routine/${encodeURIComponent(itemId)}`, { done }),
     timers: () => request('/timers'),
     routines: () => request('/routines'),

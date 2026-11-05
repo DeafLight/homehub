@@ -1,7 +1,7 @@
 // Ports vers les sources de données. Chaque widget dépend d'une interface, pas d'une implémentation :
 // les données d'exemple d'aujourd'hui seront remplacées une par une (agenda Google, météo, Immich...)
 // sans toucher au service ni aux routes.
-import type { Author, CalendarEvent, Note, SchoolCourse, Task, Weather, WeatherForecast } from '../../shared/types.ts';
+import type { Author, CalendarEvent, Homework, Note, SchoolCourse, Task, Weather, WeatherForecast } from '../../shared/types.ts';
 
 /** Horloge injectable, pour des tests déterministes. */
 export type Clock = () => Date;
@@ -49,6 +49,11 @@ export function startOfWeek(date: Date): Date {
 export interface SchoolSource {
   /** Cours qui chevauchent l'intervalle, triés ; null si le profil n'a pas d'emploi du temps. */
   coursesFor(ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null>;
+  /**
+   * Devoirs à faire à partir d'aujourd'hui (fenêtre de l'emploi du temps), triés par jour ; null si le profil n'a pas
+   * de cahier de texte, ou s'il est indisponible (module fermé par l'établissement...).
+   */
+  homeworkFor?(ownerId: string): Promise<Homework[] | null>;
 }
 
 /** Chaque profil a au plus un emploi du temps : le premier service qui le connaît répond (ÉcoleDirecte, Pronote...). */
@@ -57,6 +62,13 @@ export const firstSchoolSource = (...sources: SchoolSource[]): SchoolSource => (
     for (const source of sources) {
       const courses = await source.coursesFor(ownerId, range);
       if (courses) return courses;
+    }
+    return null;
+  },
+  async homeworkFor(ownerId) {
+    for (const source of sources) {
+      const homework = (await source.homeworkFor?.(ownerId)) ?? null;
+      if (homework) return homework;
     }
     return null;
   },

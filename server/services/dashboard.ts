@@ -4,6 +4,7 @@ import {
   FAMILY_ID,
   type DashboardData,
   type HomeData,
+  type Homework,
   type ProfileSummary,
   type Routine,
   type RoutinePeriod,
@@ -39,6 +40,8 @@ export type DashboardService = {
   setTaskDone(ownerId: string, taskId: string, done: boolean, by?: Author): Promise<Task | null>;
   /** Routine du moment de `ownerId` (appli du téléphone) ; null hors de ses heures, sans étape ou profil inconnu. */
   routine(ownerId: string): Promise<Routine | null>;
+  /** Devoirs à faire de `ownerId` (appli du téléphone) ; null sans cahier de texte ou profil inconnu. */
+  homework(ownerId: string): Promise<Homework[] | null>;
   /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
   setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
 };
@@ -103,6 +106,26 @@ export function createDashboardService({ config, sources, clock, logger, routine
     };
   }
 
+  /** Devoirs à faire à partir d'aujourd'hui. Accessoires : une panne les masque. */
+  async function homeworkOf(ownerId: string): Promise<Homework[] | null> {
+    try {
+      return (await sources.school.homeworkFor?.(ownerId)) ?? null;
+    } catch (err) {
+      logger.error(`Devoirs indisponibles : ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /** Prochain jour (à partir de demain) qui a des devoirs pas encore faits, pour le rappel de l'accueil. */
+  async function nextHomework(ownerId: string): Promise<ProfileSummary['homework']> {
+    const list = await homeworkOf(ownerId);
+    const today = localDay(clock());
+    const left = list?.filter((h) => !h.done && h.due > today) ?? [];
+    if (left.length === 0) return null;
+    const due = left[0].due;
+    return { due, left: left.filter((h) => h.due === due).length };
+  }
+
   /** Prochain cours à venir, pour le résumé de l'accueil. */
   async function nextCourse(ownerId: string): Promise<SchoolCourse | null> {
     const range = upcomingRange();
@@ -138,12 +161,13 @@ export function createDashboardService({ config, sources, clock, logger, routine
   }
 
   async function summary(ownerId: string): Promise<ProfileSummary> {
-    const [events, course, tasks, notes, routine] = await Promise.all([
+    const [events, course, tasks, notes, routine, homework] = await Promise.all([
       sources.agenda.eventsFor(ownerId, upcomingRange()),
       nextCourse(ownerId),
       sources.tasks.tasksFor(ownerId),
       sources.notes.unseenFor(ownerId),
       routineOf(ownerId),
+      nextHomework(ownerId),
     ]);
     const pending = tasks.filter((t) => !t.done);
     return {
@@ -154,6 +178,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
       nextTasks: pending.slice(0, SUMMARY_TASKS).map((t) => t.label),
       unreadNotes: notes.length,
       routine: routine && { period: routine.period, done: routine.items.filter((i) => i.done).length, total: routine.items.length },
+      homework,
     };
   }
 
@@ -177,13 +202,14 @@ export function createDashboardService({ config, sources, clock, logger, routine
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, notes, currentWeather, school, routine] = await Promise.all([
+      const [events, tasks, notes, currentWeather, school, routine, homework] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
         sources.notes.unseenFor(ownerId),
         weather(),
         schoolDays(ownerId),
         routineOf(ownerId),
+        homeworkOf(ownerId),
       ]);
       const [nextEvent = null, ...rest] = events;
       return {
@@ -195,6 +221,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
         notes,
         weather: currentWeather,
         school,
+        homework,
         routine,
       };
     },
@@ -222,6 +249,7 @@ export function createDashboardService({ config, sources, clock, logger, routine
     },
 
     routine: (ownerId) => (hasOwner(ownerId) ? routineOf(ownerId) : Promise.resolve(null)),
+    homework: (ownerId) => (hasOwner(ownerId) ? homeworkOf(ownerId) : Promise.resolve(null)),
 
     async setRoutineDone(ownerId, itemId, done, by) {
       const match = /^(morning|evening)-(\d+)$/.exec(itemId);

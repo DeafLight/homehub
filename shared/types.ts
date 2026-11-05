@@ -130,6 +130,25 @@ export type SchoolDays = {
   tomorrow: SchoolCourse[];
 };
 
+/** Devoir du cahier de texte (Pronote ou ÉcoleDirecte), en lecture seule : on le coche dans leur appli. */
+export type Homework = {
+  id: string;
+  subject: string;
+  /** Jour où il est à faire, AAAA-MM-JJ (heure locale). */
+  due: string;
+  /** Consigne, en texte simple (le HTML du service est retiré). */
+  text: string;
+  done: boolean;
+  /** Contrôle ou interrogation prévu ce jour-là (ÉcoleDirecte). */
+  test?: boolean;
+  /** Couleur de la matière donnée par le service (Pronote). */
+  color?: string;
+  /** Nombre de pièces jointes, à ouvrir dans l'appli du service. */
+  attachments?: number;
+  /** Durée prévue par le professeur, en minutes (Pronote). */
+  minutes?: number;
+};
+
 export type RoutinePeriod = 'morning' | 'evening';
 
 /** Étape de routine réglée : `days` (0 : dimanche) null pour tous les jours ; `id` stable (clé des cases cochées). */
@@ -162,6 +181,8 @@ export type ProfileSummary = {
   unreadNotes: number;
   /** Avancement de la routine du moment, s'il y en a une. */
   routine: { period: RoutinePeriod; done: number; total: number } | null;
+  /** Prochain jour qui a des devoirs pas encore faits (à partir de demain), null sans cahier de texte ou s'il n'y en a pas. */
+  homework: { due: string; left: number } | null;
 };
 
 export type HomeData = {
@@ -183,6 +204,8 @@ export type DashboardData = {
   weather: Weather | null;
   /** null si le profil n'a pas d'emploi du temps (ou s'il est indisponible). */
   school: SchoolDays | null;
+  /** Devoirs à faire à partir d'aujourd'hui, par jour puis matière ; null sans cahier de texte (ou indisponible). */
+  homework: Homework[] | null;
   /** Routine du moment (matin ou soir), null en dehors de ses heures ou sans routine. */
   routine: Routine | null;
 };

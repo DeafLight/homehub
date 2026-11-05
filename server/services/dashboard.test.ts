@@ -157,6 +157,39 @@ describe('emploi du temps', () => {
   });
 });
 
+describe('devoirs', () => {
+  // NOW : lundi 2 novembre 18:00.
+  const hw = (id: string, due: string, done = false) => ({ id, subject: id, due, text: '', done });
+  const withHomework = createDashboardService({
+    config,
+    sources: fakeSources({
+      homework: { lea: [hw('fait-ce-soir', '2026-11-02'), hw('fr', '2026-11-04', true), hw('maths', '2026-11-05'), hw('svt', '2026-11-05')] },
+    }),
+    clock: fixedClock,
+    logger: silentLogger(),
+  });
+
+  it('sont dans le dashboard, et l’accueil rappelle le prochain jour qui en a encore à faire', async () => {
+    expect((await withHomework.dashboard('lea'))?.homework).toHaveLength(4);
+    expect((await withHomework.dashboard('alex'))?.homework).toBeNull();
+    const [, lea] = (await withHomework.home()).profiles;
+    expect(lea.homework).toEqual({ due: '2026-11-05', left: 2 });
+    expect((await withHomework.homework('lea'))?.map((h) => h.id)).toContain('svt');
+    expect(await withHomework.homework('inconnu')).toBeNull();
+  });
+
+  it('sont masqués (null) quand la source échoue', async () => {
+    const failing = fakeSources();
+    failing.school.homeworkFor = async () => {
+      throw new Error('panne');
+    };
+    const logger = silentLogger();
+    const service = createDashboardService({ config, sources: failing, clock: fixedClock, logger });
+    expect((await service.dashboard('lea'))?.homework).toBeNull();
+    expect(logger.errors).toEqual([expect.stringContaining('panne')]);
+  });
+});
+
 describe('semaine', () => {
   it('donne, pour chaque profil, les événements et les cours du lundi au dimanche', async () => {
     const withSchool = fakeSources({

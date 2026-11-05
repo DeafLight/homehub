@@ -18,8 +18,29 @@ const COURSES = [
   { id: 3, matiere: '', text: 'Sortie', start_date: '2026-11-03 09:00', end_date: '2026-11-03 12:00', salle: '' },
 ];
 
+/** Cahier de texte : résumé par jour, puis détail de chaque jour (consigne en HTML base64). */
+const HOMEWORK_DAYS: Record<string, unknown[]> = {
+  '2026-11-03': [{ matiere: 'FRANCAIS', aFaire: true, idDevoir: 11 }, { matiere: 'MATHEMATIQUES', aFaire: true, idDevoir: 12 }],
+  '2026-11-05': [{ matiere: 'ANGLAIS LV1', aFaire: true, idDevoir: 13 }],
+  '2026-12-20': [{ matiere: 'MUSIQUE', aFaire: true, idDevoir: 14 }],
+};
+const HOMEWORK_DETAIL: Record<string, unknown> = {
+  '2026-11-03': {
+    date: '2026-11-03',
+    matieres: [
+      { id: 1, matiere: 'FRANCAIS', interrogation: false, aFaire: { idDevoir: 11, contenu: b64('<p>Lire p.&nbsp;12</p>'), effectue: true, documents: [{ id: 1 }] } },
+      { id: 2, matiere: 'MATHEMATIQUES', interrogation: true, aFaire: { idDevoir: 12, contenu: b64('<p>Réviser le chapitre 2</p>'), effectue: false } },
+      { id: 3, matiere: 'HISTOIRE', contenuDeSeance: { contenu: b64('<p>Séance</p>') } },
+    ],
+  },
+  '2026-11-05': {
+    date: '2026-11-05',
+    matieres: [{ id: 4, matiere: 'ANGLAIS LV1', aFaire: { idDevoir: 13, contenu: b64('Learn <i>verbs</i>'), effectue: false } }],
+  },
+};
+
 /** Faux serveur ÉcoleDirecte : cookie GTK, connexion (question si les jetons ne sont pas les bons), emploi du temps. */
-function fakeServer({ courses = COURSES as unknown[], loginCode = 200 } = {}) {
+function fakeServer({ courses = COURSES as unknown[], loginCode = 200, homeworkCode = 200 } = {}) {
   const calls: string[] = [];
   const fn = (async (input: string, init?: RequestInit) => {
     const url = new URL(input);
@@ -55,6 +76,11 @@ function fakeServer({ courses = COURSES as unknown[], loginCode = 200 } = {}) {
       if (headers.get('X-Token') !== 'token-2') return json({ code: 525, message: 'Token invalide' });
       return json({ code: 200, data: courses });
     }
+    if (path === 'Eleves/4321/cahierdetexte.awp?get') {
+      return homeworkCode === 200 ? json({ code: 200, data: HOMEWORK_DAYS }) : json({ code: homeworkCode, message: 'Accès refusé' });
+    }
+    const day = /^Eleves\/4321\/cahierdetexte\/(.+)\.awp\?get$/u.exec(path)?.[1];
+    if (day && HOMEWORK_DETAIL[day]) return json({ code: 200, data: HOMEWORK_DETAIL[day] });
     return json({ code: 404, message: path });
   }) as unknown as typeof fetch;
   return { fn, calls };
@@ -79,6 +105,22 @@ describe('createEcoleDirecteClient', () => {
     expect(courses[0]).toMatchObject({ cancelled: true, room: 'B26' });
     expect(courses[1]).toMatchObject({ cancelled: false, room: 'C05', teacher: 'M. X' });
     expect(courses[2].room).toBeUndefined();
+  });
+
+  it('lit le cahier de texte : un détail par jour de la fenêtre, consigne en texte, contrôle et pièces jointes', async () => {
+    const { fn, calls } = fakeServer();
+    const session = await createEcoleDirecteClient(fn).login(CREDENTIALS);
+    const homework = await session.homework(4321, new Date(2026, 10, 2), new Date(2026, 10, 23));
+    expect(homework).toEqual([
+      { id: '11', subject: 'Francais', due: '2026-11-03', text: 'Lire p. 12', done: true, attachments: 1 },
+      { id: '12', subject: 'Mathematiques', due: '2026-11-03', text: 'Réviser le chapitre 2', done: false, test: true },
+      { id: '13', subject: 'Anglais LV1', due: '2026-11-05', text: 'Learn verbs', done: false },
+    ]);
+    // Hors de la fenêtre (20 décembre) : pas de détail demandé.
+    expect(calls.filter((c) => c.startsWith('Eleves/4321/cahierdetexte/'))).toEqual([
+      'Eleves/4321/cahierdetexte/2026-11-03.awp?get',
+      'Eleves/4321/cahierdetexte/2026-11-05.awp?get',
+    ]);
   });
 
   it('répond à la question de sécurité quand les jetons manquent', async () => {
@@ -111,8 +153,8 @@ describe('createEcoleDirecteClient', () => {
 });
 
 describe('createEcoleDirecteSource', () => {
-  function setup(opts: { student?: string; credentials?: Credentials | undefined } = {}) {
-    const server = fakeServer();
+  function setup(opts: { student?: string; credentials?: Credentials | undefined; homeworkCode?: number } = {}) {
+    const server = fakeServer({ homeworkCode: opts.homeworkCode });
     const logger = silentLogger();
     const source = createEcoleDirecteSource({
       studentFor: (ownerId) => (ownerId === 'greg' ? (opts.student ?? 'heloise') : undefined),
@@ -150,6 +192,22 @@ describe('createEcoleDirecteSource', () => {
     expect(await source.coursesFor('greg', RANGE)).toBeNull();
     expect(await source.coursesFor('greg', RANGE)).toBeNull();
     expect(logger.errors).toEqual([expect.stringContaining('ECOLEDIRECTE_IDENTIFIANT')]);
+  });
+
+  it('donne les devoirs avec la même connexion que l’emploi du temps', async () => {
+    const { source, calls } = setup();
+    await source.coursesFor('greg', RANGE);
+    const logins = calls.length;
+    expect((await source.homeworkFor!('greg'))?.map((h) => h.id)).toEqual(['11', '12', '13']);
+    expect(calls).toHaveLength(logins);
+    expect(await source.homeworkFor!('lea')).toBeNull();
+  });
+
+  it('cahier de texte fermé au compte : les cours restent, sans devoirs', async () => {
+    const { source, logger } = setup({ homeworkCode: 403 });
+    expect(await source.homeworkFor!('greg')).toBeNull();
+    expect(await source.coursesFor('greg', RANGE)).toHaveLength(3);
+    expect(logger.errors).toEqual([expect.stringContaining('cahier de texte')]);
   });
 
   it('signale un élève introuvable', async () => {

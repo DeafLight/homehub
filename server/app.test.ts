@@ -65,6 +65,8 @@ describe('API', () => {
     expect(res.status).toBe(200);
     expect(await (await app.request('/api/dashboard/lea/routine')).json()).toEqual({ routine: null }); // service de test sans routines
     expect((await app.request('/api/dashboard/zoe/routine')).status).toBe(404);
+    expect(await (await app.request('/api/dashboard/lea/homework')).json()).toEqual({ homework: null }); // pas de cahier de texte
+    expect((await app.request('/api/dashboard/zoe/homework')).status).toBe(404);
     const saved = await app.request('/api/routines');
     expect(await saved.json()).toMatchObject({ windows, members: { lea: body.members.lea, alex: { morning: [], evening: [] } } });
   });

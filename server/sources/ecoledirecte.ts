@@ -2,9 +2,12 @@
 // Connexion : cookie GTK, puis identifiants et jetons de confiance de l'appareil (cn/cv). Sans jetons valides,
 // ÉcoleDirecte pose une question de sécurité : le serveur ne peut pas y répondre, c'est le rôle du script
 // d'appairage (scripts/ecoledirecte-pair.ts), qui fournit les jetons à mettre dans app.env.
+// Les devoirs viennent du cahier de texte, avec la même connexion, en lecture seule. L'établissement peut fermer ce
+// module au compte Famille : les cours restent alors affichés, sans devoirs.
 import { z } from 'zod';
-import type { SchoolCourse } from '../../shared/types.ts';
+import type { Homework, SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
+import { homeworkFrom, htmlToText, sortHomework } from './homework.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
 import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
@@ -37,6 +40,8 @@ export type EcoleDirecteSession = {
   /** Jetons de confiance valides pour les prochaines connexions. */
   trust: TrustTokens | null;
   timetable(studentId: number, from: Date, to: Date): Promise<SchoolCourse[]>;
+  /** Devoirs à faire du cahier de texte, des jours compris entre ces deux dates. */
+  homework(studentId: number, from: Date, to: Date): Promise<Homework[]>;
 };
 
 export class EcoleDirecteError extends Error {
@@ -76,6 +81,36 @@ const timetableSchema = z.object({
       isAnnule: z.boolean().nullish(),
     }),
   ),
+});
+
+/** Cahier de texte : jours qui ont des devoirs à faire (AAAA-MM-JJ → devoirs du jour, en résumé). */
+const homeworkDaysSchema = z.object({
+  data: z.record(z.string(), z.array(z.object({ aFaire: z.boolean().nullish() }).loose())).nullish(),
+});
+/** Détail d'un jour : la consigne (HTML en base64) et l'état de chaque devoir. */
+const homeworkDaySchema = z.object({
+  data: z.object({
+    matieres: z
+      .array(
+        z
+          .object({
+            id: z.union([z.number(), z.string()]).nullish(),
+            matiere: z.string().nullish(),
+            interrogation: z.boolean().nullish(),
+            aFaire: z
+              .object({
+                idDevoir: z.union([z.number(), z.string()]).nullish(),
+                contenu: z.string().nullish(),
+                effectue: z.boolean().nullish(),
+                documents: z.array(z.unknown()).nullish(),
+              })
+              .loose()
+              .nullish(),
+          })
+          .loose(),
+      )
+      .nullish(),
+  }),
 });
 
 const b64decode = (s: string) => Buffer.from(s, 'base64').toString('utf8');
@@ -215,6 +250,37 @@ export function createEcoleDirecteClient(fetchFn: typeof fetch = (...args) => fe
       return {
         students,
         trust,
+        async homework(studentId, from, to) {
+          const days = homeworkDaysSchema.parse(
+            await http.post(`Eleves/${studentId}/cahierdetexte.awp?verbe=get`, {}),
+          ).data;
+          const wanted = Object.entries(days ?? {})
+            .filter(([day]) => /^\d{4}-\d{2}-\d{2}$/u.test(day) && day >= isoDay(from) && day < isoDay(to))
+            .filter(([, items]) => items.some((i) => i.aFaire !== false))
+            .map(([day]) => day)
+            .sort();
+          const homework: Homework[] = [];
+          // Un jour après l'autre : la session ÉcoleDirecte fait tourner son jeton à chaque réponse.
+          for (const day of wanted) {
+            const { data } = homeworkDaySchema.parse(
+              await http.post(`Eleves/${studentId}/cahierdetexte/${day}.awp?verbe=get`, {}),
+            );
+            for (const m of data.matieres ?? []) {
+              if (!m.aFaire) continue;
+              const documents = m.aFaire.documents?.length ?? 0;
+              homework.push({
+                id: String(m.aFaire.idDevoir ?? m.id ?? `${day}-${homework.length}`),
+                subject: formatSubject(m.matiere || 'Devoir'),
+                due: day,
+                text: m.aFaire.contenu ? htmlToText(b64decode(m.aFaire.contenu)) : '',
+                done: m.aFaire.effectue === true,
+                ...(m.interrogation && { test: true }),
+                ...(documents > 0 && { attachments: documents }),
+              });
+            }
+          }
+          return homework;
+        },
         async timetable(studentId, from, to) {
           const { data } = timetableSchema.parse(
             await http.post(`E/${studentId}/emploidutemps.awp?verbe=get`, {
@@ -242,6 +308,8 @@ export function createEcoleDirecteClient(fetchFn: typeof fetch = (...args) => fe
 
 export type EcoleDirecteClient = ReturnType<typeof createEcoleDirecteClient>;
 
+type SchoolData = { courses: SchoolCourse[]; homework: Homework[] | null };
+
 export type EcoleDirecteSourceDeps = {
   /** Prénom de l'élève associé au profil, ou undefined. Lu à chaque appel (config à chaud). */
   studentFor(ownerId: string): string | undefined;
@@ -265,7 +333,8 @@ export function createEcoleDirecteSource({
   status,
 }: EcoleDirecteSourceDeps): SchoolSource {
   // Clé : élève et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
-  const cache = createRefreshingCache<SchoolCourse[]>({
+  // Devoirs chargés avec l'emploi du temps (une seule connexion) ; leur échec n'empêche pas d'afficher les cours.
+  const cache = createRefreshingCache<SchoolData>({
     clock,
     logger,
     status,
@@ -280,29 +349,42 @@ export function createEcoleDirecteSource({
         throw new Error(`élève « ${prenom} » introuvable (élèves du compte : ${session.students.map((s) => s.prenom).join(', ')})`);
       }
       const start = new Date(from);
-      return session.timetable(student.id, start, new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000));
+      const end = new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000);
+      const courses = await session.timetable(student.id, start, end);
+      let homework: Homework[] | null = null;
+      try {
+        homework = sortHomework(await session.homework(student.id, start, end));
+      } catch (err) {
+        logger.error(`ÉcoleDirecte : devoirs de ${prenom} indisponibles (cahier de texte fermé au compte Famille ?) : ${(err as Error).message}.`);
+      }
+      return { courses, homework };
     },
   });
   let warnedMissingCredentials = false;
 
+  /** Données de la semaine pour ce profil ; null s'il n'est pas sur ÉcoleDirecte ou si les identifiants manquent. */
+  async function dataFor(ownerId: string): Promise<SchoolData | null> {
+    const prenom = studentFor(ownerId);
+    if (!prenom) return null;
+    if (!credentials()) {
+      if (!warnedMissingCredentials) {
+        logger.error('ÉcoleDirecte : ECOLEDIRECTE_IDENTIFIANT ou ECOLEDIRECTE_MOTDEPASSE absent (voir app.env).');
+      }
+      warnedMissingCredentials = true;
+      return null;
+    }
+    const monday = startOfWeek(clock());
+    return cache.get(JSON.stringify({ prenom, from: monday.toISOString() }), refreshMinutes() * 60_000, 'ÉcoleDirecte');
+  }
+
   return {
     async coursesFor(ownerId, range: TimeRange) {
-      const prenom = studentFor(ownerId);
-      if (!prenom) return null;
-      if (!credentials()) {
-        if (!warnedMissingCredentials) {
-          logger.error('ÉcoleDirecte : ECOLEDIRECTE_IDENTIFIANT ou ECOLEDIRECTE_MOTDEPASSE absent (voir app.env).');
-        }
-        warnedMissingCredentials = true;
-        return null;
-      }
-      const monday = startOfWeek(clock());
-      const courses = await cache.get(
-        JSON.stringify({ prenom, from: monday.toISOString() }),
-        refreshMinutes() * 60_000,
-        'ÉcoleDirecte',
-      );
-      return courses.filter((c) => new Date(c.end) > range.from && new Date(c.start) < range.to);
+      const data = await dataFor(ownerId);
+      return data && data.courses.filter((c) => new Date(c.end) > range.from && new Date(c.start) < range.to);
+    },
+    async homeworkFor(ownerId) {
+      const homework = (await dataFor(ownerId))?.homework;
+      return homework ? homeworkFrom(homework, clock()) : null;
     },
   };
 }

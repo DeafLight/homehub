@@ -6,6 +6,7 @@
   import ProfileRail from '../components/ProfileRail.svelte';
   import DetailLink from '../components/DetailLink.svelte';
   import DayTimeline from '../components/widgets/DayTimeline.svelte';
+  import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
   import TaskList from '../components/widgets/TaskList.svelte';
@@ -124,11 +125,14 @@
           <div class="grid school">
             <DayTimeline title="Aujourd’hui" day={clock.now} plan={today} {hours} {allDayRows} now={clock.now} color={profile.color} />
             <DayTimeline title="Demain" day={tomorrow} plan={next} {hours} {allDayRows} now={clock.now} color={profile.color} />
-            <div class="column">
+            <div class="column" class:with-homework={!!data.homework} class:with-routine={!!data.routine}>
               {#if data.routine}
                 {@render routine(data.routine)}
-              {:else}
+              {:else if !data.homework}
                 <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
+              {/if}
+              {#if data.homework}
+                <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} compact={!!data.routine} />
               {/if}
               <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
               <NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={startNote} />
@@ -145,6 +149,8 @@
             />
             {#if data.routine}
               {@render routine(data.routine)}
+            {:else if data.homework}
+              <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} />
             {:else}
               <UpcomingList events={data.upcoming} now={clock.now} />
             {/if}
@@ -232,6 +238,16 @@
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 20px;
+  }
+
+  /* Devoirs : ils prennent la place des prochains rendez-vous (les frises montrent déjà aujourd'hui et demain) et
+     l'espace libre ; les tâches gardent leur hauteur, un tiers au plus. */
+  .column.with-homework {
+    grid-template-rows: minmax(0, 1fr) fit-content(35%) auto;
+  }
+
+  .column.with-homework.with-routine {
+    grid-template-rows: auto minmax(0, 1fr) fit-content(30%) auto;
   }
 
   .unknown {

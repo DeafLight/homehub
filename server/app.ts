@@ -97,6 +97,13 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ routine: await service.routine(ownerId) });
   });
 
+  /** Devoirs seuls (appli du téléphone), en lecture : on les coche dans Pronote ou ÉcoleDirecte. */
+  api.get('/dashboard/:ownerId/homework', async (c) => {
+    const ownerId = c.req.param('ownerId');
+    if (!service.hasOwner(ownerId)) return c.json({ error: 'Profil inconnu' }, 404);
+    return c.json({ homework: await service.homework(ownerId) });
+  });
+
   /** Routine du jour : mêmes droits que les tâches du profil. */
   api.put('/dashboard/:ownerId/routine/:itemId', async (c) => {
     const body = taskUpdateSchema.safeParse(await c.req.json().catch(() => null));

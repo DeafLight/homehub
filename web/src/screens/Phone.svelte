@@ -8,6 +8,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import { agendaDays } from '../lib/agenda.ts';
   import { getAppContext } from '../lib/context.ts';
   import { capitalize, formatAgo, formatDay } from '../lib/format.ts';
@@ -23,6 +24,7 @@
   const ME_REFRESH_MS = 60_000;
   const NOTES_REFRESH_MS = 30_000;
   const ROUTINE_REFRESH_MS = 60_000;
+  const HOMEWORK_REFRESH_MS = 10 * 60_000;
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
   // jours et mots reçus. Tout ce qui est coché ou ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
@@ -56,12 +58,15 @@
   const agenda = createResource(() => Promise.all([api.week(0), api.week(1)]), AGENDA_REFRESH_MS);
   const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
   const routine = createResource(async () => (pairing ? (await api.routine(pairing.ownerId)).routine : null), ROUTINE_REFRESH_MS);
+  // Devoirs (Pronote ou ÉcoleDirecte), en lecture seule ; le serveur les garde en cache, rafraîchis plus rarement.
+  const homework = createResource(async () => (pairing ? (await api.homework(pairing.ownerId)).homework : null), HOMEWORK_REFRESH_MS);
   // Rouverte (téléphone sorti de la poche) : la routine a pu changer de période ou être cochée sur la tablette.
   const onVisible = () => document.visibilityState === 'visible' && void routine.refresh();
   document.addEventListener('visibilitychange', onVisible);
   onDestroy(() => {
     document.removeEventListener('visibilitychange', onVisible);
     routine.destroy();
+    homework.destroy();
     lists.destroy();
     agenda.destroy();
     notes.destroy();
@@ -232,6 +237,11 @@
               </ul>
               {#if footer}<p class="routine-footer">{footer}</p>{/if}
             </section>
+          {/if}
+          {#if homework.data}
+            <div class="homework">
+              <HomeworkCard homework={homework.data} now={clock.now} color={me.color} compact />
+            </div>
           {/if}
           <TasksPanel
             tasks={lists.data.tasks}
@@ -437,6 +447,14 @@
     color: var(--bg);
     font: inherit;
     font-weight: 700;
+  }
+
+  .homework {
+    margin-bottom: 16px;
+  }
+
+  .homework :global(.card) {
+    padding: 16px 18px;
   }
 
   .routine {

@@ -1,9 +1,9 @@
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { TimetableClassLesson } from 'pawnote';
+import type { Assignment, TimetableClassLesson } from 'pawnote';
 import { describe, expect, it } from 'vitest';
-import type { SchoolCourse } from '../../shared/types.ts';
+import type { Homework, SchoolCourse } from '../../shared/types.ts';
 import { NOW, silentLogger } from '../testing.ts';
 import {
   type PronoteClient,
@@ -13,6 +13,7 @@ import {
   createPronoteSource,
   matchesChild,
   toCourse,
+  toHomework,
 } from './pronote.ts';
 import { firstSchoolSource } from './types.ts';
 
@@ -31,6 +32,9 @@ const COURSES = [
   course('svt', '2026-11-03T08:00:00.000Z', '2026-11-03T09:00:00.000Z'),
 ];
 
+const homework = (id: string, due: string, done = false): Homework => ({ id, subject: id, due, text: `Faire ${id}`, done });
+const HOMEWORK = [homework('svt', '2026-11-04'), homework('maths', '2026-11-03', true), homework('anglais', '2026-11-03')];
+
 function memoryStore(initial: PronoteState | null = STATE) {
   let state = initial;
   const saved: string[] = [];
@@ -45,7 +49,7 @@ function memoryStore(initial: PronoteState | null = STATE) {
 }
 
 /** Faux Pronote : chaque connexion exige le dernier jeton et en rend un nouveau ; deux connexions à la fois échouent. */
-function fakeClient(children = ['DUPONT Héloïse', 'DUPONT Jean']) {
+function fakeClient(children = ['DUPONT Héloïse', 'DUPONT Jean'], homeworkFor: () => Promise<Homework[]> = async () => HOMEWORK) {
   let token = 'token-1';
   let busy = false;
   const logins: string[] = [];
@@ -58,7 +62,7 @@ function fakeClient(children = ['DUPONT Héloïse', 'DUPONT Jean']) {
       busy = false;
       logins.push(state.token);
       token = `token-${logins.length + 1}`;
-      return { state: { ...state, token }, children, timetable: async () => COURSES };
+      return { state: { ...state, token }, children, timetable: async () => COURSES, homework: homeworkFor };
     },
   };
   return { client, logins };
@@ -114,10 +118,53 @@ describe('createPronoteSource', () => {
     expect(store.current()?.token).toBe('token-3');
   });
 
+  it('charge les devoirs avec la même connexion, triés par jour puis matière', async () => {
+    const { source, client } = setup();
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    expect((await source.homeworkFor!('helo'))?.map((h) => h.id)).toEqual(['anglais', 'maths', 'svt']);
+    expect(client.logins).toEqual(['token-1']);
+    expect(await source.homeworkFor!('alex')).toBeNull();
+  });
+
+  it('devoirs indisponibles : les cours restent, les devoirs sont null et l’erreur notée', async () => {
+    const client = fakeClient(undefined, async () => {
+      throw new Error('onglet fermé');
+    });
+    const { source, logger } = setup({ client });
+    expect(await source.homeworkFor!('helo')).toBeNull();
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    expect(logger.errors).toEqual([expect.stringContaining('onglet fermé')]);
+  });
+
   it('garde le nouveau jeton même si l’enfant est introuvable', async () => {
     const { source, store } = setup();
     await expect(source.coursesFor('zoe', RANGE)).rejects.toThrow('introuvable');
     expect(store.saved).toEqual(['token-2']);
+  });
+});
+
+describe('toHomework', () => {
+  it('garde le jour local, la consigne en texte, la couleur et la durée', () => {
+    const a = {
+      id: 'a1',
+      subject: { id: 's', name: 'HISTOIRE-GEOGRAPHIE', inGroups: false },
+      description: '<p>Lire le <b>chapitre&nbsp;3</b></p><p>Exercice 2</p>',
+      backgroundColor: '#C0FFEE',
+      done: true,
+      deadline: new Date(2026, 10, 5, 0, 0),
+      attachments: [{}, {}],
+      length: 30,
+    } as unknown as Assignment;
+    expect(toHomework(a)).toEqual({
+      id: 'a1',
+      subject: 'Histoire-geographie',
+      due: '2026-11-05',
+      text: 'Lire le chapitre 3\nExercice 2',
+      done: true,
+      color: '#C0FFEE',
+      attachments: 2,
+      minutes: 30,
+    });
   });
 });
 
@@ -186,9 +233,12 @@ describe('conversions', () => {
 
 describe('firstSchoolSource', () => {
   it('prend le premier service qui connaît le profil', async () => {
-    const none = { coursesFor: async () => null };
+    const none = { coursesFor: async () => null, homeworkFor: async () => null };
     const some = { coursesFor: async () => COURSES };
     expect(await firstSchoolSource(none, some).coursesFor('x', RANGE)).toBe(COURSES);
     expect(await firstSchoolSource(none, none).coursesFor('x', RANGE)).toBeNull();
+    const withHomework = { coursesFor: async () => COURSES, homeworkFor: async () => HOMEWORK };
+    expect(await firstSchoolSource(none, { coursesFor: async () => null }, withHomework).homeworkFor!('x')).toBe(HOMEWORK);
+    expect(await firstSchoolSource(none).homeworkFor!('x')).toBeNull();
   });
 });

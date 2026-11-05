@@ -2,12 +2,15 @@
 // Pronote 2026 par scripts/patch-pawnote.ts). Connexion par jeton, comme l'application : le jeton de départ vient
 // du QR code de Pronote (scripts/pronote-pair.ts), et Pronote en donne un nouveau à chaque connexion. Il est donc
 // réenregistré aussitôt dans un fichier : l'ancien ne sert plus, le perdre oblige à refaire l'appairage.
+// Les devoirs (cahier de texte) viennent de la même connexion, en lecture seule.
 import { chmod, readFile, rename, writeFile } from 'node:fs/promises';
 import * as pawnote from 'pawnote';
 import { z } from 'zod';
-import type { SchoolCourse } from '../../shared/types.ts';
+import type { Homework, SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { formatSubject, normalizeName } from './ecoledirecte.ts';
+import { homeworkFrom, htmlToText, sortHomework } from './homework.ts';
+import { localDay } from './lists.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
 import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
@@ -41,6 +44,8 @@ export type PronoteSession = {
   /** Noms des enfants du compte, tels que Pronote les donne (« NOM Prénom »). */
   children: string[];
   timetable(child: string, from: Date, to: Date): Promise<SchoolCourse[]>;
+  /** Devoirs à faire entre ces deux dates. */
+  homework(child: string, from: Date, to: Date): Promise<Homework[]>;
 };
 
 export interface PronoteClient {
@@ -101,6 +106,20 @@ export function toCourse(c: PawnoteClass): SchoolCourse | null {
   }
 }
 
+/** Un devoir Pawnote. */
+export function toHomework(a: pawnote.Assignment): Homework {
+  return {
+    id: a.id,
+    subject: formatSubject(a.subject.name),
+    due: localDay(a.deadline),
+    text: htmlToText(a.description),
+    done: a.done,
+    ...(/^#[0-9a-f]{6}$/iu.test(a.backgroundColor) && { color: a.backgroundColor }),
+    ...(a.attachments.length > 0 && { attachments: a.attachments.length }),
+    ...(a.length && { minutes: a.length }),
+  };
+}
+
 /** Pawnote attend un `fetcher` : celui par défaut n'a pas de délai maximal. */
 export const pawnoteFetcher: Parameters<typeof pawnote.createSessionHandle>[0] = async (req) => {
   const res = await fetch(req.url.href, {
@@ -125,13 +144,20 @@ export function createPawnoteClient(): PronoteClient {
         throw err;
       }
       const resources = session.user.resources;
+      const useChild = (child: string) => {
+        const resource = resources.find((r) => r.name === child);
+        if (!resource) throw new Error('enfant inconnu');
+        pawnote.use(session, resource);
+      };
       return {
         state: { ...refresh, kind: refresh.kind, deviceUUID: state.deviceUUID },
         children: resources.map((r) => r.name),
+        async homework(child, from, to) {
+          useChild(child);
+          return (await pawnote.assignmentsFromIntervals(session, from, to)).map(toHomework);
+        },
         async timetable(child, from, to) {
-          const resource = resources.find((r) => r.name === child);
-          if (!resource) throw new Error('enfant inconnu');
-          pawnote.use(session, resource);
+          useChild(child);
           const timetable = await pawnote.timetableFromIntervals(session, from, to);
           pawnote.parseTimetable(session, timetable, {
             withSuperposedCanceledClasses: false,
@@ -147,6 +173,8 @@ export function createPawnoteClient(): PronoteClient {
     },
   };
 }
+
+type SchoolData = { courses: SchoolCourse[]; homework: Homework[] | null };
 
 export type PronoteSourceDeps = {
   /** Prénom de l'enfant pour un profil, ou undefined si le profil n'a pas d'emploi du temps Pronote. */
@@ -182,7 +210,9 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
   }
 
   // Clé : enfant et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
-  const cache = createRefreshingCache<SchoolCourse[]>({
+  // Devoirs chargés avec l'emploi du temps (une seule connexion, le jeton change à chacune) ; leur échec (onglet
+  // fermé par l'établissement...) n'empêche pas d'afficher les cours.
+  const cache = createRefreshingCache<SchoolData>({
     clock,
     logger,
     status,
@@ -194,23 +224,40 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
         const child = session.children.find((name) => matchesChild(name, prenom));
         if (!child) throw new Error(`enfant « ${prenom} » introuvable sur le compte Pronote (${session.children.length} enfant(s))`);
         const start = new Date(from);
-        return session.timetable(child, start, new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000));
+        const end = new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000);
+        const courses = await session.timetable(child, start, end);
+        let homework: Homework[] | null = null;
+        try {
+          homework = sortHomework(await session.homework(child, start, end));
+        } catch (err) {
+          logger.error(`Pronote : devoirs de ${prenom} indisponibles : ${(err as Error).message}.`);
+        }
+        return { courses, homework };
       }),
   });
   let warnedNotPaired = false;
 
+  /** Données de la semaine pour ce profil ; null s'il n'est pas sur Pronote ou si l'appairage manque. */
+  async function dataFor(ownerId: string): Promise<SchoolData | null> {
+    const prenom = childFor(ownerId);
+    if (!prenom) return null;
+    if (!(await store.load())) {
+      if (!warnedNotPaired) logger.error(`Pronote : pas de jeton, ${PAIRING_HINT}.`);
+      warnedNotPaired = true;
+      return null;
+    }
+    const monday = startOfWeek(clock());
+    return cache.get(JSON.stringify({ prenom, from: monday.toISOString() }), refreshMinutes() * 60_000, 'Pronote');
+  }
+
   return {
     async coursesFor(ownerId, range: TimeRange) {
-      const prenom = childFor(ownerId);
-      if (!prenom) return null;
-      if (!(await store.load())) {
-        if (!warnedNotPaired) logger.error(`Pronote : pas de jeton, ${PAIRING_HINT}.`);
-        warnedNotPaired = true;
-        return null;
-      }
-      const monday = startOfWeek(clock());
-      const courses = await cache.get(JSON.stringify({ prenom, from: monday.toISOString() }), refreshMinutes() * 60_000, 'Pronote');
-      return courses.filter((c) => new Date(c.end) > range.from && new Date(c.start) < range.to);
+      const data = await dataFor(ownerId);
+      return data && data.courses.filter((c) => new Date(c.end) > range.from && new Date(c.start) < range.to);
+    },
+    async homeworkFor(ownerId) {
+      const homework = (await dataFor(ownerId))?.homework;
+      return homework ? homeworkFrom(homework, clock()) : null;
     },
   };
 }

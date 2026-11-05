@@ -9,6 +9,7 @@
   import { eventLine, formatLongDate, formatTime, greeting, pluralize, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { dashboardPath } from '../lib/route.ts';
+  import { homeworkReminder } from '../lib/homework.ts';
   import { routineName } from '../lib/routine.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
@@ -48,6 +49,9 @@
             <Icon name="check" size={28} />
             {routineName(me.routine.period)} : {me.routine.done === me.routine.total ? 'finie, bravo !' : `${me.routine.done}/${me.routine.total}`}
           </span>
+        {/if}
+        {#if homeworkReminder(me.homework, clock.now)}
+          <span class="line"><Icon name="pencil" size={28} /> {homeworkReminder(me.homework, clock.now)}</span>
         {/if}
         {#if me.nextTasks.length}
           <span class="line">

@@ -67,8 +67,8 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   l'interface JavaScript de Fully Kiosk, la luminosité baisse aussi. Un visage devant la caméra ou un contact la
   réveille ; le contact qui réveille n'ouvre ni ne coche rien.
 - **Accueil personnalisé** (tablette) : la personne reconnue a sa carte sur l'accueil (« Bonsoir Léa ! ») : ses mots
-  pas encore vus (en évidence, qui clignotent doucement), sa routine du moment, ses premières tâches et son prochain
-  rendez-vous ; la toucher ouvre son dashboard. Chaque profil de « Qui est là ? » montre aussi le nombre de ses mots
+  pas encore vus (en évidence, qui clignotent doucement), sa routine du moment, ses devoirs du prochain jour
+  (« 3 devoirs pour demain »), ses premières tâches et son prochain rendez-vous ; la toucher ouvre son dashboard. Chaque profil de « Qui est là ? » montre aussi le nombre de ses mots
   pas encore vus, et l'indicateur de la personne reconnue (accueil et rail) le sien, à toucher pour ouvrir son
   dashboard.
 - **Routines** du matin et du soir : étapes propres à chaque membre, affichées sur son dashboard à leurs heures (5 h–11 h
@@ -81,6 +81,11 @@ Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN un
   jours), monter ou descendre, supprimer ; « Nouvelle étape » ; heures en semaine et, au besoin, le week-end. Tout le
   monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre (`routine-plans.json`). Chaque
   étape garde un identifiant : la renommer ou la déplacer ne perd ni ses cases du jour ni les jours de suite.
+- **Devoirs** (élève avec ÉcoleDirecte ou Pronote) : carte « Devoirs » sur son dashboard, à la place de « À venir » :
+  par jour (« Pour demain », « Pour lundi » ; ceux du jour le matin seulement), matière, consigne (toucher pour la
+  lire en entier), « Contrôle » quand ÉcoleDirecte l'annonce, pièces jointes et durée prévue s'il y en a. Aussi dans
+  l'onglet Tâches de son téléphone. **Lecture seule** : un devoir se coche dans l'appli de l'école ; HomeHub montre
+  « ✓ fait » au rafraîchissement suivant.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail. La durée se choisit sur une roue (glisser
   le doigt autour du cadran : un tour, une heure, autant de tours qu'on veut jusqu'à 24 h ; − 1, + 1, + 5, + 1 h ;
   raccourcis jusqu'à 2 h qui font tourner la roue) qui montre l'heure de
@@ -109,6 +114,10 @@ agenda à sa couleur) et une carte « Demain ». La connexion demande, la premi�
 de sécurité : `node scripts/ecoledirecte-pair.ts [prénom]` le fait sur un PC et affiche les variables
 `ECOLEDIRECTE_IDENTIFIANT`, `ECOLEDIRECTE_MOTDEPASSE`, `ECOLEDIRECTE_CN`, `ECOLEDIRECTE_CV` à mettre dans
 l'environnement.
+
+Les **devoirs** viennent de la même connexion (cahier de texte ÉcoleDirecte, devoirs Pronote), sur la même fenêtre
+de trois semaines et au même rythme. Si l'établissement n'ouvre pas le cahier de texte au compte Famille, les cours
+restent affichés, sans carte « Devoirs », et l'erreur est notée dans les journaux.
 
 Il peut aussi venir de **Pronote** (compte parent), avec `pronote: <prénom de l'enfant>` sur le profil, par
 [Pawnote](https://github.com/LiterateInk/Pawnote), bibliothèque non officielle qui imite l'application mobile.
@@ -179,8 +188,9 @@ server/
   sources/sample.ts        implémentations d'exemple, en mémoire
   sources/open-meteo.ts    météo Open-Meteo
   sources/ical.ts          agendas iCal (adresses secrètes Google Agenda)
-  sources/ecoledirecte.ts  emploi du temps ÉcoleDirecte (client de l'API privée + source)
-  sources/pronote.ts       emploi du temps Pronote (Pawnote, jeton enregistré à chaque connexion)
+  sources/ecoledirecte.ts  emploi du temps et devoirs ÉcoleDirecte (client de l'API privée + source)
+  sources/pronote.ts       emploi du temps et devoirs Pronote (Pawnote, jeton enregistré à chaque connexion)
+  sources/homework.ts      devoirs : consigne HTML → texte, tri, fenêtre
   sources/refreshing-cache.ts  cache des données distantes (rafraîchissement, repli en cas de panne)
   sources/source-status.ts dernier résultat de chaque source (page NAS)
   sources/nas-status.ts    relevé du NAS (nas-status.json, écrit par une tâche cron du NAS)
@@ -188,7 +198,7 @@ server/
   sources/lists.ts         courses et tâches (lists.json), tâches qui reviennent, articles fréquents
   sources/routines.ts      routines du matin et du soir cochées (routines.json), jours de suite
   sources/routine-plans.ts réglages des routines modifiés sur la tablette (routine-plans.json)
-  sources/timers.ts        minuteurs (en mémoire)
+  sources/timers.ts        minuteurs (timers.json)
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
   access.ts                qui écrit : la tablette (kiosk.addresses), un téléphone relié (jeton), sinon personne
@@ -217,6 +227,7 @@ web/src/
 | `GET /api/nas` | relevé du NAS (`null` s'il est absent), état des sources, version et démarrage de HomeHub |
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour (écriture) |
 | `GET /api/dashboard/:id/routine` | `{ routine }` : la routine du moment seule (appli du téléphone), `null` hors de ses heures |
+| `GET /api/dashboard/:id/homework` | `{ homework }` : les devoirs à faire seuls (appli du téléphone), `null` sans cahier de texte |
 | `PUT /api/dashboard/:id/routine/:itemId` | `{ "done": true }` → l'étape de la routine du jour (`morning-0`, `evening-2`…) (écriture) |
 | `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ windows, members }` ; enregistrer : `{ windows, members }`, un parent |
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
