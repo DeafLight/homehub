@@ -10,11 +10,11 @@
 
 <section class="card">
   {#if title && link}
-    <h2>
-      <DetailLink to={link.to} label={link.label} chevronSize={28}>{title}</DetailLink>
+    <h2 class="card-label">
+      <DetailLink to={link.to} label={link.label} chevronSize={20}>{title}</DetailLink>
     </h2>
   {:else if title}
-    <h2>{title}</h2>
+    <h2 class="card-label">{title}</h2>
   {/if}
   {@render children()}
 </section>
@@ -23,17 +23,11 @@
   .card {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-2);
     min-height: 0;
-    padding: 24px 28px;
+    padding: var(--space-3);
     border-radius: var(--radius-lg);
     background: var(--surface);
     overflow: hidden;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
   }
 </style>

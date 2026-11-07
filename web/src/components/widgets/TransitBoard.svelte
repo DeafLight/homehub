@@ -3,31 +3,33 @@
   import Icon from '../Icon.svelte';
   import { departureRows, departureText, isTram } from '../../lib/transit.ts';
 
-  // Prochains passages Irigo aux arrêts suivis (accueil) : une ligne par ligne et destination, deux passages ;
-  // l'antenne verte dit que l'heure vient du temps réel. Perturbations des lignes suivies en dessous.
-  type Props = { transit: TransitData; now: Date; rows?: number };
-  let { transit, now, rows = 3 }: Props = $props();
+  // Prochains passages Irigo aux arrêts suivis (accueil, piste A) : une seule ligne par arrêt, une pastille par ligne et
+  // destination avec son prochain passage ; le point vert dit que l'heure vient du temps réel. La hauteur ne dépend
+  // plus du nombre de passages annoncés. Perturbations des lignes suivies en dessous, deux au plus.
+  type Props = { transit: TransitData; now: Date; chips?: number };
+  let { transit, now, chips = 3 }: Props = $props();
 </script>
 
 <div class="board">
   {#each transit.stops as stop (stop.id)}
-    {@const lines = departureRows(stop.departures, now).slice(0, rows)}
+    {@const rows = departureRows(stop.departures, now, 1).slice(0, chips)}
     <div class="stop">
-      <span class="stop-name"><Icon name="bus" size={22} /> {stop.label}</span>
-      {#if lines.length === 0}
+      <span class="stop-name">{stop.label}</span>
+      {#if rows.length === 0}
         <span class="none">Aucun passage dans l’heure</span>
+      {:else}
+      <span class="chips">
+        {#each rows as row (`${row.line}→${row.destination}`)}
+          {@const d = row.next[0]}
+          <span class="chip">
+            <span class="line" class:tram={isTram(row.line)}>{row.line}</span>
+            <span class="destination">{row.destination}</span>
+            <span class="time">{departureText(d, now)}</span>
+            {#if d.realtime}<span class="live" aria-label="temps réel"></span>{/if}
+          </span>
+        {/each}
+      </span>
       {/if}
-      {#each lines as row (`${row.line}→${row.destination}`)}
-        <span class="row">
-          <span class="line" class:tram={isTram(row.line)}>{row.line}</span>
-          <span class="destination">{row.destination}</span>
-          {#each row.next as d, i (d.at)}
-            <span class="time" class:first={i === 0}>
-              {departureText(d, now)}{#if d.realtime && i === 0}<span class="live" aria-label="temps réel"><Icon name="live" size={16} /></span>{/if}
-            </span>
-          {/each}
-        </span>
-      {/each}
     </div>
   {/each}
   {#each transit.alerts.slice(0, 2) as alert (alert.id)}
@@ -39,43 +41,63 @@
   .board {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--space-1);
   }
 
   .stop {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 48px;
   }
 
   .stop-name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 1.1rem;
-    color: var(--fg-muted);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--text-small);
+    color: var(--fg-soft);
   }
 
   .none {
-    font-size: 1.1rem;
+    font-size: var(--text-small);
     color: var(--fg-muted);
   }
 
-  .row {
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto 72px;
+  /* Les pastilles restent sur une ligne : celles qui ne tiennent pas sont masquées plutôt que d'agrandir le bloc. */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    height: 44px;
+    overflow: hidden;
+  }
+
+  .chip {
+    display: inline-flex;
     align-items: center;
-    gap: 12px;
-    font-size: 1.25rem;
+    gap: var(--space-1);
+    max-width: 100%;
+    height: 44px;
+    padding: 0 14px 0 6px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background: var(--surface-2);
+    font-size: var(--text-body);
   }
 
   .line {
     display: grid;
     place-items: center;
+    min-width: 32px;
     height: 32px;
-    border-radius: 8px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    border-radius: 999px;
     background: var(--rain-bg);
     color: var(--rain-soft);
+    font-size: 1.05rem;
     font-weight: 700;
   }
 
@@ -85,34 +107,34 @@
   }
 
   .destination {
+    max-width: 7.5em;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    font-size: var(--text-small);
+    color: var(--fg-muted);
   }
 
   .time {
-    color: var(--fg-muted);
-    text-align: right;
+    white-space: nowrap;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
-  .time.first {
-    color: var(--fg);
-    font-weight: 600;
-  }
-
   .live {
-    margin-left: 4px;
-    color: var(--ok);
-    vertical-align: 1px;
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--ok);
   }
 
   .alert {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    padding: 8px 12px;
-    border-radius: 12px;
+    gap: var(--space-1);
+    padding: var(--space-1) 12px;
+    border-radius: var(--radius-sm);
     background: var(--warn-bg);
     color: var(--warn);
     font-size: 1rem;

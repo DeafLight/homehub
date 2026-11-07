@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getAppContext } from '../lib/context.ts';
   import { formatTime } from '../lib/format.ts';
-  import { dashboardPath, HOME_PATH } from '../lib/route.ts';
+  import { dashboardPath, detailPath, HOME_PATH } from '../lib/route.ts';
   import ActorBadge from './ActorBadge.svelte';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
@@ -12,12 +12,12 @@
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
-  const { profiles, clock, navigate, timers } = getAppContext();
+  const { profiles, clock, navigate, router, timers } = getAppContext();
 </script>
 
 <nav class="rail" aria-label="Profils">
   <button class="home" type="button" aria-label="Retour à l'accueil" onclick={() => navigate(HOME_PATH)}>
-    <Icon name="home" size={40} />
+    <Icon name="home" size={36} />
   </button>
   <div class="separator"></div>
   {#each profiles as profile (profile.id)}
@@ -30,28 +30,32 @@
       style:border-color={current ? profile.color : 'transparent'}
       onclick={() => navigate(dashboardPath(profile.id))}
     >
-      <Avatar {profile} size={64} dimmed={!current} />
+      <Avatar {profile} size={56} dimmed={!current} />
     </button>
   {/each}
   <div class="bottom">
     <ActorBadge />
     <button type="button" class="timer" aria-label="Minuteur" onclick={() => (timers.dialog = true)}>
-      <Icon name="timer" size={32} />
+      <Icon name="timer" size={28} />
     </button>
-    <SettingsMenu placement="side" size={64} />
+    <!-- En attendant le stock de la maison : la page de test du scan. -->
+    <button type="button" class="timer scan" aria-label="Scanner" onclick={() => navigate(detailPath('scantest', router.route))}>
+      <Icon name="barcode" size={28} />
+    </button>
+    <SettingsMenu placement="side" size={56} />
   </div>
   <div class="time">{formatTime(clock.now)}</div>
 </nav>
 
 <style>
   .rail {
-    width: 128px;
+    width: 112px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
-    padding: 24px 0;
+    gap: 10px;
+    padding: 20px 0;
     box-sizing: border-box;
     background: var(--surface-rail);
     overflow-y: auto;
@@ -67,8 +71,8 @@
   }
 
   .home {
-    width: 88px;
-    height: 88px;
+    width: 72px;
+    height: 72px;
     flex-shrink: 0;
     border-radius: var(--radius-lg);
     display: flex;
@@ -89,8 +93,8 @@
   }
 
   .profile {
-    width: 80px;
-    height: 80px;
+    width: 68px;
+    height: 68px;
     flex-shrink: 0;
     border-radius: 50%;
     border: 4px solid transparent;
@@ -101,8 +105,8 @@
   }
 
   .timer {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border: 0;
     border-radius: 50%;
     background: var(--surface-2);
@@ -112,17 +116,22 @@
     cursor: pointer;
   }
 
+  .timer.scan {
+    background: var(--rain-bg);
+    color: var(--rain-soft);
+  }
+
   .bottom {
     margin-top: auto;
     padding-top: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
   }
 
   .time {
-    font-size: 1.6rem;
+    font-size: 1.4rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }

@@ -9,14 +9,14 @@
   import { getAppContext } from '../lib/context.ts';
   import { eventLine, formatLongDate, formatTime, greeting, pluralize, profileHeadline } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { dashboardPath } from '../lib/route.ts';
+  import { dashboardPath, detailPath } from '../lib/route.ts';
   import { homeworkReminder } from '../lib/homework.ts';
   import { routineName } from '../lib/routine.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
   const HOME_REFRESH_MS = 60_000;
 
-  const { api, actor, profiles, config, clock, navigate, timers } = getAppContext();
+  const { api, actor, profiles, config, clock, navigate, router, timers } = getAppContext();
   const TRANSIT_REFRESH_MS = 30_000;
 
   const home = createResource(() => api.home(), HOME_REFRESH_MS);
@@ -30,6 +30,8 @@
   const me = $derived(actor.current ? summaries.get(actor.current.id) : undefined);
 </script>
 
+<!-- Accueil, piste A (docs/design.md) : à gauche l'heure et des cartes de même facture (météo, famille, passages) ;
+     à droite « Qui est là ? » et, en bas, la barre d'actions Minuteur · Scanner · Réglages. -->
 <div class="home">
   <section class="ambient">
     <div class="clock">
@@ -37,7 +39,7 @@
       <div class="date">{formatLongDate(clock.now)}</div>
       <!-- Version du front réellement chargé sur la tablette : permet de vérifier qu'un déploiement est arrivé.
            Elle ouvre la page du NAS qui héberge HomeHub. -->
-      <DetailLink to="nas" label="État du NAS" chevronSize={20}>
+      <DetailLink to="nas" label="État du NAS" chevronSize={18}>
         <span class="version">HomeHub v{__APP_VERSION__}</span>
       </DetailLink>
     </div>
@@ -48,25 +50,25 @@
       <button type="button" class="welcome" style:--accent={who.color} onclick={() => navigate(dashboardPath(who.id))}>
         <span class="welcome-title">{greeting(clock.now)} {who.name} !</span>
         {#if me.unreadNotes}
-          <span class="line unread"><Icon name="message" size={28} /> {pluralize(me.unreadNotes, 'mot')} pour toi</span>
+          <span class="line unread"><Icon name="message" size={24} /> {pluralize(me.unreadNotes, 'mot')} pour toi</span>
         {/if}
         {#if me.routine}
           <span class="line">
-            <Icon name="check" size={28} />
+            <Icon name="check" size={24} />
             {routineName(me.routine.period)} : {me.routine.done === me.routine.total ? 'finie, bravo !' : `${me.routine.done}/${me.routine.total}`}
           </span>
         {/if}
         {#if homeworkReminder(me.homework, clock.now)}
-          <span class="line"><Icon name="pencil" size={28} /> {homeworkReminder(me.homework, clock.now)}</span>
+          <span class="line"><Icon name="pencil" size={24} /> {homeworkReminder(me.homework, clock.now)}</span>
         {/if}
         {#if me.nextTasks.length}
           <span class="line">
-            <Icon name="list" size={28} />
+            <Icon name="list" size={24} />
             À faire : {me.nextTasks.join(', ')}{me.pendingTasks > me.nextTasks.length ? '…' : ''}
           </span>
         {/if}
         {#if headline !== 'Rien de prévu'}
-          <span class="line"><Icon name="calendar" size={28} /> {headline}</span>
+          <span class="line"><Icon name="calendar" size={24} /> {headline}</span>
         {/if}
       </button>
     {/if}
@@ -74,80 +76,100 @@
     {#if home.data}
       {@const { weather, familyHighlight } = home.data}
       <div class="bottom">
-        {#if weather}
-          <DetailLink to="weather" label="Météo détaillée">
-            <Icon
-              name={weatherIcon(weather.weatherCode, weather.isDay)}
-              size={56}
-              color={weatherIconColor(weather.weatherCode, weather.isDay)}
-              strokeWidth={1.6}
-            />
-            <span class="weather-text">
-              <span class="temperature">
-                {formatTemperature(weather.temperatureC)} · {weatherLabel(weather.weatherCode)}
-              </span>
-              <span class="muted">{weatherOutlook(weather, clock.now)}</span>
-            </span>
-          </DetailLink>
+        {#if weather || familyHighlight}
+          <div class="pair">
+            {#if weather}
+              <DetailLink to="weather" label="Météo détaillée" variant="block">
+                <span class="tile">
+                  <span class="card-label">Météo</span>
+                  <span class="tile-row">
+                    <Icon
+                      name={weatherIcon(weather.weatherCode, weather.isDay)}
+                      size={48}
+                      color={weatherIconColor(weather.weatherCode, weather.isDay)}
+                      strokeWidth={1.6}
+                    />
+                    <span class="tile-text">
+                      <span class="temperature">{formatTemperature(weather.temperatureC)} · {weatherLabel(weather.weatherCode)}</span>
+                      <span class="muted">{weatherOutlook(weather, clock.now)}</span>
+                    </span>
+                  </span>
+                </span>
+              </DetailLink>
+            {/if}
+            {#if familyHighlight}
+              <DetailLink to="week" label="Semaine de la famille" variant="block">
+                <span class="tile">
+                  <span class="card-label">{config.family.name}</span>
+                  <span class="tile-row">
+                    <span class="highlight-text">{eventLine(familyHighlight, clock.now)}</span>
+                    <Icon name="chevron" size={24} color="var(--fg-muted)" strokeWidth={2} />
+                  </span>
+                </span>
+              </DetailLink>
+            {/if}
+          </div>
         {/if}
         {#if transit.data && transit.data.stops.length > 0}
-          <TransitBoard transit={transit.data} now={clock.now} rows={transit.data.stops.length > 1 ? 2 : 3} />
-        {/if}
-        {#if familyHighlight}
-          <DetailLink to="week" label="Semaine de la famille" variant="block">
-            <span class="highlight">
-              <span class="highlight-body">
-                <span class="label">{config.family.name}</span>
-                <span class="highlight-text">{eventLine(familyHighlight, clock.now)}</span>
-              </span>
-              <Icon name="chevron" size={32} color="var(--fg-muted)" strokeWidth={2} />
-            </span>
-          </DetailLink>
+          <div class="tile">
+            <span class="card-label">Prochains passages</span>
+            <TransitBoard transit={transit.data} now={clock.now} />
+          </div>
         {/if}
       </div>
     {/if}
   </section>
 
   <section class="profiles">
-    <h1>Qui est là ?</h1>
-    {#each profiles as profile (profile.id)}
-      {@const summary = summaries.get(profile.id)}
-      <button
-        class="profile"
-        class:family={profile.isFamily}
-        class:recognized={actor.current?.id === profile.id}
-        type="button"
-        onclick={() => navigate(dashboardPath(profile.id))}
-      >
-        <Avatar {profile} size={72} />
-        <span class="profile-text">
-          <span class="name">
-            {profile.name}
-            {#if summary?.unreadNotes}
-              <span class="badge" aria-label="{pluralize(summary.unreadNotes, 'mot')} pas encore vu">
-                <Icon name="message" size={18} /> {summary.unreadNotes}
-              </span>
-            {/if}
-          </span>
-          <span class="muted">
-            {#if profile.isFamily}
-              Agenda commun, courses, mots
-            {:else if summary}
-              {profileHeadline(summary, clock.now)}
-            {:else}
-              &nbsp;
-            {/if}
-          </span>
-        </span>
-        <Icon name="chevron" size={32} color="var(--fg-muted)" strokeWidth={2} />
-      </button>
-    {/each}
-    <div class="settings">
+    <div class="profiles-head">
+      <h1>Qui est là ?</h1>
       <ActorBadge row />
-      <button type="button" class="timer-button" aria-label="Minuteur" onclick={() => (timers.dialog = true)}>
-        <Icon name="timer" size={36} />
+    </div>
+    <div class="profile-list">
+      {#each profiles as profile (profile.id)}
+        {@const summary = summaries.get(profile.id)}
+        <button
+          class="profile"
+          class:family={profile.isFamily}
+          class:recognized={actor.current?.id === profile.id}
+          type="button"
+          onclick={() => navigate(dashboardPath(profile.id))}
+        >
+          <Avatar {profile} size={56} />
+          <span class="profile-text">
+            <span class="name">
+              {profile.name}
+              {#if summary?.unreadNotes}
+                <span class="badge" aria-label="{pluralize(summary.unreadNotes, 'mot')} pas encore vu">
+                  <Icon name="message" size={16} /> {summary.unreadNotes}
+                </span>
+              {/if}
+            </span>
+            <span class="muted">
+              {#if profile.isFamily}
+                Agenda commun, courses, mots
+              {:else if summary}
+                {profileHeadline(summary, clock.now)}
+              {:else}
+                &nbsp;
+              {/if}
+            </span>
+          </span>
+          <Icon name="chevron" size={28} color="var(--fg-muted)" strokeWidth={2} />
+        </button>
+      {/each}
+    </div>
+    <div class="actions">
+      <button type="button" class="action" onclick={() => (timers.dialog = true)}>
+        <Icon name="timer" size={32} />
+        <span>Minuteur</span>
       </button>
-      <SettingsMenu placement="above" size={72} />
+      <!-- En attendant le stock de la maison, le scan ouvre la page de test (lecture des codes, rien d'enregistré). -->
+      <button type="button" class="action accent" onclick={() => navigate(detailPath('scantest', router.route))}>
+        <Icon name="barcode" size={32} />
+        <span>Scanner</span>
+      </button>
+      <SettingsMenu placement="above" size={88} labelled />
     </div>
   </section>
 </div>
@@ -164,18 +186,20 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 56px;
-    background: var(--surface-rail);
+    gap: var(--space-3);
+    padding: var(--space-6);
+    box-sizing: border-box;
+    background: var(--bg);
   }
 
   .clock {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-1);
   }
 
   .time {
-    font-size: clamp(6rem, 13vw, 10rem);
+    font-size: clamp(5.5rem, 11vw, 8.5rem);
     font-weight: 600;
     line-height: 1;
     letter-spacing: -0.04em;
@@ -183,7 +207,7 @@
   }
 
   .date {
-    font-size: 1.9rem;
+    font-size: 1.75rem;
     color: var(--fg-muted);
   }
 
@@ -195,11 +219,36 @@
   .bottom {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-2);
   }
 
-  .weather-text,
-  .highlight-body,
+  .pair {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: var(--space-2);
+  }
+
+  /* Carte de la piste A : fond --surface, rayon --radius-lg, étiquette en petites capitales (comme Card.svelte). */
+  .tile {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    padding: var(--space-3);
+    box-sizing: border-box;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .tile-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .tile-text,
   .profile-text {
     display: flex;
     flex-direction: column;
@@ -208,66 +257,65 @@
   }
 
   .temperature {
-    font-size: 2.5rem;
+    font-size: var(--text-title);
     font-weight: 600;
   }
 
   .muted {
-    font-size: 1.25rem;
+    font-size: var(--text-small);
     color: var(--fg-muted);
-  }
-
-  .highlight {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 20px 24px;
-    border-radius: var(--radius-md);
-    background: var(--surface-2);
-  }
-
-  .label {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--fg-muted);
-  }
-
-  .highlight-body {
-    flex-grow: 1;
-    gap: 8px;
   }
 
   .highlight-text {
-    font-size: 1.5rem;
+    flex-grow: 1;
+    min-width: 0;
+    font-size: var(--text-body);
+    line-height: 1.3;
   }
 
   .profiles {
-    width: 520px;
+    width: 440px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 40px 48px;
+    gap: var(--space-2);
+    padding: var(--space-4);
     box-sizing: border-box;
-    overflow-y: auto;
+    background: var(--surface-rail);
+  }
+
+  .profiles-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: 56px;
   }
 
   h1 {
-    margin: 0 0 6px;
-    font-size: 2.25rem;
+    margin: 0;
+    font-size: 1.75rem;
     font-weight: 600;
+  }
+
+  .profile-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .profile {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
-    gap: 20px;
-    min-height: 100px;
-    padding: 12px 20px;
+    gap: var(--space-2);
+    min-height: 84px;
+    padding: 10px var(--space-2);
     box-sizing: border-box;
-    border: 2px solid var(--surface-2);
+    border: 2px solid transparent;
     border-radius: var(--radius-md);
     background: var(--surface);
     color: inherit;
@@ -296,19 +344,19 @@
   }
 
   .name {
-    font-size: 1.75rem;
+    font-size: var(--text-title);
     font-weight: 600;
   }
 
   .welcome {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 20px 24px;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
     border: 0;
     border-left: 6px solid var(--accent);
-    border-radius: var(--radius-md);
-    background: var(--surface-2);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
     color: inherit;
     font: inherit;
     text-align: left;
@@ -316,7 +364,7 @@
   }
 
   .welcome-title {
-    font-size: 2rem;
+    font-size: 1.75rem;
     font-weight: 600;
   }
 
@@ -324,7 +372,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 1.35rem;
+    font-size: var(--text-body);
     color: var(--fg-soft);
   }
 
@@ -344,7 +392,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-left: 8px;
+    margin-left: var(--space-1);
     padding: 2px 10px;
     border-radius: 999px;
     background: var(--sun);
@@ -354,25 +402,36 @@
     vertical-align: middle;
   }
 
-  .timer-button {
-    width: 72px;
-    height: 72px;
-    flex-shrink: 0;
+  .actions {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .action {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 88px;
+    padding: 0;
     border: 0;
-    border-radius: 50%;
+    border-radius: var(--radius-md);
     background: var(--surface-2);
     color: var(--fg);
-    display: grid;
-    place-items: center;
+    font: inherit;
+    font-size: var(--text-label);
+    font-weight: 600;
     cursor: pointer;
   }
 
-  .settings {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 16px;
-    margin-top: auto;
-    padding-top: 8px;
+  .action:active {
+    background: var(--border-strong);
+  }
+
+  .action.accent {
+    background: var(--rain-bg);
+    color: var(--rain-soft);
   }
 </style>

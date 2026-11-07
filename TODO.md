@@ -6,12 +6,15 @@
 - [ ] Arrêt desservi dans les deux sens : seul le bon sens est retenu.
 - [ ] Page Transports : l'enregistrement fonctionne depuis la tablette.
 
-## Design (en réflexion, rien de décidé)
+## Design (piste A « affinée », voir docs/design.md)
 
-- [ ] État des lieux : captures de chaque page (tablette et téléphone), incohérences relevées (marges, tailles de
-      texte, densité des cartes, navigation, contrastes).
-- [ ] Deux ou trois pistes maquettées (accueil et une page secondaire), puis le choix d'une piste.
-- [ ] Quelques règles communes (espacements, tailles, composants de carte), appliquées page par page.
+- [x] État des lieux : captures de chaque page (tablette et téléphone), incohérences relevées.
+- [x] Trois pistes maquettées, piste A retenue.
+- [x] Règles communes (espacements, tailles de texte, carte et étiquette) ; accueil (bus sur une ligne par arrêt,
+      barre Minuteur · Scanner · Réglages) et dashboards (colonnes de hauteur fixe, Scanner dans le rail) en 0.32.0.
+- [ ] Pages suivantes : semaine, météo, listes, transports, téléphones, NAS, routines, puis le téléphone (PWA).
+- [ ] Noms des matières sans accents (« Mathematiques ») : table de correction des libellés ÉcoleDirecte.
+- [ ] Pages de réglages : bouton « Enregistré » près des modifications.
 
 ## Recettes, menus et drive (prochain gros sujet, avec le redesign)
 
@@ -72,8 +75,11 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Ce que le serveur sait alors : ce qu'on a ou non, pour le « j'en ai déjà » des recettes ; inventaire
       consultable depuis le téléphone, etc.
 - [ ] Le stock déjà présent à la maison s'enregistre aussi (scan ou saisie), sans prix.
-- [ ] À étudier : la caméra sert déjà à reconnaître les visages (la couper pendant un scan) ; lecture des codes-barres
-      dans le navigateur de Fully Kiosk ; relier un produit scanné à un ingrédient de recette (« Lardons fumés
+- [x] Essai sur la tablette (0.31.0, page Test du scan) : lecteur intégré au navigateur (BarcodeDetector : ean_13,
+      ean_8, upc_a, upc_e), caméra avant ouverte en 0,5 s sans conflit avec la reconnaissance des visages, code lu
+      et clé juste, produit trouvé dans Open Food Facts. Pas de bibliothèque à ajouter.
+- [ ] Écran de scan : bip ou éclair à chaque lecture, pause d'un instant après un code pour ne pas le compter deux fois.
+- [ ] À étudier : relier un produit scanné à un ingrédient de recette (« Lardons fumés
       Herta 2×75 g » → lardons, 150 g).
 
 ### Prix (suite du stock)

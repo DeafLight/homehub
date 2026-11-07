@@ -23,6 +23,8 @@
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel } from '../lib/weather.ts';
 
   const DASHBOARD_REFRESH_MS = 60_000;
+  /** À partir de cette heure, la frise des élèves montre demain : la journée d'école est finie, on prépare le sac. */
+  const EVENING_HOUR = 18;
 
   // App.svelte recrée ce composant à chaque changement de profil ({#key}) : ownerId est fixe ici.
   type Props = { ownerId: string };
@@ -134,26 +136,37 @@
             onWriteNote={startNote}
           />
         {:else if data.school}
-          <!-- Profil avec emploi du temps : frises d'aujourd'hui et de demain (cours + agenda), puis la suite. -->
+          <!-- Profil avec emploi du temps (piste A) : trois colonnes de hauteur fixe. La frise du jour (celle de demain
+               à partir de 18 h), la routine et les tâches, les devoirs et les mots. Chaque carte fait défiler son
+               contenu au lieu de pousser ses voisines. -->
           {@const tomorrow = addDays(clock.now, 1)}
-          {@const today = dayPlan(data.school.today, data.events, clock.now)}
-          {@const next = dayPlan(data.school.tomorrow, data.events, tomorrow)}
-          {@const hours = timelineHours([...today.items, ...next.items])}
-          {@const allDayRows = Math.max(today.allDay.length, next.allDay.length)}
+          {@const evening = clock.now.getHours() >= EVENING_HOUR}
+          {@const shown = evening ? dayPlan(data.school.tomorrow, data.events, tomorrow) : dayPlan(data.school.today, data.events, clock.now)}
           <div class="grid school">
-            <DayTimeline title="Aujourd’hui" day={clock.now} plan={today} {hours} {allDayRows} now={clock.now} color={profile.color} />
-            <DayTimeline title="Demain" day={tomorrow} plan={next} {hours} {allDayRows} now={clock.now} color={profile.color} />
-            <div class="column" class:with-homework={!!data.homework} class:with-routine={!!data.routine}>
+            <DayTimeline
+              title={evening ? 'Demain' : 'Aujourd’hui'}
+              day={evening ? tomorrow : clock.now}
+              plan={shown}
+              hours={timelineHours(shown.items)}
+              allDayRows={shown.allDay.length}
+              now={clock.now}
+              color={profile.color}
+            />
+            <div class="column">
               {#if data.routine}
-                {@render routine(data.routine)}
-              {:else if !data.homework}
-                <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
+                <div class="fit">{@render routine(data.routine)}</div>
               {/if}
-              {#if data.homework}
-                <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} compact={!!data.routine} />
-              {/if}
-              <TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} />
-              <NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={startNote} />
+              <div class="fill"><TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} /></div>
+            </div>
+            <div class="column">
+              <div class="fill">
+                {#if data.homework}
+                  <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} />
+                {:else}
+                  <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
+                {/if}
+              </div>
+              <div class="fit"><NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={startNote} /></div>
             </div>
           </div>
         {:else}
@@ -247,25 +260,34 @@
     gap: 20px;
   }
 
-  .grid.school {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(0, 0.9fr);
-  }
-
+  /* Colonnes de hauteur fixe : la carte « fit » prend sa hauteur, la carte « fill » le reste (160 px au moins) ;
+     quand la place manque, la carte « fit » rétrécit et fait défiler sa liste plutôt que de rogner sa voisine. */
   .column {
     min-height: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
-  /* Devoirs : ils prennent la place des prochains rendez-vous (les frises montrent déjà aujourd'hui et demain) et
-     l'espace libre ; les tâches gardent leur hauteur, un tiers au plus. */
-  .column.with-homework {
-    grid-template-rows: minmax(0, 1fr) fit-content(35%) auto;
+  .fit,
+  .fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
-  .column.with-homework.with-routine {
-    grid-template-rows: auto minmax(0, 1fr) fit-content(30%) auto;
+  .fit {
+    flex: 0 1 auto;
+  }
+
+  .fill {
+    flex: 1 1 0;
+    min-height: 160px;
+  }
+
+  .fit > :global(.card),
+  .fill > :global(.card) {
+    flex: 1 1 auto;
   }
 
   .unknown {

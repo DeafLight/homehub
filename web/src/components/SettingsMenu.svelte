@@ -10,8 +10,9 @@
   // du NAS).
   // Absente sur tout autre appareil. Le menu s'ouvre au-dessus du bouton (accueil) ou à sa droite (rail) ; il est
   // placé par rapport à l'écran, car le rail fait défiler (et rognerait) ce qu'il contient.
-  type Props = { placement: 'above' | 'side'; size: number };
-  let { placement, size }: Props = $props();
+  // `labelled` : bouton de la barre d'actions de l'accueil (icône et mot « Réglages », largeur donnée par la barre).
+  type Props = { placement: 'above' | 'side'; size: number; labelled?: boolean };
+  let { placement, size, labelled = false }: Props = $props();
 
   const GAP = 12;
 
@@ -45,14 +46,16 @@
     bind:this={button}
     class="gear"
     class:open={position}
+    class:labelled
     type="button"
     aria-label="Réglages"
     aria-expanded={position !== null}
-    style:width="{size}px"
+    style:width={labelled ? undefined : `${size}px`}
     style:height="{size}px"
     onclick={toggle}
   >
-    <Icon name="settings" size={Math.round(size * 0.5)} />
+    <Icon name="settings" size={labelled ? 32 : Math.round(size * 0.5)} />
+    {#if labelled}<span>Réglages</span>{/if}
   </button>
 
   {#if position}
@@ -103,6 +106,17 @@
     border-radius: var(--radius-md);
     background: var(--surface-2);
     color: var(--fg-muted);
+  }
+
+  .gear.labelled {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: var(--text-label);
+    font-weight: 600;
   }
 
   .gear.open,

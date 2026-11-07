@@ -25,7 +25,7 @@
 <Card>
   <div class="note" class:compact>
     <div class="head">
-      <span class="label">Mots</span>
+      <span class="card-label">Mots</span>
       <button type="button" class="write" aria-label="Laisser un mot" onclick={onWrite}>
         <Icon name="plus" size={22} strokeWidth={2.4} /> Mot
       </button>
@@ -67,12 +67,6 @@
 
   .foot {
     justify-content: flex-end;
-  }
-
-  .label {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--fg-muted);
   }
 
   button {
