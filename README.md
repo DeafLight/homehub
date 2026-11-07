@@ -316,6 +316,7 @@ npm test          # tests (vitest) : config, service, routes, utilitaires du fro
 npm run check     # vérification des types (server + web)
 npm run build     # compile le front dans web/dist
 npm start         # sert l'app compilée sur :3000
+npm run docs:captures   # refait les captures de docs/images (données fictives, Chrome sans fenêtre)
 ```
 
 Pour tester sur la tablette en dev : `http://<ip-du-pc>:5173`.

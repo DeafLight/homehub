@@ -1,0 +1,102 @@
+// Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte, faux temps réel Irigo.
+// Aucune connexion réelle à l'école ni à Irigo ; la météo (Open-Meteo) et les horaires GTFS restent les vrais.
+
+/** Jeudi 5 novembre 2026, 07:35 (heure locale) : cours du jour, routine du matin, bandeau du bus. */
+export const DOCS_NOW = new Date(2026, 10, 5, 7, 35, 0).getTime();
+
+/** Décale l'horloge du processus : `new Date()` et `Date.now()` partent de DOCS_NOW, puis avancent normalement. */
+export function installFakeClock(target = DOCS_NOW): void {
+  const RealDate = Date;
+  const offset = target - RealDate.now();
+  class FakeDate extends RealDate {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) super(RealDate.now() + offset);
+      else super(...(args as [number]));
+    }
+    static now() {
+      return RealDate.now() + offset;
+    }
+  }
+  globalThis.Date = FakeDate as DateConstructor;
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const day = (offset: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
+
+/** Devoirs d'exemple, par jour (relatif à aujourd'hui), au format du cahier de texte ÉcoleDirecte. */
+const homework = (): Record<string, unknown[]> => ({
+  [day(1)]: [
+    { id: 1, matiere: 'MATHEMATIQUES', interrogation: true, aFaire: { idDevoir: 101, contenu: b64('<p>Réviser le chapitre 4 : fractions.</p><p>Exercices 12, 13 et 14 page 58.</p>'), effectue: false } },
+    { id: 2, matiere: 'FRANCAIS', aFaire: { idDevoir: 102, contenu: b64('<p>Lire le chapitre 3 de <i>Vendredi ou la vie sauvage</i></p>'), effectue: true, documents: [{ id: 1 }] } },
+    { id: 3, matiere: 'ANGLAIS LV1', aFaire: { idDevoir: 103, contenu: b64('Learn the irregular verbs list (1 to 20)'), effectue: false } },
+  ],
+  [day(4)]: [{ id: 4, matiere: 'HISTOIRE-GEOGRAPHIE', aFaire: { idDevoir: 104, contenu: b64('<ul><li>Apprendre la leçon sur Charlemagne</li><li>Compléter la carte</li></ul>'), effectue: false } }],
+  [day(5)]: [{ id: 5, matiere: 'SCIENCES VIE & TERRE', interrogation: true, aFaire: { idDevoir: 105, contenu: b64('Contrôle sur la digestion'), effectue: false } }],
+});
+
+function fakeEcoleDirecte(url: URL): Response {
+  const path = url.pathname.replace('/v3/', '');
+  const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'x-token': 'docs' } });
+  if (url.searchParams.has('gtk')) return new Response('', { headers: { 'Set-Cookie': 'GTK=docs; Path=/' } });
+  if (path === 'login.awp') {
+    return json({ code: 200, data: { accounts: [{ main: true, typeCompte: '1', id: 1, prenom: 'Parent', profile: { eleves: [{ id: 7, prenom: 'Léa' }] } }] } });
+  }
+  if (path === 'E/7/emploidutemps.awp') {
+    const courses = [];
+    for (let i = -3; i < 21; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      if (d.getDay() === 0 || d.getDay() === 6) continue;
+      const k = day(i);
+      courses.push(
+        { id: `${k}-1`, matiere: 'MATHEMATIQUES', start_date: `${k} 08:30`, end_date: `${k} 09:25`, salle: 'B12' },
+        { id: `${k}-2`, matiere: 'FRANCAIS', start_date: `${k} 09:30`, end_date: `${k} 10:25`, salle: 'A03' },
+        { id: `${k}-3`, matiere: 'ANGLAIS LV1', start_date: `${k} 13:30`, end_date: `${k} 14:25`, salle: 'C01' },
+        { id: `${k}-4`, matiere: 'SCIENCES VIE & TERRE', start_date: `${k} 14:30`, end_date: `${k} 16:25`, salle: 'Labo' },
+      );
+    }
+    return json({ code: 200, data: courses });
+  }
+  const detail = homework();
+  if (path === 'Eleves/7/cahierdetexte.awp') {
+    return json({ code: 200, data: Object.fromEntries(Object.entries(detail).map(([k, v]) => [k, v.map(() => ({ aFaire: true }))])) });
+  }
+  const m = /^Eleves\/7\/cahierdetexte\/(.+)\.awp$/u.exec(path);
+  if (m) return json({ code: 200, data: { date: m[1], matieres: detail[m[1]] ?? [] } });
+  return json({ code: 404, message: path });
+}
+
+function fakeSiri(): Response {
+  const visit = (line: string, dest: string, minutes: number, live = true) => {
+    const t = new Date(Date.now() + minutes * 60_000).toISOString();
+    const expected = live ? `<siri:ExpectedDepartureTime>${t}</siri:ExpectedDepartureTime>` : '';
+    return `<siri:MonitoredStopVisit><siri:MonitoredVehicleJourney><siri:LineRef>${line}</siri:LineRef><siri:DestinationName>${dest}</siri:DestinationName><siri:MonitoredCall><siri:StopPointName>Ralliement</siri:StopPointName><siri:AimedDepartureTime>${t}</siri:AimedDepartureTime>${expected}</siri:MonitoredCall></siri:MonitoredVehicleJourney></siri:MonitoredStopVisit>`;
+  };
+  const visits = [
+    visit('03', 'Centre-ville', 9),
+    visit('03', 'Lycée', 11),
+    visit('03', 'Centre-ville', 24),
+    visit('03', 'Lycée', 26),
+    visit('A', 'Verneau - voie 2', 13, false),
+    visit('A', 'Verneau - voie 2', 21, false),
+  ];
+  return new Response(`<siri:Status>true</siri:Status>${visits.join('')}`);
+}
+
+/** Remplace ÉcoleDirecte et le temps réel Irigo par des réponses d'exemple ; le reste passe au vrai `fetch`. */
+export function installFakeSources(): void {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input instanceof Request ? input.url : input));
+    if (url.hostname === 'api.ecoledirecte.com') return fakeEcoleDirecte(url);
+    if (url.hostname === 'ara-api.enroute.mobi') return fakeSiri();
+    return realFetch(input, init);
+  }) as typeof fetch;
+  process.env.ECOLEDIRECTE_IDENTIFIANT = 'docs';
+  process.env.ECOLEDIRECTE_MOTDEPASSE = 'docs';
+}

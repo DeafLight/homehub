@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- Planche du design (docs/images/planche-design.png). Les variables viennent de web/src/app.css et les profils de
+     homehub.yaml, injectés par scripts/docs-captures.ts : la planche suit le design sans être retouchée. -->
+<style>/*TOKENS*/</style>
+<style>
+body{margin:0;padding:40px;width:1200px;background:var(--bg);color:var(--fg)}
+h2{font-size:22px;font-weight:600;margin:0 0 14px;color:var(--fg-soft)}
+.row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:34px;align-items:center}
+.sw{width:132px}.sw b{display:block;height:72px;border-radius:18px;border:1px solid var(--border-strong)}
+.sw span{display:block;font-size:14px;margin-top:8px}.sw small{color:var(--fg-muted);font-size:13px}
+.card{background:var(--surface);border-radius:var(--radius-lg);padding:24px 28px;min-width:300px}
+.t1{font-size:64px;font-weight:600;line-height:1}.t2{font-size:36px;font-weight:600}.t3{font-size:24px}.t4{font-size:18px;color:var(--fg-muted)}
+.av{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;font-size:32px;font-weight:700;color:var(--bg)}
+.chip{display:inline-flex;align-items:center;gap:10px;padding:10px 20px;border-radius:999px;border:2px solid;font-size:20px}
+.dot{width:14px;height:14px;border-radius:50%}
+.btn{background:var(--surface-2);border-radius:var(--radius-md);padding:14px 26px;font-size:20px;display:inline-block}
+.btnp{background:var(--rain);color:var(--bg);border-radius:var(--radius-md);padding:14px 26px;font-size:20px;font-weight:600;display:inline-block}
+.r{width:120px;height:80px;background:var(--surface-2);display:grid;place-items:center;font-size:15px}
+</style>
+<h2>Surfaces et texte</h2>
+<div class="row" data-vars="--bg --surface-rail --surface --surface-2 --border-strong --fg --fg-soft --fg-muted"></div>
+<h2>Couleurs de sens</h2>
+<div class="row" data-vars="--sun --rain --rain-soft --ok --warn --bad --danger-fg --off"></div>
+<h2>Profils (couleur choisie dans homehub.yaml)</h2>
+<div class="row" id="profiles"></div>
+<h2>Texte (police système)</h2>
+<div class="row" style="align-items:stretch">
+  <div class="card"><div class="t1">07:35</div><div class="t2">Bonjour Léa !</div><div class="t3">Pars dans 7 min pour le bus 3</div><div class="t4">Ralliement → Collège · 4 min à pied</div></div>
+  <div class="card" style="display:flex;flex-direction:column;gap:18px"><span class="btn">‹ Accueil</span><span class="btnp">+ Tâche</span><span class="btn" style="color:var(--fg-muted)">Retirer</span></div>
+</div>
+<h2>Arrondis</h2>
+<div class="row" data-radii="--radius-md --radius-lg --radius-xl"></div>
+<script>
+const css = getComputedStyle(document.documentElement);
+const value = (name) => css.getPropertyValue(name).trim();
+for (const row of document.querySelectorAll('[data-vars]')) {
+  for (const name of row.dataset.vars.split(' ')) {
+    if (!value(name)) continue;
+    row.insertAdjacentHTML('beforeend', `<div class="sw"><b style="background:var(${name})"></b><span>${name}</span><small>${value(name)}</small></div>`);
+  }
+}
+for (const row of document.querySelectorAll('[data-radii]')) {
+  for (const name of row.dataset.radii.split(' ')) {
+    if (value(name)) row.insertAdjacentHTML('beforeend', `<div class="r" style="border-radius:var(${name})">${name.slice(2)} · ${value(name)}</div>`);
+  }
+  row.insertAdjacentHTML('beforeend', '<div class="r" style="border-radius:999px">pastille</div>');
+}
+const members = /*MEMBERS*/[];
+const profiles = document.getElementById('profiles');
+for (const m of members) profiles.insertAdjacentHTML('beforeend', `<div class="av" style="background:${m.color}">${m.name[0]}</div>`);
+for (const m of members.slice(0, 2)) profiles.insertAdjacentHTML('beforeend', `<span class="chip" style="border-color:${m.color}"><i class="dot" style="background:${m.color}"></i>${m.name}</span>`);
+profiles.insertAdjacentHTML('beforeend', '<span class="chip" style="border-color:var(--border-strong);border-style:dashed;color:var(--fg-muted)">Cours</span>');
+</script>

@@ -1,0 +1,37 @@
+# Configuration fictive des captures de la documentation (scripts/docs-captures.ts) : famille de test, arrêts génériques.
+members:
+  - id: alex
+    parent: true
+    name: Alex
+    color: "#5b8def"
+  - id: sam
+    parent: true
+    name: Sam
+    color: "#e8964a"
+  - id: lea
+    name: Léa
+    color: "#3fb8a8"
+    ecoledirecte: Léa
+    commute: { stop: RALL, line: "03", towards: Lycée, label: Collège, walkMinutes: 4, from: "07:00", to: "08:30", days: [lun, mar, mer, jeu, ven] }
+    routines:
+      morning: [S'habiller, Petit-déjeuner, Dents, Cartable]
+      evening: [Douche, Pyjama, { step: Devoirs, days: [lun, mar, jeu] }]
+  - id: tom
+    name: Tom
+    color: "#d96aa7"
+    routines:
+      morning: [S'habiller, Petit-déjeuner, Dents]
+      evening: [Bain, Pyjama, Histoire]
+family:
+  name: Famille
+ui:
+  idleTimeoutSeconds: 3600
+  screensaverMinutes: 0
+weather:
+  label: Angers
+  latitude: 47.47
+  longitude: -0.55
+transit:
+  stops:
+    - { id: RALL, label: Ralliement }
+    - { id: GARE, label: Gare }

@@ -6,6 +6,12 @@ celle du jour de la capture.
 
 Tablette : 1280 × 800 (Fully Kiosk). Téléphone : 390 × 844 (PWA).
 
+Pour les refaire (après une modification du design, par exemple) : `npm run docs:captures`. Le script
+[`scripts/docs-captures.ts`](../scripts/docs-captures.ts) compile le front, lance HomeHub dans le monde fictif de
+[`scripts/docs-captures/`](../scripts/docs-captures/) (configuration, horloge, fausses sources), le remplit par l'API,
+photographie chaque page avec Chrome sans fenêtre, puis la [planche du design](design.md) d'après `web/src/app.css`.
+Chrome est cherché aux emplacements habituels ; sinon `CHROME=<chemin>`.
+
 ## Tablette
 
 ### Accueil

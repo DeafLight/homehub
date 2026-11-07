@@ -15,6 +15,7 @@
     "start": "node server/index.ts",
     "check": "tsc --noEmit -p server && svelte-check --tsconfig web/tsconfig.json",
     "test": "vitest run",
+    "docs:captures": "npm run build && node scripts/docs-captures.ts",
     "postinstall": "node scripts/patch-pawnote.ts"
   },
   "dependencies": {
