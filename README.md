@@ -17,10 +17,32 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Météo détaillée** (`/meteo`) : ouverte en touchant n'importe quel affichage météo ; conditions actuelles
   (ressenti, vent, humidité, soleil), courbe des 24 prochaines heures avec la pluie, et 4 jours. Le bouton retour
   ramène à la page d'origine (`/meteo/p/<id>` quand elle est ouverte depuis un profil).
-- **Test du scan** (`/test-scan`, bouton Scanner de l'accueil et du rail, ou roue dentée ; provisoire) : la tablette lit-elle les codes-barres des produits ? Lecteur
-  intégré du navigateur (`BarcodeDetector`) et formats, ouverture de la caméra (avant ou arrière) après la
-  reconnaissance des visages, codes lus avec leur clé de contrôle, et un résumé à recopier. Rien n'est enregistré. Prépare
-  le stock de la maison (voir `TODO.md`).
+- **Scanner** (`/scanner`, bouton Scanner de l'accueil et du rail ; téléphone : bouton code-barres de l'onglet
+  Courses, `/m/scanner`) : deux modes, **Ranger les courses** (entrées) et **Jeté / épuisé** (sorties). Le code-barres
+  est lu par le navigateur (`BarcodeDetector`, caméra avant de la tablette, arrière du téléphone) ou tapé à la main.
+  À chaque lecture : un **bip** (aigu : code lu ; puis deux notes s'il y a une question, une note grave en cas d'erreur), une vibration sur le
+  téléphone, un éclair et une **bordure qui pulse** avec le bandeau « **Retire le produit** » : le scanner ne relit
+  rien tant qu'un code reste devant la caméra (0,9 s sans code), si bien qu'un produit laissé devant n'est pas compté
+  deux fois ; le représenter après l'avoir retiré compte un de plus. Chaque passage est listé avec **Annuler** (le
+  dernier mouvement du produit), « Ce n'est pas ça ? » (fiche du produit) et, pour une sortie, « Recharge ? ». La
+  reconnaissance des visages et la veille sont coupées pendant le scan ; sans activité, la tablette revient à la page
+  d'origine au bout de 3 min.
+  - Produit **inconnu** de la base : on le décrit (nom, marque, contenance, rayon), il est gardé.
+  - **Épuisé** (dernier exemplaire sorti) : « L'ajouter à la liste de courses ? » Oui / Oui, et toujours d'office /
+    Non ; réglage par produit, et par défaut sur la page Stock. Un article ajouté d'office repart si on annule.
+  - Sortie d'un produit **pas en stock** (entrée oubliée) : « Il en reste ? » (0 par défaut), ou « C'était une
+    recharge ».
+  - **Recharges** : un emballage transvasé dans un contenant de la maison (bocal à café, bidon de lessive…) sort,
+    le produit reste dans le contenant ; le choix est retenu par produit (« Transvasé dans Bocal à café » proposé
+    d'office, « Épuisé » toujours possible). L'étiquette du contenant (code-barres interne, préfixe 29), scannée en
+    mode « Jeté / épuisé », le déclare vide.
+- **Stock** (`/stock`, depuis le scanner ou la page Listes) : produits en stock, épuisés ou tous, recherche ; ± 1 et
+  « Épuisé » à la main (pour le stock déjà là ou un oubli) ; fiche de chaque produit : provenance (base et date, ou
+  corrigé à la main), **Revérifier** (relecture immédiate de la base, différences montrées, à prendre ou non),
+  **Corriger** (notre version l'emporte ; versions datées), liste de courses d'office ou non, contenant habituel.
+  Contenants de la maison : ajout, renommage, retrait, « Vide », **étiquette à imprimer**. Écriture depuis la tablette
+  (sans reconnaissance du visage : la caméra sert au scan ; au nom de la personne reconnue s'il y en a une) ou un
+  téléphone relié. Prix : facultatifs, pas encore saisis (lecture des tickets à venir).
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
@@ -176,6 +198,12 @@ lui est envoyée. Lieux et trajets sont enregistrés dans `HOMEHUB_STATE_DIR/tra
 dépôt. Pas de correspondance : seules les lignes directes sont proposées (arrêts à moins de 800 m de chaque lieu ;
 marche estimée : ligne droite + 30 %, à 4,5 km/h).
 
+Les **produits** viennent des bases libres [Open Food Facts](https://world.openfoodfacts.org), puis Open Beauty Facts
+(hygiène) et Open Products Facts (lessive, entretien…) : sans compte, avec un User-Agent qui nomme HomeHub ; seul le
+code-barres leur est envoyé. Chaque produit trouvé est copié dans `stock.json` : la base n'est relue qu'au scan d'un
+produit lu il y a plus de 180 jours, ou sur « Revérifier ». Ce qui a été corrigé à la main l'emporte : une relecture
+qui le contredit est signalée sur la fiche (garder la nôtre ou prendre la base), jamais appliquée d'office.
+
 Sans agenda configuré, l'agenda est d'exemple (`server/sources/sample.ts`) ; les tâches et les mots sont toujours
 réels.
 
@@ -212,7 +240,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -248,8 +276,12 @@ server/
   sources/timers.ts        minuteurs (timers.json)
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
+  sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants
+  sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
   access.ts                qui écrit : la tablette (kiosk.addresses), un téléphone relié (jeton), sinon personne
   lists-api.ts             routes des listes, de l'appairage et des téléphones
+  stock-api.ts             routes du stock et du scanner
+shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
   App.svelte               choix de l'écran, retour à l'accueil, surveillance de version
@@ -299,6 +331,18 @@ web/src/
 | `POST /api/faces/diagnose` | `{ embedding, real, live }` → `{ verdict, scores, rules }` : verdict détaillé, sans session ni apprentissage (tablette seulement) |
 | `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
 | `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire |
+| `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité, contenants, réglage par défaut |
+| `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` |
+| `PUT /api/stock/products/:code` | `{ name, brand, quantity, category }` : produit inconnu décrit, ou corrigé (notre version l'emporte) |
+| `POST /api/stock/products/:code/recheck`, `…/accept-base`, `…/conflict` | relit la base (différences) ; prend sa version ; tranche un désaccord (`{ take: "mine" \| "base" }`) |
+| `PATCH /api/stock/products/:code` | `{ autoShop, refill }` : liste de courses d'office (`null` : réglage par défaut), contenant habituel |
+| `POST /api/stock/in`, `/out`, `/quantity` | entrée (`{ code, count?, price? }`) ; sortie (`{ code, all?, refill?, remaining? }`, avec la proposition de liste de courses) ; quantité comptée |
+| `POST /api/stock/undo` | `{ movementId }` : annule le dernier mouvement d'un produit ou d'un contenant (409 sinon) |
+| `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
+| `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |
+| `PUT /api/stock/settings` | `{ autoShop }` : réglage par défaut des produits épuisés |
+
+Toutes les écritures du stock : tablette ou téléphone relié.
 
 **Écriture** : la tablette est reconnue à sa clé (`HOMEHUB_KIOSK_KEY`, lue une fois dans `#key=…` puis envoyée dans
 l'en-tête `X-Kiosk-Key` ; placée après `#`, elle n'apparaît jamais dans les journaux du proxy) ou à son adresse

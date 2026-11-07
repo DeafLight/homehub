@@ -88,6 +88,48 @@ body {
   text-transform: inherit;
 }
 
+/* Boutons du stock et du scanner (piste A) : pastilles, cible de 52 px au moins. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 52px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: var(--rain);
+  color: var(--bg);
+}
+
+.btn.ok {
+  background: var(--ok);
+  color: var(--bg);
+}
+
+.btn.small {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: var(--text-small);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn:active:not(:disabled) {
+  filter: brightness(1.2);
+}
+
 :focus-visible {
   outline: 3px solid #7fb2ff;
   outline-offset: 3px;

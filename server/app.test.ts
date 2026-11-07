@@ -14,6 +14,7 @@ import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createRoutinePlanStore } from './sources/routine-plans.ts';
+import { createStockStore } from './sources/stock.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { buildGtfsIndex, unzip } from './sources/gtfs.ts';
 import { createTimerStore } from './sources/timers.ts';
@@ -51,6 +52,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
     sessions,
     timers,
     plans,
+    stock: createStockStore({ path: join(dir, 'stock.json'), clock: fixedClock }),
     transitSettings,
     gtfs: { index: async () => index },
     searchAddress,

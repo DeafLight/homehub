@@ -38,8 +38,8 @@
     <button type="button" class="timer" aria-label="Minuteur" onclick={() => (timers.dialog = true)}>
       <Icon name="timer" size={28} />
     </button>
-    <!-- En attendant le stock de la maison : la page de test du scan. -->
-    <button type="button" class="timer scan" aria-label="Scanner" onclick={() => navigate(detailPath('scantest', router.route))}>
+    <!-- Scanner du stock : ranger les courses, déclarer un produit épuisé. -->
+    <button type="button" class="timer scan" aria-label="Scanner" onclick={() => navigate(detailPath('scan', router.route))}>
       <Icon name="barcode" size={28} />
     </button>
     <SettingsMenu placement="side" size={56} />

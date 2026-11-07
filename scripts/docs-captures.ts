@@ -3,6 +3,7 @@
 // À lancer depuis le dossier du repo, après `npm run build` :
 //   node scripts/docs-captures.ts            toutes les captures et la planche du design
 //   node scripts/docs-captures.ts <regex>    seulement les captures dont le nom correspond (ex. « telephone »)
+//   DOCS_SERVE=1 node scripts/docs-captures.ts   le monde fictif reste ouvert (http://localhost:3190), sans captures
 // Chrome est cherché aux emplacements habituels ; sinon : CHROME=<chemin> node scripts/docs-captures.ts
 // Rien de réel : famille de test, faux ÉcoleDirecte, faux temps réel Irigo ; seule la météo est la vraie du jour.
 import { type ChildProcess, spawn } from 'node:child_process';
@@ -12,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
-import { DOCS_NOW } from './docs-captures/fake-world.ts';
+import { DOCS_NOW, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
@@ -139,6 +140,27 @@ await call(L, 'PUT', '/dashboard/lea/routine/morning-0', { done: true });
 await call(L, 'PUT', '/dashboard/lea/routine/morning-1', { done: true });
 await call(A, 'PUT', '/dashboard/tom/routine/morning-0', { done: true });
 const timer = (await call(A, 'POST', '/timers', { label: '🍝 Cuisson', seconds: 540 })) as { id: string };
+// Stock : courses rangées (produits des fausses bases, un saisi à la main), un bocal rechargé, un produit épuisé.
+for (const code of Object.values(DOCS_PRODUCTS)) await call(A, 'GET', `/stock/scan/${code}`);
+await call(A, 'PUT', `/stock/products/${DOCS_UNKNOWN}`, { name: 'Confiture de fraises', brand: 'Ferme des Coteaux', quantity: '370 g', category: null });
+for (const [code, count, price] of [
+  [DOCS_PRODUCTS.lait, 4, 1.15], [DOCS_PRODUCTS.pates, 3, 0.95], [DOCS_PRODUCTS.cafe, 2, 4.8], [DOCS_PRODUCTS.shampooing, 1, null],
+  [DOCS_PRODUCTS.lessive, 1, 7.9], [DOCS_PRODUCTS.riz, 1, 2.6], [DOCS_UNKNOWN, 2, null],
+] as const) await call(A, 'POST', '/stock/in', { code, count, price });
+const jar = (await call(A, 'POST', '/stock/containers', { name: 'Bocal à café' })) as { id: string };
+await call(A, 'POST', '/stock/out', { code: DOCS_PRODUCTS.cafe, refill: jar.id });
+await call(A, 'POST', '/stock/containers', { name: 'Boîte à riz' });
+await call(A, 'POST', '/stock/out', { code: DOCS_PRODUCTS.riz, all: true });
+await call(A, 'POST', '/stock/out', { code: DOCS_PRODUCTS.lait });
+
+// DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
+if (process.env.DOCS_SERVE) {
+  await call(A, 'DELETE', `/timers/${timer.id}`);
+  console.log(`Monde fictif sur ${BASE} (Ctrl+C pour arrêter)`);
+  await new Promise((r) => process.once('SIGINT', r));
+  await cleanup();
+  process.exit(0);
+}
 
 // --- Chrome sans fenêtre, piloté par le protocole DevTools (WebSocket natif de Node).
 const chrome = spawn(chromePath, [
@@ -217,11 +239,23 @@ for (const [name, path] of [
   ['tablette-semaine', '/semaine'],
   ['tablette-meteo', '/meteo'],
   ['tablette-listes', '/listes'],
+  ['tablette-stock', '/stock'],
   ['tablette-transports', '/transports'],
   ['tablette-telephones', '/telephones'],
   ['tablette-nas', '/nas'],
 ] as const) await shoot(name, BASE + path, TABLET);
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
+// Scanner (pas de caméra sans fenêtre : codes saisis à la main) : un produit rangé, puis le café, transvasé d'habitude.
+const typeCode = (code: string) => `{
+  const input = document.querySelector('input[placeholder="Code-barres à la main"]');
+  input.value = '${code}';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.form.requestSubmit();
+}`;
+const pause = 'await new Promise((r) => setTimeout(r, 250));';
+await shoot('tablette-scanner', `${BASE}/scanner`, TABLET, {
+  after: `(async () => { ${typeCode(DOCS_PRODUCTS.pates)} ${pause} ${click('Jeté / épuisé')}; ${pause} ${typeCode(DOCS_PRODUCTS.cafe)} })()`,
+});
 await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });

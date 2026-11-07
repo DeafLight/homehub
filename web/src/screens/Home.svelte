@@ -164,8 +164,8 @@
         <Icon name="timer" size={32} />
         <span>Minuteur</span>
       </button>
-      <!-- En attendant le stock de la maison, le scan ouvre la page de test (lecture des codes, rien d'enregistré). -->
-      <button type="button" class="action accent" onclick={() => navigate(detailPath('scantest', router.route))}>
+      <!-- Scanner du stock : ranger les courses, déclarer un produit épuisé. -->
+      <button type="button" class="action accent" onclick={() => navigate(detailPath('scan', router.route))}>
         <Icon name="barcode" size={32} />
         <span>Scanner</span>
       </button>

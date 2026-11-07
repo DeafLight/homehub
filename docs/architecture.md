@@ -31,6 +31,7 @@ flowchart LR
     ecole["ÉcoleDirecte / Pronote"]
     irigo["Irigo : SIRI (Ara),<br/>GTFS-RT, GTFS"]
     ign["Géoplateforme IGN<br/>(adresses)"]
+    off["Open Food Facts,<br/>Beauty, Products<br/>(produits)"]
   end
   tablette -- HTTPS --> npm
   tel -- HTTPS --> npm
@@ -39,7 +40,7 @@ flowchart LR
   api --- yaml
   api --- etat
   cron --> releve --> api
-  api --> meteo & ical & ecole & irigo & ign
+  api --> meteo & ical & ecole & irigo & ign & off
 ```
 
 ## Couches du serveur
@@ -49,7 +50,7 @@ la façon dont une source obtient ses données. `server/index.ts` assemble le to
 
 ```mermaid
 flowchart TB
-  subgraph http["HTTP (server/app.ts, server/lists-api.ts)"]
+  subgraph http["HTTP (server/app.ts, lists-api.ts, stock-api.ts)"]
     routes["Routes /api/*<br/>validation zod"]
     access["access.ts<br/>qui appelle : tablette, téléphone, personne"]
     rights["shared/rights.ts<br/>qui peut écrire sur quel profil"]
@@ -59,8 +60,8 @@ flowchart TB
     nasS["services/nas.ts<br/>page NAS"]
   end
   subgraph sources["Sources (server/sources/)"]
-    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode"]
-    locales["Locales, fichiers JSON<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings"]
+    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode,<br/>open-food-facts (sans cache : copie dans stock)"]
+    locales["Locales, fichiers JSON<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock"]
     cache["refreshing-cache.ts<br/>rafraîchit, garde la dernière valeur"]
     status["source-status.ts<br/>dernier succès ou erreur"]
   end
@@ -83,7 +84,7 @@ flowchart TB
 ```mermaid
 flowchart LR
   main["main.ts<br/>API, routeur, horloge<br/>→ contexte Svelte"] --> app["App.svelte<br/>écran courant, retour à l'accueil,<br/>surveillance de version"]
-  app --> ecrans["screens/<br/>Home, Dashboard, Week, Weather,<br/>Lists, Routines, Transit, Phones,<br/>Faces, Nas, Phone (PWA)"]
+  app --> ecrans["screens/<br/>Home, Dashboard, Week, Weather,<br/>Lists, Stock, Scan, Routines, Transit,<br/>Phones, Faces, Nas, Phone (PWA)"]
   ecrans --> comp["components/<br/>cartes, panneaux, minuteurs"]
   comp --> widgets["components/widgets/<br/>affichage pur"]
   ecrans --> lib["lib/<br/>logique sans DOM, testée<br/>(formats, semaine, trajets, routines…)"]
@@ -160,6 +161,29 @@ classDiagram
     arriveBefore
     walkFrom / walkTo
   }
+  class Product {
+    code
+    current : ProductVersion
+    autoShop
+    refill : Container
+    conflict
+  }
+  class ProductVersion {
+    name / brand / quantity / category
+    from
+    source : base | manual
+  }
+  class Movement {
+    kind : in | out | refill | adjust | container-empty
+    quantity / price
+    forgotten
+    by : Author
+  }
+  class Container {
+    code : EAN-13 préfixe 29
+    name
+    full
+  }
   class Author {
     ownerId
     via : tablet | phone
@@ -175,6 +199,11 @@ classDiagram
   ListTask ..> Author
   Note ..> Author
   Timer ..> Author
+  Product "1" --> "*" ProductVersion : stock.json
+  Product "1" --> "*" Movement
+  Movement ..> ProductVersion : en vigueur à sa date
+  Product ..> Container
+  Movement ..> Author
 ```
 
 | Fichier d'état | Contenu |
@@ -184,6 +213,7 @@ classDiagram
 | `routines.json` | étapes cochées du jour, jours de suite |
 | `routine-plans.json` | étapes et heures des routines |
 | `timers.json` | minuteurs en cours |
+| `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
 | `faces.json` | empreintes de visage (aucune image) |
@@ -207,6 +237,10 @@ flowchart TD
   droit -- oui --> ok["Écriture"]
   droit -- non --> ro["403 « Lecture seule : profil de … »"]
 ```
+
+Exception : le **stock** (scanner, page Stock) n'attend pas de visage reconnu, puisque la caméra de la tablette sert
+alors à lire les codes-barres. La tablette ou un téléphone relié suffit ; le mouvement est noté au nom de la personne
+reconnue s'il y en a une (ou du profil du téléphone).
 
 ## Séquences
 

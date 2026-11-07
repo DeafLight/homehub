@@ -19,6 +19,8 @@ import { createTimerStore } from './sources/timers.ts';
 import { createListsStore, listsTaskSource } from './sources/lists.ts';
 import { createNasStatusSource } from './sources/nas-status.ts';
 import { createNotesStore } from './sources/notes.ts';
+import { createOpenFoodFactsClient } from './sources/open-food-facts.ts';
+import { createStockStore } from './sources/stock.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
@@ -89,6 +91,9 @@ const routines = createRoutineStore({ path: join(stateDir, 'routines.json'), clo
 const plans = createRoutinePlanStore({ path: join(stateDir, 'routine-plans.json'), clock, config });
 await plans.load();
 const timers = createTimerStore({ clock, path: join(stateDir, 'timers.json') });
+const stock = createStockStore({ path: join(stateDir, 'stock.json'), clock });
+// Open Food Facts demande un User-Agent qui dit qui appelle : le nom et l'adresse du projet, rien de la famille.
+const productBase = createOpenFoodFactsClient({ userAgent: `HomeHub/${version} (https://github.com/DeafLight/homehub)` });
 const sources: Sources = {
   ...sample,
   tasks: listsTaskSource(lists, FAMILY_ID),
@@ -141,7 +146,7 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, productBase, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

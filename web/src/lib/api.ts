@@ -17,6 +17,14 @@ import type {
   NasData,
   Note,
   PairingCode,
+  Container,
+  Product,
+  ProductInfo,
+  ProductRecheck,
+  ScanLookup,
+  StockData,
+  StockMovementResult,
+  StockSettings,
   PublicConfig,
   Repeat,
   Routine,
@@ -113,6 +121,27 @@ export type Api = {
   renameDevice(id: string, name: string): Promise<Device>;
   /** `pin` : celui du propriétaire ou le code parent, quand l'un d'eux est défini. */
   removeDevice(id: string, pin?: string): Promise<void>;
+  /** Stock de la maison (écriture : tablette ou téléphone appairé). */
+  stock(): Promise<StockData>;
+  /** Ce qu'est un code scanné (13 chiffres) : produit, contenant de la maison, ou inconnu. */
+  scan(code: string): Promise<ScanLookup>;
+  /** Produit inconnu saisi, ou « Corriger ». */
+  saveProduct(code: string, info: ProductInfo): Promise<Product>;
+  recheckProduct(code: string): Promise<ProductRecheck>;
+  acceptBase(code: string): Promise<Product>;
+  resolveConflict(code: string, take: 'mine' | 'base'): Promise<Product>;
+  setProductPreferences(code: string, prefs: { autoShop?: boolean | null; refill?: string | null }): Promise<Product>;
+  stockIn(code: string, count?: number, price?: number | null): Promise<StockMovementResult>;
+  stockOut(code: string, options?: { all?: boolean; refill?: string | null; remaining?: number }): Promise<StockMovementResult>;
+  setStockQuantity(code: string, quantity: number): Promise<StockMovementResult>;
+  undoStock(movementId: string): Promise<{ quantity: number }>;
+  /** « Oui » à la proposition de liste de courses ; `always` : d'office la prochaine fois. */
+  shopProduct(code: string, always?: boolean): Promise<ShoppingItem>;
+  addContainer(name: string): Promise<Container>;
+  renameContainer(id: string, name: string): Promise<Container>;
+  removeContainer(id: string): Promise<void>;
+  emptyContainer(id: string): Promise<StockMovementResult>;
+  saveStockSettings(settings: StockSettings): Promise<StockSettings>;
 };
 
 export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
@@ -200,5 +229,22 @@ export function createApi(
     devices: () => request('/devices'),
     renameDevice: (id, name) => send('PATCH', `/devices/${encodeURIComponent(id)}`, { name }),
     removeDevice: (id, pin) => send('DELETE', `/devices/${encodeURIComponent(id)}`, pin ? { pin } : undefined),
+    stock: () => request('/stock'),
+    scan: (code) => request(`/stock/scan/${encodeURIComponent(code)}`),
+    saveProduct: (code, info) => send('PUT', `/stock/products/${encodeURIComponent(code)}`, info),
+    recheckProduct: (code) => send('POST', `/stock/products/${encodeURIComponent(code)}/recheck`),
+    acceptBase: (code) => send('POST', `/stock/products/${encodeURIComponent(code)}/accept-base`),
+    resolveConflict: (code, take) => send('POST', `/stock/products/${encodeURIComponent(code)}/conflict`, { take }),
+    setProductPreferences: (code, prefs) => send('PATCH', `/stock/products/${encodeURIComponent(code)}`, prefs),
+    stockIn: (code, count = 1, price = null) => send('POST', '/stock/in', { code, count, price }),
+    stockOut: (code, options = {}) => send('POST', '/stock/out', { code, ...options }),
+    setStockQuantity: (code, quantity) => send('POST', '/stock/quantity', { code, quantity }),
+    undoStock: (movementId) => send('POST', '/stock/undo', { movementId }),
+    shopProduct: (code, always = false) => send('POST', '/stock/shopping', { code, always }),
+    addContainer: (name) => send('POST', '/stock/containers', { name }),
+    renameContainer: (id, name) => send('PATCH', `/stock/containers/${encodeURIComponent(id)}`, { name }),
+    removeContainer: (id) => send('DELETE', `/stock/containers/${encodeURIComponent(id)}`),
+    emptyContainer: (id) => send('POST', `/stock/containers/${encodeURIComponent(id)}/empty`),
+    saveStockSettings: (settings) => send('PUT', '/stock/settings', settings),
   };
 }

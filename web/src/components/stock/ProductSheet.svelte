@@ -1,0 +1,257 @@
+<script lang="ts">
+  import type { Container, Product, ProductRecheck } from '../../../../shared/types.ts';
+  import { getAppContext } from '../../lib/context.ts';
+  import { infoDiff, productDetail, provenance, stockText } from '../../lib/stock.ts';
+  import ProductForm from './ProductForm.svelte';
+
+  // Fiche d'un produit (scanner, stock) : ce qu'on en sait et d'où ça vient ; « Ce n'est pas ça ? » → Revérifier
+  // (relecture de la base, différences à accepter ou non) ou Corriger (notre version) ; conflit avec la base à
+  // trancher ; réglages (liste de courses d'office, contenant où on le transvase).
+  type Props = {
+    product: Product;
+    quantity: number | null;
+    containers: Container[];
+    onChange: (product: Product) => void;
+    onClose: () => void;
+  };
+  let { product, quantity, containers, onChange, onClose }: Props = $props();
+
+  const { api } = getAppContext();
+
+  let mode = $state<'view' | 'correct'>('view');
+  let recheck = $state<ProductRecheck | null>(null);
+  let busy = $state(false);
+  let error = $state<string | null>(null);
+
+  async function run(action: () => Promise<void>) {
+    busy = true;
+    error = null;
+    try {
+      await action();
+    } catch (err) {
+      error = (err as Error).message;
+    } finally {
+      busy = false;
+    }
+  }
+
+  const reverify = () => run(async () => void (recheck = await api.recheckProduct(product.code)));
+  const takeBase = () =>
+    run(async () => {
+      onChange(await api.acceptBase(product.code));
+      recheck = null;
+    });
+  const resolve = (take: 'mine' | 'base') => run(async () => onChange(await api.resolveConflict(product.code, take)));
+  const setAutoShop = (autoShop: boolean | null) => run(async () => onChange(await api.setProductPreferences(product.code, { autoShop })));
+  const setRefill = (refill: string | null) => run(async () => onChange(await api.setProductPreferences(product.code, { refill })));
+
+  const SHOP_CHOICES: { value: boolean | null; label: string }[] = [
+    { value: null, label: 'Comme le réglage du stock' },
+    { value: true, label: 'L’ajouter d’office' },
+    { value: false, label: 'Demander' },
+  ];
+</script>
+
+{#if mode === 'correct'}
+  <ProductForm
+    title="Corriger le produit"
+    code={product.code}
+    initial={product.current}
+    hint="notre version l’emportera sur la base"
+    onSubmit={async (info) => {
+      onChange(await api.saveProduct(product.code, info));
+      mode = 'view';
+    }}
+    onCancel={() => (mode = 'view')}
+  />
+{:else}
+  <div class="head">
+    {#if product.image}<img src={product.image} alt="" />{/if}
+    <div class="title">
+      <h2>{product.current.name}</h2>
+      <span class="muted">{productDetail(product.current) || 'Marque et contenance inconnues'}{product.current.category ? ` · ${product.current.category}` : ''}</span>
+      <span class="small">{provenance(product)}{quantity !== null ? ` · ${stockText(quantity)}` : ''}</span>
+    </div>
+  </div>
+
+  {#if product.conflict}
+    {@const diff = infoDiff(product.current, product.conflict)}
+    <div class="notice">
+      <strong>La base dit maintenant autre chose</strong>
+      {#each diff as row (row.label)}
+        <span>{row.label} : « {row.theirs} », tu avais mis « {row.mine} »</span>
+      {/each}
+      <div class="row">
+        <button type="button" class="btn small" disabled={busy} onclick={() => resolve('mine')}>Garder la nôtre</button>
+        <button type="button" class="btn small primary" disabled={busy} onclick={() => resolve('base')}>Passer à celle de la base</button>
+      </div>
+    </div>
+  {/if}
+
+  <section>
+    <h3 class="card-label">Ce n’est pas ça ?</h3>
+    {#if recheck}
+      {#if recheck.baseError}
+        <p class="muted">La base ne répond pas : réessaie plus tard, ou corrige à la main.</p>
+      {:else if !recheck.base}
+        <p class="muted">Ce produit n’est pas dans la base : seule la correction à la main est possible.</p>
+      {:else if !recheck.differs}
+        <p class="muted">La base dit la même chose que la fiche.</p>
+      {:else}
+        <table>
+          <thead><tr><th></th><th>Fiche</th><th>Base</th></tr></thead>
+          <tbody>
+            {#each infoDiff(recheck.current, recheck.base) as row (row.label)}
+              <tr><th>{row.label}</th><td>{row.mine}</td><td>{row.theirs}</td></tr>
+            {/each}
+          </tbody>
+        </table>
+        <div class="row">
+          <button type="button" class="btn small" onclick={() => (recheck = null)}>Garder la fiche</button>
+          <button type="button" class="btn small primary" disabled={busy} onclick={takeBase}>Prendre la version de la base</button>
+        </div>
+      {/if}
+    {/if}
+    <div class="row">
+      <button type="button" class="btn small" disabled={busy} onclick={reverify}>Revérifier</button>
+      <button type="button" class="btn small" disabled={busy} onclick={() => (mode = 'correct')}>Corriger</button>
+    </div>
+  </section>
+
+  <section>
+    <h3 class="card-label">Épuisé : liste de courses</h3>
+    <div class="chips">
+      {#each SHOP_CHOICES as choice (String(choice.value))}
+        <button type="button" class:on={product.autoShop === choice.value} disabled={busy} onclick={() => setAutoShop(choice.value)}>{choice.label}</button>
+      {/each}
+    </div>
+  </section>
+
+  {#if containers.length}
+    <section>
+      <h3 class="card-label">Transvasé dans</h3>
+      <div class="chips">
+        <button type="button" class:on={product.refill === null} disabled={busy} onclick={() => setRefill(null)}>Aucun contenant</button>
+        {#each containers as container (container.id)}
+          <button type="button" class:on={product.refill === container.id} disabled={busy} onclick={() => setRefill(container.id)}>{container.name}</button>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
+  {#if error}<p class="error">{error}</p>{/if}
+  <div class="row end">
+    <button type="button" class="btn" onclick={onClose}>Fermer</button>
+  </div>
+{/if}
+
+<style>
+  .head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  img {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: #fff;
+    object-fit: contain;
+  }
+
+  .title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: var(--text-title);
+  }
+
+  .muted {
+    color: var(--fg-muted);
+  }
+
+  .small {
+    color: var(--fg-muted);
+    font-size: 0.95rem;
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .notice {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .row.end {
+    justify-content: flex-end;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .chips button {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+  }
+
+  .chips button.on {
+    background: var(--rain);
+    color: var(--bg);
+    font-weight: 600;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 6px 12px 6px 0;
+    text-align: left;
+  }
+
+  thead th {
+    color: var(--fg-muted);
+    font-weight: 600;
+  }
+
+  tbody th {
+    color: var(--fg-muted);
+    font-weight: 400;
+  }
+
+  .error {
+    margin: 0;
+    color: var(--danger-fg);
+  }
+</style>

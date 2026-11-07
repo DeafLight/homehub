@@ -66,8 +66,6 @@
       <button type="button" role="menuitem" onclick={() => go('routines')}><Icon name="list" size={28} /> Routines</button>
       <button type="button" role="menuitem" onclick={() => go('transit')}><Icon name="bus" size={28} /> Transports</button>
       <button type="button" role="menuitem" onclick={() => go('nas')}><Icon name="server" size={28} /> État du NAS</button>
-      <!-- Provisoire : la tablette lit-elle les codes-barres ? (avant le stock de la maison) -->
-      <button type="button" role="menuitem" onclick={() => go('scantest')}><Icon name="barcode" size={28} /> Test du scan</button>
       <!-- Essai du dashboard « focus » des élèves : bascule propre à cette tablette. -->
       <button
         type="button"

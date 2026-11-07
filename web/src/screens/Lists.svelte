@@ -9,7 +9,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import type { PageRoute } from '../lib/route.ts';
+  import { type PageRoute, detailPath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 10_000;
 
@@ -18,7 +18,7 @@
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
-  const { api, actor, profiles, clock } = getAppContext();
+  const { api, actor, profiles, clock, navigate, router } = getAppContext();
   const origin = $derived(back.name === 'dashboard' ? back.ownerId : null);
   const lists = createListsState(api, { refreshMs: LISTS_REFRESH_MS, guard: actor.allow });
   const me = createResource(() => api.me(), 60_000);
@@ -47,6 +47,8 @@
     {#if readOnly}
       <span class="muted readonly">Lecture seule sur cet appareil</span>
     {/if}
+    <!-- Stock de la maison : ce qu'on a déjà, avant d'ajouter aux courses. -->
+    <button type="button" class="btn stock-link" onclick={() => navigate(detailPath('stock', router.route))}><Icon name="box" size={24} /> Stock</button>
   </header>
 
   {#if lists.actionError}<p class="error">{lists.actionError}</p>{/if}
@@ -110,6 +112,10 @@
 {/if}
 
 <style>
+  .stock-link {
+    margin-left: auto;
+  }
+
   .lists-page {
     height: 100%;
     display: flex;

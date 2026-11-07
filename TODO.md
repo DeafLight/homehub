@@ -31,9 +31,9 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Menu de la semaine : choisir des recettes et le nombre de personnes pour chacune.
 - [ ] Liste de courses **agrégée et cohérente** : quantités mises à l'échelle des portions, même ingrédient
       regroupé entre recettes (unités converties : g / kg, cl / l, cuillères, « 1 oignon »), rangée par rayon ;
-      « j'en ai déjà » pour les placards (sel, huile…), d'après le stock quand il existera (voir « Stock de la
-      maison ») ; on voit de quelles recettes vient chaque ligne. Elle
-      rejoint la liste de courses actuelle, avec les produits hors recettes (lessive…).
+      « j'en ai déjà » pour les placards (sel, huile…), d'après le stock (voir « Stock de la maison ») ; on voit de
+      quelles recettes vient chaque ligne. Elle rejoint la liste de courses actuelle, avec les produits hors recettes
+      (lessive…).
 - [ ] Secondaire, si possible : envoyer la liste au panier d'un drive (enseigne à définir, type Hyper U) depuis la
       tablette ; ce que le drive n'a pas reste dans la liste classique. HomeHub remplit le panier ; la commande et
       le paiement se valident chez l'enseigne.
@@ -44,41 +44,34 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 
 ## Stock de la maison (sujet à part, utile aux recettes et au-delà)
 
-- [ ] Entrées : scanner les codes-barres des courses avec la caméra de la tablette, produit reconnu dans une base de
-      codes-barres (Open Food Facts, libre, pour l'alimentaire ; à voir pour la lessive, l'hygiène…), quantité
-      ajoutée au stock.
-- [ ] Sorties : scanner le paquet vide, ou choisir le produit à la main pour le déclarer épuisé.
-- [ ] Produit épuisé : proposer de l'ajouter à la liste de courses (accepter ou non) ; option « l'ajouter
-      automatiquement », enregistrée (par produit, avec un réglage par défaut).
-- [ ] Sortie d'un produit absent du stock (entrée oubliée) : acceptée sans bloquer ; le produit devient connu ;
-      « Il en reste ? » (nombre, 0 par défaut ; le reste entre au stock, sans prix) ; puis la proposition de liste
-      de courses habituelle. Jamais de stock négatif ; entrée oubliée notée (pour voir si le scan à l'arrivée est
-      souvent oublié).
-- [ ] Recharges et contenants de la maison (bidon de lessive, bocal à farine, boîte à café, savon…) : au scan d'un
-      emballage vide, « Épuisé » ou « Transvasé » ; transvasé, l'emballage sort mais le produit reste disponible dans
-      le contenant. Le choix est retenu par code-barres (« Transvasé dans le bidon de lessive » proposé d'office,
-      « Épuisé » toujours possible). Contenant vide déclaré à la main → même proposition de liste de courses ;
-      étiquette à code-barres imprimable à coller sur le contenant, pour le scanner comme un produit.
-- [ ] Code-barres inconnu de la base : le saisir (nom, marque, contenance, rayon) et le garder en mémoire.
-- [ ] Copie locale des produits déjà trouvés dans la base : on ne l'interroge qu'une fois par code-barres. Nom et
-      contenance changent rarement ; relecture paresseuse au-delà de quelques mois, ou à la demande. Ce qu'on a
-      corrigé à la main l'emporte sur la base.
-- [ ] Correction d'un produit reconnu : au scan, fiche du produit (nom, marque, contenance, source et date de
-      lecture) et « Ce n'est pas ça ? » → **Revérifier** (relecture immédiate de la base, différences montrées, à
-      accepter ou non) ou **Corriger** (saisie à la main, notre version l'emporte).
-- [ ] Versions datées d'un produit (même code-barres, contenance réduite…) : achats et prix rattachés à la version
-      en vigueur à leur date, pour garder justes les prix au kilo passés.
-- [ ] Relecture de la base qui contredit une correction : le signaler sans rien changer (« la base dit maintenant
-      140 g, tu avais mis 150 g : garder ou passer à 140 g ? »).
+Fait en 0.33.0 (scanner et page Stock, voir README) :
+
+- [x] Entrées : codes-barres des courses scannés (caméra de la tablette ou du téléphone, ou tapés), produit reconnu
+      dans Open Food Facts, puis Open Beauty Facts et Open Products Facts (hygiène, lessive, entretien).
+- [x] Sorties : paquet vide scanné, ou « Épuisé » / − 1 à la main sur la page Stock.
+- [x] Produit épuisé : proposition de liste de courses (Oui / Oui, et toujours d'office / Non), réglage par produit et
+      par défaut.
+- [x] Sortie d'un produit absent du stock (entrée oubliée) : acceptée, « Il en reste ? » (0 par défaut, le reste
+      entre sans prix), puis la proposition de liste de courses ; jamais de stock négatif ; entrée oubliée notée.
+- [x] Recharges et contenants de la maison : « Transvasé » ou « Épuisé », choix retenu par produit ; contenant vide
+      (scan de son étiquette ou bouton « Vide ») → même proposition ; étiquette EAN-13 interne (préfixe 29) à imprimer.
+- [x] Code-barres inconnu : saisi (nom, marque, contenance, rayon) et gardé.
+- [x] Copie locale des produits : base relue au-delà de 180 jours ou sur « Revérifier » ; la correction l'emporte.
+- [x] Correction : fiche du produit (provenance et date), « Ce n'est pas ça ? » → Revérifier (différences, à prendre
+      ou non) ou Corriger.
+- [x] Versions datées d'un produit ; une relecture de la base qui contredit une correction est signalée, sans rien
+      changer.
+- [x] Le stock déjà présent s'enregistre aussi (scan ou + 1), sans prix.
+- [x] Écran de scan : bip et éclair à chaque lecture, bordure qui pulse et « Retire le produit » : rien n'est relu
+      tant que le code reste devant la caméra.
+
+Reste :
+
+- [ ] Vérifier sur la tablette et un téléphone : lecture en continu, bip (son autorisé par Fully Kiosk ?), « Retire le
+      produit » au bon moment, distance de lecture des petits codes (EAN-8), étiquette imprimée bien lue.
+- [ ] Inventaire consultable depuis le téléphone (page Stock dans la PWA) ; « j'en ai déjà » des recettes.
 - [ ] Plus tard, en option : renvoyer une correction à Open Food Facts avec le compte de l'utilisateur, seulement à
       sa demande.
-- [ ] Ce que le serveur sait alors : ce qu'on a ou non, pour le « j'en ai déjà » des recettes ; inventaire
-      consultable depuis le téléphone, etc.
-- [ ] Le stock déjà présent à la maison s'enregistre aussi (scan ou saisie), sans prix.
-- [x] Essai sur la tablette (0.31.0, page Test du scan) : lecteur intégré au navigateur (BarcodeDetector : ean_13,
-      ean_8, upc_a, upc_e), caméra avant ouverte en 0,5 s sans conflit avec la reconnaissance des visages, code lu
-      et clé juste, produit trouvé dans Open Food Facts. Pas de bibliothèque à ajouter.
-- [ ] Écran de scan : bip ou éclair à chaque lecture, pause d'un instant après un code pour ne pas le compter deux fois.
 - [ ] À étudier : relier un produit scanné à un ingrédient de recette (« Lardons fumés
       Herta 2×75 g » → lardons, 150 g).
 
@@ -90,8 +83,8 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Rapprocher les lignes du ticket (libellés abrégés, sans code-barres) des produits scannés le même jour :
       marque, mots, contenance, quantités ; association confirmée retenue par enseigne, reconnue seule ensuite.
       Écran de vérification : sûres, à confirmer, sans produit (au poids, non scanné).
-- [ ] Le prix est facultatif : sans ticket, ou pour le stock déjà présent, l'entrée n'a pas de prix (et les calculs
-      de coût le disent : « prix connu pour 8 ingrédients sur 10 »).
+- [ ] Le prix est facultatif (déjà prévu par l'API du stock, pas encore saisi) : sans ticket, ou pour le stock déjà
+      présent, l'entrée n'a pas de prix (et les calculs de coût le disent : « prix connu pour 8 ingrédients sur 10 »).
 - [ ] Ce qu'on en tire : historique du prix par produit, date et magasin ; coût d'une recette (notre version) et du
       menu de la semaine.
 - [ ] À étudier : commandes drive (produit, prix et code-barres exacts, sans OCR) ; Open Prices (Open Food Facts),

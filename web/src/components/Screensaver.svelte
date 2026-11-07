@@ -44,7 +44,7 @@
   let lastTouch = Date.now();
   let position = $state({ x: 50, y: 50 });
 
-  const enabled = $derived(kiosk && config.ui.screensaverMinutes > 0 && !isPhoneRoute(router.route));
+  const enabled = $derived(kiosk && config.ui.screensaverMinutes > 0 && !isPhoneRoute(router.route) && router.route.name !== 'scan');
 
   const fully = () => (globalThis as { fully?: Fully }).fully;
   let savedBrightness: number | null = null;

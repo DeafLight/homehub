@@ -12,7 +12,8 @@
   import Dashboard from './screens/Dashboard.svelte';
   import Faces from './screens/Faces.svelte';
   import Routines from './screens/Routines.svelte';
-  import ScanTest from './screens/ScanTest.svelte';
+  import Scan from './screens/Scan.svelte';
+  import Stock from './screens/Stock.svelte';
   import Transit from './screens/Transit.svelte';
   import Home from './screens/Home.svelte';
   import Lists from './screens/Lists.svelte';
@@ -38,9 +39,10 @@
       onReachable: (value) => (reachable = value),
     });
     // Sans contact pendant un moment : retour à l'accueil, pour que le suivant tombe sur « Qui est là ? ».
-    // Pas sur un téléphone, qui n'a pas d'accueil de tablette.
+    // Pas sur un téléphone, qui n'a pas d'accueil de tablette, ni pendant un scan (personne ne touche l'écran : le
+    // scanner se ferme seul après quelques minutes sans lecture).
     const stopIdle = watchIdle(config.ui.idleTimeoutSeconds * 1000, () => {
-      if (!isPhoneRoute(router.route)) router.navigate(HOME_PATH);
+      if (!isPhoneRoute(router.route) && router.route.name !== 'scan') router.navigate(HOME_PATH);
     });
     return () => {
       stopVersion();
@@ -67,8 +69,12 @@
   <Routines back={router.route.back} />
 {:else if router.route.name === 'transit'}
   <Transit back={router.route.back} />
-{:else if router.route.name === 'scantest'}
-  <ScanTest back={router.route.back} />
+{:else if router.route.name === 'scan'}
+  <Scan back={router.route.back} />
+{:else if router.route.name === 'stock'}
+  <Stock back={router.route.back} />
+{:else if router.route.name === 'phonescan'}
+  <Scan back={null} />
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}

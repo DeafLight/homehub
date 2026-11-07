@@ -1,4 +1,5 @@
-// Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte, faux temps réel Irigo.
+// Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte, faux temps réel Irigo,
+// fausses bases de produits (Open Food Facts et ses sœurs).
 // Aucune connexion réelle à l'école ni à Irigo ; la météo (Open-Meteo) et les horaires GTFS restent les vrais.
 
 /** Jeudi 5 novembre 2026, 07:35 (heure locale) : cours du jour, routine du matin, bandeau du bus. */
@@ -88,13 +89,50 @@ function fakeSiri(): Response {
   return new Response(`<siri:Status>true</siri:Status>${visits.join('')}`);
 }
 
-/** Remplace ÉcoleDirecte et le temps réel Irigo par des réponses d'exemple ; le reste passe au vrai `fetch`. */
+/**
+ * Produits fictifs (codes à clé juste, marques inventées), rangés par base comme dans Open Food Facts et ses sœurs.
+ * `DOCS_UNKNOWN` n'est dans aucune base : il passe par la saisie à la main.
+ */
+export const DOCS_PRODUCTS = {
+  lait: '3000000000014',
+  pates: '3000000000021',
+  cafe: '3000000000038',
+  shampooing: '3000000000045',
+  lessive: '3000000000052',
+  riz: '3000000000069',
+} as const;
+export const DOCS_UNKNOWN = '3000000000076';
+const PRODUCT_BASES: Record<string, Record<string, Record<string, string>>> = {
+  'world.openfoodfacts.org': {
+    [DOCS_PRODUCTS.lait]: { product_name_fr: 'Lait demi-écrémé', brands: 'Laiterie du Val', quantity: '1 L' },
+    [DOCS_PRODUCTS.pates]: { product_name_fr: 'Coquillettes', brands: 'Moulin d’Anjou', quantity: '500 g' },
+    [DOCS_PRODUCTS.cafe]: { product_name_fr: 'Café moulu pur arabica', brands: 'Torréfaction des Halles', quantity: '250 g' },
+    [DOCS_PRODUCTS.riz]: { product_name_fr: 'Riz basmati', brands: 'Moulin d’Anjou', quantity: '1 kg' },
+  },
+  'world.openbeautyfacts.org': {
+    [DOCS_PRODUCTS.shampooing]: { product_name_fr: 'Shampooing doux', brands: 'Bain de Loire', quantity: '250 ml' },
+  },
+  'world.openproductsfacts.org': {
+    [DOCS_PRODUCTS.lessive]: { product_name_fr: 'Lessive liquide', brands: 'Clair', quantity: '1,5 L' },
+  },
+};
+
+function fakeProductBase(url: URL): Response {
+  const code = /\/api\/v2\/product\/(\d+)/u.exec(url.pathname)?.[1] ?? '';
+  const product = PRODUCT_BASES[url.hostname][code];
+  return product
+    ? new Response(JSON.stringify({ status: 1, product }), { headers: { 'content-type': 'application/json' } })
+    : new Response(JSON.stringify({ status: 0 }), { status: 404 });
+}
+
+/** Remplace ÉcoleDirecte, le temps réel Irigo et les bases de produits par des réponses d'exemple ; le reste passe au vrai `fetch`. */
 export function installFakeSources(): void {
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input instanceof Request ? input.url : input));
     if (url.hostname === 'api.ecoledirecte.com') return fakeEcoleDirecte(url);
     if (url.hostname === 'ara-api.enroute.mobi') return fakeSiri();
+    if (url.hostname in PRODUCT_BASES) return fakeProductBase(url);
     return realFetch(input, init);
   }) as typeof fetch;
   process.env.ECOLEDIRECTE_IDENTIFIANT = 'docs';

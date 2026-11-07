@@ -470,3 +470,90 @@ export type Me = {
 };
 
 export type PairingCode = { code: string; ownerId: string; expiresAt: string };
+
+// --- Stock de la maison : produits scannés (code-barres), quantités, contenants ---
+
+/** Ce qu'on sait d'un produit : lu dans la base (Open Food Facts…) ou saisi à la main. */
+export type ProductInfo = {
+  name: string;
+  brand: string | null;
+  /** Contenance telle qu'écrite sur le paquet (« 4 x 90 g », « 1,5 L »). */
+  quantity: string | null;
+  /** Rayon, choisi à la main (« Frais », « Entretien »…). */
+  category: string | null;
+};
+
+/** Version datée d'un produit : un même code-barres peut changer (contenance réduite…). */
+export type ProductVersion = ProductInfo & {
+  /** Version en vigueur depuis. */
+  from: string;
+  source: 'base' | 'manual';
+  /** Base consultée (open-food-facts, open-beauty-facts, open-products-facts) ; null : saisie à la main. */
+  base: string | null;
+};
+
+export type Product = {
+  /** Code-barres sur 13 chiffres (EAN-13 ; UPC-A et EAN-8 complétés de zéros). */
+  code: string;
+  current: ProductVersion;
+  versionCount: number;
+  image: string | null;
+  /** Ajouter à la liste de courses quand il est épuisé : oui, non, ou null (réglage par défaut du stock). */
+  autoShop: boolean | null;
+  /** Contenant dans lequel on le transvase d'habitude (recharge de lessive…), proposé d'office. */
+  refill: string | null;
+  /** Relecture de la base qui contredit notre correction : à trancher (rien n'a changé). */
+  conflict: ProductInfo | null;
+  /** Dernière lecture de la base, s'il y en a eu une. */
+  baseReadAt: string | null;
+};
+
+/** Contenant de la maison (bidon de lessive, bocal à farine…), avec son étiquette à code-barres. */
+export type Container = {
+  id: string;
+  code: string;
+  name: string;
+  /** Produit qu'il contient (le dernier transvasé), s'il y en a un. */
+  productCode: string | null;
+  productName: string | null;
+  full: boolean;
+};
+
+export type StockEntry = { product: Product; quantity: number; updatedAt: string | null };
+
+export type StockData = {
+  /** Produits connus, en stock d'abord, puis épuisés. */
+  items: StockEntry[];
+  containers: Container[];
+  settings: StockSettings;
+};
+
+export type StockSettings = {
+  /** Produit épuisé : l'ajouter à la liste de courses sans demander (sauf réglage du produit). */
+  autoShop: boolean;
+};
+
+/** Ce qu'est un code-barres scanné. */
+export type ScanLookup =
+  | { kind: 'product'; code: string; product: Product; quantity: number }
+  | { kind: 'container'; code: string; container: Container }
+  /** Inconnu partout : à saisir ; `suggestion` : ce que la base sait quand même (sans nom). */
+  | { kind: 'unknown'; code: string; suggestion: Partial<ProductInfo> | null; baseError: boolean };
+
+/** Ce que devient la liste de courses après une sortie : ajouté d'office, à proposer, ou rien à faire. */
+export type ShoppingOutcome = 'added' | 'propose' | 'none';
+
+export type StockMovementResult = {
+  movementId: string;
+  product: Product | null;
+  quantity: number;
+  container: Container | null;
+  /** Sortie d'un produit qu'on n'avait pas en stock : l'entrée avait été oubliée. */
+  forgotten: boolean;
+  shopping: ShoppingOutcome;
+  /** Libellé proposé (ou ajouté) à la liste de courses. */
+  shoppingLabel: string | null;
+};
+
+/** « Revérifier » : ce que dit la base maintenant, à côté de la version en vigueur. */
+export type ProductRecheck = { current: ProductInfo; base: ProductInfo | null; differs: boolean; baseError: boolean };

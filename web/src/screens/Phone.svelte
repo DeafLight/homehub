@@ -17,7 +17,7 @@
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { routineFooter, routineTitle } from '../lib/routine.ts';
-  import { type PhoneTab, phonePath } from '../lib/route.ts';
+  import { PHONE_SCAN_PATH, type PhoneTab, phonePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
@@ -258,7 +258,12 @@
       {/if}
     </main>
 
-    {#if tab === 'tasks'}
+    {#if tab === 'shopping'}
+      <!-- Scanner du stock (caméra arrière) : ranger les courses, déclarer un produit épuisé. -->
+      <button type="button" class="fab scan" aria-label="Scanner un produit" onclick={() => navigate(PHONE_SCAN_PATH)}>
+        <Icon name="barcode" size={30} />
+      </button>
+    {:else if tab === 'tasks'}
       <button type="button" class="fab" aria-label="Ajouter une tâche" onclick={() => (adding = true)}>
         <Icon name="plus" size={30} strokeWidth={2.4} />
       </button>

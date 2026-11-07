@@ -7,6 +7,7 @@ import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
 import { createListsApi } from './lists-api.ts';
+import { createStockApi } from './stock-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
@@ -15,6 +16,8 @@ import type { PinStore } from './sources/pins.ts';
 import { type RoutinePlanStore, routineSettingsInput } from './sources/routine-plans.ts';
 import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
+import type { ProductBase } from './sources/open-food-facts.ts';
+import type { StockStore } from './sources/stock.ts';
 import { MAX_TIMERS, TIMER_LABEL_MAX, TIMER_MAX_SECONDS, type TimerStore } from './sources/timers.ts';
 import type { GtfsSource } from './sources/gtfs.ts';
 import { type TransitSettingsStore, transitSettingsInput } from './sources/transit-settings.ts';
@@ -32,6 +35,9 @@ export type AppDeps = {
   sessions: ActorSessions;
   timers: TimerStore;
   plans: RoutinePlanStore;
+  stock: StockStore;
+  /** Base de produits (Open Food Facts…) ; absente (tests) : tout code inconnu se saisit à la main. */
+  productBase?: ProductBase;
   /** Page « Transports » ; absents (tests) : page indisponible. */
   transitSettings?: TransitSettingsStore;
   gtfs?: GtfsSource;
@@ -249,6 +255,7 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   api.route('/', createListsApi({ ...deps, access }));
+  api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 
   app.route('/api', api);
   // Avant le front : une route d'API inconnue ne doit pas renvoyer index.html.

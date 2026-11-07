@@ -1,7 +1,7 @@
 # Écrans
 
-Captures de HomeHub 0.30.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
-faux ÉcoleDirecte et faux temps réel Irigo, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
+Captures de HomeHub 0.33.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
 Tablette : 1280 × 800 (Fully Kiosk). Téléphone : 390 × 844 (PWA).
@@ -10,7 +10,8 @@ Pour les refaire (après une modification du design, par exemple) : `npm run doc
 [`scripts/docs-captures.ts`](../scripts/docs-captures.ts) compile le front, lance HomeHub dans le monde fictif de
 [`scripts/docs-captures/`](../scripts/docs-captures/) (configuration, horloge, fausses sources), le remplit par l'API,
 photographie chaque page avec Chrome sans fenêtre, puis la [planche du design](design.md) d'après `web/src/app.css`.
-Chrome est cherché aux emplacements habituels ; sinon `CHROME=<chemin>`.
+Chrome est cherché aux emplacements habituels ; sinon `CHROME=<chemin>`. Pour essayer à la main ce monde fictif
+(scanner compris, codes tapés à la main) : `DOCS_SERVE=1 node scripts/docs-captures.ts`, puis `http://localhost:3190`.
 
 ## Tablette
 
@@ -50,6 +51,21 @@ Conditions actuelles, courbe des 24 heures, 4 jours.
 Courses et tâches de la famille ; tâches en retard en rouge, tâches qui reviennent.
 
 ![Listes](images/tablette-listes.png)
+
+### Stock
+
+Produits en stock (± 1, « Épuisé »), contenants de la maison (bocal rechargé, étiquette à imprimer), réglage de la
+liste de courses pour un produit épuisé.
+
+![Stock](images/tablette-stock.png)
+
+### Scanner
+
+Mode « Jeté / épuisé » : le paquet de café scanné est d'habitude transvasé dans le bocal, d'où la question ; le
+bandeau orange reste tant que le produit est devant la caméra. À droite, les passages, chacun annulable. (Sans caméra
+dans Chrome sans fenêtre : codes saisis à la main.)
+
+![Scanner](images/tablette-scanner.png)
 
 ### Routines (réglages)
 
