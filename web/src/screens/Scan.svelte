@@ -29,7 +29,8 @@
 
   type Mode = 'in' | 'out';
   type Facing = 'user' | 'environment';
-  type Flash = { tone: BeepKind; title: string; detail: string };
+  /** Bandeau du dernier code lu : nom, marque et contenance (`info`), puis ce qui s'est passé (`detail`). */
+  type Flash = { tone: BeepKind; title: string; detail: string; info: string };
   type Entry = {
     id: string;
     kind: 'in' | 'out' | 'refill' | 'empty';
@@ -143,9 +144,9 @@
     stopCamera = null;
   }
 
-  function show(tone: BeepKind, title: string, detail = '') {
+  function show(tone: BeepKind, title: string, detail = '', info = '') {
     const id = ++flashCount;
-    flash = { tone, title, detail };
+    flash = { tone, title, detail, info };
     // Une erreur reste lisible même sans produit devant la caméra (saisie à la main, Annuler…), puis s'efface.
     if (tone === 'error') setTimeout(() => id === flashCount && (flash = null), ERROR_SHOW_MS);
   }
@@ -202,20 +203,21 @@
 
   async function onProduct(product: Product, quantity: number) {
     const name = product.current.name;
+    const info = productDetail(product.current);
     if (mode === 'in') {
       const result = await api.stockIn(product.code);
       pushEntry(entryOf(result, 'in', product.code));
-      show('ok', name, `+1 · ${stockText(result.quantity)}`);
+      show('ok', name, `+1 · ${stockText(result.quantity)}`, info);
       return;
     }
     const container = product.refill ? containers.find((c) => c.id === product.refill) : undefined;
     if (container) {
       beep('ask');
-      show('ask', name, 'Transvasé ou épuisé ?');
+      show('ask', name, 'Transvasé ou épuisé ?', info);
       dialog = { kind: 'out-choice', product, container };
     } else if (quantity === 0) {
       beep('ask');
-      show('ask', name, 'Pas en stock : entrée oubliée ?');
+      show('ask', name, 'Pas en stock : entrée oubliée ?', info);
       dialog = { kind: 'forgotten', product, remaining: 0 };
     } else await takeOut(product, {});
   }
@@ -223,7 +225,7 @@
   async function takeOut(product: Product, options: { refill?: string; remaining?: number }) {
     const result = await api.stockOut(product.code, options);
     pushEntry(entryOf(result, options.refill ? 'refill' : 'out', product.code));
-    afterOut(result, product.current.name);
+    afterOut(result, product.current.name, productDetail(product.current));
   }
 
   /**
@@ -235,16 +237,16 @@
     return act(() => takeOut(product, options));
   }
 
-  function afterOut(result: StockMovementResult, name: string) {
+  function afterOut(result: StockMovementResult, name: string, info = '') {
     const changed = result.container;
     if (changed) containers = containers.map((c) => (c.id === changed.id ? changed : c));
     if (result.shopping === 'propose' && result.product && result.shoppingLabel) {
       beep('ask');
-      show('ask', name, 'Épuisé');
+      show('ask', name, 'Épuisé', info);
       dialog = { kind: 'shop', code: result.product.code, label: result.shoppingLabel };
     } else {
       const detail = result.container && !result.product ? 'Contenant vide' : result.container ? `Dans ${result.container.name}` : stockText(result.quantity);
-      show('ok', name, result.shopping === 'added' ? `${detail} · ajouté à la liste de courses` : detail);
+      show('ok', name, result.shopping === 'added' ? `${detail} · ajouté à la liste de courses` : detail, info);
     }
   }
 
@@ -384,9 +386,10 @@
         <!-- Code lu : éclair, puis bandeau tant que le produit est devant la caméra. -->
         {#key flash}<div class="flash {flash.tone}" aria-hidden="true"></div>{/key}
         <div class="band {flash.tone}" role="status">
-          <Icon name={flash.tone === 'error' ? 'alert' : flash.tone === 'ask' ? 'message' : 'check'} size={36} strokeWidth={2.4} />
+          <Icon name={flash.tone === 'error' ? 'alert' : flash.tone === 'ask' ? 'message' : 'check'} size={phone ? 26 : 36} strokeWidth={2.4} />
           <span class="band-text">
             <strong>{flash.title}</strong>
+            {#if flash.info}<span class="band-info">{flash.info}</span>{/if}
             {#if flash.detail}<span>{flash.detail}</span>{/if}
           </span>
           {#if gateState === 'hold' && !dialog}<span class="remove">Retire le produit</span>{/if}
@@ -762,11 +765,42 @@
     font-size: var(--text-body);
   }
 
+  /* Nom long : sur deux lignes au plus, plutôt que coupé à la première. */
   .band-text strong {
+    display: -webkit-box;
     overflow: hidden;
     font-size: var(--text-title);
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .band-info {
+    font-weight: 600;
+  }
+
+  /* Téléphone : texte plus petit, une information par ligne, l'invitation à retirer le produit en dessous. */
+  .phone .band {
+    gap: var(--space-1);
+    padding: 12px var(--space-2);
+  }
+
+  .phone .band-text {
+    flex-basis: 0;
+    font-size: var(--text-label);
+  }
+
+  .phone .band-text strong {
+    font-size: var(--text-body);
+  }
+
+  .phone .remove {
+    flex-basis: 100%;
+    padding: 8px 14px;
+    font-size: var(--text-label);
+    text-align: center;
   }
 
   /* L'invitation à retirer le produit : ce qui évite les doublons. */

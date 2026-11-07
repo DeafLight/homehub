@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.33.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.33.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -96,6 +96,14 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 | Courses | Tâches et devoirs | Agenda | Mots |
 |---|---|---|---|
 | ![Courses](images/telephone-courses.png) | ![Tâches](images/telephone-taches.png) | ![Agenda](images/telephone-agenda.png) | ![Mots](images/telephone-mots.png) |
+
+### Scanner du téléphone
+
+Bouton code-barres de l'onglet Courses. Un paquet vient d'être lu et reste devant la caméra : le bandeau donne le
+nom, la marque et la contenance, ce qui a été fait, et demande de retirer le produit (il n'est compté qu'une fois).
+Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
+
+<img src="images/telephone-scanner.png" alt="Scanner du téléphone" width="260">
 
 ## Non capturés
 

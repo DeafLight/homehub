@@ -165,7 +165,9 @@ if (process.env.DOCS_SERVE) {
 // --- Chrome sans fenêtre, piloté par le protocole DevTools (WebSocket natif de Node).
 const chrome = spawn(chromePath, [
   '--headless=new', `--remote-debugging-port=${PORT + 1}`, `--user-data-dir=${join(work, 'chrome')}`,
-  '--no-first-run', '--hide-scrollbars', '--lang=fr-FR', '--force-color-profile=srgb', 'about:blank',
+  '--no-first-run', '--hide-scrollbars', '--lang=fr-FR', '--force-color-profile=srgb',
+  // Fausse caméra (mire animée), autorisée seulement pour la capture du scanner du téléphone (voir `camera`).
+  '--use-fake-device-for-media-stream', 'about:blank',
 ], { stdio: 'ignore' });
 children.push(chrome);
 let wsUrl = '';
@@ -206,8 +208,9 @@ const fakeClock = `(() => {
 const asPhone = (ownerId: keyof typeof TOKENS) =>
   `localStorage.setItem('homehub.phone', JSON.stringify({ token: '${TOKENS[ownerId]}', ownerId: '${ownerId}' }));`;
 
-async function shoot(name: string, url: string, metrics: Metrics, { init = '', after = '', wait = 3000 } = {}) {
+async function shoot(name: string, url: string, metrics: Metrics, { init = '', after = '', wait = 3000, camera = false } = {}) {
   if (only && !only.test(name)) return;
+  if (camera) await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture'] });
   const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await send('Page.enable', {}, sessionId);
@@ -225,6 +228,7 @@ async function shoot(name: string, url: string, metrics: Metrics, { init = '', a
   const { data } = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
   writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
   await send('Target.closeTarget', { targetId });
+  if (camera) await send('Browser.resetPermissions');
   console.log(`docs/images/${name}.png`);
 }
 
@@ -260,6 +264,13 @@ await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });
+// Scanner du téléphone, produit encore devant la caméra : un faux lecteur voit sans fin le même paquet de pâtes, qui
+// n'est compté qu'une fois ; le bandeau demande de le retirer.
+const fakeDetector = `globalThis.BarcodeDetector = class {
+  static async getSupportedFormats() { return ['ean_13', 'ean_8', 'upc_a', 'upc_e']; }
+  async detect() { return [{ rawValue: '${DOCS_PRODUCTS.pates}', format: 'ean_13' }]; }
+};`;
+await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeDetector, camera: true, wait: 4000 });
 
 // --- Planche du design : variables de web/src/app.css, profils de la configuration fictive.
 const appCss = readFileSync(join(ROOT, 'web', 'src', 'app.css'), 'utf8');
