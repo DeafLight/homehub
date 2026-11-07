@@ -3,6 +3,10 @@
 Tableau de bord familial affiché en plein écran sur la tablette (Fully Kiosk).
 Hébergé sur le NAS TrueNAS, derrière Nginx Proxy Manager (accès LAN + VPN uniquement).
 
+Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
+
+![Accueil de la tablette](docs/images/tablette-accueil.png)
+
 - **Accueil** : grande horloge, météo, prochain événement de la famille, et « Qui est là ? » pour choisir son profil.
 - **Dashboard par profil** (`/p/<id>`) : prochaine activité, tâches à cocher, semaine, mot de la famille.
   Un rail à gauche ramène à l'accueil ou passe directement à un autre profil.
