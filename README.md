@@ -17,6 +17,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Météo détaillée** (`/meteo`) : ouverte en touchant n'importe quel affichage météo ; conditions actuelles
   (ressenti, vent, humidité, soleil), courbe des 24 prochaines heures avec la pluie, et 4 jours. Le bouton retour
   ramène à la page d'origine (`/meteo/p/<id>` quand elle est ouverte depuis un profil).
+- **Test du scan** (`/test-scan`, roue dentée, provisoire) : la tablette lit-elle les codes-barres des produits ? Lecteur
+  intégré du navigateur (`BarcodeDetector`) et formats, ouverture de la caméra (avant ou arrière) après la
+  reconnaissance des visages, codes lus avec leur clé de contrôle, et un résumé à recopier. Rien n'est enregistré. Prépare
+  le stock de la maison (voir `TODO.md`).
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).

@@ -7,7 +7,7 @@
   // Caméra de la tablette, discrète : environ une analyse par seconde tant que l'écran est allumé (veille comprise),
   // pour savoir qui est devant (voir lib/actor.svelte.ts) et réveiller la tablette quand quelqu'un arrive. Invisible,
   // sauf quand un geste attend une reconnaissance : une petite bulle montre alors l'image de la caméra. Éteinte sur
-  // les téléphones et sur la page Visages (qui a besoin de la caméra). Un visage plus petit que `faces.minSize` (trop
+  // les téléphones, sur la page Visages et sur le test du scan (qui ont besoin de la caméra). Un visage plus petit que `faces.minSize` (trop
   // loin pour une empreinte fiable) réveille la tablette sans être reconnu.
   const TICK_MS = 1_000;
   /** Un geste attend : on analyse plus souvent. */
@@ -28,7 +28,7 @@
     return () => document.removeEventListener('visibilitychange', onVisibility);
   });
 
-  const active = $derived(kiosk && visible && !isPhoneRoute(router.route) && router.route.name !== 'faces');
+  const active = $derived(kiosk && visible && !isPhoneRoute(router.route) && router.route.name !== 'faces' && router.route.name !== 'scantest');
 
   $effect(() => {
     if (!active || !video) return;
