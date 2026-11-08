@@ -3,7 +3,9 @@
 // 10 s sans être vue. Un geste qui modifie passe tout de suite si elle peut écrire sur ce profil (un parent :
 // partout ; un enfant : le sien) ; si personne n'est encore reconnu, il attend quelques secondes qu'elle le soit
 // (petite bulle « Regarde la tablette »). Sinon, un avis « Lecture seule ». Le serveur vérifie de toute façon.
-// Sur un téléphone, rien de tout cela : il agit pour son profil, et le serveur décide.
+// Pendant un scan, la caméra lit les codes-barres : la personne reconnue en ouvrant le scanner reste retenue (les
+// scans sont à son nom) jusqu'à ce qu'elle dise « Pas moi », ou jusqu'au retour de la reconnaissance, qui l'oublie
+// si elle n'est plus devant. Sur un téléphone, rien de tout cela : il agit pour son profil, et le serveur décide.
 import { canWrite } from '../../../shared/rights.ts';
 import { FAMILY_ID, type PublicConfig } from '../../../shared/types.ts';
 import { ApiError, type FaceSession } from './api.ts';
@@ -42,6 +44,8 @@ export type Actor = {
   /** Résultat d'une analyse de la caméra : la personne reconnue par le serveur, ou null (personne, ou inconnu). */
   report(result: FaceSession | null): void;
   setCamera(state: CameraState, error?: string): void;
+  /** La caméra passe au scanner : la caméra s'arrête, mais la personne reconnue reste retenue (scans à son nom). */
+  lendCamera(): void;
   /** Un visage est devant la caméra (même trop loin pour savoir qui). */
   sawFace(): void;
   /** Oublie la personne (et ferme sa session sur le serveur). */
@@ -174,6 +178,12 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
         end();
         for (const wake of [...waiters]) wake();
       }
+    },
+
+    lendCamera() {
+      camera = 'off';
+      cameraError = null;
+      for (const wake of [...waiters]) wake();
     },
 
     sawFace() {

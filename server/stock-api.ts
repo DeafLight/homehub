@@ -6,7 +6,7 @@
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { isContainerCode, isStockCode } from '../shared/barcode.ts';
-import type { Author, ProductInfo, ProductRecheck, ScanLookup, ShoppingOutcome, StockMovementResult } from '../shared/types.ts';
+import type { Author, ProductInfo, ProductRecheck, ScanLookup, ShoppingOutcome, StockMovement, StockMovementResult } from '../shared/types.ts';
 import type { Access } from './access.ts';
 import type { ListsStore } from './sources/lists.ts';
 import type { ProductBase } from './sources/open-food-facts.ts';
@@ -119,6 +119,13 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     return c.json<ScanLookup>({ kind: 'product', code: scanned, product, quantity: await stock.quantity(scanned) });
   });
 
+  /** Historique d'un produit : chaque entrée et sortie, quand et par qui. */
+  api.get('/stock/products/:code/movements', async (c) => {
+    const productCode = c.req.param('code');
+    if (!isStockCode(productCode)) return c.json({ error: 'Code-barres sur 13 chiffres attendu' }, 400);
+    return c.json<StockMovement[]>(await stock.movements(productCode));
+  });
+
   /** Produit inconnu saisi, ou « Corriger » : notre version l'emporte sur la base. */
   api.put('/stock/products/:code', async (c) => {
     const productCode = c.req.param('code');
@@ -190,9 +197,9 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     if ('error' in who) return who.error;
     const product = await stock.product(input.data.code);
     if (!product) return c.json({ error: 'Produit inconnu : à saisir d’abord' }, 404);
-    const { movementId, quantity } = await stock.add(product.code, input.data.count, input.data.price ?? null, who.author);
+    const { movementId, at, quantity } = await stock.add(product.code, input.data.count, input.data.price ?? null, who.author);
     return c.json<StockMovementResult>(
-      { movementId, product, quantity, container: null, forgotten: false, shopping: 'none', shoppingLabel: null },
+      { movementId, at, by: who.author, product, quantity, container: null, forgotten: false, shopping: 'none', shoppingLabel: null },
       201,
     );
   });
@@ -210,6 +217,8 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     const shopping = await shoppingFor(product.code, result.exhausted, result.autoShop, result.movementId, who.author);
     return c.json<StockMovementResult>({
       movementId: result.movementId,
+      at: result.at,
+      by: who.author,
       product: await stock.product(product.code),
       quantity: result.quantity,
       container: result.container,
@@ -226,8 +235,8 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     if ('error' in who) return who.error;
     const product = await stock.product(input.data.code);
     if (!product) return c.json({ error: 'Produit inconnu' }, 404);
-    const { movementId, quantity } = await stock.setQuantity(product.code, input.data.quantity, who.author);
-    return c.json<StockMovementResult>({ movementId, product, quantity, container: null, forgotten: false, shopping: 'none', shoppingLabel: null });
+    const { movementId, at, quantity } = await stock.setQuantity(product.code, input.data.quantity, who.author);
+    return c.json<StockMovementResult>({ movementId, at, by: who.author, product, quantity, container: null, forgotten: false, shopping: 'none', shoppingLabel: null });
   });
 
   /** Annuler (scan en double, mauvais mode) : le dernier mouvement du produit seulement. */
@@ -290,6 +299,8 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     const shopping = await shoppingFor(result.productCode, result.exhausted, result.autoShop, result.movementId, who.author);
     return c.json<StockMovementResult>({
       movementId: result.movementId,
+      at: result.at,
+      by: who.author,
       product: result.productCode ? await stock.product(result.productCode) : null,
       quantity: result.productCode ? await stock.quantity(result.productCode) : 0,
       container: result.container,

@@ -103,7 +103,8 @@ for (let i = 0; ; i++) {
 async function call(token: string, method: string, path: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${BASE}/api${path}`, {
     method,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    // Sans jeton : la tablette (le serveur est sur la même machine).
+    headers: { ...(token && { authorization: `Bearer ${token}` }), 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${method} ${path} : ${res.status} ${await res.text()}`);
@@ -150,8 +151,9 @@ for (const [code, count, price] of [
 const jar = (await call(A, 'POST', '/stock/containers', { name: 'Bocal à café' })) as { id: string };
 await call(A, 'POST', '/stock/out', { code: DOCS_PRODUCTS.cafe, refill: jar.id });
 await call(A, 'POST', '/stock/containers', { name: 'Boîte à riz' });
-await call(A, 'POST', '/stock/out', { code: DOCS_PRODUCTS.riz, all: true });
-await call(A, 'POST', '/stock/out', { code: DOCS_PRODUCTS.lait });
+// Qui a scanné : Alex et Léa par leur téléphone ; le riz sur la tablette, sans personne de reconnu (anonyme).
+await call('', 'POST', '/stock/out', { code: DOCS_PRODUCTS.riz, all: true });
+await call(L, 'POST', '/stock/out', { code: DOCS_PRODUCTS.lait });
 
 // DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
 if (process.env.DOCS_SERVE) {

@@ -519,7 +519,27 @@ export type Container = {
   full: boolean;
 };
 
-export type StockEntry = { product: Product; quantity: number; updatedAt: string | null };
+/** Quand et par qui (profil du téléphone, personne reconnue devant la tablette, ou personne : ownerId null). */
+export type StockMark = { at: string; by: Author };
+
+export type StockEntry = {
+  product: Product;
+  quantity: number;
+  updatedAt: string | null;
+  /** Dernière entrée (rangé, + 1) et dernière sortie (jeté, transvasé, contenant vidé), hors mouvements annulés. */
+  lastIn: StockMark | null;
+  lastOut: StockMark | null;
+};
+
+/** Entrée ou sortie du stock, pour l'historique d'un produit. `count` : unités ; pour « adjust », la nouvelle quantité. */
+export type StockMovement = StockMark & {
+  id: string;
+  kind: 'in' | 'out' | 'refill' | 'adjust' | 'container-empty';
+  count: number;
+  price: number | null;
+  forgotten: boolean;
+  undone: boolean;
+};
 
 export type StockData = {
   /** Produits connus, en stock d'abord, puis épuisés. */
@@ -543,7 +563,7 @@ export type ScanLookup =
 /** Ce que devient la liste de courses après une sortie : ajouté d'office, à proposer, ou rien à faire. */
 export type ShoppingOutcome = 'added' | 'propose' | 'none';
 
-export type StockMovementResult = {
+export type StockMovementResult = StockMark & {
   movementId: string;
   product: Product | null;
   quantity: number;

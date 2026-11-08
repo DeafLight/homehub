@@ -27,6 +27,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   dernier mouvement du produit), « Ce n'est pas ça ? » (fiche du produit) et, pour une sortie, « Recharge ? ». La
   reconnaissance des visages et la veille sont coupées pendant le scan ; sans activité, la tablette revient à la page
   d'origine au bout de 3 min.
+  - **Qui et quand** : chaque entrée et sortie garde son heure et qui a scanné : le profil du téléphone, ou sur la
+    tablette la personne reconnue en ouvrant le scanner (« Scans au nom de Léa », « Pas moi » pour scanner
+    anonymement) ; personne de reconnu : anonyme. Chaque passage montre l'heure et le nom.
   - Produit **inconnu** de la base : on le décrit (nom, marque, contenance, rayon), il est gardé.
   - **Épuisé** (dernier exemplaire sorti) : « L'ajouter à la liste de courses ? » Oui / Oui, et toujours d'office /
     Non ; réglage par produit, et par défaut sur la page Stock. Un article ajouté d'office repart si on annule.
@@ -37,7 +40,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
     d'office, « Épuisé » toujours possible). L'étiquette du contenant (code-barres interne, préfixe 29), scannée en
     mode « Jeté / épuisé », le déclare vide.
 - **Stock** (`/stock`, depuis le scanner ou la page Listes) : produits en stock, épuisés ou tous, recherche ; ± 1 et
-  « Épuisé » à la main (pour le stock déjà là ou un oubli) ; fiche de chaque produit : provenance (base et date, ou
+  « Épuisé » à la main (pour le stock déjà là ou un oubli) ; sous chaque produit, la dernière entrée et la dernière
+  sortie (« Rangé hier à 18:20 (Léa) · sorti aujourd'hui à 07:30 (anonyme) ») ; fiche de chaque produit : historique
+  des entrées et sorties (date, heure, qui, tablette ou téléphone), provenance (base et date, ou
   corrigé à la main), **Revérifier** (relecture immédiate de la base, différences montrées, à prendre ou non),
   **Corriger** (notre version l'emporte ; versions datées), liste de courses d'office ou non, contenant habituel.
   Contenants de la maison : ajout, renommage, retrait, « Vide », **étiquette à imprimer**. Écriture depuis la tablette
@@ -334,9 +339,10 @@ web/src/
 | `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité, contenants, réglage par défaut |
 | `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` |
 | `PUT /api/stock/products/:code` | `{ name, brand, quantity, category }` : produit inconnu décrit, ou corrigé (notre version l'emporte) |
+| `GET /api/stock/products/:code/movements` | historique d'un produit, du plus récent : `{ at, by, kind, count, price, forgotten, undone }` |
 | `POST /api/stock/products/:code/recheck`, `…/accept-base`, `…/conflict` | relit la base (différences) ; prend sa version ; tranche un désaccord (`{ take: "mine" \| "base" }`) |
 | `PATCH /api/stock/products/:code` | `{ autoShop, refill }` : liste de courses d'office (`null` : réglage par défaut), contenant habituel |
-| `POST /api/stock/in`, `/out`, `/quantity` | entrée (`{ code, count?, price? }`) ; sortie (`{ code, all?, refill?, remaining? }`, avec la proposition de liste de courses) ; quantité comptée |
+| `POST /api/stock/in`, `/out`, `/quantity` | entrée (`{ code, count?, price? }`) ; sortie (`{ code, all?, refill?, remaining? }`, avec la proposition de liste de courses) ; quantité comptée ; la réponse donne `at` et `by` (qui a scanné) |
 | `POST /api/stock/undo` | `{ movementId }` : annule le dernier mouvement d'un produit ou d'un contenant (409 sinon) |
 | `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
 | `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |

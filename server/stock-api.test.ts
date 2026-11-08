@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { Lists, Product, ProductRecheck, ScanLookup, StockData, StockMovementResult } from '../shared/types.ts';
+import type { Lists, Product, ProductRecheck, ScanLookup, StockData, StockMovement, StockMovementResult } from '../shared/types.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
@@ -40,21 +40,52 @@ function setup(catalog: Record<string, BaseProduct | 'error'> = {}) {
     },
   };
   const api = createStockApi({ stock, productBase, lists, access, clock, logger: { error() {} } });
-  const call = async <T>(method: string, path: string, body?: unknown, from = TABLET) => {
+  const call = async <T>(method: string, path: string, body?: unknown, from = TABLET, extra: Record<string, string> = {}) => {
     const res = await api.request(path, {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-Real-IP': from },
+      headers: { 'Content-Type': 'application/json', 'X-Real-IP': from, ...extra },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: res.status, json: (res.status === 204 ? null : await res.json()) as T };
   };
   const shopping = async () => (await lists.lists() as Lists).shopping.map((s) => s.label);
-  return { call, asked, shopping, later: (days: number) => (now = new Date(now.getTime() + days * 86_400_000)) };
+  const later = (days: number) => (now = new Date(now.getTime() + days * 86_400_000));
+  const laterMinutes = (minutes: number) => (now = new Date(now.getTime() + minutes * 60_000));
+  return { call, asked, shopping, sessions, later, laterMinutes };
 }
 
 const compote: BaseProduct = { info: { name: 'Purée de pomme', brand: 'Carrefour Kids', quantity: '4 x 90 g' }, image: 'https://img/1.jpg', base: 'open-food-facts' };
 
 describe('API du stock', () => {
+  it('note l’heure et qui a scanné : personne reconnue devant la tablette, sinon anonyme', async () => {
+    const { call, sessions, laterMinutes } = setup({ [COMPOTE]: compote });
+    await call('GET', `/stock/scan/${COMPOTE}`);
+    const { token } = sessions.open('alex', 10);
+    const added = await call<StockMovementResult>('POST', '/stock/in', { code: COMPOTE }, TABLET, { 'X-Actor-Session': token });
+    expect(added.json).toMatchObject({ at: NOW.toISOString(), by: { ownerId: 'alex', via: 'tablet' } });
+
+    laterMinutes(5);
+    const out = await call<StockMovementResult>('POST', '/stock/out', { code: COMPOTE });
+    expect(out.json).toMatchObject({ by: { ownerId: null, via: 'tablet' } });
+    const outAt = out.json.at;
+    expect(Date.parse(outAt) - NOW.getTime()).toBe(5 * 60_000);
+
+    const data = await call<StockData>('GET', '/stock');
+    expect(data.json.items[0]).toMatchObject({
+      lastIn: { at: NOW.toISOString(), by: { ownerId: 'alex' } },
+      lastOut: { at: outAt, by: { ownerId: null } },
+    });
+
+    // Historique du produit, du plus récent au plus ancien ; un mouvement annulé reste, marqué, et n'est plus « dernier ».
+    await call('POST', '/stock/undo', { movementId: out.json.movementId });
+    const history = await call<StockMovement[]>('GET', `/stock/products/${COMPOTE}/movements`);
+    expect(history.json.map((m) => [m.kind, m.by.ownerId, m.undone])).toEqual([
+      ['out', null, true],
+      ['in', 'alex', false],
+    ]);
+    expect((await call<StockData>('GET', '/stock')).json.items[0].lastOut).toBeNull();
+  });
+
   it('reconnaît un produit dans la base une seule fois, puis le range et le sort', async () => {
     const { call, asked, shopping } = setup({ [COMPOTE]: compote });
     const scan = await call<ScanLookup>('GET', `/stock/scan/${COMPOTE}`);

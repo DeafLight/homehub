@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Container, Product, ProductRecheck } from '../../../../shared/types.ts';
+  import type { Container, Product, ProductRecheck, StockMovement } from '../../../../shared/types.ts';
   import { getAppContext } from '../../lib/context.ts';
-  import { infoDiff, productDetail, provenance, stockText } from '../../lib/stock.ts';
+  import { infoDiff, markLine, movementLabel, productDetail, provenance, stockText } from '../../lib/stock.ts';
   import ProductForm from './ProductForm.svelte';
 
   // Fiche d'un produit (scanner, stock) : ce qu'on en sait et d'où ça vient ; « Ce n'est pas ça ? » → Revérifier
@@ -16,7 +16,17 @@
   };
   let { product, quantity, containers, onChange, onClose }: Props = $props();
 
-  const { api } = getAppContext();
+  const { api, clock, config } = getAppContext();
+  const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
+
+  /** Historique : chaque entrée et sortie, quand et par qui (relu quand la fiche change de produit). */
+  let history = $state<StockMovement[] | null>(null);
+  $effect(() => {
+    const code = product.code;
+    let current = true;
+    void api.stockMovements(code).then((list) => current && (history = list)).catch(() => current && (history = []));
+    return () => (current = false);
+  });
 
   let mode = $state<'view' | 'correct'>('view');
   let recheck = $state<ProductRecheck | null>(null);
@@ -139,6 +149,24 @@
     </section>
   {/if}
 
+  <section>
+    <h3 class="card-label">Entrées et sorties</h3>
+    {#if history === null}
+      <p class="muted">Chargement…</p>
+    {:else if history.length === 0}
+      <p class="muted">Jamais scanné.</p>
+    {:else}
+      <ul class="history">
+        {#each history.slice(0, 12) as m (m.id)}
+          <li class:undone={m.undone}>
+            <strong>{movementLabel(m)}{m.undone ? ' · annulé' : ''}</strong>
+            <span>{markLine(m, clock.now, nameOf)}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+
   {#if error}<p class="error">{error}</p>{/if}
   <div class="row end">
     <button type="button" class="btn" onclick={onClose}>Fermer</button>
@@ -248,6 +276,30 @@
   tbody th {
     color: var(--fg-muted);
     font-weight: 400;
+  }
+
+  .history {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .history li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .history li span {
+    color: var(--fg-muted);
+  }
+
+  .history li.undone {
+    opacity: 0.55;
   }
 
   .error {

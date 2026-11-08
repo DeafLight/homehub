@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.33.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.34.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -54,7 +54,8 @@ Courses et tâches de la famille ; tâches en retard en rouge, tâches qui revie
 
 ### Stock
 
-Produits en stock (± 1, « Épuisé »), contenants de la maison (bocal rechargé, étiquette à imprimer), réglage de la
+Produits en stock (± 1, « Épuisé »), avec sous chacun la dernière entrée et la dernière sortie (quand, et qui :
+Alex et Léa par leur téléphone, « anonyme » pour un scan sur la tablette sans personne de reconnu), contenants de la maison (bocal rechargé, étiquette à imprimer), réglage de la
 liste de courses pour un produit épuisé.
 
 ![Stock](images/tablette-stock.png)
@@ -62,7 +63,8 @@ liste de courses pour un produit épuisé.
 ### Scanner
 
 Mode « Jeté / épuisé » : le paquet de café scanné est d'habitude transvasé dans le bocal, d'où la question ; le
-bandeau orange reste tant que le produit est devant la caméra. À droite, les passages, chacun annulable. (Sans caméra
+bandeau orange reste tant que le produit est devant la caméra. À droite, au nom de qui sont les scans (ici personne de reconnu : anonymes), puis les passages avec leur heure et
+leur auteur, chacun annulable. (Sans caméra
 dans Chrome sans fenêtre : codes saisis à la main.)
 
 ![Scanner](images/tablette-scanner.png)
@@ -101,6 +103,7 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 
 Bouton code-barres de l'onglet Courses. Un paquet vient d'être lu et reste devant la caméra : le bandeau donne le
 nom, la marque et la contenance, ce qui a été fait, et demande de retirer le produit (il n'est compté qu'une fois).
+Les scans sont au nom du profil du téléphone (Alex), chaque passage avec son heure.
 Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
 
 <img src="images/telephone-scanner.png" alt="Scanner du téléphone" width="260">

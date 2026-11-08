@@ -10,14 +10,15 @@
   import { getAppContext } from '../lib/context.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { type PageRoute, detailPath } from '../lib/route.ts';
-  import { productDetail } from '../lib/stock.ts';
+  import { lastMarksLine, productDetail } from '../lib/stock.ts';
 
   // Stock de la maison (tablette ; depuis Listes ou le scanner) : ce qu'on a, ce qui est épuisé, les contenants et
   // leur étiquette, et le réglage de la liste de courses. Les quantités se corrigent ici à la main (inventaire).
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
-  const { api, navigate, router } = getAppContext();
+  const { api, clock, config, navigate, router } = getAppContext();
+  const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
   const stock = createResource(() => api.stock(), 60_000);
   const me = createResource(() => api.me(), 60_000);
   onDestroy(() => {
@@ -110,6 +111,7 @@
               <button type="button" class="name" onclick={() => (dialog = { kind: 'sheet', product, quantity: entry.quantity })}>
                 <strong>{product.current.name}{#if product.conflict}<span class="flag" title="La base dit autre chose">!</span>{/if}</strong>
                 <span>{[productDetail(product.current), product.current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche'}</span>
+                {#if entry.lastIn || entry.lastOut}<span class="marks">{lastMarksLine(entry, clock.now, nameOf)}</span>{/if}
               </button>
               {#if !readOnly}
                 <span class="qty">
@@ -400,6 +402,12 @@
     color: var(--fg-muted);
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  /* Dernière entrée et sortie : sur deux lignes s'il le faut, jamais coupée. */
+  .name .marks {
+    font-size: var(--text-small);
+    white-space: normal;
   }
 
   .flag {

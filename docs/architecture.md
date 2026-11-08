@@ -174,6 +174,7 @@ classDiagram
     source : base | manual
   }
   class Movement {
+    at : date et heure du scan
     kind : in | out | refill | adjust | container-empty
     quantity / price
     forgotten

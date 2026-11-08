@@ -69,7 +69,9 @@
     return () => {
       stopped = true;
       stopCamera();
-      actor.setCamera('off');
+      // Vers le scanner : la personne reconnue reste celle qui scanne.
+      if (router.route.name === 'scan') actor.lendCamera();
+      else actor.setCamera('off');
     };
   });
 </script>

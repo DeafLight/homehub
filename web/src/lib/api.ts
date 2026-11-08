@@ -23,6 +23,7 @@ import type {
   ProductRecheck,
   ScanLookup,
   StockData,
+  StockMovement,
   StockMovementResult,
   StockSettings,
   PublicConfig,
@@ -135,6 +136,8 @@ export type Api = {
   stockOut(code: string, options?: { all?: boolean; refill?: string | null; remaining?: number }): Promise<StockMovementResult>;
   setStockQuantity(code: string, quantity: number): Promise<StockMovementResult>;
   undoStock(movementId: string): Promise<{ quantity: number }>;
+  /** Historique d'un produit, du plus récent au plus ancien. */
+  stockMovements(code: string): Promise<StockMovement[]>;
   /** « Oui » à la proposition de liste de courses ; `always` : d'office la prochaine fois. */
   shopProduct(code: string, always?: boolean): Promise<ShoppingItem>;
   addContainer(name: string): Promise<Container>;
@@ -240,6 +243,7 @@ export function createApi(
     stockOut: (code, options = {}) => send('POST', '/stock/out', { code, ...options }),
     setStockQuantity: (code, quantity) => send('POST', '/stock/quantity', { code, quantity }),
     undoStock: (movementId) => send('POST', '/stock/undo', { movementId }),
+    stockMovements: (code) => request(`/stock/products/${encodeURIComponent(code)}/movements`),
     shopProduct: (code, always = false) => send('POST', '/stock/shopping', { code, always }),
     addContainer: (name) => send('POST', '/stock/containers', { name }),
     renameContainer: (id, name) => send('PATCH', `/stock/containers/${encodeURIComponent(id)}`, { name }),

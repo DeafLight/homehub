@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { containerCode } from '../../shared/barcode.ts';
-import type { Author, Container, Product, ProductInfo, StockData, StockEntry, StockSettings } from '../../shared/types.ts';
+import type { Author, Container, Product, ProductInfo, StockData, StockEntry, StockMark, StockMovement, StockSettings } from '../../shared/types.ts';
 import type { Clock } from './types.ts';
 
 /** Mouvements gardés (les plus récents) : de quoi annuler et, plus tard, relier les prix. */
@@ -91,6 +91,8 @@ export type BaseReading = { info: ProductInfo; image: string | null; base: strin
 /** Ce qu'a donné une sortie, avant la décision sur la liste de courses (prise par l'API). */
 export type OutResult = {
   movementId: string;
+  /** Heure du mouvement (ISO 8601). */
+  at: string;
   quantity: number;
   forgotten: boolean;
   /** Plus rien de ce produit (et pas transvasé) : la liste de courses est concernée. */
@@ -113,14 +115,16 @@ export type StockStore = {
   resolveConflict(code: string, take: 'mine' | 'base'): Promise<Product | null>;
   setPreferences(code: string, prefs: { autoShop?: boolean | null; refill?: string | null }): Promise<Product | null>;
   /** Entrée de `count` unités (prix facultatif). */
-  add(code: string, count: number, price: number | null, by: Author): Promise<{ movementId: string; quantity: number }>;
+  add(code: string, count: number, price: number | null, by: Author): Promise<{ movementId: string; at: string; quantity: number }>;
   /**
    * Sortie d'une unité (ou de tout) ; `refill` : l'emballage part mais le produit reste, transvasé dans ce contenant.
    * Produit absent du stock : acceptée (entrée oubliée), et `remaining` unités restent en stock.
    */
   remove(code: string, options: { all?: boolean; refill?: string | null; remaining?: number }, by: Author): Promise<OutResult>;
   /** Quantité fixée à la main (inventaire). */
-  setQuantity(code: string, quantity: number, by: Author): Promise<{ movementId: string; quantity: number }>;
+  setQuantity(code: string, quantity: number, by: Author): Promise<{ movementId: string; at: string; quantity: number }>;
+  /** Mouvements d'un produit (ou d'un contenant, par son étiquette), du plus récent au plus ancien. */
+  movements(code: string, limit?: number): Promise<StockMovement[]>;
   /** Annule un mouvement, s'il est le dernier de son produit (ou de son contenant). Renvoie l'article de courses à retirer. */
   undo(movementId: string): Promise<{ ok: boolean; shoppingId: string | null; code: string | null }>;
   attachShopping(movementId: string, shoppingId: string): Promise<void>;
@@ -227,13 +231,30 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
 
   const autoShopOf = (file: StockFile, code: string) => file.products[code]?.autoShop ?? file.settings.autoShop;
 
+  /** Dernière entrée et dernière sortie de chaque produit (mouvements annulés et inventaires exceptés). */
+  function lastMarks(file: StockFile) {
+    const marks = new Map<string, { lastIn: StockMark | null; lastOut: StockMark | null }>();
+    for (const m of file.movements) {
+      if (m.undone || m.kind === 'adjust') continue;
+      const entry = marks.get(m.code) ?? { lastIn: null, lastOut: null };
+      const mark = { at: m.at, by: m.by };
+      if (m.kind === 'in') entry.lastIn = mark;
+      else entry.lastOut = mark;
+      marks.set(m.code, entry);
+    }
+    return marks;
+  }
+
   return {
     data: () =>
       read((file) => {
+        const marks = lastMarks(file);
         const items: StockEntry[] = Object.entries(file.products).map(([code, stored]) => ({
           product: toProduct(code, stored),
           quantity: quantityOf(file, code),
           updatedAt: file.stock[code]?.updatedAt ?? null,
+          lastIn: marks.get(code)?.lastIn ?? null,
+          lastOut: marks.get(code)?.lastOut ?? null,
         }));
         items.sort(
           (a, b) =>
@@ -244,6 +265,14 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
       }),
 
     product: (code) => read((file) => productOf(file, code)),
+    movements: (code, limit = 50) =>
+      read((file) =>
+        file.movements
+          .filter((m) => m.code === code)
+          .slice(-limit)
+          .reverse()
+          .map(({ id, at, kind, count, price, by, forgotten, undone }) => ({ id, at, kind, count, price, by: { ...by }, forgotten, undone })),
+      ),
     quantity: (code) => read((file) => quantityOf(file, code)),
     container: (code) =>
       read((file) => {
@@ -321,7 +350,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         const before = quantityOf(file, code);
         setStock(file, code, before + count, now);
         const movement = record(file, now, { code, kind: 'in', count, price, by, before: { quantity: before } });
-        return { movementId: movement.id, quantity: quantityOf(file, code) };
+        return { movementId: movement.id, at: movement.at, quantity: quantityOf(file, code) };
       });
     },
 
@@ -355,6 +384,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         if (container && stored) stored.refill = container.id;
         return {
           movementId: movement.id,
+          at: movement.at,
           quantity: after,
           forgotten,
           exhausted: !container && after === 0,
@@ -369,7 +399,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         const before = quantityOf(file, code);
         setStock(file, code, quantity, now);
         const movement = record(file, now, { code, kind: 'adjust', count: quantity, price: null, by, before: { quantity: before } });
-        return { movementId: movement.id, quantity: quantityOf(file, code) };
+        return { movementId: movement.id, at: movement.at, quantity: quantityOf(file, code) };
       });
     },
 
@@ -448,6 +478,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         const exhausted = wasFull && productCode !== null && quantityOf(file, productCode) === 0;
         return {
           movementId: movement.id,
+          at: movement.at,
           productCode,
           exhausted,
           autoShop: productCode ? autoShopOf(file, productCode) : false,

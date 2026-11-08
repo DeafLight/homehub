@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
   import { normalizeProductCode, PRODUCT_FORMATS, validProductCode } from '../../../shared/barcode.ts';
-  import type { Container, Product, StockMovementResult } from '../../../shared/types.ts';
+  import type { Container, Product, StockMark, StockMovementResult } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
   import Modal from '../components/stock/Modal.svelte';
@@ -13,6 +13,7 @@
   import { cameraError } from '../lib/face.ts';
   import { type PageRoute, detailPath, phonePath, routePath } from '../lib/route.ts';
   import { createReadGate } from '../lib/scan-gate.ts';
+  import { formatTime } from '../lib/format.ts';
   import { productDetail, stockText } from '../lib/stock.ts';
 
   // Scanner du stock (tablette : bouton Scanner ; téléphone : onglet Courses). Deux modes : « Ranger les courses »
@@ -38,6 +39,8 @@
     product: Product | null;
     title: string;
     line: string;
+    /** Quand et par qui (null : pas encore enregistré). */
+    mark: StockMark | null;
     undone: boolean;
   };
   type Dialog =
@@ -53,7 +56,7 @@
   const IDLE_CLOSE_MS = 3 * 60_000;
   const ERROR_SHOW_MS = 5000;
 
-  const { api, navigate, router } = getAppContext();
+  const { api, actor, config, navigate, router } = getAppContext();
   /** Sur le téléphone (pas de page de la tablette où revenir) ; fixé à l'ouverture. */
   const phone = untrack(() => back === null);
 
@@ -70,6 +73,11 @@
   let containers = $state<Container[]>([]);
   let manualCode = $state('');
   let manualError = $state<string | null>(null);
+  /** Téléphone : son profil (les scans sont à son nom). */
+  let phoneOwner = $state<string | null>(null);
+  const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
+  /** Au nom de qui sont les scans : le profil du téléphone, la personne reconnue en ouvrant le scanner, ou personne. */
+  const scanner = $derived(phone ? nameOf(phoneOwner) : (actor.current?.name ?? null));
   /** Bandeau du dernier code lu : tant que le produit est devant la caméra, qu'une question est posée, ou une erreur. */
   const shown = $derived(gateState === 'hold' || dialog !== null || flash?.tone === 'error');
   let flashCount = 0;
@@ -177,7 +185,7 @@
       empty: `Contenant vidé${result.product ? ` · c’était ${result.product.current.name}, ${stockText(result.quantity).toLowerCase()}` : ''}`,
     };
     const shopping = result.shopping === 'added' ? ' · ajouté à la liste de courses' : '';
-    return { id: result.movementId, kind, code, product: result.product, title: name, line: `${lines[kind]}${shopping}` };
+    return { id: result.movementId, kind, code, product: result.product, title: name, line: `${lines[kind]}${shopping}`, mark: { at: result.at, by: result.by } };
   }
 
   async function handle(code: string) {
@@ -328,6 +336,7 @@
   onMount(() => {
     unlockAudio();
     void api.stock().then((data) => (containers = data.containers)).catch(() => undefined);
+    if (phone) void api.me().then((me) => (phoneOwner = me.device?.ownerId ?? null)).catch(() => undefined);
     // La reconnaissance des visages vient de s'éteindre (Presence.svelte) : on lui laisse rendre la caméra.
     setTimeout(() => !destroyed && void startCamera(facing), 300);
     if (!phone) {
@@ -410,6 +419,16 @@
       </form>
       {#if manualError}<p class="error">{manualError}</p>{/if}
 
+      <p class="who">
+        <Icon name="face" size={20} />
+        {#if scanner}
+          <span>Scans au nom de <strong>{scanner}</strong></span>
+          {#if !phone}<button type="button" class="link" onclick={() => actor.end()}>Pas moi</button>{/if}
+        {:else}
+          <span>{phone ? 'Scans anonymes' : 'Personne de reconnu : scans anonymes'}</span>
+        {/if}
+      </p>
+
       <h2 class="card-label">{entries.length ? 'Ce passage' : 'Rien de scanné pour l’instant'}</h2>
       <ul class="entries">
         {#each entries as entry (entry.id)}
@@ -418,6 +437,7 @@
             <span class="entry-text">
               <strong>{entry.title}</strong>
               <span>{entry.kind !== 'empty' && entry.product && productDetail(entry.product.current) ? `${productDetail(entry.product.current)} · ` : ''}{entry.line}</span>
+              {#if entry.mark}<span class="when">{formatTime(new Date(entry.mark.at))} · {nameOf(entry.mark.by.ownerId) ?? 'anonyme'}</span>{/if}
             </span>
             {#if !entry.undone}
               <span class="entry-actions">
@@ -482,7 +502,7 @@
       <button type="button" class="btn primary" disabled={busy} onclick={() => closeThenOut(d.product, { remaining: d.remaining })}>
         {d.remaining === 0 ? 'Non, plus rien' : `Il en reste ${d.remaining}`}
       </button>
-      <button type="button" class="btn" onclick={() => (dialog = { kind: 'pick-container', entry: { id: '', kind: 'out', code: d.product.code, product: d.product, title: d.product.current.name, line: '', undone: false }, name: '' })}>
+      <button type="button" class="btn" onclick={() => (dialog = { kind: 'pick-container', entry: { id: '', kind: 'out', code: d.product.code, product: d.product, title: d.product.current.name, line: '', mark: null, undone: false }, name: '' })}>
         <Icon name="jar" size={22} /> C’était une recharge
       </button>
       <button type="button" class="btn" onclick={closeDialog}>Annuler</button>
@@ -927,6 +947,33 @@
 
   .entry-text span {
     color: var(--fg-muted);
+  }
+
+  .entry-text .when {
+    font-size: var(--text-small);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--fg-muted);
+  }
+
+  .who strong {
+    color: var(--fg);
+  }
+
+  .link {
+    padding: 4px 8px;
+    border: 0;
+    background: none;
+    color: var(--rain-soft);
+    font: inherit;
+    text-decoration: underline;
   }
 
   .entry-actions {
