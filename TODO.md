@@ -112,8 +112,8 @@ Reste :
 
 ## Robustesse
 
-- [ ] Sauvegarde régulière du dossier d'état (tâches, routines, visages, réglages transports) vers un dataset
-      sauvegardé du NAS.
+- [x] Sauvegarde du dossier d'état (stock, listes, visages, routines, réglages transports) : `/state` est couvert par la
+      sauvegarde nocturne du NAS (vérifié le 2026-11-09). Reste à tester une restauration.
 - [ ] Alerte sur le téléphone d'un parent quand une source reste en erreur plusieurs heures (dépend des
       notifications).
 
