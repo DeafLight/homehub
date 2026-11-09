@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.34.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.35.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -98,6 +98,13 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 | Courses | Tâches et devoirs | Agenda | Mots |
 |---|---|---|---|
 | ![Courses](images/telephone-courses.png) | ![Tâches](images/telephone-taches.png) | ![Agenda](images/telephone-agenda.png) | ![Mots](images/telephone-mots.png) |
+
+### Stock du téléphone
+
+« Ce qu'il reste à la maison », en haut de l'onglet Courses : pour le voir au magasin. Recherche, produits en stock
+ou épuisés, ± 1 et « Épuisé », fiche du produit ; plus bas, les contenants en lecture seule.
+
+<img src="images/telephone-stock.png" alt="Stock du téléphone" width="260">
 
 ### Scanner du téléphone
 

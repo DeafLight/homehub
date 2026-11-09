@@ -266,6 +266,7 @@ await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-stock', `${BASE}/m/stock`, PHONE, { init: asPhone('alex') });
 // Scanner du téléphone, produit encore devant la caméra : un faux lecteur voit sans fin le même paquet de pâtes, qui
 // n'est compté qu'une fois ; le bandeau demande de le retirer.
 const fakeDetector = `globalThis.BarcodeDetector = class {

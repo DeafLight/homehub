@@ -75,6 +75,8 @@
   <Stock back={router.route.back} />
 {:else if router.route.name === 'phonescan'}
   <Scan back={null} />
+{:else if router.route.name === 'phonestock'}
+  <Stock back={null} />
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import type { Container, Product, StockEntry, StockMovementResult } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
@@ -9,15 +9,18 @@
   import ShopPrompt from '../components/stock/ShopPrompt.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { type PageRoute, detailPath } from '../lib/route.ts';
+  import { PHONE_SCAN_PATH, type PageRoute, detailPath, phonePath } from '../lib/route.ts';
   import { lastMarksLine, productDetail } from '../lib/stock.ts';
 
   // Stock de la maison (tablette ; depuis Listes ou le scanner) : ce qu'on a, ce qui est épuisé, les contenants et
   // leur étiquette, et le réglage de la liste de courses. Les quantités se corrigent ici à la main (inventaire).
-  type Props = { back: PageRoute };
+  // Sur le téléphone (`back` : null), pour voir au magasin ce qu'il reste : les produits, et les contenants en lecture.
+  type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
   const { api, clock, config, navigate, router } = getAppContext();
+  /** Sur le téléphone (pas de page de la tablette où revenir) ; fixé à l'ouverture. */
+  const phone = untrack(() => back === null);
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
   const stock = createResource(() => api.stock(), 60_000);
   const me = createResource(() => api.me(), 60_000);
@@ -81,15 +84,19 @@
   }
 </script>
 
-<div class="stock-page">
+<div class="stock-page" class:phone>
   <header>
-    <BackButton {back} />
+    {#if back}
+      <BackButton {back} />
+    {:else}
+      <button type="button" class="btn" onclick={() => navigate(phonePath('shopping'))}><Icon name="back" size={24} /> Courses</button>
+    {/if}
     <h1>Stock</h1>
     <input class="search" type="search" bind:value={search} placeholder="Chercher un produit" aria-label="Chercher un produit" />
     {#if readOnly}
       <span class="muted">Lecture seule sur cet appareil</span>
     {:else}
-      <button type="button" class="btn primary" onclick={() => navigate(detailPath('scan', router.route))}><Icon name="barcode" size={24} /> Scanner</button>
+      <button type="button" class="btn primary" aria-label="Scanner" onclick={() => navigate(phone ? PHONE_SCAN_PATH : detailPath('scan', router.route))}><Icon name="barcode" size={24} />{#if !phone}Scanner{/if}</button>
     {/if}
   </header>
 
@@ -144,7 +151,7 @@
       <div class="side">
         <section class="card">
           <h2 class="card-label">Contenants de la maison</h2>
-          <p class="muted small">Bidon de lessive, bocal à farine… : on y transvase les recharges. Leur étiquette se scanne pour les déclarer vides.</p>
+          {#if !phone}<p class="muted small">Bidon de lessive, bocal à farine… : on y transvase les recharges. Leur étiquette se scanne pour les déclarer vides.</p>{/if}
           <ul class="containers">
             {#each data.containers as container (container.id)}
               <li>
@@ -153,16 +160,18 @@
                   <strong>{container.name}</strong>
                   <span>{container.full ? (container.productName ?? 'Plein') : container.productName ? `Vide (${container.productName})` : 'Vide'}</span>
                 </span>
-                {#if !readOnly && container.full}
-                  <button type="button" class="btn small" disabled={busy} onclick={() => emptyContainer(container)}>Vide</button>
+                {#if !phone}
+                  {#if !readOnly && container.full}
+                    <button type="button" class="btn small" disabled={busy} onclick={() => emptyContainer(container)}>Vide</button>
+                  {/if}
+                  <button type="button" class="btn small" aria-label="Étiquette de {container.name}" onclick={() => (dialog = { kind: 'label', container, name: container.name })}>
+                    <Icon name="barcode" size={20} />
+                  </button>
                 {/if}
-                <button type="button" class="btn small" aria-label="Étiquette de {container.name}" onclick={() => (dialog = { kind: 'label', container, name: container.name })}>
-                  <Icon name="barcode" size={20} />
-                </button>
               </li>
             {/each}
           </ul>
-          {#if !readOnly}
+          {#if !readOnly && !phone}
             <form class="add" onsubmit={addContainer}>
               <input bind:value={newContainer} maxlength="60" placeholder="Nouveau contenant" aria-label="Nouveau contenant" />
               <button type="submit" class="btn small" disabled={busy || !newContainer.trim()}><Icon name="plus" size={20} /> Ajouter</button>
@@ -170,14 +179,14 @@
           {/if}
         </section>
 
-        <section class="card">
+        {#if !phone}<section class="card">
           <h2 class="card-label">Produit épuisé</h2>
           <div class="chips">
             <button type="button" class:on={!data.settings.autoShop} disabled={busy || readOnly} onclick={() => setAutoShop(false)}>Demander avant d’ajouter aux courses</button>
             <button type="button" class:on={data.settings.autoShop} disabled={busy || readOnly} onclick={() => setAutoShop(true)}>L’ajouter d’office aux courses</button>
           </div>
           <p class="muted small">Chaque produit peut avoir son propre réglage (toucher son nom).</p>
-        </section>
+        </section>{/if}
       </div>
     </div>
   {:else if stock.error}
@@ -495,6 +504,87 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1);
+  }
+
+  /* Téléphone : une seule colonne, toute la page défile ; les boutons d'un produit sous son nom. */
+  .stock-page.phone {
+    height: 100dvh;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: calc(10px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
+  .phone header {
+    flex-wrap: wrap;
+  }
+
+  .phone h1 {
+    font-size: 1.6rem;
+  }
+
+  .phone header .btn.primary {
+    margin-left: auto;
+  }
+
+  .phone .card {
+    padding: 12px;
+  }
+
+  .phone .filters button {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .phone .search {
+    flex: 1 1 100%;
+    max-width: none;
+    order: 1;
+    margin-left: 0;
+  }
+
+  .phone .columns {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+  }
+
+  .phone .list,
+  .phone .side {
+    flex: none;
+    overflow: visible;
+  }
+
+  /* Une ligne compacte, pour voir plusieurs produits d'un coup : le texte à gauche, les boutons empilés à droite. */
+  .phone .list li:not(.none) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-1);
+    row-gap: 6px;
+    padding: 8px 0;
+  }
+
+  .phone .name {
+    grid-row: 1 / span 2;
+    padding: 0;
+  }
+
+  .phone .name strong,
+  .phone .name span {
+    white-space: normal;
+  }
+
+  .phone .list li > .btn {
+    justify-self: end;
+  }
+
+  .phone .list li > .count {
+    grid-row: 1 / span 2;
+  }
+
+  .phone .round {
+    width: 40px;
+    height: 40px;
   }
 
   /* Impression : l'étiquette seule. */

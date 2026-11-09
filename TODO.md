@@ -72,7 +72,8 @@ Reste :
 
 - [ ] Vérifier sur la tablette et un téléphone : lecture en continu, bip (son autorisé par Fully Kiosk ?), « Retire le
       produit » au bon moment, distance de lecture des petits codes (EAN-8), étiquette imprimée bien lue.
-- [ ] Inventaire consultable depuis le téléphone (page Stock dans la PWA) ; « j'en ai déjà » des recettes.
+- [x] Inventaire consultable depuis le téléphone (page Stock de la PWA, `/m/stock`, 0.35.0).
+- [ ] « J'en ai déjà » des recettes, d'après le stock.
 - [ ] Plus tard, en option : renvoyer une correction à Open Food Facts avec le compte de l'utilisateur, seulement à
       sa demande.
 - [ ] À étudier : relier un produit scanné à un ingrédient de recette (« Lardons fumés

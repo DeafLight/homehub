@@ -1,6 +1,6 @@
 // Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine, NAS,
 // listes, stock, scanner, téléphones reliés, visages, routines, transports). Sur les téléphones : l'appli (/m, /m/taches, /m/agenda,
-// /m/mots), son scanner (/m/scanner), l'appairage (/appairer) et le partage (/partager).
+// /m/mots), son scanner (/m/scanner), son stock (/m/stock), l'appairage (/appairer) et le partage (/partager).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 
@@ -13,6 +13,7 @@ export type Route =
   | { name: 'phone'; tab: PhoneTab }
   | { name: 'pair' }
   | { name: 'phonescan' }
+  | { name: 'phonestock' }
   | { name: 'share' };
 
 export const HOME_PATH = '/';
@@ -25,10 +26,11 @@ export const phonePath = (tab: PhoneTab) => PHONE_PATHS[tab];
 export const PAIR_PATH = '/appairer';
 export const SHARE_PATH = '/partager';
 export const PHONE_SCAN_PATH = '/m/scanner';
+export const PHONE_STOCK_PATH = '/m/stock';
 
 /** Routes du téléphone : pas de retour automatique à l'accueil de la tablette. */
 export const isPhoneRoute = (route: Route) =>
-  route.name === 'phone' || route.name === 'pair' || route.name === 'share' || route.name === 'phonescan';
+  route.name === 'phone' || route.name === 'pair' || route.name === 'share' || route.name === 'phonescan' || route.name === 'phonestock';
 
 export function routePath(route: Route): string {
   if (route.name === 'home') return HOME_PATH;
@@ -37,6 +39,7 @@ export function routePath(route: Route): string {
   if (route.name === 'pair') return PAIR_PATH;
   if (route.name === 'share') return SHARE_PATH;
   if (route.name === 'phonescan') return PHONE_SCAN_PATH;
+  if (route.name === 'phonestock') return PHONE_STOCK_PATH;
   const prefix = DETAIL_PREFIXES[route.name];
   return route.back.name === 'home' ? prefix : `${prefix}${routePath(route.back)}`;
 }
@@ -66,6 +69,7 @@ export function parseRoute(pathname: string): Route {
   if (path === PAIR_PATH) return { name: 'pair' };
   if (path === SHARE_PATH) return { name: 'share' };
   if (path === PHONE_SCAN_PATH) return { name: 'phonescan' };
+  if (path === PHONE_STOCK_PATH) return { name: 'phonestock' };
   for (const [name, prefix] of Object.entries(DETAIL_PREFIXES) as [DetailName, string][]) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
       return { name, back: parsePage(pathname.slice(prefix.length) || HOME_PATH) };

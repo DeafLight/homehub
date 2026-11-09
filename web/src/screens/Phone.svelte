@@ -17,7 +17,7 @@
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { routineFooter, routineTitle } from '../lib/routine.ts';
-  import { PHONE_SCAN_PATH, type PhoneTab, phonePath } from '../lib/route.ts';
+  import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
@@ -210,6 +210,9 @@
         {/if}
       {:else if lists.data}
         {#if tab === 'shopping'}
+          <button type="button" class="stock-link" onclick={() => navigate(PHONE_STOCK_PATH)}>
+            <Icon name="box" size={24} /> Ce qu’il reste à la maison
+          </button>
           <ShoppingPanel
             items={lists.data.shopping}
             frequent={lists.data.frequent}
@@ -452,6 +455,24 @@
     color: var(--bg);
     font: inherit;
     font-weight: 700;
+  }
+
+  .stock-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 52px;
+    margin-bottom: 14px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-align: left;
   }
 
   .homework {
