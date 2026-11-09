@@ -107,11 +107,12 @@
         <ul class="list">
           {#each shown as entry (entry.product.code)}
             {@const product = entry.product}
+            {@const marks = lastMarksLine(entry, clock.now, nameOf)}
             <li class:empty={entry.quantity === 0}>
               <button type="button" class="name" onclick={() => (dialog = { kind: 'sheet', product, quantity: entry.quantity })}>
                 <strong>{product.current.name}{#if product.conflict}<span class="flag" title="La base dit autre chose">!</span>{/if}</strong>
                 <span>{[productDetail(product.current), product.current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche'}</span>
-                {#if entry.lastIn || entry.lastOut}<span class="marks">{lastMarksLine(entry, clock.now, nameOf)}</span>{/if}
+                {#if marks}<span class="marks">{marks}</span>{/if}
               </button>
               {#if !readOnly}
                 <span class="qty">
@@ -357,8 +358,10 @@
     overflow-y: auto;
   }
 
+  /* flex: none : dans la liste qui défile, une ligne garde sa hauteur au lieu d'être écrasée et de laisser déborder son texte. */
   .list li {
     display: flex;
+    flex: none;
     align-items: center;
     gap: var(--space-2);
     min-height: 72px;

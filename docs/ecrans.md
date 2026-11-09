@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.34.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.34.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -55,7 +55,7 @@ Courses et tâches de la famille ; tâches en retard en rouge, tâches qui revie
 ### Stock
 
 Produits en stock (± 1, « Épuisé »), avec sous chacun la dernière entrée et la dernière sortie (quand, et qui :
-Alex et Léa par leur téléphone, « anonyme » pour un scan sur la tablette sans personne de reconnu), contenants de la maison (bocal rechargé, étiquette à imprimer), réglage de la
+Alex et Léa par leur téléphone, « anonyme » pour un scan sur la tablette sans personne de reconnu ; un produit épuisé ne dit que quand et par qui il l'a été), contenants de la maison (bocal rechargé, étiquette à imprimer), réglage de la
 liste de courses pour un produit épuisé.
 
 ![Stock](images/tablette-stock.png)

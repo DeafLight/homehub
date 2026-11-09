@@ -64,9 +64,17 @@ export function scannerLabel(by: Author, nameOf: NameOf): string {
 /** « aujourd’hui à 15:42 · Léa · téléphone » */
 export const markLine = (mark: StockMark, now: Date, nameOf: NameOf) => `${scanMoment(mark.at, now)} · ${scannerLabel(mark.by, nameOf)}`;
 
-/** Dernière entrée et dernière sortie, pour la liste du stock : « Rangé hier à 18:20 (Léa) · sorti aujourd’hui à 07:35 (anonyme) ». */
-export function lastMarksLine(entry: { lastIn: StockMark | null; lastOut: StockMark | null }, now: Date, nameOf: NameOf): string {
+/**
+ * Ligne d'un produit dans le stock. En stock : dernière entrée et dernière sortie, « Rangé hier à 18:20 (Léa) · sorti
+ * aujourd’hui à 07:35 (anonyme) ». Épuisé : seulement quand et par qui, « Épuisé aujourd’hui à 07:35 (anonyme) » ; rien
+ * si la dernière sortie précède la dernière entrée (mis à zéro à la main : ce n'est pas elle qui l'a épuisé).
+ */
+export function lastMarksLine(entry: { quantity: number; lastIn: StockMark | null; lastOut: StockMark | null }, now: Date, nameOf: NameOf): string {
   const part = (label: string, mark: StockMark | null) => mark && `${label} ${scanMoment(mark.at, now)} (${nameOf(mark.by.ownerId) ?? 'anonyme'})`;
+  if (entry.quantity === 0) {
+    const emptied = entry.lastOut && (!entry.lastIn || entry.lastOut.at >= entry.lastIn.at);
+    return emptied ? (part('Épuisé', entry.lastOut) as string) : '';
+  }
   const parts = [part('rangé', entry.lastIn), part('sorti', entry.lastOut)].filter(Boolean) as string[];
   if (!parts.length) return '';
   const line = parts.join(' · ');

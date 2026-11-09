@@ -63,7 +63,8 @@ Fait en 0.33.0 (scanner et page Stock, voir README) :
       changer.
 - [x] Le stock déjà présent s'enregistre aussi (scan ou + 1), sans prix.
 - [x] Heure et auteur de chaque entrée et sortie (profil du téléphone, personne reconnue sur la tablette, sinon
-      anonyme), affichés dans le scanner, la liste du stock et l'historique de la fiche (0.34.0).
+      anonyme), affichés dans le scanner, la liste du stock et l'historique de la fiche (0.34.0) ; produit épuisé : seulement quand
+      et par qui, lignes qui ne débordent plus (0.34.1).
 - [x] Écran de scan : bip et éclair à chaque lecture, bordure qui pulse et « Retire le produit » : rien n'est relu
       tant que le code reste devant la caméra.
 

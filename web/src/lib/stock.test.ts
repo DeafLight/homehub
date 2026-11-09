@@ -58,9 +58,19 @@ describe('quand et qui a scanné', () => {
   it('résume la dernière entrée et la dernière sortie', () => {
     const lastIn = { at: at(new Date(2026, 10, 4, 18, 20)), by: { ownerId: 'lea', via: 'phone' as const } };
     const lastOut = { at: at(new Date(2026, 10, 5, 7, 30)), by: { ownerId: null, via: 'tablet' as const } };
-    expect(lastMarksLine({ lastIn, lastOut }, now, nameOf)).toBe('Rangé hier à 18:20 (Léa) · sorti aujourd’hui à 07:30 (anonyme)');
-    expect(lastMarksLine({ lastIn: null, lastOut }, now, nameOf)).toBe('Sorti aujourd’hui à 07:30 (anonyme)');
-    expect(lastMarksLine({ lastIn: null, lastOut: null }, now, nameOf)).toBe('');
+    expect(lastMarksLine({ quantity: 1, lastIn, lastOut }, now, nameOf)).toBe('Rangé hier à 18:20 (Léa) · sorti aujourd’hui à 07:30 (anonyme)');
+    expect(lastMarksLine({ quantity: 1, lastIn: null, lastOut }, now, nameOf)).toBe('Sorti aujourd’hui à 07:30 (anonyme)');
+    expect(lastMarksLine({ quantity: 1, lastIn: null, lastOut: null }, now, nameOf)).toBe('');
+  });
+
+  it('ne dit d’un produit épuisé que quand et par qui', () => {
+    const lastIn = { at: at(new Date(2026, 10, 4, 18, 20)), by: { ownerId: 'lea', via: 'phone' as const } };
+    const lastOut = { at: at(new Date(2026, 10, 5, 7, 30)), by: { ownerId: 'lea', via: 'tablet' as const } };
+    expect(lastMarksLine({ quantity: 0, lastIn, lastOut }, now, nameOf)).toBe('Épuisé aujourd’hui à 07:30 (Léa)');
+    expect(lastMarksLine({ quantity: 0, lastIn: null, lastOut }, now, nameOf)).toBe('Épuisé aujourd’hui à 07:30 (Léa)');
+    // Mis à zéro à la main après la dernière entrée : la sortie d'avant n'est pas ce qui l'a épuisé.
+    expect(lastMarksLine({ quantity: 0, lastIn: lastOut, lastOut: lastIn }, now, nameOf)).toBe('');
+    expect(lastMarksLine({ quantity: 0, lastIn, lastOut: null }, now, nameOf)).toBe('');
   });
 
   it('décrit chaque mouvement', () => {

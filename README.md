@@ -41,7 +41,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
     mode « Jeté / épuisé », le déclare vide.
 - **Stock** (`/stock`, depuis le scanner ou la page Listes) : produits en stock, épuisés ou tous, recherche ; ± 1 et
   « Épuisé » à la main (pour le stock déjà là ou un oubli) ; sous chaque produit, la dernière entrée et la dernière
-  sortie (« Rangé hier à 18:20 (Léa) · sorti aujourd'hui à 07:30 (anonyme) ») ; fiche de chaque produit : historique
+  sortie (« Rangé hier à 18:20 (Léa) · sorti aujourd'hui à 07:30 (anonyme) »), et pour un produit épuisé seulement
+  quand et par qui (« Épuisé aujourd'hui à 07:30 (anonyme) ») ; fiche de chaque produit : historique
   des entrées et sorties (date, heure, qui, tablette ou téléphone), provenance (base et date, ou
   corrigé à la main), **Revérifier** (relecture immédiate de la base, différences montrées, à prendre ou non),
   **Corriger** (notre version l'emporte ; versions datées), liste de courses d'office ou non, contenant habituel.
