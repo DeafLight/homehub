@@ -72,7 +72,7 @@ Reste :
 
 - [ ] Vérifier sur la tablette et un téléphone : lecture en continu, bip (son autorisé par Fully Kiosk ?), « Retire le
       produit » au bon moment, distance de lecture des petits codes (EAN-8), étiquette imprimée bien lue.
-- [x] Inventaire consultable depuis le téléphone (page Stock de la PWA, `/m/stock`, 0.35.0).
+- [x] Inventaire consultable depuis le téléphone (page Stock de la PWA, `/m/stock`, 0.35.0 ; sans date ni auteur, 0.35.1).
 - [ ] « J'en ai déjà » des recettes, d'après le stock.
 - [ ] Plus tard, en option : renvoyer une correction à Open Food Facts avec le compte de l'utilisateur, seulement à
       sa demande.

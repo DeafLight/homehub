@@ -40,7 +40,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
     d'office, « Épuisé » toujours possible). L'étiquette du contenant (code-barres interne, préfixe 29), scannée en
     mode « Jeté / épuisé », le déclare vide.
 - **Stock** (`/stock`, depuis le scanner ou la page Listes ; `/m/stock` sur le téléphone, depuis l'onglet Courses, pour
-  voir au magasin ce qu'il reste, contenants en lecture seule) : produits en stock, épuisés ou tous, recherche ; ± 1 et
+  voir au magasin ce qu'il reste, sans date ni auteur, contenants en lecture seule) : produits en stock, épuisés ou tous, recherche ; ± 1 et
   « Épuisé » à la main (pour le stock déjà là ou un oubli) ; sous chaque produit, la dernière entrée et la dernière
   sortie (« Rangé hier à 18:20 (Léa) · sorti aujourd'hui à 07:30 (anonyme) »), et pour un produit épuisé seulement
   quand et par qui (« Épuisé aujourd'hui à 07:30 (anonyme) ») ; fiche de chaque produit : historique

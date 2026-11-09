@@ -14,7 +14,8 @@
 
   // Stock de la maison (tablette ; depuis Listes ou le scanner) : ce qu'on a, ce qui est épuisé, les contenants et
   // leur étiquette, et le réglage de la liste de courses. Les quantités se corrigent ici à la main (inventaire).
-  // Sur le téléphone (`back` : null), pour voir au magasin ce qu'il reste : les produits, et les contenants en lecture.
+  // Sur le téléphone (`back` : null), pour voir au magasin ce qu'il reste : les produits, sans date ni auteur (dans leur
+  // fiche), et les contenants en lecture.
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
@@ -114,7 +115,7 @@
         <ul class="list">
           {#each shown as entry (entry.product.code)}
             {@const product = entry.product}
-            {@const marks = lastMarksLine(entry, clock.now, nameOf)}
+            {@const marks = phone ? '' : lastMarksLine(entry, clock.now, nameOf)}
             <li class:empty={entry.quantity === 0}>
               <button type="button" class="name" onclick={() => (dialog = { kind: 'sheet', product, quantity: entry.quantity })}>
                 <strong>{product.current.name}{#if product.conflict}<span class="flag" title="La base dit autre chose">!</span>{/if}</strong>
