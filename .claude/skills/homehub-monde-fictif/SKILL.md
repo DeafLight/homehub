@@ -36,6 +36,11 @@ Then open it in the built-in browser (`mcp__Claude_Browser__navigate`). Stop it 
   the tablet; the front's `actor.current` stays null (screens that need the person must ask the server).
 
 ## Pitfalls already met
+- **Run the captures in the foreground**, never with `run_in_background`: one Bash call with a long `timeout`
+  (`600000`). Three sessions ended their turn "waiting for the captures to finish" and were never woken up again,
+  leaving the work half done. If a run might take longer than 10 min, reshoot by groups with the name filter
+  (`node scripts/docs-captures.ts "tablette"`, then `"telephone"`), each in the foreground. Never end a turn while
+  something you need is still running. (Only `DOCS_SERVE=1`, which never ends, goes in the background.)
 - **Clock**: the *server* runs on Thursday 5 November 2026, 07:35 (then advances). The capture script also fakes the
   *browser* clock; the browser pane does not, so "this week" or "today" on screen may disagree with server data.
 - **Hidden browser pane**: `requestAnimationFrame` is paused, animations look frozen. Check motion by sampling state

@@ -31,7 +31,7 @@ npm run -s check                                          # 0 errors, 0 warnings
 npx vitest run                                            # all green
 TZ=UTC npx vitest run                                     # again in UTC: catches local-date bugs
 npm run -s build
-npm run -s docs:captures                                  # rebuilds and reshoots docs/images
+npm run -s docs:captures                                  # rebuilds and reshoots docs/images (foreground, see below)
 ```
 Also bump the version in the first line of `docs/ecrans.md` ("Captures de HomeHub X.Y.Z").
 
@@ -69,6 +69,11 @@ The tag workflow checks types and tests, builds and publishes `ghcr.io/deaflight
 commit only once CI is green (the image must exist before the compose points at it).
 
 ## Pitfalls already met
+- **Run the captures in the foreground**, never with `run_in_background`: one Bash call with a long `timeout`
+  (`600000`). Three sessions ended their turn "waiting for the captures to finish" and were never woken up again,
+  leaving the work half done. If a run might take longer than 10 min, reshoot by groups with the name filter
+  (`node scripts/docs-captures.ts "tablette"`, then `"telephone"`), each in the foreground. Never end a turn while
+  something you need is still running.
 - `$state` name clash: a variable named `state` in a Svelte component breaks the `$state` rune; rename it.
 - `Array.prototype.findLastIndex` is not in the web tsconfig lib: use `reduce`.
 - Heredocs containing quotes or `$` break in Git Bash: write scripts and messages with the Write tool instead.
