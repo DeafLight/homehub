@@ -1,4 +1,5 @@
-// Tests du minuteur de la séance guidée : horloge injectée, pause et reprise, passer, arrêter, fin des étapes, bips.
+// Tests du minuteur de la séance guidée : horloge injectée, pause et reprise, passer, arrêter, fin des étapes, bips,
+// changement de côté à mi-effort.
 import { describe, expect, it } from 'vitest';
 import { exerciseById } from '../../../shared/fitness-catalogue.ts';
 import { WARMUP, type WorkoutStep } from '../../../shared/fitness-workout.ts';
@@ -24,7 +25,57 @@ function run(timer: WorkoutTimer, from: number, to: number) {
   return { timer, cues };
 }
 
+const sided = exerciseById('fentes-arriere')!;
+const sidedSteps: WorkoutStep[] = [
+  { kind: 'effort', seconds: 30, exercise: sided, round: 1, index: 1 },
+  { kind: 'rest', seconds: 20, exercise: move, round: 1, index: 2 },
+  { kind: 'effort', seconds: 30, exercise: move, round: 1, index: 2 },
+];
+
 describe('minuteur de séance', () => {
+  it('exercice d’un côté puis de l’autre : bip distinct à la mi-temps, et « change de côté » quelques secondes', () => {
+    let timer = startWorkout(sidedSteps, 0).timer;
+    expect(workoutView(timer, sidedSteps)).toMatchObject({ side: 1, switching: false });
+    const cues: WorkoutCue[] = [];
+    for (let t = 0; t <= 14_800; t += 200) {
+      const r = tickWorkout(timer, sidedSteps, t);
+      timer = r.timer;
+      cues.push(...r.cues);
+    }
+    expect(cues).toEqual([]);
+    const half = tickWorkout(timer, sidedSteps, 15_000);
+    expect(half.cues).toEqual(['side']);
+    timer = half.timer;
+    expect(workoutView(timer, sidedSteps)).toMatchObject({ side: 2, switching: true });
+    // Une seule fois, et le message en grand s'efface après trois secondes.
+    const after = tickWorkout(timer, sidedSteps, 15_200);
+    expect(after.cues).toEqual([]);
+    expect(workoutView(tickWorkout(after.timer, sidedSteps, 18_200).timer, sidedSteps)).toMatchObject({ side: 2, switching: false });
+  });
+
+  it('pas de bip de côté pour un exercice des deux côtés à la fois, ni pendant le repos', () => {
+    let timer = startWorkout(sidedSteps, 0).timer;
+    timer = skipStep(timer, sidedSteps, 0).timer; // repos
+    expect(workoutView(timer, sidedSteps).side).toBeNull();
+    const cues: WorkoutCue[] = [];
+    for (let t = 0; t <= 50_000; t += 200) {
+      const r = tickWorkout(timer, sidedSteps, t);
+      timer = r.timer;
+      cues.push(...r.cues);
+    }
+    expect(cues).not.toContain('side');
+  });
+
+  it('pause juste avant la mi-temps : le bip vient à la reprise, au bon moment', () => {
+    let timer = startWorkout(sidedSteps, 0).timer;
+    timer = tickWorkout(timer, sidedSteps, 14_000).timer;
+    timer = togglePause(timer, 14_000);
+    expect(tickWorkout(timer, sidedSteps, 40_000).cues).toEqual([]);
+    timer = togglePause(timer, 40_000);
+    expect(tickWorkout(timer, sidedSteps, 40_800).cues).toEqual([]);
+    expect(tickWorkout(timer, sidedSteps, 41_000).cues).toEqual(['side']);
+  });
+
   it('démarre sur la première étape avec un bip de départ', () => {
     const { timer, cues } = startWorkout(steps, 1000);
     expect(timer).toMatchObject({ phase: 'running', index: 0, left: 10_000, endsAt: 11_000, paused: false });

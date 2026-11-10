@@ -2,10 +2,10 @@
 // noté : séances, rythme, ressentis, répétitions, gênes, cardio et tour de taille de chaque semaine. Rien de nouveau à
 // saisir. Données personnelles : seul le téléphone de la personne les affiche.
 import { exerciseById, FAMILIES, type FitnessFamily } from './fitness-catalogue.ts';
-import { type FitnessSession, type FitnessState, PAIN_SPOTS, type PainSpot, type Palier, ROUND_BREAK_SECONDS, WARMUP_MINUTES, weekOf } from './fitness.ts';
+import { type FitnessSession, type FitnessState, GOOD_WEEK_SESSIONS, PAIN_SPOTS, type PainSpot, type Palier, ROUND_BREAK_SECONDS, WARMUP_MINUTES, weekOf } from './fitness.ts';
 
-/** Une semaine compte dans la série à partir de ce nombre de séances. */
-export const STREAK_SESSIONS = 2;
+/** Une semaine compte dans la série à partir de ce nombre de séances (comme pour monter au bilan). */
+export const STREAK_SESSIONS = GOOD_WEEK_SESSIONS;
 /** Semaines montrées dans les graphiques de régularité et de progression. */
 export const CHART_WEEKS = 12;
 

@@ -1,18 +1,23 @@
 // Programme de renforcement de chaque profil qui en a un (`fitness: true` dans homehub.yaml) : rythme, réglages des
 // exercices, séances notées, cardio et tour de taille de chaque semaine. Données personnelles, dans le dossier d'état
-// (fitness.json, donc dans la sauvegarde), lues et écrites seulement par le téléphone de la personne.
+// (fitness.json, donc dans la sauvegarde), lues et écrites seulement par le téléphone de la personne. Les champs
+// ajoutés depuis (réglages, palier en deux temps) ont une valeur par défaut : un fichier d'avant se lit tel quel.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { FAMILIES, type FitnessFamily } from '../../shared/fitness-catalogue.ts';
 import {
+  applyRhythm,
   applySlotChange,
+  DEFAULT_SETTINGS,
   emptyFitness,
+  type FitnessSettings,
   type FitnessState,
   NOTE_MAX,
   PAIN_SPOTS,
   PALIERS,
   pendingReview,
   planSession,
+  RHYTHM_OPTIONS,
   type RhythmOption,
   type SessionNumber,
   type SessionReport,
@@ -69,12 +74,17 @@ sameShape<z.infer<typeof weekInput>, WeekLog>(true);
 
 export const rhythmInput = z.object({
   week: z.string(),
-  option: z.enum(['keep', 'up-same', 'up-longer', 'down-same', 'down-shorter', 'next-palier']),
+  option: z.enum(RHYTHM_OPTIONS),
 });
+/** Réglages du programme (PUT /api/fitness/settings). */
+export const settingsInput = z.object({ band: z.boolean(), noJump: z.boolean() });
+sameShape<z.infer<typeof settingsInput>, FitnessSettings>(true);
 export const slotInput = z.object({ session: sessionNumber, family, change: z.enum(['easier', 'harder', 'gentle', 'normal', 'dismiss']) });
 
 const stateSchema = z.object({
   ...rhythm,
+  settings: z.object({ band: z.boolean().default(false), noJump: z.boolean().default(false) }).default({ ...DEFAULT_SETTINGS }),
+  stage: z.object({ moved: z.array(family), waiting: z.array(family), since: z.string() }).nullable().default(null),
   slots: z.record(z.string(), z.object({ offset: z.number().int().min(-2).max(2), swap: z.string().nullable(), since: z.string().nullable() })),
   sessions: z.array(
     z.object({
@@ -108,6 +118,7 @@ export type FitnessStore = {
   setWeek(ownerId: string, week: string, log: z.infer<typeof weekInput>): Promise<FitnessResult>;
   chooseRhythm(ownerId: string, week: string, option: RhythmOption): Promise<FitnessResult>;
   changeSlot(ownerId: string, session: SessionNumber, family: FitnessFamily, change: SlotChange | 'dismiss'): Promise<FitnessResult>;
+  setSettings(ownerId: string, settings: FitnessSettings): Promise<FitnessState>;
 };
 
 type FitnessFile = { version: 1; members: Record<string, FitnessState> };
@@ -189,8 +200,9 @@ export function createFitnessStore({ path, clock }: { path: string; clock: Clock
         if (!review || review.week !== week) return { error: 'Pas de bilan en attente pour cette semaine', status: 409 };
         const choice = review.choices.find((c) => c.option === option);
         if (!choice) return { error: 'Ce rythme n’est pas proposé', status: 400 };
-        state.reviews[week] = { at: clock().toISOString(), choice: option, from: { palier: state.palier, effort: state.effort, rest: state.rest } };
-        Object.assign(state, choice.rhythm);
+        const at = clock().toISOString();
+        state.reviews[week] = { at, choice: option, from: { palier: state.palier, effort: state.effort, rest: state.rest } };
+        applyRhythm(state, choice, at);
         return { state };
       }),
 
@@ -206,5 +218,13 @@ export function createFitnessStore({ path, clock }: { path: string; clock: Clock
         state.slots[key] = applySlotChange(state, session, family, change, at);
         return { state };
       }),
+
+    async setSettings(ownerId, settings) {
+      const result = await update(ownerId, (state) => {
+        state.settings = { ...settings };
+        return { state };
+      });
+      return (result as { state: FitnessState }).state;
+    },
   };
 }

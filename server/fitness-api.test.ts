@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ import { connectedFrom, NOW } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 
-async function setup(actor: string | null = 'alex') {
+async function setup(actor: string | null = 'alex', initial?: unknown) {
   let now = new Date(NOW); // lundi 2 novembre 2026, 18:00
   const clock = () => new Date(now);
   const config = createConfigStore(
@@ -34,6 +34,7 @@ async function setup(actor: string | null = 'alex') {
   const sam = await token('sam');
   const access = createAccess({ config, devices, isKey: kioskKeyMatcher(undefined), actorOf: () => actor });
   const path = join(dir, 'fitness.json');
+  if (initial) writeFileSync(path, JSON.stringify(initial));
   const fitness = createFitnessStore({ path, clock });
   const api = createFitnessApi({ fitness, household: createHousehold(config), access });
   const call = async <T = FitnessState>(method: string, url: string, body?: unknown, auth: string | null = alex, from = '192.168.1.20') => {
@@ -89,17 +90,45 @@ describe('API du programme de renforcement', () => {
     expect((await call('POST', '/fitness/slots', { session: 1, family: 'poussee', change: 'easier' })).status).toBe(400);
   });
 
-  it('bilan : choix du rythme proposé, une seule fois par semaine', async () => {
+  it('bilan : choix du rythme proposé, la semaine finie, une seule fois par semaine', async () => {
     const { call, later } = await setup();
-    for (const session of [1, 2, 3]) {
+    for (const session of [1, 2]) {
       await call('POST', '/fitness/sessions', { session, rpe: 2, exercises: [] });
       later(1);
     }
+    // Deux bonnes séances suffisent, mais le bilan attend la fin de la semaine.
+    expect((await call('POST', '/fitness/rhythm', { week: '2026-11-02', option: 'up-longer' })).status).toBe(409);
+    later(5); // lundi suivant
     expect((await call('POST', '/fitness/rhythm', { week: '2026-11-02', option: 'down-same' })).status).toBe(400);
     const res = await call('POST', '/fitness/rhythm', { week: '2026-11-02', option: 'up-longer' });
     expect(res.json).toMatchObject({ palier: 1, effort: 35, rest: 30 });
     expect(res.json.reviews['2026-11-02']).toMatchObject({ choice: 'up-longer', from: { effort: 30, rest: 30 } });
     expect((await call('POST', '/fitness/rhythm', { week: '2026-11-02', option: 'keep' })).status).toBe(409);
+  });
+
+  it('palier suivant en deux temps : la moitié des exercices passe, l’autre au bon bilan suivant', async () => {
+    // Fichier d'une version d'avant (ni réglages, ni palier en deux temps) : relu avec les valeurs par défaut.
+    const legacy = { version: 1, members: { alex: { palier: 1, effort: 45, rest: 15, slots: {}, sessions: [], weeks: {}, reviews: {} } } };
+    const { call, later } = await setup('alex', legacy);
+    expect((await call('GET', '/fitness')).json).toMatchObject({ settings: { band: false, noJump: false }, stage: null });
+    for (const session of [1, 2]) {
+      await call('POST', '/fitness/sessions', { session, rpe: 2, exercises: [] });
+      later(1);
+    }
+    later(5);
+    const res = await call('POST', '/fitness/rhythm', { week: '2026-11-02', option: 'next-palier' });
+    expect(res.json).toMatchObject({ palier: 2, effort: 35, stage: { moved: ['jambes', 'dos', 'gainage'], waiting: ['cardio', 'poussee', 'unilateral'] } });
+  });
+
+  it('réglages du programme : élastique et sans sauts, la séance du jour suit', async () => {
+    const { call } = await setup();
+    expect((await call('GET', '/fitness')).json.settings).toEqual({ band: false, noJump: false });
+    const res = await call('PUT', '/fitness/settings', { band: true, noJump: true });
+    expect(res.json.settings).toEqual({ band: true, noJump: true });
+    const tablet = await call<TabletSession>('GET', '/fitness/tablet', undefined, null, TABLET);
+    expect(tablet.json.exercises).toContainEqual({ family: 'dos', id: 'rowing-elastique' });
+    expect((await call('PUT', '/fitness/settings', { band: 'oui' })).status).toBe(400);
+    expect((await call('PUT', '/fitness/settings', { band: true, noJump: false }, null, TABLET)).status).toBe(403);
   });
 
   it('cardio et tour de taille de la semaine (un lundi)', async () => {

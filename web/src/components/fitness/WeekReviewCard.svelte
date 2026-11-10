@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { OPTION_LABELS, PALIERS, type pendingReview } from '../../../../shared/fitness.ts';
+  import { FIRST_WAVE, familyList, OPTION_LABELS, PALIERS, type pendingReview, SECOND_WAVE } from '../../../../shared/fitness.ts';
   import type { Api } from '../../lib/api.ts';
   import { formatMinutes } from '../../lib/fitness.ts';
   import SportCard from './SportCard.svelte';
 
-  // Bilan de la semaine (onglet Sport) : augmenter ou alléger le rythme, au choix parmi ce que propose le programme.
+  // Bilan de la semaine passée (onglet Sport) : augmenter ou alléger le rythme, au choix parmi ce que propose le
+  // programme. Le palier suivant se fait en deux temps : la carte dit quels exercices passent maintenant, et lesquels
+  // au bilan suivant.
   type Review = NonNullable<ReturnType<typeof pendingReview>>;
   type Option = Parameters<Api['chooseRhythm']>[1];
   type Props = { review: Review; busy: boolean; onChoose: (option: Option) => void };
@@ -15,7 +17,7 @@
   <h2>Bilan de la semaine</h2>
   <p>
     {#if review.verdict === 'up'}
-      {review.sessions} séances, aucune dure : tu peux augmenter.
+      Bonne semaine ({review.sessions} séances, aucune plus dure qu’« exigeant ») : tu peux augmenter.
     {:else}
       Semaine difficile : tu peux alléger le rythme.
     {/if}
@@ -23,8 +25,17 @@
   <div class="choices">
     {#each review.choices as c, i (c.option)}
       <button type="button" class:primary={i === 0} disabled={busy} onclick={() => onChoose(c.option)}>
-        <span>{c.option === 'next-palier' ? `Palier ${c.rhythm.palier} (${PALIERS[c.rhythm.palier].name})` : OPTION_LABELS[c.option]}</span>
+        <span>
+          {#if c.option === 'next-palier'}Palier {c.rhythm.palier} ({PALIERS[c.rhythm.palier].name})
+          {:else if c.option === 'complete-palier'}Finir le palier {c.rhythm.palier}
+          {:else}{OPTION_LABELS[c.option]}{/if}
+        </span>
         <span class="small">{c.rhythm.effort} s / {c.rhythm.rest} s · {PALIERS[c.rhythm.palier].rounds} tours · {formatMinutes(c.seconds)}</span>
+        {#if c.option === 'next-palier'}
+          <span class="small">En deux temps : {familyList(FIRST_WAVE)} passent tout de suite ; {familyList(SECOND_WAVE)} après la bonne semaine suivante.</span>
+        {:else if c.option === 'complete-palier'}
+          <span class="small">Au même rythme, {familyList(SECOND_WAVE)} passent aussi à la version du palier.</span>
+        {/if}
       </button>
     {/each}
   </div>

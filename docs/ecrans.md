@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.42.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.43.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -74,12 +74,15 @@ dans Chrome sans fenêtre : codes saisis à la main.)
 
 Depuis le bouton « Sport » du dashboard d'Alex (affiché seulement quand Alex est reconnu devant la tablette) : sa séance du jour (sans rien de
 personnel) et le catalogue des exercices. Puis la séance guidée, échauffement passé : premier effort, compte à
-rebours, animation. (Sans caméra dans Chrome sans fenêtre : la session d'un visage fictif est présentée avec chaque
-requête.)
+rebours, animation. Pour un exercice d'un côté puis de l'autre (montées genou levé), juste après la moitié de
+l'effort : bip distinct et « Change de côté ! ». (Sans caméra dans Chrome sans fenêtre : la session d'un visage fictif
+est présentée avec chaque requête.)
 
 ![Sport](images/tablette-sport.png)
 
 ![Séance guidée](images/tablette-seance.png)
+
+![Change de côté](images/tablette-seance-cote.png)
 
 ### Routines (réglages)
 
@@ -130,6 +133,15 @@ puis difficulté, gêne, répétitions et note par exercice).
 | Prochaine séance | Fiche d'un exercice | Fin de séance |
 |---|---|---|
 | ![Sport](images/telephone-sport.png) | ![Exercice](images/telephone-sport-exercice.png) | ![Fin de séance](images/telephone-sport-seance.png) |
+
+Prochaine séance ci-dessus : palier 2 choisi lundi, en deux temps ; dans la séance 3, pas encore faite, jambes, dos et gainage sont « nouveau au
+palier 2 » (avec l'exercice d'avant), cardio, poussée et une jambe passent « après la prochaine bonne semaine ».
+Réglages du programme cochés (élastique de tirage, sans sauts) : la séance 1 avec le rowing à l'élastique et les
+jumping jacks sans saut « à la place de » Jumping jacks ; la carte des réglages, en bas de l'onglet.
+
+| Avec les réglages | Réglages du programme |
+|---|---|
+| ![Réglages appliqués](images/telephone-sport-reglages.png) | ![Réglages](images/telephone-sport-reglages-carte.png) |
 
 Statistiques (lien sous l'historique), sur six semaines de séances fictives : le résumé et les séances par semaine
 (toucher une barre ou un point affiche sa valeur dessous), le temps d'effort et le ressenti moyen, chaque exercice

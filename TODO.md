@@ -106,6 +106,10 @@ Reste :
       fin de la session de la personne reconnue (`faces.sessionMinutes`), ni retour à l'accueil sans contact
       (`ui.idleTimeoutSeconds`), ni veille (`ui.screensaverMinutes`), même loin de la caméra et sans toucher l'écran.
       En quittant la séance (fin, abandon, retour), tout reprend comme d'habitude, délais repartis de zéro.
+- [x] Sport, 0.43.0 : programme revu. Changement de côté à la moitié de l'effort (bip et « Change de côté » sur la
+      tablette) ; réglage « élastique de tirage » (rowing à l'élastique pour le dos de chaque séance) ; bilan qui monte
+      dès 2 bonnes séances, demandé une fois la semaine finie ; palier suivant en deux temps (la moitié des exercices
+      d'abord, l'autre au bon bilan suivant), exercices changés signalés ; réglage « sans sauts ».
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

@@ -39,14 +39,19 @@ export function beep(kind: BeepKind) {
 }
 
 /**
- * Bips de la séance guidée : `tick` pour les trois dernières secondes, `go` au début d'un effort, `rest` à sa fin.
+ * Bips de la séance guidée : `tick` pour les trois dernières secondes, `go` au début d'un effort, `rest` à sa fin,
+ * `side` à la moitié d'un effort d'un côté puis de l'autre (trois notes qui montent, différentes de tout le reste).
  * Rien sans geste préalable (unlockAudio au bouton Commencer).
  */
-export function cue(kind: 'tick' | 'go' | 'rest') {
+export function cue(kind: 'tick' | 'go' | 'rest' | 'side') {
   if (!context) return;
   if (kind === 'tick') tone(context, 880, 0, 0.09, 0.2);
   else if (kind === 'go') tone(context, 1320, 0, 0.45, 0.3);
-  else {
+  else if (kind === 'side') {
+    tone(context, 784, 0, 0.1, 0.25);
+    tone(context, 1047, 0.12, 0.1, 0.25);
+    tone(context, 1319, 0.24, 0.18, 0.25);
+  } else {
     tone(context, 990, 0, 0.15, 0.25);
     tone(context, 660, 0.18, 0.3, 0.25);
   }

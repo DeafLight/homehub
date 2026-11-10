@@ -12,7 +12,8 @@
   import { markSaved, skipStep, startWorkout, stopWorkout, tickWorkout, togglePause, type Transition, type WorkoutTimer, workoutView } from '../lib/workout-timer.ts';
 
   // Séance guidée sur la tablette : échauffement, puis chaque effort avec son compte à rebours, et pendant le repos
-  // l'exercice suivant. Bips sur les trois dernières secondes, au départ et à la fin de chaque effort. Rien de
+  // l'exercice suivant. Bips sur les trois dernières secondes, au départ et à la fin de chaque effort ; pour un exercice
+  // d'un côté puis de l'autre, bip distinct et « Change de côté » en grand à la moitié de l'effort. Rien de
   // personnel à l'écran. Pendant la séance, la personne reconnue reste retenue (ni caméra, ni retour à l'accueil, ni
   // veille : voir holdsActor) et sa session sur le serveur est prolongée ; en sortant, tout reprend, délais à zéro.
   type Props = { back: PageRoute };
@@ -35,6 +36,8 @@
   const view = $derived(workoutView(timer, steps));
   const step = $derived(view.step);
   const seconds = $derived(view.seconds);
+  const side = $derived(view.side);
+  const switching = $derived(view.switching);
   const progress = $derived(view.progress);
   const remaining = $derived(view.remaining);
   const done = $derived(view.done);
@@ -126,7 +129,10 @@
         {#if step.cue}
           <p class="cue">{step.cue}</p>
         {:else if step.kind === 'effort'}
-          <p class="cue">{step.exercise.unit === 's' ? 'Tiens la position.' : 'À ton rythme, mouvement propre.'}{step.exercise.sides ? ' Change de côté à chaque tour.' : ''}</p>
+          <p class="cue">{step.exercise.unit === 's' ? 'Tiens la position.' : 'À ton rythme, mouvement propre.'}{side === 1 ? ' Change de côté à mi-temps, au signal.' : ''}</p>
+          {#if side}
+            <p class="side" class:switching role="status">{switching ? 'Change de côté !' : `Côté ${side} sur 2`}</p>
+          {/if}
         {:else}
           <p class="cue">Respire, bois un peu, mets-toi en place.</p>
         {/if}
@@ -258,6 +264,25 @@
     margin: 0;
     font-size: 1.4rem;
     line-height: 1.4;
+  }
+
+  .side {
+    align-self: flex-start;
+    margin: 0;
+    padding: 6px 18px;
+    border: 2px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--fg-muted);
+    font-size: 1.3rem;
+    font-weight: 600;
+  }
+
+  .side.switching {
+    border-color: var(--sun);
+    background: var(--sun);
+    color: var(--bg);
+    font-size: 2rem;
+    font-weight: 700;
   }
 
   .count {

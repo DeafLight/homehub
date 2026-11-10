@@ -2,6 +2,10 @@
 // fréquentes. Chaque séance a six familles (cardio, jambes, poussée, une jambe, dos, gainage) ; chaque famille, une
 // chaîne de trois versions, du palier 1 au palier 3 : la version plus facile ou plus difficile est sa voisine dans la
 // chaîne. Les exercices « doux » remplacent un exercice qui gêne une articulation.
+//
+// Deux réglages du programme changent les chaînes : avec un élastique de tirage, le dos de chaque séance devient un
+// rowing à l'élastique (BAND_CHAIN) ; « sans sauts », chaque exercice qui saute (`impact`) laisse la place à sa
+// version sans impact (WITHOUT_JUMPS).
 
 export type FitnessFamily = 'cardio' | 'jambes' | 'poussee' | 'unilateral' | 'dos' | 'gainage';
 export const FAMILIES: readonly FitnessFamily[] = ['cardio', 'jambes', 'poussee', 'unilateral', 'dos', 'gainage'];
@@ -20,8 +24,12 @@ export type Exercise = {
   family: FitnessFamily;
   /** Ce qu'on note : répétitions, ou secondes tenues. */
   unit: 'reps' | 's';
-  /** Un côté puis l'autre : on change de côté à chaque tour. */
+  /** Un côté puis l'autre : on change de côté à la moitié de l'effort. */
   sides?: true;
+  /** Il y a des sauts (ou de la course) : remplacé par sa version sans impact avec le réglage « sans sauts ». */
+  impact?: true;
+  /** Matériel nécessaire, en plus du poids du corps. */
+  equipment?: 'elastique';
   start: string;
   move: string;
   breath: string;
@@ -34,19 +42,19 @@ const ex = (e: Exercise) => e;
 
 export const EXERCISES: readonly Exercise[] = [
   // --- Séance 1
-  ex({ id: 'jumping-jacks', name: 'Jumping jacks', family: 'cardio', unit: 'reps',
+  ex({ id: 'jumping-jacks', name: 'Jumping jacks', family: 'cardio', unit: 'reps', impact: true,
     start: 'Debout, pieds joints, bras le long du corps.',
     move: 'Saute en écartant les pieds et en montant les bras au-dessus de la tête, puis reviens pieds joints, bras en bas.',
     breath: 'Régulière, sans bloquer : souffle toutes les deux ou trois répétitions.',
     primary: ['Mollets', 'Cœur et souffle'], secondary: ['Épaules', 'Fessiers'],
     errors: ['Atterrir talons tendus : reste souple sur l’avant du pied.', 'Bras à moitié levés : monte-les franchement.'] }),
-  ex({ id: 'half-burpees', name: 'Half-burpees', family: 'cardio', unit: 'reps',
+  ex({ id: 'half-burpees', name: 'Half-burpees', family: 'cardio', unit: 'reps', impact: true,
     start: 'Debout, pieds largeur de hanches.',
     move: 'Accroupis-toi, mains au sol, saute pieds en arrière en planche, ramène les pieds vers les mains et relève-toi (sans pompe ni saut).',
     breath: 'Souffle en ramenant les pieds, inspire en te relevant.',
     primary: ['Cœur et souffle', 'Quadriceps'], secondary: ['Épaules', 'Abdominaux'],
     errors: ['Dos creusé en planche : serre le ventre.', 'Pieds qui retombent loin des mains : ramène-les sous toi.'] }),
-  ex({ id: 'burpees', name: 'Burpees', family: 'cardio', unit: 'reps',
+  ex({ id: 'burpees', name: 'Burpees', family: 'cardio', unit: 'reps', impact: true,
     start: 'Debout, pieds largeur de hanches.',
     move: 'Mains au sol, pieds en arrière en planche, une pompe, pieds vers les mains, puis saut bras en l’air.',
     breath: 'Souffle pendant la pompe et le saut ; garde un rythme que tu tiens jusqu’au bout.',
@@ -64,7 +72,7 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Inspire en descendant, souffle en remontant.',
     primary: ['Quadriceps', 'Fessiers'], secondary: ['Ischio-jambiers', 'Lombaires'],
     errors: ['Talons qui décollent.', 'Dos rond en bas du mouvement.', 'Genoux qui rentrent.'] }),
-  ex({ id: 'squats-sautes', name: 'Squats sautés', family: 'jambes', unit: 'reps',
+  ex({ id: 'squats-sautes', name: 'Squats sautés', family: 'jambes', unit: 'reps', impact: true,
     start: 'Comme pour un squat.',
     move: 'Descends en squat, puis saute verticalement ; réceptionne-toi en douceur en redescendant directement.',
     breath: 'Souffle au saut.',
@@ -150,7 +158,7 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Régulière.',
     primary: ['Fléchisseurs de hanche', 'Cœur et souffle'], secondary: ['Abdominaux', 'Mollets'],
     errors: ['Se pencher en arrière pour monter les genoux.'] }),
-  ex({ id: 'genoux-hauts', name: 'Genoux hauts en courant', family: 'cardio', unit: 'reps',
+  ex({ id: 'genoux-hauts', name: 'Genoux hauts en courant', family: 'cardio', unit: 'reps', impact: true,
     start: 'Debout, droit.',
     move: 'Cours sur place en montant les genoux à hauteur de hanche, sur l’avant des pieds.',
     breath: 'Régulière, rythmée par les pas.',
@@ -174,7 +182,7 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Inspire en descendant, souffle en remontant.',
     primary: ['Adducteurs', 'Fessiers', 'Quadriceps'], secondary: ['Ischio-jambiers'],
     errors: ['Genoux qui rentrent.', 'Buste qui plonge en avant.'] }),
-  ex({ id: 'squats-sumo-sautes', name: 'Squats sumo sautés', family: 'jambes', unit: 'reps',
+  ex({ id: 'squats-sumo-sautes', name: 'Squats sumo sautés', family: 'jambes', unit: 'reps', impact: true,
     start: 'Comme pour un squat sumo.',
     move: 'Descends en sumo, saute, réceptionne-toi pieds écartés en amortissant.',
     breath: 'Souffle au saut.',
@@ -210,7 +218,7 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Inspire en descendant, souffle en remontant.',
     primary: ['Quadriceps', 'Fessiers'], secondary: ['Ischio-jambiers', 'Mollets'],
     errors: ['Pas trop court : genou avant loin devant le pied.', 'Taper le genou au sol.'] }),
-  ex({ id: 'fentes-sautees', name: 'Fentes sautées', family: 'unilateral', unit: 'reps',
+  ex({ id: 'fentes-sautees', name: 'Fentes sautées', family: 'unilateral', unit: 'reps', impact: true,
     start: 'En position de fente.',
     move: 'Saute et change de jambe en l’air ; réceptionne-toi en fente, en douceur.',
     breath: 'Souffle à chaque saut.',
@@ -234,7 +242,7 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Continue.',
     primary: ['Haut du dos', 'Fessiers', 'Ischio-jambiers'], secondary: ['Triceps', 'Épaules'],
     errors: ['Bassin qui retombe.', 'Épaules qui remontent vers les oreilles.'] }),
-  ex({ id: 'bird-dog', name: 'Bird dog', family: 'gainage', unit: 'reps', sides: true,
+  ex({ id: 'bird-dog', name: 'Bird dog', family: 'gainage', unit: 'reps',
     start: 'À quatre pattes, mains sous les épaules, genoux sous les hanches.',
     move: 'Tends un bras devant et la jambe opposée derrière, dos plat, tiens deux secondes, reviens, puis l’autre côté.',
     breath: 'Souffle en tendant.',
@@ -266,7 +274,7 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Régulière.',
     primary: ['Fessiers', 'Cœur et souffle'], secondary: ['Quadriceps', 'Adducteurs'],
     errors: ['Genou qui rentre à la réception.'] }),
-  ex({ id: 'patineurs-sautes', name: 'Patineurs sautés', family: 'cardio', unit: 'reps',
+  ex({ id: 'patineurs-sautes', name: 'Patineurs sautés', family: 'cardio', unit: 'reps', impact: true,
     start: 'Debout sur une jambe, genou plié.',
     move: 'Saute latéralement sur l’autre jambe, réceptionne-toi en douceur, jambe libre croisée derrière.',
     breath: 'Souffle à chaque saut.',
@@ -274,7 +282,7 @@ export const EXERCISES: readonly Exercise[] = [
     errors: ['Réception raide : amortis sur l’avant du pied.'] }),
   ex({ id: 'montees-marche', name: 'Montées sur une marche', family: 'jambes', unit: 'reps', sides: true,
     start: 'Face à une marche stable ou un escalier.',
-    move: 'Monte sur la marche en poussant sur la jambe avant, redescends en contrôlant ; même jambe tout le tour.',
+    move: 'Monte sur la marche en poussant sur la jambe avant, redescends en contrôlant ; même jambe jusqu’au signal de mi-temps, puis l’autre.',
     breath: 'Souffle en montant.',
     primary: ['Quadriceps', 'Fessiers'], secondary: ['Mollets', 'Ischio-jambiers'],
     errors: ['Pousser sur la jambe du bas.', 'Genou qui rentre.'] }),
@@ -370,6 +378,52 @@ export const EXERCISES: readonly Exercise[] = [
     breath: 'Régulière.',
     primary: ['Cœur et souffle'], secondary: ['Mollets'],
     errors: ['Traîner : garde un rythme soutenu.'] }),
+
+  // --- Sans sauts : à la place d'un exercice qui saute (réglage « sans sauts »).
+  ex({ id: 'jacks-sans-saut', name: 'Jumping jacks sans saut', family: 'cardio', unit: 'reps',
+    start: 'Debout, pieds joints, bras le long du corps.',
+    move: 'Écarte une jambe sur le côté en montant les bras au-dessus de la tête, ramène-la, puis l’autre jambe ; rythme vif, sans quitter le sol.',
+    breath: 'Régulière : souffle toutes les deux ou trois répétitions.',
+    primary: ['Cœur et souffle', 'Épaules'], secondary: ['Fessiers', 'Mollets'],
+    errors: ['Bras à moitié levés : monte-les franchement.', 'Ralentir jusqu’à marcher : garde un rythme vif.'] }),
+  ex({ id: 'burpees-sans-saut', name: 'Burpees sans saut', family: 'cardio', unit: 'reps',
+    start: 'Debout, pieds largeur de hanches.',
+    move: 'Accroupis-toi, mains au sol, recule un pied puis l’autre jusqu’en planche, ramène-les un à un vers les mains et relève-toi bras en l’air.',
+    breath: 'Souffle en reculant les pieds, inspire en te relevant.',
+    primary: ['Cœur et souffle', 'Quadriceps'], secondary: ['Épaules', 'Abdominaux'],
+    errors: ['Dos creusé en planche : serre le ventre.', 'Se relever dos rond : pousse dans les jambes.'] }),
+  ex({ id: 'squats-lents', name: 'Squats lents', family: 'jambes', unit: 'reps',
+    start: 'Debout, pieds largeur d’épaules, bras devant toi.',
+    move: 'Descends en comptant trois secondes, tiens une seconde en bas, puis remonte franchement.',
+    breath: 'Inspire en descendant, souffle en remontant.',
+    primary: ['Quadriceps', 'Fessiers'], secondary: ['Ischio-jambiers', 'Lombaires'],
+    errors: ['Se laisser tomber en bas : contrôle la descente jusqu’au bout.', 'Talons qui décollent.'] }),
+  ex({ id: 'squats-sumo-lents', name: 'Squats sumo lents', family: 'jambes', unit: 'reps',
+    start: 'Pieds très écartés, pointes ouvertes vers l’extérieur.',
+    move: 'Descends en comptant trois secondes, genoux dans l’axe des pieds, tiens une seconde en bas, puis remonte en serrant les fessiers.',
+    breath: 'Inspire en descendant, souffle en remontant.',
+    primary: ['Adducteurs', 'Fessiers', 'Quadriceps'], secondary: ['Ischio-jambiers'],
+    errors: ['Genoux qui rentrent.', 'Buste qui plonge en avant.'] }),
+
+  // --- Avec un élastique de tirage (réglage du programme) : le dos de chaque séance.
+  ex({ id: 'rowing-elastique', name: 'Rowing à l’élastique', family: 'dos', unit: 'reps', equipment: 'elastique',
+    start: 'Élastique fixé à la porte à hauteur de poitrine (ancrage de porte, porte fermée à clé ou qui s’ouvre de l’autre côté), une poignée dans chaque main ; debout face à la porte, bras tendus, élastique déjà un peu tendu.',
+    move: 'Tire les coudes vers l’arrière, près du corps, jusqu’à amener les mains contre les côtes en serrant les omoplates, puis laisse revenir lentement.',
+    breath: 'Souffle en tirant, inspire en revenant.',
+    primary: ['Grand dorsal', 'Rhomboïdes'], secondary: ['Biceps', 'Arrière des épaules'],
+    errors: ['Hausser les épaules : garde-les basses, loin des oreilles.', 'Se pencher en arrière pour tirer : buste immobile.', 'Laisser l’élastique ramener les bras d’un coup.'] }),
+  ex({ id: 'rowing-elastique-pause', name: 'Rowing à l’élastique, pause', family: 'dos', unit: 'reps', equipment: 'elastique',
+    start: 'Comme pour le rowing à l’élastique, un pas plus loin de la porte : l’élastique tire plus fort.',
+    move: 'Tire les coudes en arrière, tiens deux secondes omoplates serrées, puis reviens en trois secondes.',
+    breath: 'Souffle en tirant, respire pendant la pause.',
+    primary: ['Grand dorsal', 'Rhomboïdes'], secondary: ['Biceps', 'Arrière des épaules', 'Trapèzes'],
+    errors: ['Raccourcir la pause quand ça brûle : rapproche-toi un peu de la porte.', 'Coudes qui s’écartent du corps.'] }),
+  ex({ id: 'rowing-elastique-un-bras', name: 'Rowing à l’élastique, un bras', family: 'dos', unit: 'reps', sides: true, equipment: 'elastique',
+    start: 'Face à la porte, en fente (le pied opposé au bras qui tire devant), l’élastique doublé dans une main, l’autre main sur la hanche, encore un peu plus loin de la porte.',
+    move: 'Tire le coude en arrière, près du corps, sans tourner le buste, puis reviens lentement ; même bras jusqu’au signal de mi-temps, puis l’autre.',
+    breath: 'Souffle en tirant, inspire en revenant.',
+    primary: ['Grand dorsal', 'Rhomboïdes'], secondary: ['Biceps', 'Obliques', 'Arrière des épaules'],
+    errors: ['Tourner les épaules pour tirer plus loin : buste face à la porte.', 'Hausser l’épaule du bras qui tire.'] }),
 ];
 
 /** Les trois versions de chaque famille, du palier 1 au palier 3, pour chacune des trois séances. */
@@ -398,6 +452,21 @@ export const CHAINS: Record<1 | 2 | 3, Record<FitnessFamily, readonly [string, s
     dos: ['tirage-serviette', 'superman-nageur', 'tirage-table'],
     gainage: ['gainage-lateral-genoux', 'gainage-lateral', 'gainage-lateral-rotation'],
   },
+};
+
+/** Avec un élastique de tirage : le dos de chacune des trois séances, du palier 1 au palier 3. */
+export const BAND_CHAIN: readonly [string, string, string] = ['rowing-elastique', 'rowing-elastique-pause', 'rowing-elastique-un-bras'];
+
+/** Réglage « sans sauts » : la version sans impact de chaque exercice qui saute, dans la même famille. */
+export const WITHOUT_JUMPS: Record<string, string> = {
+  'jumping-jacks': 'jacks-sans-saut',
+  'half-burpees': 'burpees-sans-saut',
+  burpees: 'mountain-climbers',
+  'genoux-hauts': 'jacks-sans-saut',
+  'squats-sautes': 'squats-lents',
+  'squats-sumo-sautes': 'squats-sumo-lents',
+  'fentes-sautees': 'squat-une-jambe',
+  'patineurs-sautes': 'patineurs',
 };
 
 /** Remplaçants doux par famille, dans l'ordre de préférence (le premier qui n'est pas l'exercice qui gêne). */

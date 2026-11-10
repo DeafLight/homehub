@@ -3,8 +3,14 @@
 // fonctions, jouer les bips et afficher ; tout le déroulé (pause, passer, arrêter, fin des étapes) se teste ici.
 import { totalSeconds, type WorkoutStep } from '../../../shared/fitness-workout.ts';
 
-/** Bips de la séance (voir `cue` dans beep.ts). */
-export type WorkoutCue = 'go' | 'rest' | 'tick';
+/** Bips de la séance (voir `cue` dans beep.ts) ; `side` : à la moitié d'un effort d'un côté puis de l'autre. */
+export type WorkoutCue = 'go' | 'rest' | 'tick' | 'side';
+
+/** Le message « Change de côté » reste en grand ces secondes-là après la mi-temps. */
+export const SIDE_SWITCH_SECONDS = 3;
+
+/** Effort d'un exercice fait d'un côté puis de l'autre : on change de côté à sa moitié. */
+const hasSides = (step: WorkoutStep | undefined) => step?.kind === 'effort' && Boolean(step.exercise.sides);
 
 /** running : une étape défile ; done : séance finie ou arrêtée, en attente de la note ; saved : note envoyée. */
 export type WorkoutPhase = 'running' | 'done' | 'saved';
@@ -53,13 +59,19 @@ export function skipStep(timer: WorkoutTimer, steps: WorkoutStep[], now: number)
   return { timer: next, cues };
 }
 
-/** Battement de l'horloge : met à jour le temps restant, bipe sur les trois dernières secondes, passe à la suite. */
+/**
+ * Battement de l'horloge : met à jour le temps restant, bipe à la mi-temps d'un effort d'un côté puis de l'autre et
+ * sur les trois dernières secondes, passe à la suite.
+ */
 export function tickWorkout(timer: WorkoutTimer, steps: WorkoutStep[], now: number): Transition {
   if (timer.phase !== 'running' || timer.paused || !steps.length) return { timer, cues: [] };
   const left = Math.max(0, timer.endsAt - now);
   const second = Math.ceil(left / 1000);
   const cues: WorkoutCue[] = [];
-  let next = { ...timer, left };
+  const step = steps[timer.index];
+  const half = (step.seconds * 1000) / 2;
+  if (hasSides(step) && timer.left > half && left <= half && left > 0) cues.push('side');
+  const next = { ...timer, left };
   if (second !== timer.lastSecond) {
     next.lastSecond = second;
     if (second > 0 && second <= 3) cues.push('tick');
@@ -91,9 +103,15 @@ export function workoutView(timer: WorkoutTimer, steps: WorkoutStep[]) {
   const step = steps[timer.index] as WorkoutStep | undefined;
   const seconds = Math.ceil(timer.left / 1000);
   const remaining = steps.slice(timer.index + 1).reduce((sum, s) => sum + s.seconds, 0) + seconds;
+  const half = step ? (step.seconds * 1000) / 2 : 0;
+  const side: 1 | 2 | null = hasSides(step) ? (timer.left > half ? 1 : 2) : null;
   return {
     step,
     seconds,
+    /** Côté en cours d'un effort fait d'un côté puis de l'autre (1, puis 2 après la mi-temps), sinon null. */
+    side,
+    /** Juste après la mi-temps : « Change de côté » en grand. */
+    switching: side === 2 && timer.left > half - SIDE_SWITCH_SECONDS * 1000,
     /** Part écoulée de l'étape (0 → 1). */
     progress: step ? 1 - timer.left / (step.seconds * 1000) : 0,
     /** Secondes restantes de toute la séance. */

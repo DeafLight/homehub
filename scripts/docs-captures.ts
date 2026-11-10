@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
-import { emptyFitness, planSession, type SessionNumber, weekOf } from '../shared/fitness.ts';
+import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
 import { DOCS_NOW, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -56,28 +56,33 @@ writeFileSync(join(state, 'devices.json'), JSON.stringify({
   version: 1,
   devices: [device('alex', 'Téléphone d’Alex', 'Android 16'), device('lea', 'Téléphone de Léa', 'iOS 26')],
 }));
-// Programme de sport d'Alex : six semaines de séances (répétitions en hausse, une semaine creuse), une bonne semaine
-// (rythme monté à 35/25), deux séances cette semaine, « facile » deux fois aux squats sur chaise (changement proposé),
-// tour de taille de six semaines.
+// Programme de sport d'Alex : six semaines de séances (répétitions en hausse, une semaine creuse), le rythme monté de
+// 35/25 à 45/15 au fil des bonnes semaines, puis le palier 2 choisi lundi : en deux temps, jambes, dos et gainage sont
+// passés (« nouveau » dans la séance 3, pas encore faite), cardio, poussée et une jambe attendent. Deux séances cette
+// semaine, « facile » deux fois aux pompes inclinées larges (changement proposé), tour de taille de six semaines.
 const fitness = emptyFitness();
 const monday = new Date(`${weekOf(new Date(DOCS_NOW))}T18:30:00`);
 const at = (days: number) => new Date(monday.getTime() + days * 86_400_000).toISOString();
-const done = (days: number, session: SessionNumber, rpe: number, effort: number, rest: number, ratings: Record<string, string> = {}) => ({
-  id: `docs-${days}`, at: at(days), session, palier: 1 as const, effort, rest, rounds: 3, rpe, stopped: false, note: null,
-  exercises: planSession(fitness, session).map(({ family, exercise }) => ({
+const done = (days: number, session: SessionNumber, rpe: number, effort: number, rest: number, ratings: Record<string, string> = {}, palier: Palier = 1) => ({
+  id: `docs-${days}`, at: at(days), session, palier, effort, rest, rounds: PALIERS[palier].rounds, rpe, stopped: false, note: null,
+  exercises: planSession(palier === 1 ? emptyFitness() : fitness, session).map(({ family, exercise }) => ({
     family, exercise: exercise.id, rating: (ratings[family] ?? 'ok') as 'ok', pain: null,
     // un peu plus chaque semaine : 7 répétitions (ou 15 s) il y a six semaines, 12 (ou 25 s) maintenant
     reps: Math.round((exercise.unit === 's' ? 25 : 12) * (1 + Math.min(0, days) / 100)), note: null,
   })),
 });
 fitness.sessions.push(
-  done(-42, 1, 4, 30, 30), done(-40, 2, 3, 30, 30), done(-35, 3, 3, 30, 30), done(-33, 1, 3, 30, 30), done(-31, 2, 3, 30, 30),
-  done(-21, 3, 3, 30, 30), done(-14, 1, 3, 30, 30, { gainage: 'dur' }), done(-12, 2, 2, 30, 30), done(-10, 3, 3, 30, 30),
-  done(-7, 1, 2, 30, 30, { jambes: 'facile' }), done(-5, 2, 3, 30, 30), done(-3, 3, 2, 30, 30),
-  done(0, 1, 3, 35, 25, { jambes: 'facile', poussee: 'dur' }), done(1, 2, 3, 35, 25),
+  done(-42, 1, 4, 35, 25), done(-40, 2, 3, 35, 25), done(-35, 3, 3, 35, 25), done(-33, 1, 3, 35, 25), done(-31, 2, 3, 35, 25),
+  done(-21, 3, 3, 40, 20), done(-14, 1, 3, 40, 20, { gainage: 'dur' }), done(-12, 2, 2, 40, 20), done(-10, 3, 3, 40, 20),
+  done(-7, 1, 2, 45, 15), done(-5, 2, 3, 45, 15, { poussee: 'facile' }), done(-3, 3, 2, 45, 15),
 );
-Object.assign(fitness, { effort: 35, rest: 25 });
-fitness.reviews[weekOf(new Date(at(-7)))] = { at: at(-3), choice: 'up-same', from: { palier: 1, effort: 30, rest: 30 } };
+const review = (days: number, choice: 'up-same' | 'next-palier', from: { palier: Palier; effort: number; rest: number }) =>
+  (fitness.reviews[weekOf(new Date(at(days - 7)))] = { at: at(days - 0.1), choice, from });
+review(-28, 'up-same', { palier: 1, effort: 35, rest: 25 });
+review(-7, 'up-same', { palier: 1, effort: 40, rest: 20 });
+review(0, 'next-palier', { palier: 1, effort: 45, rest: 15 });
+Object.assign(fitness, { palier: 2, effort: 35, rest: 15, stage: { moved: [...FIRST_WAVE], waiting: [...SECOND_WAVE], since: at(-0.1) } });
+fitness.sessions.push(done(0, 1, 3, 35, 15, {}, 2), done(1, 2, 3, 35, 15, { poussee: 'facile' }, 2));
 fitness.weeks = {
   [weekOf(new Date(at(-35)))]: { cardio: 30, waist: 95 }, [weekOf(new Date(at(-28)))]: { cardio: null, waist: 94.5 },
   [weekOf(new Date(at(-21)))]: { cardio: 45, waist: 94.5 }, [weekOf(new Date(at(-14)))]: { cardio: 60, waist: 94 },
@@ -242,7 +247,7 @@ const fakeClock = `(() => {
 const asPhone = (ownerId: keyof typeof TOKENS) =>
   `localStorage.setItem('homehub.phone', JSON.stringify({ token: '${TOKENS[ownerId]}', ownerId: '${ownerId}' }));`;
 
-async function shoot(name: string, url: string, metrics: Metrics, { init = '', after = '', wait = 3000, camera = false } = {}) {
+async function shoot(name: string, url: string, metrics: Metrics, { init = '', after = '', wait = 3000, settle = 1000, camera = false } = {}) {
   if (only && !only.test(name)) return;
   if (camera) await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture'] });
   const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
@@ -257,7 +262,7 @@ async function shoot(name: string, url: string, metrics: Metrics, { init = '', a
   await sleep(wait);
   if (after) {
     await send('Runtime.evaluate', { expression: after }, sessionId);
-    await sleep(1000);
+    await sleep(settle);
   }
   const { data } = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
   writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
@@ -298,6 +303,12 @@ await shoot('tablette-seance', `${BASE}/seance/p/alex`, TABLET, {
   init: asAlexAtTablet,
   after: `for (let i = 0; i < 5; i++) ${click('Passer')}`,
 });
+// Exercice d'un côté puis de l'autre (montées genou levé, 35 s), juste après la mi-temps : « Change de côté ! ».
+await shoot('tablette-seance-cote', `${BASE}/seance/p/alex`, TABLET, {
+  init: asAlexAtTablet,
+  after: `for (let i = 0; i < 7; i++) ${click('Passer')}`,
+  settle: 18_600,
+});
 // Scanner (pas de caméra sans fenêtre : codes saisis à la main) : un produit rangé, puis le café, transvasé d'habitude.
 const typeCode = (code: string) => `{
   const input = document.querySelector('input[placeholder="Code-barres à la main"]');
@@ -328,6 +339,15 @@ await shoot('telephone-sport-stats-exercices', `${BASE}/m/sport`, PHONE, {
 await shoot('telephone-sport-seance', `${BASE}/m/sport`, PHONE, {
   init: asPhone('alex'),
   after: `${click('Noter la séance')}; setTimeout(() => { ${click('3Exigeant')}; document.querySelectorAll('.seg')[1].querySelectorAll('button')[2].click(); }, 300)`,
+});
+// Réglages du programme : élastique de tirage et sans sauts cochés, séance 1 choisie (rowing à l'élastique, jumping
+// jacks sans saut à la place des jumping jacks), puis la carte des réglages. En dernier : les autres captures du
+// sport gardent le programme sans réglage.
+if (!only || only.test('telephone-sport-reglages')) await call(TOKENS.alex, 'PUT', '/fitness/settings', { band: true, noJump: true });
+await shoot('telephone-sport-reglages', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: click('1') });
+await shoot('telephone-sport-reglages-carte', `${BASE}/m/sport`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('h2')].find((h) => h.textContent === 'Réglages du programme')?.scrollIntoView({ block: 'center' })`,
 });
 // Scanner du téléphone, produit encore devant la caméra : un faux lecteur voit sans fin le même paquet de pâtes, qui
 // n'est compté qu'une fois ; le bandeau demande de le retirer.

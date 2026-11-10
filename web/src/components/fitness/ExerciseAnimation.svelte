@@ -53,7 +53,7 @@
           <rect x={p.x} y={frame.y} width="5" height={-frame.y} class="prop" />
           {#if p.kind === 'door'}
             <circle cx={p.x} cy={-p.handle} r="1.8" class="handle" />
-            <path d={seg(figure.arms[0][1], [p.x, -p.handle])} class="towel" />
+            <path d={seg(figure.arms[0][1], [p.x, -p.handle])} class={p.band ? 'band' : 'towel'} />
           {/if}
         {:else if p.kind === 'chair'}
           <path
@@ -133,6 +133,11 @@
   .towel {
     stroke: var(--sun);
     stroke-width: 1.8;
+  }
+
+  .band {
+    stroke: var(--rain);
+    stroke-width: 1.1;
   }
 
   path {

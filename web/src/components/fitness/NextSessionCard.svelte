@@ -18,8 +18,10 @@
 </script>
 
 {#snippet detail(item: (typeof plan)[number])}
-  {FAMILY_LABELS[item.family]}{item.exercise.unit === 's' ? ' · tenir' : ''}{item.exercise.sides ? ' · change de côté à chaque tour' : ''}
+  {FAMILY_LABELS[item.family]}{item.exercise.unit === 's' ? ' · tenir' : ''}{item.exercise.sides ? ' · change de côté à mi-temps' : ''}
   {#if item.normal}· à la place de {item.normal.name}{/if}
+  {#if item.stage === 'new'}<span class="new">· nouveau au palier {program.palier}</span>{#if item.before}{` (avant : ${item.before.name})`}{/if}{/if}
+  {#if item.stage === 'waiting'}· palier {program.palier} après la prochaine bonne semaine{/if}
 {/snippet}
 
 <SportCard>
@@ -81,6 +83,11 @@
 
   .rhythm {
     font-size: 1.05rem;
+  }
+
+  .new {
+    color: var(--ok-fg);
+    font-weight: 600;
   }
 
   .big {

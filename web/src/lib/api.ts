@@ -43,7 +43,7 @@ import type {
   WeekData,
 } from '../../../shared/types.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
-import type { FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
+import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
 
 export class ApiError extends Error {
@@ -148,6 +148,7 @@ export type Api = {
   saveFitnessWeek(week: string, log: WeekLog): Promise<FitnessState>;
   chooseRhythm(week: string, option: RhythmOption): Promise<FitnessState>;
   changeExercise(session: SessionNumber, family: FitnessFamily, change: SlotChange | 'dismiss'): Promise<FitnessState>;
+  saveFitnessSettings(settings: FitnessSettings): Promise<FitnessState>;
   /** Séance du jour de la personne reconnue devant la tablette (la lire prolonge aussi sa session). */
   tabletWorkout(): Promise<TabletSession>;
   finishTabletWorkout(report: TabletSessionReport): Promise<TabletSession>;
@@ -259,6 +260,7 @@ export function createApi(
     saveFitnessWeek: (week, log) => send('PUT', `/fitness/weeks/${encodeURIComponent(week)}`, log),
     chooseRhythm: (week, option) => send('POST', '/fitness/rhythm', { week, option }),
     changeExercise: (session, family, change) => send('POST', '/fitness/slots', { session, family, change }),
+    saveFitnessSettings: (settings) => send('PUT', '/fitness/settings', settings),
     tabletWorkout: () => request('/fitness/tablet'),
     finishTabletWorkout: (report) => send('POST', '/fitness/tablet/sessions', report),
   };

@@ -144,11 +144,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   renforcement au poids du corps, trois séances qui tournent sans jour fixe, six exercices chacune (cardio, jambes,
   poussée, fessiers ou une jambe, dos, gainage), trois paliers (Base 3 tours, Volume 4, Intensité 4). Rythme de départ
   30 s d'effort / 30 s de repos. En fin de séance : ressenti global (1 à 5), puis par exercice difficulté (facile, ça
-  va, dur), gêne et où (genoux, épaules, dos, poignets), répétitions et note, tous facultatifs. Bilan de la semaine
-  (finie, ou dès la 3e séance) : 3 séances sans ressenti 4 ou 5, il propose +5 s d'effort ; deux séances à 5 ou une
-  arrêtée, −5 s ; au choix à même durée (le repos compense) ou séance plus longue / plus courte, durée affichée, et
-  toujours « garder ce rythme » (effort 20–60 s, repos 10–40 s). À partir de 45 s d'effort, une bonne semaine propose
-  le palier suivant, avec 10 s d'effort en moins. Par exercice, jamais d'office : « dur » deux fois, la version plus
+  va, dur), gêne et où (genoux, épaules, dos, poignets), répétitions et note, tous facultatifs. Bilan de la semaine,
+  une fois finie (le lundi, et toute la semaine suivante) : une bonne semaine (2 séances ou plus, aucune au-delà de
+  « exigeant », comme la série des statistiques), il propose +5 s d'effort ; deux séances à 5 ou une arrêtée, −5 s ;
+  au choix à même durée (le repos compense) ou séance plus longue / plus courte, durée affichée, et toujours « garder
+  ce rythme » (effort 20–60 s, repos 10–40 s). Le bilan attend la fin de la semaine : une 3e séance dure compte encore.
+  À partir de 45 s d'effort, une bonne semaine propose le palier suivant, avec 10 s d'effort en moins, en deux temps :
+  jambes, dos et gainage passent tout de suite à la version du palier (« nouveau au palier » dans la séance, avec
+  l'exercice d'avant, jusqu'à ce qu'elle soit faite), cardio, poussée et une jambe gardent la leur jusqu'à la bonne
+  semaine suivante, dont le bilan propose alors « finir le palier » au même rythme. Exercices d'un côté puis de
+  l'autre : on change de côté à la moitié de l'effort. Réglages du programme (bas de l'onglet) : **élastique de
+  tirage** (fixé à une porte ; l'exercice de dos de chaque séance devient un rowing à l'élastique, deux bras, avec
+  pause, puis un bras ; même durée de séance, six exercices) et **sans sauts** (chaque exercice qui saute, marqué dans
+  le catalogue, laisse la place dès le départ à sa version sans impact, signalée « à la place de »). Par exercice, jamais d'office : « dur » deux fois, la version plus
   facile ; « facile » deux fois, la plus difficile ; une gêne, un remplaçant doux. Cardio et tour de taille de la
   semaine, courbe du tour de taille, historique. Catalogue des exercices : animation de chaque exercice (bonhomme dessiné
   par HomeHub, 2 à 4 positions en boucle, pause et ralenti, à l'arrêt si le téléphone demande moins d'animations),
@@ -165,7 +173,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   personnel (ni notes, ni historique, ni tour de taille), et catalogue des exercices. Séance guidée (`/seance`) :
   échauffement de 5 min (cinq mouvements doux d'une minute), puis chaque effort avec son compte à rebours et son
   animation, au repos l'exercice suivant, 1 min de pause de plus entre les tours ; bips aux trois dernières secondes,
-  au départ et à la fin de chaque effort ; pause, passer, arrêter. À la fin (ou à l'arrêt), le ressenti (1 à 5) est
+  au départ et à la fin de chaque effort ; pour un exercice d'un côté puis de l'autre, trois notes qui montent à la
+  moitié de l'effort et « Change de côté ! » en grand ; pause, passer, arrêter. À la fin (ou à l'arrêt), le ressenti (1 à 5) est
   noté dans le programme, et la séance suivante vient ; le détail par exercice se note sur le téléphone. Pendant la
   séance, la tablette reste sur le profil : ni fin de la session de la personne reconnue (`faces.sessionMinutes`,
   prolongée en continu), ni retour à l'accueil (`ui.idleTimeoutSeconds`), ni veille (`ui.screensaverMinutes`), même
@@ -384,6 +393,7 @@ web/src/
 | `PUT /api/fitness/weeks/:lundi` | `{ cardio, waist }` de la semaine |
 | `POST /api/fitness/rhythm` | `{ week, option }` : rythme choisi au bilan de la semaine (parmi ceux proposés) |
 | `POST /api/fitness/slots` | `{ session, family, change }` : changement d'exercice accepté (`easier`, `harder`, `gentle`, `normal`) ou refusé (`dismiss`) |
+| `PUT /api/fitness/settings` | `{ band, noJump }` : réglages du programme (élastique de tirage, sans sauts) |
 
 Toutes les écritures du stock, et les lectures de la base de produits (`scan`, `recheck`) : tablette ou téléphone relié.
 

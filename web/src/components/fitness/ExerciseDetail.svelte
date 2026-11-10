@@ -16,10 +16,15 @@
   <h2>{exercise.name}</h2>
   <p class="meta">
     {FAMILY_LABELS[exercise.family]} · {exercise.unit === 's' ? 'on tient la position' : 'on compte les répétitions'}
-    {#if exercise.sides}· change de côté à chaque tour{/if}
+    {#if exercise.sides}· change de côté à la moitié de l’effort{/if}
+    {#if exercise.equipment === 'elastique'}· élastique de tirage{/if}
+    {#if exercise.impact}· avec sauts{/if}
   </p>
   <p class="meta">
-    {#each place.places as p, i (i)}{i ? ' · ' : ''}Séance {p.session}, palier {p.palier} ({PALIERS[p.palier].name}){:else}Remplaçant doux, quand un exercice gêne{/each}
+    {#each place.places as p, i (i)}{i ? ' · ' : ''}Séance {p.session}, palier {p.palier} ({PALIERS[p.palier].name}){/each}
+    {#if place.band}Avec l’élastique de tirage : toutes les séances, palier {place.band} ({PALIERS[place.band].name}){/if}
+    {#if place.replaces.length}{place.places.length ? ' · ' : ''}Sans sauts : à la place de {place.replaces.map((e) => e.name).join(', ')}{/if}
+    {#if !place.places.length && !place.band && !place.replaces.length}Remplaçant doux, quand un exercice gêne{/if}
   </p>
 
   {#key exercise.id}
@@ -50,6 +55,7 @@
   <div class="links">
     {#if place.easier}<button type="button" onclick={() => onOpen(place.easier!.id)}>Plus facile : {place.easier.name}</button>{/if}
     {#if place.harder}<button type="button" onclick={() => onOpen(place.harder!.id)}>Plus difficile : {place.harder.name}</button>{/if}
+    {#if place.withoutJumps}<button type="button" onclick={() => onOpen(place.withoutJumps!.id)}>Sans sauts : {place.withoutJumps.name}</button>{/if}
     {#if place.gentle}<button type="button" onclick={() => onOpen(place.gentle!.id)}>Si ça gêne : {place.gentle.name}</button>{/if}
   </div>
 </article>

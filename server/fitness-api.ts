@@ -7,7 +7,7 @@ import { tabletSessionOf } from '../shared/fitness-workout.ts';
 import { type Access, REJECTED_PHONE, WHO_ARE_YOU } from './access.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
-import { type FitnessResult, type FitnessStore, rhythmInput, sessionInput, slotInput, tabletSessionInput, weekInput } from './sources/fitness.ts';
+import { type FitnessResult, type FitnessStore, rhythmInput, sessionInput, settingsInput, slotInput, tabletSessionInput, weekInput } from './sources/fitness.ts';
 
 export function createFitnessApi({ fitness, household, access }: { fitness: FitnessStore; household: Household; access: Access }) {
   const api = createRouter();
@@ -75,6 +75,11 @@ export function createFitnessApi({ fitness, household, access }: { fitness: Fitn
     const id = await phoneOwner(c);
     const { session, family, change } = await readBody(c, slotInput);
     return c.json(reply(await fitness.changeSlot(id, session, family, change)));
+  });
+
+  api.put('/fitness/settings', async (c) => {
+    const id = await phoneOwner(c);
+    return c.json(await fitness.setSettings(id, await readBody(c, settingsInput)));
   });
 
   return api;

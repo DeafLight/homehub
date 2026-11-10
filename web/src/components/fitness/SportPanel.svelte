@@ -10,6 +10,7 @@
   import ExerciseList from './ExerciseList.svelte';
   import HistoryCard from './HistoryCard.svelte';
   import NextSessionCard from './NextSessionCard.svelte';
+  import ProgramSettingsCard from './ProgramSettingsCard.svelte';
   import ProposalCard from './ProposalCard.svelte';
   import SessionForm from './SessionForm.svelte';
   import StatsView from './StatsView.svelte';
@@ -17,8 +18,8 @@
   import WeekReviewCard from './WeekReviewCard.svelte';
 
   // Onglet Sport du téléphone : la prochaine séance, le bilan de la semaine (rythme à choisir), les changements
-  // d'exercice proposés, le cardio et le tour de taille de la semaine, l'historique, les statistiques et le catalogue des
-  // exercices. Ce composant garde le programme et la vue affichée ; chaque carte est un composant de ce dossier.
+  // d'exercice proposés, le cardio et le tour de taille de la semaine, l'historique, les réglages du programme
+  // (élastique, sans sauts), les statistiques et le catalogue des exercices. Ce composant garde le programme et la vue affichée ; chaque carte est un composant de ce dossier.
   // Données personnelles : seul ce téléphone les voit.
   type Props = { api: Api; now: Date; onScrollTop: () => void };
   let { api, now, onScrollTop }: Props = $props();
@@ -127,6 +128,8 @@
     {#if program.sessions.length}
       <HistoryCard sessions={program.sessions} {busy} onRemove={(id) => act(() => api.removeFitnessSession(id))} />
     {/if}
+
+    <ProgramSettingsCard settings={program.settings} {busy} onSave={(settings) => act(() => api.saveFitnessSettings(settings))} />
 
     <button type="button" class="link" onclick={() => go({ name: 'stats' })}>
       <Icon name="flag" size={22} /> Statistiques et tout l’historique

@@ -1,5 +1,5 @@
 // Affichage du programme de renforcement (onglet Sport) : durées, place d'un exercice dans le programme, historique.
-import { CHAINS, type Exercise, exerciseById, type FitnessFamily, GENTLE } from '../../../shared/fitness-catalogue.ts';
+import { BAND_CHAIN, CHAINS, type Exercise, exerciseById, type FitnessFamily, GENTLE, WITHOUT_JUMPS } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessState, SessionNumber, WeekLog } from '../../../shared/fitness.ts';
 
 /** « 20 min », « 22 min 30 ». */
@@ -11,27 +11,62 @@ export function formatMinutes(seconds: number): string {
 
 export type Placement = { session: SessionNumber; palier: 1 | 2 | 3 };
 
-/** Où l'exercice apparaît dans le programme (séance, palier), et ses versions voisines. */
-export function placementOf(exercise: Exercise): { places: Placement[]; easier: Exercise | null; harder: Exercise | null; gentle: Exercise | null } {
+export type ExercisePlacement = {
+  /** Séances et paliers où il est au programme, sans réglage. */
+  places: Placement[];
+  /** Palier où il est au programme dans toutes les séances avec un élastique de tirage. */
+  band: 1 | 2 | 3 | null;
+  /** Exercices qui sautent qu'il remplace avec le réglage « sans sauts ». */
+  replaces: Exercise[];
+  /** Sa version sans saut, s'il saute. */
+  withoutJumps: Exercise | null;
+  easier: Exercise | null;
+  harder: Exercise | null;
+  gentle: Exercise | null;
+};
+
+/** Où l'exercice apparaît dans le programme (séance, palier, réglages), et ses versions voisines. */
+export function placementOf(exercise: Exercise): ExercisePlacement {
   const places: Placement[] = [];
   let easier: Exercise | null = null;
   let harder: Exercise | null = null;
+  const neighbours = (chain: readonly string[], index: number) => {
+    easier ??= index > 0 ? exerciseById(chain[index - 1])! : null;
+    harder ??= index < 2 ? exerciseById(chain[index + 1])! : null;
+  };
   for (const session of [1, 2, 3] as SessionNumber[]) {
     const chain = CHAINS[session][exercise.family];
     const index = chain.indexOf(exercise.id);
     if (index < 0) continue;
     places.push({ session, palier: (index + 1) as 1 | 2 | 3 });
-    easier ??= index > 0 ? exerciseById(chain[index - 1])! : null;
-    harder ??= index < 2 ? exerciseById(chain[index + 1])! : null;
+    neighbours(chain, index);
   }
+  const bandIndex = BAND_CHAIN.indexOf(exercise.id);
+  if (bandIndex >= 0) neighbours(BAND_CHAIN, bandIndex);
   const gentleId = GENTLE[exercise.family].find((id) => id !== exercise.id);
-  return { places, easier, harder, gentle: gentleId ? exerciseById(gentleId)! : null };
+  const replaces = Object.entries(WITHOUT_JUMPS)
+    .filter(([, to]) => to === exercise.id)
+    .map(([from]) => exerciseById(from)!);
+  return {
+    places,
+    band: bandIndex >= 0 ? ((bandIndex + 1) as 1 | 2 | 3) : null,
+    replaces,
+    withoutJumps: exercise.impact ? (exerciseById(WITHOUT_JUMPS[exercise.id]) ?? null) : null,
+    easier,
+    harder,
+    gentle: gentleId ? exerciseById(gentleId)! : null,
+  };
 }
 
-/** Exercices d'une famille, dans l'ordre du programme (séance, puis palier), suivis des remplaçants doux seuls. */
+/**
+ * Exercices d'une famille, dans l'ordre du programme (séance, puis palier), puis ceux de l'élastique, les versions
+ * sans saut et les remplaçants doux qui ne sont pas déjà dans la liste.
+ */
 export function familyExercises(family: FitnessFamily): Exercise[] {
   const ids = new Set<string>();
   for (const session of [1, 2, 3] as SessionNumber[]) for (const id of CHAINS[session][family]) ids.add(id);
+  if (family === 'dos') for (const id of BAND_CHAIN) ids.add(id);
+  for (const id of Object.values(WITHOUT_JUMPS)) ids.add(id);
   for (const id of GENTLE[family]) ids.add(id);
   return [...ids].map((id) => exerciseById(id)!).filter((e) => e.family === family);
 }

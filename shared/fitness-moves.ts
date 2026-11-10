@@ -39,8 +39,8 @@ export type Prop =
   | { kind: 'chair'; x: number; h: number; back: 1 | -1 }
   | { kind: 'wall'; x: number }
   | { kind: 'table'; x1: number; x2: number; h: number }
-  /** Porte fermée, et la serviette tenue par les mains, accrochée à sa poignée. */
-  | { kind: 'door'; x: number; handle: number };
+  /** Porte fermée, et la serviette (ou l'élastique, `band`) tenue par les mains, accrochée à sa poignée. */
+  | { kind: 'door'; x: number; handle: number; band?: true };
 export type Move = {
   view: 'side' | 'front';
   anchor?: Anchor;
@@ -261,6 +261,11 @@ const SUMO_UP: Pose = { torso: 180, arms: [[20, 170], [-20, -170]], legs: [[18, 
 const SUMO_DOWN: Pose = { torso: 180, arms: [[25, 175], [-25, -175]], legs: [[60, -12, 90], [-60, 12, -90]] };
 const SUMO_JUMP: Pose = { torso: 180, arms: [[160, 170], [-160, -170]], legs: [[14, 14, 40], [-14, -14, -40]], lift: 10 };
 
+// Sans saut : une jambe s'écarte puis l'autre, bras en haut (jumping jacks) ; pieds reculés un à un (burpees).
+const JJ_STEP = (side: 0 | 1): Pose => ({ ...JJ_OPEN, legs: side === 0 ? [JJ_OPEN.legs[0], JJ_CLOSED.legs[1]] : [JJ_CLOSED.legs[0], JJ_OPEN.legs[1]] });
+const STEP_BACK: Pose = { torso: 106, arms: [[2, 0], [4, 2]], legs: [[-68, -68, 0], [80, -36, 90]] };
+const REACH_UP: Pose = { ...STAND, arms: [[175, 180], [170, 178]] };
+
 // Au sol, à plat ventre (tête à droite) et sur le dos (tête à gauche).
 const PRONE: Pose = { torso: 90, head: 90, arms: [[90, 90], [92, 92]], legs: [[-90, -90, -170], [-92, -92, -170]] };
 const SUPERMAN: Pose = { torso: 100, head: 108, arms: [[108, 108], [110, 110]], legs: [[-100, -100, -170], [-102, -102, -170]] };
@@ -297,6 +302,16 @@ const up = (hip: Pt, rise: number): Pt => {
 const UP_HIP = bridgeHip(true);
 const RAISED_HIP = bridgeHip(true, [28, 17.5]);
 
+// Rowing à l'élastique : debout face à la porte (à droite), l'élastique accroché à hauteur de poitrine.
+const BAND_DOOR: Prop = { kind: 'door', x: 52, handle: 64, band: true };
+const ROW_HANDS_OUT: Pt = [27, -64];
+const ROW_HANDS_IN: Pt = [4, -59];
+const row = (hands: Pt | readonly [Pt, Pt], hold?: number) =>
+  fig({ hip: [-1, -40], neck: [0, -70], hands, feet: [[1, 0], [-1, 0]], hold });
+/** Un bras, en fente : le bras proche tire, l'autre main sur la hanche. */
+const rowOneArm = (hand: Pt, hold?: number) =>
+  fig({ hip: [-2, -38], neck: [-1, -68], hands: [hand, [2, -40]], feet: [[-12, 0], [9, 0]], toes: [20, 90], hold });
+
 const lunge = (front: Pt, rear: Pt, hip: Pt, frontLeg: 0 | 1 = 0) => {
   const feet: readonly [Pt, Pt] = frontLeg === 0 ? [front, rear] : [rear, front];
   const toes: readonly [number, number] = frontLeg === 0 ? [90, 20] : [20, 90];
@@ -321,12 +336,16 @@ export const MOVES: Record<string, Move> = {
   'pas-chasses': { view: 'front', anchor: 'hip', poses: [WIDE, { ...TOGETHER, dx: 9 }, { ...WIDE, dx: 18 }, { ...TOGETHER, dx: 9 }], tempo: 0.4 },
   patineurs: { view: 'front', anchor: 'hip', poses: [SKATE, mirror(SKATE)], tempo: 0.7 },
   'patineurs-sautes': { view: 'front', anchor: 'hip', poses: [SKATE, SKATE_AIR, mirror(SKATE), SKATE_AIR], tempo: 0.35 },
+  'jacks-sans-saut': { view: 'front', anchor: 'hip', poses: [JJ_CLOSED, JJ_STEP(0), JJ_CLOSED, JJ_STEP(1)], tempo: 0.45 },
+  'burpees-sans-saut': { view: 'side', poses: [STAND, CROUCH, STEP_BACK, PLANK, STEP_BACK, CROUCH, REACH_UP], tempo: 0.5 },
   'marche-sur-place': { view: 'side', anchor: 'hip', poses: [knee(0, 45), STAND, knee(1, 45), STAND], tempo: 0.45 },
 
   // --- Jambes
   'squat-chaise': { view: 'side', poses: [STAND, { ...SQ_HALF, hold: 0.3 }], props: [{ kind: 'chair', x: -14, h: 23, back: -1 }] },
   squats: { view: 'side', poses: [STAND, SQ_DEEP] },
   'squats-sautes': { view: 'side', poses: [SQ_DEEP, JUMP], tempo: 0.5 },
+  // Descente en deux temps, pause en bas, remontée franche.
+  'squats-lents': { view: 'side', poses: [STAND, { ...blend(STAND, SQ_DEEP, 0.5), hold: 0 }, { ...SQ_DEEP, hold: 1 }], tempo: 1 },
   'chaise-mur': {
     view: 'side',
     poses: [
@@ -337,6 +356,7 @@ export const MOVES: Record<string, Move> = {
     tempo: 1.1,
   },
   'squats-sumo': { view: 'front', anchor: 'hip', poses: [SUMO_UP, SUMO_DOWN] },
+  'squats-sumo-lents': { view: 'front', anchor: 'hip', poses: [SUMO_UP, { ...blend(SUMO_UP, SUMO_DOWN, 0.5), hold: 0 }, { ...SUMO_DOWN, hold: 1 }], tempo: 1 },
   'squats-sumo-sautes': { view: 'front', anchor: 'hip', poses: [SUMO_DOWN, SUMO_JUMP], tempo: 0.5 },
   'montees-marche': {
     view: 'side',
@@ -484,6 +504,14 @@ export const MOVES: Record<string, Move> = {
       { ...SUPERMAN, arms: [[180, 180, 0.35], [180, 180, 0.35]], hold: 0.5 },
       { ...SUPERMAN, arms: [[-120, 100], [-118, 102]], hold: 0.5 },
     ],
+  },
+  'rowing-elastique': { view: 'side', poses: [row(ROW_HANDS_OUT), row(ROW_HANDS_IN, 0.3)], props: [BAND_DOOR], tempo: 0.9 },
+  'rowing-elastique-pause': { view: 'side', poses: [row(ROW_HANDS_OUT), row(ROW_HANDS_IN, 2)], props: [BAND_DOOR], tempo: 1.2 },
+  'rowing-elastique-un-bras': {
+    view: 'side',
+    poses: [rowOneArm([26, -62]), rowOneArm([3, -57], 0.3)],
+    props: [{ ...BAND_DOOR, x: 54 }],
+    tempo: 0.9,
   },
   'tirage-serviette': {
     view: 'side',
