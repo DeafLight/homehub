@@ -76,7 +76,7 @@ function setup() {
 
 describe('API des listes', () => {
   it('la tablette écrit pour la personne reconnue ; les autres appareils lisent seulement', async () => {
-    const { call, as, parent } = setup();
+    const { call, as } = setup();
     const anonymous = await call('POST', '/lists/shopping', { from: TABLET, body: { label: 'Lait' } });
     expect(anonymous.status).toBe(403);
     expect(await anonymous.json()).toMatchObject({ identify: true });
@@ -94,7 +94,7 @@ describe('API des listes', () => {
   });
 
   it('droits : un parent écrit partout, un enfant sur son profil seulement', async () => {
-    const { call, as, parent } = setup();
+    const { call, as } = setup();
     const tom = as('tom');
     const alex = as('alex');
     const add = (ownerId: string, actor: string) => call('POST', '/lists/tasks', { from: TABLET, actor, body: { label: 'A', ownerId } });
@@ -149,7 +149,7 @@ describe('API des listes', () => {
   });
 
   it('tâches : profil, échéance et répétition validés', async () => {
-    const { call, as, parent } = setup();
+    const { call, as } = setup();
     const actor = as('alex');
     const add = (body: unknown) => call('POST', '/lists/tasks', { from: TABLET, actor, body });
     expect((await add({ label: 'A', ownerId: 'inconnu' })).status).toBe(400);
@@ -162,7 +162,7 @@ describe('API des listes', () => {
   });
 
   it('clé de la tablette : reconnue d’où qu’elle vienne ; une mauvaise clé ne donne rien', async () => {
-    const { call, as, parent } = setup();
+    const { call, as } = setup();
     expect((await (await call('GET', '/me', { key: KEY })).json()).kiosk).toBe(true);
     expect((await call('POST', '/lists/shopping', { key: KEY, actor: as('alex'), body: { label: 'Lait' } })).status).toBe(201);
     expect((await (await call('GET', '/me', { key: 'mauvaise-cle-de-la-tablette' })).json()).kiosk).toBe(false);
@@ -253,7 +253,7 @@ describe('API des listes', () => {
   });
 
   it('visages : enregistrés avec le code parent, reconnus avec une marge sur la personne suivante', async () => {
-    const { call, pins, parent } = setup();
+    const { call, pins } = setup();
     const enroll = (ownerId: string, value: number, pin?: string) =>
       call('POST', `/faces/${ownerId}`, { key: KEY, body: { embeddings: [face(value)], pin } });
     const identify = (value: number, real = 0.9, live = 0.9) =>
