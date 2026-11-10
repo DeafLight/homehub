@@ -7,24 +7,19 @@
   import DetailLink from '../components/DetailLink.svelte';
   import FocusDashboard from '../components/FocusDashboard.svelte';
   import CommuteCard from '../components/widgets/CommuteCard.svelte';
-  import DayTimeline from '../components/widgets/DayTimeline.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
   import TaskList from '../components/widgets/TaskList.svelte';
   import UpcomingList from '../components/widgets/UpcomingList.svelte';
   import { getAppContext } from '../lib/context.ts';
-  import { addDays, dayPlan, eventsAfter, timelineHours } from '../lib/day.ts';
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { dashboardLayout } from '../lib/layout.svelte.ts';
   import { routineFooter, routineTitle } from '../lib/routine.ts';
   import { HOME_PATH } from '../lib/route.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel } from '../lib/weather.ts';
 
   const DASHBOARD_REFRESH_MS = 60_000;
-  /** À partir de cette heure, la frise des élèves montre demain : la journée d'école est finie, on prépare le sac. */
-  const EVENING_HOUR = 18;
 
   // App.svelte recrée ce composant à chaque changement de profil ({#key}) : ownerId est fixe ici.
   type Props = { ownerId: string };
@@ -131,8 +126,8 @@
         {#if data.commute}
           <CommuteCard commute={data.commute} now={clock.now} />
         {/if}
-        {#if data.school && dashboardLayout.current === 'focus'}
-          <!-- Essai : dashboard « focus » (roue dentée › Dashboard élève). -->
+        {#if data.school}
+          <!-- Profil avec emploi du temps : dashboard « focus » (une frise, la carte du moment, le reste en tuiles). -->
           <FocusDashboard
             data={{ ...data, school: data.school }}
             {profile}
@@ -143,40 +138,6 @@
             onSeenNote={seeNote}
             onWriteNote={startNote}
           />
-        {:else if data.school}
-          <!-- Profil avec emploi du temps (piste A) : trois colonnes de hauteur fixe. La frise du jour (celle de demain
-               à partir de 18 h), la routine et les tâches, les devoirs et les mots. Chaque carte fait défiler son
-               contenu au lieu de pousser ses voisines. -->
-          {@const tomorrow = addDays(clock.now, 1)}
-          {@const evening = clock.now.getHours() >= EVENING_HOUR}
-          {@const shown = evening ? dayPlan(data.school.tomorrow, data.events, tomorrow) : dayPlan(data.school.today, data.events, clock.now)}
-          <div class="grid school">
-            <DayTimeline
-              title={evening ? 'Demain' : 'Aujourd’hui'}
-              day={evening ? tomorrow : clock.now}
-              plan={shown}
-              hours={timelineHours(shown.items)}
-              allDayRows={shown.allDay.length}
-              now={clock.now}
-              color={profile.color}
-            />
-            <div class="column">
-              {#if data.routine}
-                <div class="fit">{@render routine(data.routine)}</div>
-              {/if}
-              <div class="fill"><TaskList title="Mes tâches" tasks={data.tasks} color={profile.color} onToggle={toggleTask} /></div>
-            </div>
-            <div class="column">
-              <div class="fill">
-                {#if data.homework}
-                  <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} />
-                {:else}
-                  <UpcomingList events={eventsAfter(data.events, tomorrow).slice(0, 4)} now={clock.now} />
-                {/if}
-              </div>
-              <div class="fit"><NoteCard notes={data.notes} {profiles} now={clock.now} compact onSeen={seeNote} onWrite={startNote} /></div>
-            </div>
-          </div>
         {:else}
           <NextEventBanner event={data.nextEvent} color={profile.color} now={clock.now} />
           <div class="grid">
@@ -266,36 +227,6 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 20px;
-  }
-
-  /* Colonnes de hauteur fixe : la carte « fit » prend sa hauteur, la carte « fill » le reste (160 px au moins) ;
-     quand la place manque, la carte « fit » rétrécit et fait défiler sa liste plutôt que de rogner sa voisine. */
-  .column {
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .fit,
-  .fill {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .fit {
-    flex: 0 1 auto;
-  }
-
-  .fill {
-    flex: 1 1 0;
-    min-height: 160px;
-  }
-
-  .fit > :global(.card),
-  .fill > :global(.card) {
-    flex: 1 1 auto;
   }
 
   .unknown {

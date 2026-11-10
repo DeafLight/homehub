@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '../../../shared/types.ts';
-import { dayPlan, eventsAfter, eventsOnDay, fitsInDay, timelineHours, timelineItems, timelinePercent, whenOnDay } from './day.ts';
+import { dayPlan, eventsOnDay, fitsInDay, timelineHours, timelineItems, timelinePercent, whenOnDay } from './day.ts';
 
 const at = (day: number, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute);
 const ev = (id: string, start: Date, end?: Date, allDay = false): CalendarEvent => ({
@@ -22,7 +22,6 @@ describe('découpage par jour', () => {
     const events = [foot, trip, birthday, later];
     expect(eventsOnDay(events, today).map((e) => e.id)).toEqual(['foot', 'voyage']);
     expect(eventsOnDay(events, at(3)).map((e) => e.id)).toEqual(['voyage', 'anniversaire']);
-    expect(eventsAfter(events, at(3)).map((e) => e.id)).toEqual(['plus-tard']);
   });
 
   it('ne met sur la frise que les événements avec heure contenus dans le jour', () => {

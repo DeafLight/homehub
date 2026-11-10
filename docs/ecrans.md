@@ -24,7 +24,8 @@ avec le prochain rendez-vous et les mots non lus de chacun. En bas, un minuteur 
 
 ### Dashboard d'un élève
 
-Bandeau du trajet du matin, frises du jour et du lendemain (cours, agenda), routine du moment, tâches et mots.
+Bandeau du trajet du matin, frise du jour avec la bascule « Aujourd'hui | Demain » (cours, agenda), la carte du
+moment en grand (ici la routine du matin) et le reste en tuiles : devoirs, tâches, mots, prochain rendez-vous.
 
 ![Dashboard de Léa](images/tablette-dashboard.png)
 
