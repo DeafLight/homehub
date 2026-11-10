@@ -56,24 +56,33 @@ writeFileSync(join(state, 'devices.json'), JSON.stringify({
   version: 1,
   devices: [device('alex', 'Téléphone d’Alex', 'Android 16'), device('lea', 'Téléphone de Léa', 'iOS 26')],
 }));
-// Programme de sport d'Alex : une bonne semaine (rythme monté à 35/25), deux séances cette semaine, « facile » deux fois
-// aux squats sur chaise (changement proposé), tour de taille de trois semaines.
+// Programme de sport d'Alex : six semaines de séances (répétitions en hausse, une semaine creuse), une bonne semaine
+// (rythme monté à 35/25), deux séances cette semaine, « facile » deux fois aux squats sur chaise (changement proposé),
+// tour de taille de six semaines.
 const fitness = emptyFitness();
 const monday = new Date(`${weekOf(new Date(DOCS_NOW))}T18:30:00`);
 const at = (days: number) => new Date(monday.getTime() + days * 86_400_000).toISOString();
 const done = (days: number, session: SessionNumber, rpe: number, effort: number, rest: number, ratings: Record<string, string> = {}) => ({
   id: `docs-${days}`, at: at(days), session, palier: 1 as const, effort, rest, rounds: 3, rpe, stopped: false, note: null,
   exercises: planSession(fitness, session).map(({ family, exercise }) => ({
-    family, exercise: exercise.id, rating: (ratings[family] ?? 'ok') as 'ok', pain: null, reps: exercise.unit === 's' ? 25 : 12, note: null,
+    family, exercise: exercise.id, rating: (ratings[family] ?? 'ok') as 'ok', pain: null,
+    // un peu plus chaque semaine : 7 répétitions (ou 15 s) il y a six semaines, 12 (ou 25 s) maintenant
+    reps: Math.round((exercise.unit === 's' ? 25 : 12) * (1 + Math.min(0, days) / 100)), note: null,
   })),
 });
 fitness.sessions.push(
+  done(-42, 1, 4, 30, 30), done(-40, 2, 3, 30, 30), done(-35, 3, 3, 30, 30), done(-33, 1, 3, 30, 30), done(-31, 2, 3, 30, 30),
+  done(-21, 3, 3, 30, 30), done(-14, 1, 3, 30, 30, { gainage: 'dur' }), done(-12, 2, 2, 30, 30), done(-10, 3, 3, 30, 30),
   done(-7, 1, 2, 30, 30, { jambes: 'facile' }), done(-5, 2, 3, 30, 30), done(-3, 3, 2, 30, 30),
   done(0, 1, 3, 35, 25, { jambes: 'facile', poussee: 'dur' }), done(1, 2, 3, 35, 25),
 );
 Object.assign(fitness, { effort: 35, rest: 25 });
 fitness.reviews[weekOf(new Date(at(-7)))] = { at: at(-3), choice: 'up-same', from: { palier: 1, effort: 30, rest: 30 } };
-fitness.weeks = { [weekOf(new Date(at(-14)))]: { cardio: 60, waist: 94 }, [weekOf(new Date(at(-7)))]: { cardio: 75, waist: 93.5 }, [weekOf(new Date(at(0)))]: { cardio: 40, waist: 93 } };
+fitness.weeks = {
+  [weekOf(new Date(at(-35)))]: { cardio: 30, waist: 95 }, [weekOf(new Date(at(-28)))]: { cardio: null, waist: 94.5 },
+  [weekOf(new Date(at(-21)))]: { cardio: 45, waist: 94.5 }, [weekOf(new Date(at(-14)))]: { cardio: 60, waist: 94 },
+  [weekOf(new Date(at(-7)))]: { cardio: 75, waist: 93.5 }, [weekOf(new Date(at(0)))]: { cardio: 40, waist: 93 },
+};
 writeFileSync(join(state, 'fitness.json'), JSON.stringify({ version: 1, members: { alex: fitness } }));
 // Visage fictif d'Alex (empreinte arbitraire) : les captures du sport de la tablette s'en servent pour être reconnues.
 const FACE = Array.from({ length: 128 }, (_, i) => Math.sin(i + 1));
@@ -307,6 +316,15 @@ await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') }
 await shoot('telephone-stock', `${BASE}/m/stock`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-sport', `${BASE}/m/sport`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-sport-exercice', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: `document.querySelectorAll('.plan button')[2].click()` });
+await shoot('telephone-sport-stats', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: click('Statistiques et tout l’historique') });
+await shoot('telephone-sport-stats-progression', `${BASE}/m/sport`, PHONE, {
+  init: asPhone('alex'),
+  after: `${click('Statistiques et tout l’historique')}; setTimeout(() => [...document.querySelectorAll('h3')].find((h) => h.textContent === 'Temps d’effort par exercice')?.scrollIntoView(), 300)`,
+});
+await shoot('telephone-sport-stats-exercices', `${BASE}/m/sport`, PHONE, {
+  init: asPhone('alex'),
+  after: `${click('Statistiques et tout l’historique')}; setTimeout(() => [...document.querySelectorAll('h3')].find((h) => h.textContent === 'Par exercice')?.scrollIntoView(), 300)`,
+});
 await shoot('telephone-sport-seance', `${BASE}/m/sport`, PHONE, {
   init: asPhone('alex'),
   after: `${click('Noter la séance')}; setTimeout(() => { ${click('3Exigeant')}; document.querySelectorAll('.seg')[1].querySelectorAll('button')[2].click(); }, 300)`,

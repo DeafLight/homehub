@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.38.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.39.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -129,6 +129,14 @@ puis difficulté, gêne, répétitions et note par exercice).
 | Prochaine séance | Fiche d'un exercice | Fin de séance |
 |---|---|---|
 | ![Sport](images/telephone-sport.png) | ![Exercice](images/telephone-sport-exercice.png) | ![Fin de séance](images/telephone-sport-seance.png) |
+
+Statistiques (lien sous l'historique), sur six semaines de séances fictives : le résumé et les séances par semaine
+(toucher une barre ou un point affiche sa valeur dessous), le temps d'effort et le ressenti moyen, chaque exercice
+avec la courbe de ses répétitions.
+
+| Résumé | Progression | Par exercice |
+|---|---|---|
+| ![Statistiques](images/telephone-sport-stats.png) | ![Progression](images/telephone-sport-stats-progression.png) | ![Par exercice](images/telephone-sport-stats-exercices.png) |
 
 ### Scanner du téléphone
 

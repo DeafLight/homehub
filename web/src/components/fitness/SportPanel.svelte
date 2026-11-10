@@ -24,9 +24,11 @@
   import ExerciseAnimation from './ExerciseAnimation.svelte';
   import ExerciseDetail from './ExerciseDetail.svelte';
   import SessionForm from './SessionForm.svelte';
+  import StatsView from './StatsView.svelte';
 
   // Onglet Sport du téléphone : la prochaine séance, le bilan de la semaine (rythme à choisir), les changements
-  // d'exercice proposés, le cardio et le tour de taille de la semaine, l'historique, et le catalogue des exercices.
+  // d'exercice proposés, le cardio et le tour de taille de la semaine, l'historique, les statistiques et le catalogue des
+  // exercices.
   // Données personnelles : seul ce téléphone les voit.
   type Props = { api: Api; now: Date; onScrollTop: () => void };
   let { api, now, onScrollTop }: Props = $props();
@@ -35,7 +37,7 @@
   const fitness = createResource(() => api.fitness(), REFRESH_MS);
   onDestroy(() => fitness.destroy());
 
-  type View = { name: 'home' } | { name: 'log' } | { name: 'catalogue' } | { name: 'exercise'; id: string; back: View };
+  type View = { name: 'home' } | { name: 'log' } | { name: 'catalogue' } | { name: 'stats' } | { name: 'exercise'; id: string; back: View };
   let view = $state<View>({ name: 'home' });
   let chosen = $state<SessionNumber | null>(null);
   let error = $state<string | null>(null);
@@ -126,6 +128,10 @@
     {@const exercise = exerciseById(view.id)}
     {#if exercise}
       <ExerciseDetail {exercise} onOpen={(id) => go({ name: 'exercise', id, back: view.name === 'exercise' ? view.back : { name: 'home' } })} />
+    {/if}
+  {:else if view.name === 'stats'}
+    {#if program}
+      <StatsView {program} {now} onOpen={(id) => go({ name: 'exercise', id, back: { name: 'stats' } })} />
     {/if}
   {:else if view.name === 'catalogue'}
     <h2 class="section">Les exercices</h2>
@@ -259,6 +265,10 @@
         </ul>
       </section>
     {/if}
+
+    <button type="button" class="link" onclick={() => go({ name: 'stats' })}>
+      <Icon name="flag" size={22} /> Statistiques et tout l’historique
+    </button>
 
     <button type="button" class="link" onclick={() => go({ name: 'catalogue' })}>
       <Icon name="list" size={22} /> Les exercices : comment les faire, muscles travaillés

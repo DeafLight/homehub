@@ -156,7 +156,11 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   par HomeHub, 2 à 4 positions en boucle, pause et ralenti, à l'arrêt si le téléphone demande moins d'animations),
   vignette dans les listes, position, mouvement, respiration, muscles sur une silhouette face et dos (principaux en
   plein, les autres en clair), erreurs fréquentes, versions voisines. Données personnelles (`fitness.json`) : seul le téléphone de la personne les
-  lit, ni la tablette ni les autres téléphones.
+  lit, ni la tablette ni les autres téléphones. Statistiques (lien sous l'historique), calculées sur ce qui est déjà
+  noté : séances (dont arrêtées), temps d'entraînement estimé, semaines régulières d'affilée (2 séances ou plus) et
+  record, meilleure semaine ; sur les 12 dernières semaines, séances et cardio par semaine, temps d'effort avec les
+  changements de palier, ressenti moyen ; par exercice, fois au programme, répétitions (ou secondes) notées, « dur »,
+  « facile » et gênes ; jours de séance ; tour de taille sur 4 semaines et depuis le début ; tout l'historique par mois.
 - **Sport sur la tablette** (bouton « Sport » dans l'en-tête du dashboard d'un profil qui a un programme, `/sport`) :
   séance du jour de la personne reconnue devant la tablette, elle seule (pas un parent pour un autre), sans rien de
   personnel (ni notes, ni historique, ni tour de taille), et catalogue des exercices. Séance guidée (`/seance`) :
