@@ -12,6 +12,7 @@ import { createNasService } from './services/nas.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createDeviceStore } from './sources/devices.ts';
+import { createFitnessStore } from './sources/fitness.ts';
 import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createRoutineStore } from './sources/routines.ts';
@@ -92,6 +93,8 @@ const plans = createRoutinePlanStore({ path: join(stateDir, 'routine-plans.json'
 await plans.load();
 const timers = createTimerStore({ clock, path: join(stateDir, 'timers.json') });
 const stock = createStockStore({ path: join(stateDir, 'stock.json'), clock });
+const fitness = createFitnessStore({ path: join(stateDir, 'fitness.json'), clock });
+await fitness.load();
 // Open Food Facts demande un User-Agent qui dit qui appelle : le nom et l'adresse du projet, rien de la famille.
 const productBase = createOpenFoodFactsClient({ userAgent: `HomeHub/${version} (https://github.com/DeafLight/homehub)` });
 const sources: Sources = {
@@ -146,7 +149,7 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, productBase, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, productBase, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

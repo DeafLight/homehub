@@ -8,6 +8,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import SportPanel from '../components/fitness/SportPanel.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import { agendaDays } from '../lib/agenda.ts';
   import { getAppContext } from '../lib/context.ts';
@@ -27,7 +28,7 @@
   const HOMEWORK_REFRESH_MS = 10 * 60_000;
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
-  // jours et mots reçus. Tout ce qui est coché ou ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
+  // jours, mots reçus et, pour un adulte qui a un programme, le sport. Tout ce qui est coché ou ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
   type Props = { tab: PhoneTab; shared?: string };
   let { tab, shared }: Props = $props();
 
@@ -135,12 +136,14 @@
     if (shared !== undefined) navigate(phonePath(tab));
   }
 
-  const TABS: { tab: PhoneTab; label: string; icon: 'cart' | 'check' | 'calendar' | 'message' }[] = [
+  const TABS: { tab: PhoneTab; label: string; icon: 'cart' | 'check' | 'calendar' | 'message' | 'dumbbell' }[] = [
     { tab: 'shopping', label: 'Courses', icon: 'cart' },
     { tab: 'tasks', label: 'Tâches', icon: 'check' },
     { tab: 'agenda', label: 'Agenda', icon: 'calendar' },
     { tab: 'notes', label: 'Mots', icon: 'message' },
+    ...(member?.fitness ? [{ tab: 'sport' as const, label: 'Sport', icon: 'dumbbell' as const }] : []),
   ];
+  let scroller = $state<HTMLElement | null>(null);
   const nameOf = (id: string) => profiles.find((p) => p.id === id);
 </script>
 
@@ -158,7 +161,7 @@
       <span class="who">{me.name}</span>
     </header>
 
-    <main>
+    <main bind:this={scroller}>
       {#if lists.actionError}<p class="error">{lists.actionError}</p>{/if}
 
       {#if tab === 'notes'}
@@ -207,6 +210,12 @@
           {/each}
         {:else if agenda.error}
           <p class="muted">Impossible de charger l’agenda : {agenda.error}</p>
+        {/if}
+      {:else if tab === 'sport'}
+        {#if member?.fitness}
+          <SportPanel {api} now={clock.now} onScrollTop={() => scroller?.scrollTo({ top: 0 })} />
+        {:else}
+          <p class="muted">Pas de programme de sport sur ce profil.</p>
         {/if}
       {:else if lists.data}
         {#if tab === 'shopping'}
@@ -276,7 +285,7 @@
       </button>
     {/if}
 
-    <nav>
+    <nav style:grid-template-columns={`repeat(${TABS.length}, 1fr)`}>
       {#each TABS as item (item.tab)}
         <button type="button" class:on={item.tab === tab} aria-current={item.tab === tab ? 'page' : undefined} onclick={() => navigate(phonePath(item.tab))}>
           <span class="tab-icon">

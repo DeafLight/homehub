@@ -24,6 +24,7 @@
 #     stop (identifiant d'arrêt, voir node scripts/irigo-stops.ts <nom>), line, towards (partie du nom de la
 #     destination, si l'arrêt voit passer la ligne dans les deux sens), label (affiché), walkMinutes (marche jusqu'à
 #     l'arrêt, 5 par défaut), from/to (heures d'affichage, 07:00–08:30 par défaut), days (lun…dim, lun–ven par défaut)
+#   fitness (facultatif, adulte seulement : parent: true) : programme de sport sur son téléphone (onglet Sport).
 # Les routines du matin et du soir (étapes, jours, heures) se règlent sur la tablette : roue dentée › Routines.
 members:
   - id: alex
@@ -31,6 +32,7 @@ members:
     parent: true
     color: "#5b8def"
     # calendars: [CAL_ALEX]
+    # fitness: true
   - id: sam
     name: Sam
     color: "#e8964a"

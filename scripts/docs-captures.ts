@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
+import { emptyFitness, planSession, type SessionNumber, weekOf } from '../shared/fitness.ts';
 import { DOCS_NOW, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -55,6 +56,25 @@ writeFileSync(join(state, 'devices.json'), JSON.stringify({
   version: 1,
   devices: [device('alex', 'Téléphone d’Alex', 'Android 16'), device('lea', 'Téléphone de Léa', 'iOS 26')],
 }));
+// Programme de sport d'Alex : une bonne semaine (rythme monté à 35/25), deux séances cette semaine, « facile » deux fois
+// aux squats sur chaise (changement proposé), tour de taille de trois semaines.
+const fitness = emptyFitness();
+const monday = new Date(`${weekOf(new Date(DOCS_NOW))}T18:30:00`);
+const at = (days: number) => new Date(monday.getTime() + days * 86_400_000).toISOString();
+const done = (days: number, session: SessionNumber, rpe: number, effort: number, rest: number, ratings: Record<string, string> = {}) => ({
+  id: `docs-${days}`, at: at(days), session, palier: 1 as const, effort, rest, rounds: 3, rpe, stopped: false, note: null,
+  exercises: planSession(fitness, session).map(({ family, exercise }) => ({
+    family, exercise: exercise.id, rating: (ratings[family] ?? 'ok') as 'ok', pain: null, reps: exercise.unit === 's' ? 25 : 12, note: null,
+  })),
+});
+fitness.sessions.push(
+  done(-7, 1, 2, 30, 30, { jambes: 'facile' }), done(-5, 2, 3, 30, 30), done(-3, 3, 2, 30, 30),
+  done(0, 1, 3, 35, 25, { jambes: 'facile', poussee: 'dur' }), done(1, 2, 3, 35, 25),
+);
+Object.assign(fitness, { effort: 35, rest: 25 });
+fitness.reviews[weekOf(new Date(at(-7)))] = { at: at(-3), choice: 'up-same', from: { palier: 1, effort: 30, rest: 30 } };
+fitness.weeks = { [weekOf(new Date(at(-14)))]: { cardio: 60, waist: 94 }, [weekOf(new Date(at(-7)))]: { cardio: 75, waist: 93.5 }, [weekOf(new Date(at(0)))]: { cardio: 40, waist: 93 } };
+writeFileSync(join(state, 'fitness.json'), JSON.stringify({ version: 1, members: { alex: fitness } }));
 const nas = JSON.parse(readFileSync(join(ROOT, 'server', 'sources', 'fixtures', 'nas-status.json'), 'utf8'));
 nas.generatedAt = new Date(DOCS_NOW - 5 * 60_000).toISOString();
 writeFileSync(join(work, 'nas-status.json'), JSON.stringify(nas));
@@ -267,6 +287,12 @@ await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea'
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-stock', `${BASE}/m/stock`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-sport', `${BASE}/m/sport`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-sport-exercice', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: `document.querySelectorAll('.plan button')[2].click()` });
+await shoot('telephone-sport-seance', `${BASE}/m/sport`, PHONE, {
+  init: asPhone('alex'),
+  after: `${click('Noter la séance')}; setTimeout(() => { ${click('3Exigeant')}; document.querySelectorAll('.seg')[1].querySelectorAll('button')[2].click(); }, 300)`,
+});
 // Scanner du téléphone, produit encore devant la caméra : un faux lecteur voit sans fin le même paquet de pâtes, qui
 // n'est compté qu'une fois ; le bandeau demande de le retirer.
 const fakeDetector = `globalThis.BarcodeDetector = class {

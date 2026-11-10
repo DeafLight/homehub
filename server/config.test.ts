@@ -22,6 +22,7 @@ describe('parseConfig', () => {
     ['latitude hors limites', { members: [alex], weather: { label: 'X', latitude: 95, longitude: 0 } }],
     ['agenda mal nommé', { members: [{ ...alex, calendars: ['https://calendar.google.com/x.ics'] }] }],
     ['météo sans nom de lieu', { members: [alex], weather: { latitude: 48.85, longitude: 2.35 } }],
+    ['programme de sport pour un enfant', { members: [{ ...alex, fitness: true }] }],
   ])('refuse : %s', (_, raw) => {
     expect(() => parseConfig(raw)).toThrow(/Configuration invalide/);
   });
@@ -39,6 +40,11 @@ describe('agendas', () => {
     expect(calendarsOf(config, FAMILY_ID)).toEqual(['CAL_FAMILLE']);
     expect(hasCalendars(config)).toBe(true);
     expect(hasCalendars(parseConfig({ members: [alex] }))).toBe(false);
+  });
+
+  it('signale dans la configuration publique qui a un programme de sport', () => {
+    const config = parseConfig({ members: [{ ...alex, parent: true, fitness: true }, { ...alex, id: 'lea' }] });
+    expect(toPublicConfig(config, 'r').members.map((m) => m.fitness)).toEqual([true, undefined]);
   });
 
   it('ne les expose pas dans la configuration publique', () => {

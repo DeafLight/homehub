@@ -142,6 +142,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   cours non annulé (marge réglable), affiche le bandeau un moment avant l'heure de partir et reconnaît cette course
   dans le temps réel (« annoncé à 07:53 », supprimée, manquée) ; rien les jours sans cours. Sinon, plage horaire
   fixe. Tant que la page n'a pas été enregistrée, `transit.stops` et `commute` du YAML s'appliquent.
+- **Sport** (téléphone, onglet Sport, `/m/sport` ; adulte avec `fitness: true` dans homehub.yaml) : programme de
+  renforcement au poids du corps, trois séances qui tournent sans jour fixe, six exercices chacune (cardio, jambes,
+  poussée, fessiers ou une jambe, dos, gainage), trois paliers (Base 3 tours, Volume 4, Intensité 4). Rythme de départ
+  30 s d'effort / 30 s de repos. En fin de séance : ressenti global (1 à 5), puis par exercice difficulté (facile, ça
+  va, dur), gêne et où (genoux, épaules, dos, poignets), répétitions et note, tous facultatifs. Bilan de la semaine
+  (finie, ou dès la 3e séance) : 3 séances sans ressenti 4 ou 5, il propose +5 s d'effort ; deux séances à 5 ou une
+  arrêtée, −5 s ; au choix à même durée (le repos compense) ou séance plus longue / plus courte, durée affichée, et
+  toujours « garder ce rythme » (effort 20–60 s, repos 10–40 s). À partir de 45 s d'effort, une bonne semaine propose
+  le palier suivant, avec 10 s d'effort en moins. Par exercice, jamais d'office : « dur » deux fois, la version plus
+  facile ; « facile » deux fois, la plus difficile ; une gêne, un remplaçant doux. Cardio et tour de taille de la
+  semaine, courbe du tour de taille, historique. Catalogue des exercices : position, mouvement, respiration, muscles,
+  erreurs fréquentes, versions voisines. Données personnelles (`fitness.json`) : seul le téléphone de la personne les
+  lit, ni la tablette ni les autres téléphones.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail. La durée se choisit sur une roue (glisser
   le doigt autour du cadran : un tour, une heure, autant de tours qu'on veut jusqu'à 24 h ; − 1, + 1, + 5, + 1 h ;
   raccourcis jusqu'à 2 h qui font tourner la roue) qui montre l'heure de
@@ -247,7 +260,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -284,6 +297,7 @@ server/
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
   sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants
+  sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
   sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
   access.ts                qui écrit : la tablette (kiosk.addresses), un téléphone relié (jeton), sinon personne
   lists-api.ts             routes des listes, de l'appairage et des téléphones
@@ -349,6 +363,11 @@ web/src/
 | `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
 | `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |
 | `PUT /api/stock/settings` | `{ autoShop }` : réglage par défaut des produits épuisés |
+| `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |
+| `POST /api/fitness/sessions`, `DELETE /api/fitness/sessions/:id` | séance terminée `{ session, rpe, stopped, note, exercises: [{ family, rating, pain, reps, note }] }`, ou retirée |
+| `PUT /api/fitness/weeks/:lundi` | `{ cardio, waist }` de la semaine |
+| `POST /api/fitness/rhythm` | `{ week, option }` : rythme choisi au bilan de la semaine (parmi ceux proposés) |
+| `POST /api/fitness/slots` | `{ session, family, change }` : changement d'exercice accepté (`easier`, `harder`, `gentle`, `normal`) ou refusé (`dismiss`) |
 
 Toutes les écritures du stock : tablette ou téléphone relié.
 

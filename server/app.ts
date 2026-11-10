@@ -6,11 +6,13 @@ import { type AddressMatch, FAMILY_ID, type Health, WEEKS_AHEAD } from '../share
 import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import { toPublicConfig } from './config.ts';
 import type { ConfigStore } from './config-store.ts';
+import { createFitnessApi } from './fitness-api.ts';
 import { createListsApi } from './lists-api.ts';
 import { createStockApi } from './stock-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
+import type { FitnessStore } from './sources/fitness.ts';
 import type { ActorSessions, FaceStore } from './sources/faces.ts';
 import type { PinStore } from './sources/pins.ts';
 import { type RoutinePlanStore, routineSettingsInput } from './sources/routine-plans.ts';
@@ -36,6 +38,7 @@ export type AppDeps = {
   timers: TimerStore;
   plans: RoutinePlanStore;
   stock: StockStore;
+  fitness: FitnessStore;
   /** Base de produits (Open Food Facts…) ; absente (tests) : tout code inconnu se saisit à la main. */
   productBase?: ProductBase;
   /** Page « Transports » ; absents (tests) : page indisponible. */
@@ -255,6 +258,7 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   api.route('/', createListsApi({ ...deps, access }));
+  api.route('/', createFitnessApi({ fitness: deps.fitness, config, access }));
   api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 
   app.route('/api', api);

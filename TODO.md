@@ -96,6 +96,13 @@ Reste :
 
 ## Téléphone
 
+- [x] Sport (0.36.0) : programme de renforcement, rythme adapté chaque semaine, difficulté et gênes par exercice,
+      catalogue des exercices en texte.
+- [ ] Sport, 0.37.0 : animation de chaque exercice (silhouette en 2 ou 3 positions, ralenti) et muscles sur une
+      silhouette face et dos, dans la fiche et avant chaque exercice.
+- [ ] Sport, 0.38.0 : séance guidée sur la tablette (échauffement, compte à rebours, tours, bips, exercice suivant
+      pendant le repos), carte « séance du jour » ; profil choisi par la reconnaissance faciale ; rien de personnel
+      affiché (ni tour de taille, ni notes, ni historique).
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

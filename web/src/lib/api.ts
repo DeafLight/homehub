@@ -36,6 +36,17 @@ import type {
   WeatherForecast,
   WeekData,
 } from '../../../shared/types.ts';
+import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
+import type { FitnessState, PainSpot, Rating, RhythmOption, SessionNumber, SlotChange, WeekLog } from '../../../shared/fitness.ts';
+
+/** Fin de séance, envoyée par le téléphone. */
+export type SessionReport = {
+  session: SessionNumber;
+  rpe: number;
+  stopped: boolean;
+  note: string | null;
+  exercises: { family: FitnessFamily; rating: Rating | null; pain: PainSpot | null; reps: number | null; note: string | null }[];
+};
 
 export class ApiError extends Error {
   readonly status: number;
@@ -145,6 +156,12 @@ export type Api = {
   removeContainer(id: string): Promise<void>;
   emptyContainer(id: string): Promise<StockMovementResult>;
   saveStockSettings(settings: StockSettings): Promise<StockSettings>;
+  fitness(): Promise<FitnessState>;
+  addFitnessSession(report: SessionReport): Promise<FitnessState>;
+  removeFitnessSession(id: string): Promise<FitnessState>;
+  saveFitnessWeek(week: string, log: WeekLog): Promise<FitnessState>;
+  chooseRhythm(week: string, option: RhythmOption): Promise<FitnessState>;
+  changeExercise(session: SessionNumber, family: FitnessFamily, change: SlotChange | 'dismiss'): Promise<FitnessState>;
 };
 
 export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
@@ -250,5 +267,11 @@ export function createApi(
     removeContainer: (id) => send('DELETE', `/stock/containers/${encodeURIComponent(id)}`),
     emptyContainer: (id) => send('POST', `/stock/containers/${encodeURIComponent(id)}/empty`),
     saveStockSettings: (settings) => send('PUT', '/stock/settings', settings),
+    fitness: () => request('/fitness'),
+    addFitnessSession: (report) => send('POST', '/fitness/sessions', report),
+    removeFitnessSession: (id) => send('DELETE', `/fitness/sessions/${encodeURIComponent(id)}`),
+    saveFitnessWeek: (week, log) => send('PUT', `/fitness/weeks/${encodeURIComponent(week)}`, log),
+    chooseRhythm: (week, option) => send('POST', '/fitness/rhythm', { week, option }),
+    changeExercise: (session, family, change) => send('POST', '/fitness/slots', { session, family, change }),
   };
 }

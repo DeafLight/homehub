@@ -12,3 +12,10 @@ describe('stock du téléphone', () => {
     expect(isPhoneRoute(parseRoute('/stock'))).toBe(false);
   });
 });
+
+describe('sport du téléphone', () => {
+  it('est un onglet de l’appli, à son adresse', () => {
+    expect(parseRoute('/m/sport')).toEqual({ name: 'phone', tab: 'sport' });
+    expect(routePath({ name: 'phone', tab: 'sport' })).toBe('/m/sport');
+  });
+});

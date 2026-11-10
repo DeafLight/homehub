@@ -4,6 +4,7 @@ members:
     parent: true
     name: Alex
     color: "#5b8def"
+    fitness: true
   - id: sam
     parent: true
     name: Sam

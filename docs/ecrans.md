@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.35.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.36.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -106,6 +106,17 @@ ou épuisés, ± 1 et « Épuisé » ; ni date ni auteur dans la liste, ils rest
 contenants en lecture seule.
 
 <img src="images/telephone-stock.png" alt="Stock du téléphone" width="260">
+
+### Sport
+
+Onglet Sport, pour un adulte qui a un programme (Alex) : la prochaine séance (palier, rythme, durée, les six
+exercices), un changement d'exercice proposé, la semaine (cardio, tour de taille et sa courbe), l'historique ;
+la fiche d'un exercice (consignes, muscles, erreurs fréquentes, autres versions) ; la fin de séance (ressenti global,
+puis difficulté, gêne, répétitions et note par exercice).
+
+| Prochaine séance | Fiche d'un exercice | Fin de séance |
+|---|---|---|
+| ![Sport](images/telephone-sport.png) | ![Exercice](images/telephone-sport-exercice.png) | ![Fin de séance](images/telephone-sport-seance.png) |
 
 ### Scanner du téléphone
 

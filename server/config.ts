@@ -46,7 +46,9 @@ const memberSchema = z.object({
   /** Prénom de l'enfant sur Pronote (compte parent appairé, voir README). */
   pronote: z.string().trim().min(1).max(40).optional(),
   commute: commuteSchema.optional(),
-});
+  /** Programme de renforcement sur le téléphone (onglet Sport) : adultes seulement. */
+  fitness: z.boolean().default(false),
+}).refine((m) => !m.fitness || m.parent, { message: '`fitness` est réservé aux adultes (`parent: true`)', path: ['fitness'] });
 
 export const configSchema = z.object({
   members: z
@@ -168,7 +170,7 @@ export async function loadConfig(path: string): Promise<AppConfig> {
 
 export function toPublicConfig(config: AppConfig, revision: string): PublicConfig {
   return {
-    members: config.members.map(({ id, name, color, parent }) => ({ id, name, color, parent })),
+    members: config.members.map(({ id, name, color, parent, fitness }) => ({ id, name, color, parent, ...(fitness && { fitness }) })),
     family: { name: config.family.name },
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize },

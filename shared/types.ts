@@ -11,6 +11,8 @@ export type Member = {
   color: string;
   /** Parent : écrit sur tous les profils ; sinon (enfant), seulement sur le sien. */
   parent: boolean;
+  /** A un programme de renforcement (onglet Sport du téléphone). */
+  fitness?: boolean;
 };
 
 /** Configuration visible par le front (aucun secret). */
