@@ -7,12 +7,14 @@
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
   import { sharedText } from './lib/lists.ts';
-  import { HOME_PATH, isPhoneRoute, routePath } from './lib/route.ts';
+  import { HOME_PATH, holdsActor, isPhoneRoute, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Faces from './screens/Faces.svelte';
   import Routines from './screens/Routines.svelte';
   import Scan from './screens/Scan.svelte';
+  import Sport from './screens/Sport.svelte';
+  import Workout from './screens/Workout.svelte';
   import Stock from './screens/Stock.svelte';
   import Transit from './screens/Transit.svelte';
   import Home from './screens/Home.svelte';
@@ -38,16 +40,19 @@
       intervalMs: VERSION_CHECK_MS,
       onReachable: (value) => (reachable = value),
     });
-    // Sans contact pendant un moment : retour à l'accueil, pour que le suivant tombe sur « Qui est là ? ».
-    // Pas sur un téléphone, qui n'a pas d'accueil de tablette, ni pendant un scan (personne ne touche l'écran : le
-    // scanner se ferme seul après quelques minutes sans lecture).
-    const stopIdle = watchIdle(config.ui.idleTimeoutSeconds * 1000, () => {
-      if (!isPhoneRoute(router.route) && router.route.name !== 'scan') router.navigate(HOME_PATH);
+    return stopVersion;
+  });
+
+  // Sans contact pendant un moment : retour à l'accueil, pour que le suivant tombe sur « Qui est là ? ».
+  // Pas sur un téléphone, qui n'a pas d'accueil de tablette, ni pendant un scan (personne ne touche l'écran : le
+  // scanner se ferme seul après quelques minutes sans lecture) ou une séance guidée. Le délai repart de zéro en
+  // quittant ces pages.
+  const holding = $derived(holdsActor(router.route));
+  $effect(() => {
+    if (holding) return;
+    return watchIdle(config.ui.idleTimeoutSeconds * 1000, () => {
+      if (!isPhoneRoute(router.route) && !holdsActor(router.route)) router.navigate(HOME_PATH);
     });
-    return () => {
-      stopVersion();
-      stopIdle();
-    };
   });
 </script>
 
@@ -73,6 +78,10 @@
   <Scan back={router.route.back} />
 {:else if router.route.name === 'stock'}
   <Stock back={router.route.back} />
+{:else if router.route.name === 'sport'}
+  <Sport back={router.route.back} />
+{:else if router.route.name === 'workout'}
+  <Workout back={router.route.back} />
 {:else if router.route.name === 'phonescan'}
   <Scan back={null} />
 {:else if router.route.name === 'phonestock'}

@@ -157,6 +157,16 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   vignette dans les listes, position, mouvement, respiration, muscles sur une silhouette face et dos (principaux en
   plein, les autres en clair), erreurs fréquentes, versions voisines. Données personnelles (`fitness.json`) : seul le téléphone de la personne les
   lit, ni la tablette ni les autres téléphones.
+- **Sport sur la tablette** (bouton « Sport » dans l'en-tête du dashboard d'un profil qui a un programme, `/sport`) :
+  séance du jour de la personne reconnue devant la tablette, elle seule (pas un parent pour un autre), sans rien de
+  personnel (ni notes, ni historique, ni tour de taille), et catalogue des exercices. Séance guidée (`/seance`) :
+  échauffement de 5 min (cinq mouvements doux d'une minute), puis chaque effort avec son compte à rebours et son
+  animation, au repos l'exercice suivant, 1 min de pause de plus entre les tours ; bips aux trois dernières secondes,
+  au départ et à la fin de chaque effort ; pause, passer, arrêter. À la fin (ou à l'arrêt), le ressenti (1 à 5) est
+  noté dans le programme, et la séance suivante vient ; le détail par exercice se note sur le téléphone. Pendant la
+  séance, la tablette reste sur le profil : ni fin de la session de la personne reconnue (`faces.sessionMinutes`,
+  prolongée en continu), ni retour à l'accueil (`ui.idleTimeoutSeconds`), ni veille (`ui.screensaverMinutes`), même
+  loin de la caméra ; en sortant, tout reprend, délais repartis de zéro.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail. La durée se choisit sur une roue (glisser
   le doigt autour du cadran : un tour, une heure, autant de tours qu'on veut jusqu'à 24 h ; − 1, + 1, + 5, + 1 h ;
   raccourcis jusqu'à 2 h qui font tourner la roue) qui montre l'heure de

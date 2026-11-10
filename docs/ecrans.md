@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.37.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.38.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
 celle du jour de la capture.
 
@@ -68,6 +68,17 @@ leur auteur, chacun annulable. (Sans caméra
 dans Chrome sans fenêtre : codes saisis à la main.)
 
 ![Scanner](images/tablette-scanner.png)
+
+### Sport
+
+Depuis le bouton « Sport » du dashboard d'Alex, Alex reconnu devant la tablette : sa séance du jour (sans rien de
+personnel) et le catalogue des exercices. Puis la séance guidée, échauffement passé : premier effort, compte à
+rebours, animation. (Sans caméra dans Chrome sans fenêtre : la session d'un visage fictif est présentée avec chaque
+requête.)
+
+![Sport](images/tablette-sport.png)
+
+![Séance guidée](images/tablette-seance.png)
 
 ### Routines (réglages)
 

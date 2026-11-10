@@ -5,7 +5,8 @@
 // (petite bulle « Regarde la tablette »). Sinon, un avis « Lecture seule ». Le serveur vérifie de toute façon.
 // Pendant un scan, la caméra lit les codes-barres : la personne reconnue en ouvrant le scanner reste retenue (les
 // scans sont à son nom) jusqu'à ce qu'elle dise « Pas moi », ou jusqu'au retour de la reconnaissance, qui l'oublie
-// si elle n'est plus devant. Sur un téléphone, rien de tout cela : il agit pour son profil, et le serveur décide.
+// si elle n'est plus devant. Pendant la séance guidée, de même, sans caméra ni limite : à la sortie, `stay` la compte
+// comme vue à l'instant, et tout reprend comme d'habitude. Sur un téléphone, rien de tout cela : il agit pour son profil, et le serveur décide.
 import { canWrite } from '../../../shared/rights.ts';
 import { FAMILY_ID, type PublicConfig } from '../../../shared/types.ts';
 import { ApiError, type FaceSession } from './api.ts';
@@ -48,6 +49,8 @@ export type Actor = {
   lendCamera(): void;
   /** Un visage est devant la caméra (même trop loin pour savoir qui). */
   sawFace(): void;
+  /** Retour de la séance guidée : la personne retenue compte comme vue à l'instant (délais repartis de zéro). */
+  stay(): void;
   /** Oublie la personne (et ferme sa session sur le serveur). */
   end(): void;
   /** Erreur de l'API : session inconnue du serveur (redémarré, expirée) : on l'oublie. */
@@ -187,6 +190,11 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
     },
 
     sawFace() {
+      lastFace = now();
+    },
+
+    stay() {
+      lastSeen = now();
       lastFace = now();
     },
 

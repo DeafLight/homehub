@@ -100,7 +100,7 @@ Reste :
       catalogue des exercices en texte.
 - [x] Sport, 0.37.0 : animation de chaque exercice (bonhomme en 2 à 4 positions, ralenti), vignettes, et muscles sur
       une silhouette face et dos.
-- [ ] Sport, 0.38.0 : séance guidée sur la tablette (échauffement, compte à rebours, tours, bips, exercice suivant
+- [x] Sport, 0.38.0 : séance guidée sur la tablette (échauffement, compte à rebours, tours, bips, exercice suivant
       pendant le repos), carte « séance du jour » ; profil choisi par la reconnaissance faciale ; rien de personnel
       affiché (ni tour de taille, ni notes, ni historique). Pendant la séance guidée, le profil reste connecté : ni
       fin de la session de la personne reconnue (`faces.sessionMinutes`), ni retour à l'accueil sans contact

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { FitnessState } from '../shared/fitness.ts';
+import type { TabletSession } from '../shared/fitness-workout.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
@@ -13,7 +14,7 @@ import { NOW } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 
-async function setup() {
+async function setup(actor: string | null = 'alex') {
   let now = new Date(NOW); // lundi 2 novembre 2026, 18:00
   const clock = () => new Date(now);
   const config = createConfigStore(
@@ -30,7 +31,7 @@ async function setup() {
   const token = async (ownerId: string) => (await devices.claim(devices.createCode(ownerId).code, 'Téléphone'))!.token;
   const alex = await token('alex');
   const sam = await token('sam');
-  const access = createAccess({ config, devices, isKey: kioskKeyMatcher(undefined), actorOf: () => 'alex' });
+  const access = createAccess({ config, devices, isKey: kioskKeyMatcher(undefined), actorOf: () => actor });
   const path = join(dir, 'fitness.json');
   const fitness = createFitnessStore({ path, clock });
   const api = createFitnessApi({ fitness, config, access });
@@ -106,5 +107,41 @@ describe('API du programme de renforcement', () => {
     const again = createFitnessStore({ path, clock });
     await again.load();
     expect(again.get('alex').weeks).toEqual({ '2026-11-02': { cardio: 30, waist: null } });
+  });
+
+  it('séance du jour sur la tablette : la personne reconnue seule, sans rien de personnel', async () => {
+    const { call } = await setup();
+    await call('PUT', '/fitness/weeks/2026-11-02', { cardio: 20, waist: 90 });
+    const res = await call<TabletSession>('GET', '/fitness/tablet', undefined, null, TABLET);
+    expect(res.status).toBe(200);
+    expect(res.json).toEqual({
+      ownerId: 'alex', session: 1, palier: 1, rounds: 3, effort: 30, rest: 30,
+      exercises: expect.arrayContaining([{ family: 'poussee', id: 'pompes-mur' }]),
+    });
+    expect(res.json.exercises).toHaveLength(6);
+    expect(JSON.stringify(res.json)).not.toMatch(/waist|weeks|sessions|note/);
+    // Pas depuis un téléphone, même celui de la personne.
+    expect((await call('GET', '/fitness/tablet')).status).toBe(403);
+  });
+
+  it('sur la tablette : personne de reconnu, ou un profil sans programme, rien', async () => {
+    const nobody = await setup(null);
+    const res = await nobody.call('GET', '/fitness/tablet', undefined, null, TABLET);
+    expect(res.status).toBe(403);
+    expect(res.json).toMatchObject({ identify: true });
+    const sam = await setup('sam');
+    expect((await sam.call('GET', '/fitness/tablet', undefined, null, TABLET)).status).toBe(404);
+    expect((await sam.call('POST', '/fitness/tablet/sessions', { session: 1, rpe: 3 }, null, TABLET)).status).toBe(404);
+  });
+
+  it('fin de séance guidée : notée avec les exercices du programme, la séance suivante vient', async () => {
+    const { call } = await setup();
+    const res = await call<TabletSession>('POST', '/fitness/tablet/sessions', { session: 1, rpe: 4, stopped: true, note: 'ignorée' }, null, TABLET);
+    expect(res.status).toBe(201);
+    expect(res.json.session).toBe(2);
+    const [s] = (await call('GET', '/fitness')).json.sessions;
+    expect(s).toMatchObject({ session: 1, rpe: 4, stopped: true, note: null });
+    expect(s.exercises).toHaveLength(6);
+    expect((await call('POST', '/fitness/tablet/sessions', { session: 1, rpe: 9 }, null, TABLET)).status).toBe(400);
   });
 });

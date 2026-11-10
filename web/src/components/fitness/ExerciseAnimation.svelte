@@ -4,8 +4,9 @@
 
   // Animation d'un exercice : le bonhomme passe en boucle par les positions clés. `still` : première position seule
   // (vignette du catalogue). Lecture, pause et ralenti ; à l'arrêt d'office si le système demande moins d'animations.
-  type Props = { id: string; still?: boolean; height?: number; label?: string };
-  let { id, still = false, height = 200, label }: Props = $props();
+  // Sans `controls` (séance guidée), ni boutons ni ralenti : `paused` vient de la séance.
+  type Props = { id: string; still?: boolean; height?: number; label?: string; controls?: boolean; paused?: boolean };
+  let { id, still = false, height = 200, label, controls = true, paused = false }: Props = $props();
 
   const move = $derived(MOVES[id]);
   const frame = $derived(move ? frameOf(move) : null);
@@ -24,7 +25,7 @@
     raf = requestAnimationFrame(tick);
   }
   $effect(() => {
-    if (!playing || !cycle) return;
+    if (!playing || paused || !cycle) return;
     last = null;
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -76,7 +77,7 @@
         <path d={seg(figure.neck, figure.arms[0][0]) + seg(figure.arms[0][0], figure.arms[0][1])} class="limb" />
       </g>
     </svg>
-    {#if !still && cycle}
+    {#if !still && cycle && controls}
       <div class="controls">
         <button type="button" onclick={() => (playing = !playing)} aria-pressed={playing}>{playing ? 'Pause' : 'Lecture'}</button>
         <button type="button" class:on={slow} onclick={() => (slow = !slow)} aria-pressed={slow}>Ralenti</button>

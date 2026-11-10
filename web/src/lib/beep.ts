@@ -37,3 +37,17 @@ export function beep(kind: BeepKind) {
     tone(context, 1568, 0.13, 0.12);
   } else tone(context, 330, 0, 0.3, 0.3);
 }
+
+/**
+ * Bips de la séance guidée : `tick` pour les trois dernières secondes, `go` au début d'un effort, `rest` à sa fin.
+ * Rien sans geste préalable (unlockAudio au bouton Commencer).
+ */
+export function cue(kind: 'tick' | 'go' | 'rest') {
+  if (!context) return;
+  if (kind === 'tick') tone(context, 880, 0, 0.09, 0.2);
+  else if (kind === 'go') tone(context, 1320, 0, 0.45, 0.3);
+  else {
+    tone(context, 990, 0, 0.15, 0.25);
+    tone(context, 660, 0.18, 0.3, 0.25);
+  }
+}

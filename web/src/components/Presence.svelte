@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { getAppContext } from '../lib/context.ts';
   import { cameraError, prepareFaces, readFace, startCamera } from '../lib/face.ts';
-  import { isPhoneRoute } from '../lib/route.ts';
+  import { holdsActor, isPhoneRoute } from '../lib/route.ts';
 
   // Caméra de la tablette, discrète : environ une analyse par seconde tant que l'écran est allumé (veille comprise),
   // pour savoir qui est devant (voir lib/actor.svelte.ts) et réveiller la tablette quand quelqu'un arrive. Invisible,
@@ -28,7 +28,7 @@
     return () => document.removeEventListener('visibilitychange', onVisibility);
   });
 
-  const active = $derived(kiosk && visible && !isPhoneRoute(router.route) && router.route.name !== 'faces' && router.route.name !== 'scan');
+  const active = $derived(kiosk && visible && !isPhoneRoute(router.route) && router.route.name !== 'faces' && !holdsActor(router.route));
 
   $effect(() => {
     if (!active || !video) return;
@@ -69,8 +69,8 @@
     return () => {
       stopped = true;
       stopCamera();
-      // Vers le scanner : la personne reconnue reste celle qui scanne.
-      if (router.route.name === 'scan') actor.lendCamera();
+      // Vers le scanner ou la séance guidée : la personne reconnue reste retenue.
+      if (holdsActor(router.route)) actor.lendCamera();
       else actor.setCamera('off');
     };
   });

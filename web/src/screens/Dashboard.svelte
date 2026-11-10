@@ -30,8 +30,10 @@
   type Props = { ownerId: string };
   let { ownerId }: Props = $props();
 
-  const { api, actor, profiles, clock, navigate } = getAppContext();
+  const { api, actor, config, profiles, clock, navigate } = getAppContext();
   const profile = $derived(profiles.find((p) => p.id === ownerId));
+  /** Programme de sport sur ce profil : lien vers la séance du jour. */
+  const sport = $derived(config.members.some((m) => m.id === ownerId && m.fitness));
   const dashboard = createResource(() => api.dashboard(ownerId), DASHBOARD_REFRESH_MS);
   onDestroy(dashboard.destroy);
 
@@ -113,6 +115,12 @@
             <DetailLink to="weather" label="Météo détaillée" variant="pill" chevronSize={24}>
               <Icon name={weatherIcon(weather.weatherCode, weather.isDay)} size={28} color={weatherIconColor(weather.weatherCode, weather.isDay)} />
               <span class="weather">{formatTemperature(weather.temperatureC)} {weatherLabel(weather.weatherCode).toLowerCase()}</span>
+            </DetailLink>
+          {/if}
+          {#if sport}
+            <DetailLink to="sport" label="Sport : séance du jour" variant="pill" chevronSize={24}>
+              <Icon name="dumbbell" size={26} />
+              <span class="weather">Sport</span>
             </DetailLink>
           {/if}
         </span>

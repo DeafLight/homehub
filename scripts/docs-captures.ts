@@ -75,6 +75,9 @@ Object.assign(fitness, { effort: 35, rest: 25 });
 fitness.reviews[weekOf(new Date(at(-7)))] = { at: at(-3), choice: 'up-same', from: { palier: 1, effort: 30, rest: 30 } };
 fitness.weeks = { [weekOf(new Date(at(-14)))]: { cardio: 60, waist: 94 }, [weekOf(new Date(at(-7)))]: { cardio: 75, waist: 93.5 }, [weekOf(new Date(at(0)))]: { cardio: 40, waist: 93 } };
 writeFileSync(join(state, 'fitness.json'), JSON.stringify({ version: 1, members: { alex: fitness } }));
+// Visage fictif d'Alex (empreinte arbitraire) : les captures du sport de la tablette s'en servent pour être reconnues.
+const FACE = Array.from({ length: 128 }, (_, i) => Math.sin(i + 1));
+writeFileSync(join(state, 'faces.json'), JSON.stringify({ version: 1, faces: { alex: [FACE] }, learned: {} }));
 const nas = JSON.parse(readFileSync(join(ROOT, 'server', 'sources', 'fixtures', 'nas-status.json'), 'utf8'));
 nas.generatedAt = new Date(DOCS_NOW - 5 * 60_000).toISOString();
 writeFileSync(join(work, 'nas-status.json'), JSON.stringify(nas));
@@ -271,6 +274,21 @@ for (const [name, path] of [
   ['tablette-nas', '/nas'],
 ] as const) await shoot(name, BASE + path, TABLET);
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
+// Sport de la tablette, Alex reconnu (pas de caméra sans fenêtre : la session ouverte par son visage fictif est
+// présentée avec chaque requête, comme le ferait la reconnaissance).
+const { token: faceToken } = (await (await fetch(`${BASE}/api/faces/identify`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ embedding: FACE, real: 1, live: 1 }),
+})).json()) as { token: string };
+const asAlexAtTablet = `{ const f = globalThis.fetch; globalThis.fetch = (url, init = {}) =>
+  f(url, String(url).includes('/api/') ? { ...init, headers: { ...init.headers, 'X-Actor-Session': '${faceToken}' } } : init); }`;
+await shoot('tablette-sport', `${BASE}/sport/p/alex`, TABLET, { init: asAlexAtTablet });
+// Séance guidée : échauffement passé, premier effort.
+await shoot('tablette-seance', `${BASE}/seance/p/alex`, TABLET, {
+  init: asAlexAtTablet,
+  after: `for (let i = 0; i < 5; i++) ${click('Passer')}`,
+});
 // Scanner (pas de caméra sans fenêtre : codes saisis à la main) : un produit rangé, puis le café, transvasé d'habitude.
 const typeCode = (code: string) => `{
   const input = document.querySelector('input[placeholder="Code-barres à la main"]');

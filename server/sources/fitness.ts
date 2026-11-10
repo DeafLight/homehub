@@ -51,6 +51,9 @@ export const sessionInput = z.object({
 });
 export type SessionInput = z.infer<typeof sessionInput>;
 
+/** Fin d'une séance guidée sur la tablette : seulement le ressenti, rien par exercice. */
+export const tabletSessionInput = sessionInput.pick({ session: true, rpe: true, stopped: true });
+
 export const weekInput = z.object({
   cardio: z.number().int().min(0).max(5000).nullable(),
   waist: z.number().min(30).max(250).nullable(),
