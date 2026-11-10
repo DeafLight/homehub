@@ -7,7 +7,7 @@ import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { inflateRawSync } from 'node:zlib';
 import type { RouteOption, StopChoice } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
-import { lineLabel } from './irigo.ts';
+import { lineLabel } from './lines.ts';
 import type { SourceStatus } from './source-status.ts';
 import type { Clock } from './types.ts';
 

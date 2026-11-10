@@ -2,12 +2,14 @@
   import { onDestroy, onMount } from 'svelte';
   import { FAMILY_LABELS } from '../../../shared/fitness-catalogue.ts';
   import { RPE_LABELS } from '../../../shared/fitness.ts';
-  import { type TabletSession, totalSeconds, WARMUP, type WorkoutStep, workoutSteps } from '../../../shared/fitness-workout.ts';
+  import { type TabletSession, WARMUP, type WorkoutStep, workoutSteps } from '../../../shared/fitness-workout.ts';
   import ExerciseAnimation from '../components/fitness/ExerciseAnimation.svelte';
   import { cue } from '../lib/beep.ts';
   import { getAppContext } from '../lib/context.ts';
   import { formatMinutes } from '../lib/fitness.ts';
   import { type PageRoute, routePath } from '../lib/route.ts';
+  import { createWakeLock } from '../lib/wake-lock.ts';
+  import { markSaved, skipStep, startWorkout, stopWorkout, tickWorkout, togglePause, type Transition, type WorkoutTimer, workoutView } from '../lib/workout-timer.ts';
 
   // Séance guidée sur la tablette : échauffement, puis chaque effort avec son compte à rebours, et pendant le repos
   // l'exercice suivant. Bips sur les trois dernières secondes, au départ et à la fin de chaque effort. Rien de
@@ -26,64 +28,38 @@
   let steps = $state<WorkoutStep[]>([]);
   let error = $state<string | null>(null);
 
-  let index = $state(0);
-  /** Millisecondes restantes de l'étape en cours. */
-  let left = $state(0);
-  let paused = $state(false);
-  type Phase = 'running' | 'done' | 'saved';
-  let phase = $state<Phase>('running');
-  let stopped = $state(false);
+  /** État du minuteur (voir lib/workout-timer.ts) ; « done » en attendant les étapes, d'où `phase` ci-dessous. */
+  let timer = $state.raw<WorkoutTimer>(startWorkout([], 0).timer);
   let saving = $state(false);
 
-  let endsAt = 0;
-  let lastSecond = 0;
+  const view = $derived(workoutView(timer, steps));
+  const step = $derived(view.step);
+  const seconds = $derived(view.seconds);
+  const progress = $derived(view.progress);
+  const remaining = $derived(view.remaining);
+  const done = $derived(view.done);
+  const index = $derived(timer.index);
+  const paused = $derived(timer.paused);
+  const phase = $derived(steps.length ? timer.phase : 'loading');
+  const stopped = $derived(timer.stopped);
 
-  const step = $derived(steps[index]);
-  const seconds = $derived(Math.ceil(left / 1000));
-  const progress = $derived(step ? 1 - left / (step.seconds * 1000) : 0);
-  const remaining = $derived(steps.slice(index + 1).reduce((sum, s) => sum + s.seconds, 0) + seconds);
-  const done = $derived(steps.length ? 1 - remaining / totalSeconds(steps) : 0);
+  // L'écran reste allumé pendant que la séance défile, si le navigateur le permet ; rendu à la fin, à l'arrêt et
+  // en sortant de la page.
+  const wakeLock = createWakeLock();
+  $effect(() => {
+    if (phase === 'running') wakeLock.acquire();
+    else wakeLock.release();
+  });
 
-  function begin(at: number) {
-    index = at;
-    endsAt = Date.now() + steps[at].seconds * 1000;
-    left = steps[at].seconds * 1000;
-    lastSecond = steps[at].seconds;
+  function apply({ timer: next, cues }: Transition) {
+    timer = next;
+    for (const c of cues) cue(c);
   }
 
-  function finish(early: boolean) {
-    stopped = early;
-    phase = 'done';
-  }
-
-  function next() {
-    const from = steps[index];
-    if (index + 1 >= steps.length) {
-      cue('rest');
-      finish(false);
-      return;
-    }
-    begin(index + 1);
-    const to = steps[index];
-    if (to.kind === 'effort' || (to.kind === 'warmup' && from.kind === 'warmup')) cue('go');
-    else if (from.kind === 'effort') cue('rest');
-  }
-
-  function tick() {
-    if (phase !== 'running' || paused || !steps.length) return;
-    left = Math.max(0, endsAt - Date.now());
-    const s = Math.ceil(left / 1000);
-    if (s !== lastSecond) {
-      lastSecond = s;
-      if (s > 0 && s <= 3) cue('tick');
-    }
-    if (left <= 0) next();
-  }
-
-  function togglePause() {
-    if (paused) endsAt = Date.now() + left;
-    paused = !paused;
-  }
+  const tick = () => apply(tickWorkout(timer, steps, Date.now()));
+  const skip = () => apply(skipStep(timer, steps, Date.now()));
+  const pause = () => (timer = togglePause(timer, Date.now()));
+  const stop = () => (timer = stopWorkout(timer));
 
   async function save(rpe: number) {
     if (!plan || saving) return;
@@ -91,7 +67,7 @@
     error = null;
     try {
       await api.finishTabletWorkout({ session: plan.session, rpe, stopped });
-      phase = 'saved';
+      timer = markSaved(timer);
     } catch (err) {
       error = (err as Error).message;
     } finally {
@@ -101,33 +77,25 @@
 
   const leave = () => navigate(routePath({ name: 'sport', back }));
 
-  let wakeLock: { release(): Promise<void> } | null = null;
-
   onMount(() => {
     api
       .tabletWorkout()
       .then((p) => {
         plan = p;
         steps = workoutSteps(p);
-        begin(0);
-        cue('go');
+        apply(startWorkout(steps, Date.now()));
       })
       .catch((err: Error) => (error = err.message));
-    const timer = setInterval(tick, TICK_MS);
+    const ticker = setInterval(tick, TICK_MS);
     const keepalive = setInterval(() => void api.tabletWorkout().catch(() => {}), KEEPALIVE_MS);
-    // L'écran reste allumé pendant la séance, si le navigateur le permet.
-    void (navigator as { wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock
-      ?.request('screen')
-      .then((lock) => (wakeLock = lock))
-      .catch(() => {});
     return () => {
-      clearInterval(timer);
+      clearInterval(ticker);
       clearInterval(keepalive);
     };
   });
 
   onDestroy(() => {
-    void wakeLock?.release().catch(() => {});
+    wakeLock.release();
     actor.stay(); // délais repartis de zéro : la personne compte comme vue à l'instant
   });
 
@@ -185,9 +153,9 @@
     </main>
 
     <footer>
-      <button type="button" onclick={togglePause}>{paused ? 'Reprendre' : 'Pause'}</button>
-      <button type="button" onclick={next}>Passer</button>
-      <button type="button" class="stop" onclick={() => finish(true)}>Arrêter</button>
+      <button type="button" onclick={pause}>{paused ? 'Reprendre' : 'Pause'}</button>
+      <button type="button" onclick={skip}>Passer</button>
+      <button type="button" class="stop" onclick={stop}>Arrêter</button>
     </footer>
   {:else if phase === 'done'}
     <div class="end">

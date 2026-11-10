@@ -1,0 +1,179 @@
+/*
+ * Page « Transports » : styles communs à la page et à ses cartes (lieux, arrêts de l'accueil, trajets). Feuille
+ * globale préfixée par .transit-page : même spécificité qu'un style de composant (classe + élément, ou deux classes),
+ * sans dupliquer ces règles dans chaque carte. Ce qui n'appartient qu'à une carte reste dans son composant.
+ */
+.transit-page h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.transit-page .muted {
+  font-size: 1.1rem;
+  color: var(--fg-muted);
+}
+
+.transit-page .small {
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.transit-page .block {
+  display: block;
+}
+
+.transit-page p {
+  margin: 6px 0;
+}
+
+.transit-page button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.transit-page button:disabled {
+  opacity: 0.35;
+}
+
+.transit-page input,
+.transit-page select {
+  box-sizing: border-box;
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.15rem;
+  user-select: text;
+}
+
+.transit-page input:focus,
+.transit-page select:focus {
+  outline: none;
+  border-color: var(--rain);
+}
+
+.transit-page input[type='number'] {
+  width: 80px;
+}
+
+.transit-page .card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.transit-page .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--surface-2);
+  font-size: 1.15rem;
+}
+
+.transit-page .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.transit-page .icon,
+.transit-page .remove {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--fg-muted);
+}
+
+.transit-page .icon {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.transit-page .search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.transit-page .search input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.transit-page .result,
+.transit-page .option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  text-align: left;
+  font-size: 1.15rem;
+}
+
+.transit-page .line {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  min-width: 34px;
+  height: 32px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--rain-bg);
+  color: var(--rain-soft);
+  font-weight: 700;
+}
+
+.transit-page .line.tram {
+  background: #3a1f30;
+  color: #f4b8d6;
+}
+
+.transit-page .secondary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.transit-page .add {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.transit-page .link {
+  align-self: flex-start;
+  padding: 6px 0;
+  color: var(--rain-soft);
+  font-size: 1rem;
+}
+
+.transit-page .link.danger {
+  margin-top: 14px;
+  color: var(--danger-fg);
+}

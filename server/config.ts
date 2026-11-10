@@ -1,3 +1,5 @@
+// Configuration de HomeHub (homehub.yaml) : schéma zod de chaque section (membres, tablette, transports, météo,
+// sources scolaires…), lecture du fichier, et version publique envoyée au front (sans secret ni adresse).
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';

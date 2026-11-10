@@ -1,5 +1,5 @@
 // Page « Transports » : modifier lieux, trajets et arrêts de l'accueil avant de tout enregistrer (logique pure, testée).
-import type { CommuteRoute, CommuteSettings, PlaceIcon, TransitPlace, TransitSettings } from '../../../shared/types.ts';
+import type { AddressMatch, CommuteRoute, CommuteSettings, PlaceIcon, RouteOption, TransitPlace, TransitSettings } from '../../../shared/types.ts';
 
 export const MAX_PLACES = 8;
 export const MAX_HOME_STOPS = 4;
@@ -77,4 +77,40 @@ export function toInput(settings: TransitSettings): Omit<TransitSettings, 'saved
     commutes: settings.commutes,
     stops: settings.stops,
   };
+}
+
+/** Adresse choisie pour un lieu existant (les trajets qui en partent ou y mènent sont à revoir) ou pour un nouveau. */
+export function placeAddress(settings: TransitSettings, target: string, match: AddressMatch): void {
+  const place = settings.places.find((p) => p.id === target);
+  if (place) {
+    Object.assign(place, { address: match.label, lat: match.lat, lon: match.lon });
+    for (const c of Object.values(settings.commutes)) if (c.from === place.id || c.to === place.id) c.route = null;
+  } else {
+    settings.places.push({ id: newPlaceId(settings.places), ...suggestPlace(settings.places), address: match.label, lat: match.lat, lon: match.lon });
+  }
+}
+
+/** Clé des arrêts proches d'un lieu (ses coordonnées). */
+export const nearKey = (place: Pick<TransitPlace, 'lat' | 'lon'>) => `${place.lat},${place.lon}`;
+
+/** Clé de la recherche d'itinéraires entre deux lieux ; vide s'il en manque un. */
+export const endsKey = (from: TransitPlace | undefined, to: TransitPlace | undefined) => (from && to ? `${nearKey(from)}>${nearKey(to)}` : '');
+
+/** Itinéraires proposés, et celui déjà choisi s'il n'en fait plus partie (horaires changés), en tête. */
+export function routeChoices(routes: RouteOption[] | null, chosen: CommuteRoute | null | undefined): RouteOption[] {
+  const list = routes ?? [];
+  if (!chosen || list.some((r) => routeKey(r) === routeKey(chosen))) return list;
+  return [{ ...chosen, totalMinutes: chosen.walkFrom + chosen.rideMinutes + chosen.walkTo }, ...list];
+}
+
+/** Temps de marche saisi : vide (ou illisible) = revenir à l'estimation, sinon de 0 à 60 min. */
+export function walkMinutes(value: string): number | null {
+  const n = Number(value);
+  return value === '' || !Number.isFinite(n) ? null : Math.max(0, Math.min(60, Math.round(n)));
+}
+
+/** Minutes saisies pour « arriver avant » (0 à 60) ou « carte affichée » (0 à 120) ; null si illisible. */
+export function boundedMinutes(field: 'arriveBefore' | 'showBefore', value: string): number | null {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.max(0, Math.min(field === 'showBefore' ? 120 : 60, n)) : null;
 }

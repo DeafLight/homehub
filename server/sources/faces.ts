@@ -6,6 +6,7 @@
 // suivent les changements (coiffure, lunettes, lumière) sans jamais remplacer les enregistrées.
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
+import type { FaceCounts, FaceScore, FaceThresholds, FaceVerdict } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
 
@@ -23,8 +24,6 @@ const fileSchema = z.object({
 
 type FacesFile = z.infer<typeof fileSchema>;
 
-export type FaceScore = { ownerId: string; score: number };
-export type FaceCounts = Record<string, { enrolled: number; learned: number }>;
 
 export type FaceStore = {
   enrolled(): Promise<string[]>;
@@ -40,20 +39,7 @@ export type FaceStore = {
   scores(embedding: number[]): Promise<FaceScore[]>;
 };
 
-export type FaceRules = { threshold: number; margin: number; antispoof: number; liveness: number };
-
-/**
- * Verdict d'une analyse : `ok`, ou la raison du refus (`photo` : score contre une photo trop bas ; `screen` : contre
- * un écran ; `none` : aucun visage enregistré ; `low` : ressemblance sous le seuil ; `close` : trop proche de la
- * personne suivante pour trancher).
- */
-export type FaceVerdict = {
-  result: 'ok' | 'photo' | 'screen' | 'none' | 'low' | 'close';
-  /** Personne la plus ressemblante, et sa ressemblance ; `next` : celle de la suivante. */
-  ownerId: string | null;
-  score: number;
-  next: number;
-};
+export type FaceRules = FaceThresholds;
 
 /** Juge une analyse de la tablette ; `scores` : ceux des membres actuels, du plus au moins ressemblant. */
 export function judge(reading: { real: number; live: number }, scores: FaceScore[], rules: FaceRules): FaceVerdict {

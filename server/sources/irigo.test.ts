@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { NOW, silentLogger } from '../testing.ts';
 import { parseAlerts } from './gtfs-rt.ts';
-import { createIrigoClient, createTransitSource, lineLabel, parseStopMonitoring, parseStopPoints, xmlText } from './irigo.ts';
+import { createIrigoClient, createTransitSource, parseStopMonitoring, parseStopPoints, xmlText } from './irigo.ts';
+import { lineLabel } from './lines.ts';
 
 // Encodeur protobuf minimal, pour fabriquer un flux GTFS-RT de test.
 const varint = (n: number) => {

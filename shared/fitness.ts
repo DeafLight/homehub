@@ -71,6 +71,18 @@ export type FitnessSession = Rhythm & {
 
 export type WeekLog = { cardio: number | null; waist: number | null };
 
+/** Fin de séance envoyée par le téléphone (POST /api/fitness/sessions) : ressenti global, puis par exercice. */
+export type SessionReport = {
+  session: SessionNumber;
+  rpe: number;
+  stopped: boolean;
+  note: string | null;
+  exercises: { family: FitnessFamily; rating: Rating | null; pain: PainSpot | null; reps: number | null; note: string | null }[];
+};
+
+/** Fin d'une séance guidée sur la tablette : seulement le ressenti, rien par exercice. */
+export type TabletSessionReport = Pick<SessionReport, 'session' | 'rpe' | 'stopped'>;
+
 export type RhythmOption = 'keep' | 'up-same' | 'up-longer' | 'down-same' | 'down-shorter' | 'next-palier';
 
 export type FitnessState = Rhythm & {

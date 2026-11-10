@@ -4,7 +4,6 @@ import {
   type Credentials,
   createEcoleDirecteClient,
   createEcoleDirecteSource,
-  formatSubject,
   parseLocalDateTime,
 } from './ecoledirecte.ts';
 
@@ -87,10 +86,8 @@ function fakeServer({ courses = COURSES as unknown[], loginCode = 200, homeworkC
 }
 
 describe('conversions', () => {
-  it('lit les dates locales et met en forme les matières', () => {
+  it('lit les dates locales (matières : school.test.ts)', () => {
     expect(parseLocalDateTime('2026-11-03 08:35')).toEqual(new Date(2026, 10, 3, 8, 35));
-    expect(formatSubject('SCIENCES VIE & TERRE')).toBe('Sciences vie & terre');
-    expect(formatSubject('ANGLAIS LV1')).toBe('Anglais LV1');
   });
 });
 

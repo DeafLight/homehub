@@ -15,12 +15,16 @@ import {
   planSession,
   type RhythmOption,
   type SessionNumber,
+  type SessionReport,
   type SlotChange,
+  type TabletSessionReport,
   slotKey,
   slotTarget,
   weekOf,
+  type WeekLog,
 } from '../../shared/fitness.ts';
 import { createJsonFile } from './json-file.ts';
+import { sameShape } from './schemas.ts';
 import type { Clock } from './types.ts';
 
 const MAX_SESSIONS = 2000;
@@ -49,15 +53,20 @@ export const sessionInput = z.object({
     .max(FAMILIES.length)
     .refine((list) => new Set(list.map((e) => e.family)).size === list.length, 'famille en double'),
 });
-export type SessionInput = z.infer<typeof sessionInput>;
+/** Le schéma lit exactement le type partagé avec le téléphone (SessionReport). */
+export type SessionInput = SessionReport;
+sameShape<z.infer<typeof sessionInput>, SessionReport>(true);
 
 /** Fin d'une séance guidée sur la tablette : seulement le ressenti, rien par exercice. */
 export const tabletSessionInput = sessionInput.pick({ session: true, rpe: true, stopped: true });
+sameShape<z.infer<typeof tabletSessionInput>, TabletSessionReport>(true);
 
 export const weekInput = z.object({
   cardio: z.number().int().min(0).max(5000).nullable(),
   waist: z.number().min(30).max(250).nullable(),
 });
+sameShape<z.infer<typeof weekInput>, WeekLog>(true);
+
 export const rhythmInput = z.object({
   week: z.string(),
   option: z.enum(['keep', 'up-same', 'up-longer', 'down-same', 'down-shorter', 'next-palier']),

@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../../../shared/types.ts';
-import { infoDiff, lastMarksLine, markLine, movementLabel, productDetail, provenance, scanMoment, scannerLabel, stockText } from './stock.ts';
+import {
+  containerState,
+  filterStock,
+  infoDiff,
+  lastMarksLine,
+  markLine,
+  movementLabel,
+  productDetail,
+  productSubtitle,
+  provenance,
+  scanMoment,
+  scannerLabel,
+  stockCounts,
+  stockText,
+} from './stock.ts';
 
 const product = (over: Partial<Product['current']> = {}, versionCount = 1): Product => ({
   code: '3560070446117',
@@ -77,5 +91,30 @@ describe('quand et qui a scanné', () => {
     expect(movementLabel({ kind: 'in', count: 2, forgotten: false })).toBe('Rangé (+ 2)');
     expect(movementLabel({ kind: 'out', count: 1, forgotten: true })).toBe('Jeté · entrée oubliée');
     expect(movementLabel({ kind: 'adjust', count: 3, forgotten: false })).toBe('Inventaire : 3');
+  });
+});
+
+describe('inventaire du stock', () => {
+  const items = [
+    { product: product({ name: 'Purée de pomme', brand: 'Marque' }), quantity: 2 },
+    { product: product({ name: 'Lessive', brand: null }), quantity: 0 },
+    { product: product({ name: 'Pâtes', brand: 'Épi' }), quantity: 1 },
+  ];
+
+  it('filtre en stock, épuisés ou tout, puis par nom ou marque', () => {
+    expect(filterStock(items, 'in', '').map((i) => i.product.current.name)).toEqual(['Purée de pomme', 'Pâtes']);
+    expect(filterStock(items, 'out', '').map((i) => i.product.current.name)).toEqual(['Lessive']);
+    expect(filterStock(items, 'all', '  ÉPI ').map((i) => i.product.current.name)).toEqual(['Pâtes']);
+    expect(filterStock(items, 'out', 'pâtes')).toEqual([]);
+    expect(stockCounts(items)).toEqual({ in: 2, out: 1, all: 3 });
+  });
+
+  it('sous-titre d’un produit et état d’un contenant', () => {
+    expect(productSubtitle(product({ category: 'Frais' }))).toBe('Carrefour Kids · 4 x 90 g · Frais');
+    expect(productSubtitle(product({ brand: null, quantity: null }))).toBe('Toucher pour compléter la fiche');
+    expect(containerState({ full: true, productName: 'Lessive' })).toBe('Lessive');
+    expect(containerState({ full: true, productName: null })).toBe('Plein');
+    expect(containerState({ full: false, productName: 'Lessive' })).toBe('Vide (Lessive)');
+    expect(containerState({ full: false, productName: null })).toBe('Vide');
   });
 });

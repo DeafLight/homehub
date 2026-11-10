@@ -2,7 +2,8 @@
 // Les cases cochées changent tout de suite ; après chaque action on relit les listes (tâche suivante d'une tâche
 // qui revient, ajout d'un autre appareil entre-temps).
 import { FAMILY_ID, type Lists, type ListTask, type ShoppingItem } from '../../../shared/types.ts';
-import { type Api, ApiError, type NewTask } from './api.ts';
+import type { NewTask } from '../../../shared/types.ts';
+import { type Api, ApiError } from './api.ts';
 import { createResource } from './resource.svelte.ts';
 
 export type ListsState = {

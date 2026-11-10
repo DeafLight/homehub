@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { localDay } from '../../shared/dates.ts';
-import type { Author, Lists, ListTask, Repeat, ShoppingItem, Task } from '../../shared/types.ts';
+import type { Author, Lists, ListTask, NewTask, Repeat, ShoppingItem, Task } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema } from './schemas.ts';
 import type { Clock, TaskSource } from './types.ts';
@@ -51,8 +51,6 @@ const fileSchema = z.object({
 
 type ListsFile = z.infer<typeof fileSchema>;
 type StoredTask = ListsFile['tasks'][number];
-
-export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
 
 export type ListsStore = {
   /** Ce qui est à faire, et les tâches faites aujourd'hui. */

@@ -18,16 +18,22 @@ import type {
   Note,
   PairingCode,
   Container,
+  FaceDiagnosis,
+  FaceReadingInput,
+  FaceSession,
+  FacesOverview,
+  NewTask,
   Product,
+  ProductPreferences,
   ProductInfo,
   ProductRecheck,
   ScanLookup,
   StockData,
   StockMovement,
   StockMovementResult,
+  StockOutOptions,
   StockSettings,
   PublicConfig,
-  Repeat,
   Routine,
   RoutineSettings,
   ShoppingItem,
@@ -37,17 +43,8 @@ import type {
   WeekData,
 } from '../../../shared/types.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
-import type { FitnessState, PainSpot, Rating, RhythmOption, SessionNumber, SlotChange, WeekLog } from '../../../shared/fitness.ts';
+import type { FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
-
-/** Fin de séance, envoyée par le téléphone. */
-export type SessionReport = {
-  session: SessionNumber;
-  rpe: number;
-  stopped: boolean;
-  note: string | null;
-  exercises: { family: FitnessFamily; rating: Rating | null; pain: PainSpot | null; reps: number | null; note: string | null }[];
-};
 
 export class ApiError extends Error {
   readonly status: number;
@@ -61,17 +58,6 @@ export class ApiError extends Error {
     this.identify = identify;
   }
 }
-
-export type FaceSession = { ownerId: string; token: string; expiresAt: string };
-
-export type FaceReadingInput = { embedding: number[]; real: number; live: number };
-
-/** Verdict du serveur sur une analyse (voir server/sources/faces.ts), pour le diagnostic. */
-export type FaceDiagnosis = {
-  verdict: { result: 'ok' | 'photo' | 'screen' | 'none' | 'low' | 'close'; ownerId: string | null; score: number; next: number };
-  scores: { ownerId: string; score: number }[];
-  rules: { threshold: number; margin: number; antispoof: number; liveness: number };
-};
 
 export type Api = {
   health(): Promise<Health>;
@@ -118,7 +104,7 @@ export type Api = {
   addNote(to: string, text: string, from?: string | null): Promise<Note>;
   markNoteSeen(id: string): Promise<Note>;
   /** Visages enregistrés (tablette seule). */
-  faces(): Promise<{ enrolled: string[]; samples: Record<string, { enrolled: number; learned: number }> }>;
+  faces(): Promise<FacesOverview>;
   identifyFace(reading: FaceReadingInput): Promise<FaceSession>;
   /** Verdict détaillé d'une analyse, sans session (diagnostic). */
   diagnoseFace(reading: FaceReadingInput): Promise<FaceDiagnosis>;
@@ -143,9 +129,9 @@ export type Api = {
   recheckProduct(code: string): Promise<ProductRecheck>;
   acceptBase(code: string): Promise<Product>;
   resolveConflict(code: string, take: 'mine' | 'base'): Promise<Product>;
-  setProductPreferences(code: string, prefs: { autoShop?: boolean | null; refill?: string | null }): Promise<Product>;
+  setProductPreferences(code: string, prefs: ProductPreferences): Promise<Product>;
   stockIn(code: string, count?: number, price?: number | null): Promise<StockMovementResult>;
-  stockOut(code: string, options?: { all?: boolean; refill?: string | null; remaining?: number }): Promise<StockMovementResult>;
+  stockOut(code: string, options?: StockOutOptions): Promise<StockMovementResult>;
   undoStock(movementId: string): Promise<{ quantity: number }>;
   /** Historique d'un produit, du plus récent au plus ancien. */
   stockMovements(code: string): Promise<StockMovement[]>;
@@ -164,10 +150,8 @@ export type Api = {
   changeExercise(session: SessionNumber, family: FitnessFamily, change: SlotChange | 'dismiss'): Promise<FitnessState>;
   /** Séance du jour de la personne reconnue devant la tablette (la lire prolonge aussi sa session). */
   tabletWorkout(): Promise<TabletSession>;
-  finishTabletWorkout(report: { session: SessionNumber; rpe: number; stopped: boolean }): Promise<TabletSession>;
+  finishTabletWorkout(report: TabletSessionReport): Promise<TabletSession>;
 };
-
-export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
 
 export type Credentials = { token?: string | null; kioskKey?: string | null; actor?: string | null };
 

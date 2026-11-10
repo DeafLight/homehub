@@ -1,6 +1,7 @@
 <script lang="ts">
   import Avatar from './Avatar.svelte';
-  import { ApiError, type FaceDiagnosis } from '../lib/api.ts';
+  import type { FaceDiagnosis } from '../../../shared/types.ts';
+  import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
   import { cameraError, prepareFaces, readFace, startCamera, type FaceReading } from '../lib/face.ts';
 

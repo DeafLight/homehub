@@ -7,7 +7,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import * as readline from 'node:readline';
-import { createEcoleDirecteClient, normalizeName, type TrustTokens } from '../server/sources/ecoledirecte.ts';
+import { createEcoleDirecteClient, type TrustTokens } from '../server/sources/ecoledirecte.ts';
+import { normalizeName } from '../server/sources/school.ts';
 
 const STATE_FILE = join(homedir(), '.homehub-ecoledirecte.json');
 

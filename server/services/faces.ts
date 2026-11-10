@@ -3,11 +3,12 @@
 // sûre, et tient un journal sobre (chaque reconnaissance nouvelle, un refus toutes les 10 s au plus : la tablette
 // envoie une analyse par seconde).
 import type { Household } from '../household.ts';
-import { type ActorSessions, type FaceScore, type FaceStore, type FaceVerdict, judge, worthLearning } from '../sources/faces.ts';
+import type { FaceDiagnosis, FaceReadingInput, FaceSession, FaceVerdict } from '../../shared/types.ts';
+import { type ActorSessions, type FaceStore, judge, worthLearning } from '../sources/faces.ts';
 import type { Clock } from '../sources/types.ts';
 
 /** Une analyse de la tablette : empreinte du visage, et scores contre une photo (`real`) ou un écran (`live`). */
-export type FaceReading = { embedding: number[]; real: number; live: number };
+export type FaceReading = FaceReadingInput;
 
 export type FaceRulesConfig = {
   threshold: number;
@@ -19,13 +20,9 @@ export type FaceRulesConfig = {
 };
 
 /** Reconnu : la session (la même, prolongée, tant que c'est la même personne) ; sinon `far` si c'est une photo ou un écran. */
-export type Identification = { ok: true; ownerId: string; token: string; expiresAt?: string } | { ok: false; far: boolean };
+export type Identification = ({ ok: true } & FaceSession) | { ok: false; far: boolean };
 
-export type FaceDiagnosis = {
-  scores: FaceScore[];
-  verdict: FaceVerdict;
-  rules: Pick<FaceRulesConfig, 'threshold' | 'margin' | 'antispoof' | 'liveness'>;
-};
+export type { FaceDiagnosis };
 
 export type FaceRecognition = {
   /** `presented` : session déjà présentée par la tablette (en-tête X-Actor-Session). */

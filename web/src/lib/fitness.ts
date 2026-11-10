@@ -1,6 +1,6 @@
 // Affichage du programme de renforcement (onglet Sport) : durées, place d'un exercice dans le programme, historique.
 import { CHAINS, type Exercise, exerciseById, type FitnessFamily, GENTLE } from '../../../shared/fitness-catalogue.ts';
-import type { FitnessState, SessionNumber } from '../../../shared/fitness.ts';
+import type { FitnessState, SessionNumber, WeekLog } from '../../../shared/fitness.ts';
 
 /** « 20 min », « 22 min 30 ». */
 export function formatMinutes(seconds: number): string {
@@ -42,3 +42,26 @@ export const waistSeries = (state: FitnessState) =>
     .filter(([, log]) => log.waist !== null)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([week, log]) => ({ week, waist: log.waist as number }));
+
+/** Points de la courbe du tour de taille (au moins deux), dans un cadre de 300 × 80. */
+export function waistPath(points: { waist: number }[]): string {
+  const W = 300;
+  const H = 80;
+  const min = Math.min(...points.map((p) => p.waist));
+  const max = Math.max(...points.map((p) => p.waist));
+  const span = max - min || 1;
+  return points.map((p, i) => `${(i / (points.length - 1)) * (W - 12) + 6},${H - 8 - ((p.waist - min) / span) * (H - 16)}`).join(' ');
+}
+
+/**
+ * Cardio et tour de taille de la semaine tels qu'on les envoie : un champ vide (ou effacé) vaut null, le cardio en
+ * minutes entières. Les champs numériques rendent null, un nombre, ou parfois une chaîne vide.
+ */
+export function weekLogInput(cardio: unknown, waist: unknown): WeekLog {
+  return { cardio: typeof cardio === 'number' ? Math.round(cardio) : null, waist: typeof waist === 'number' ? waist : null };
+}
+
+/** Les champs diffèrent-ils de ce qui est enregistré pour la semaine ? */
+export function weekLogChanged(saved: WeekLog | undefined, cardio: number | null, waist: number | null): boolean {
+  return (saved?.cardio ?? null) !== (cardio ?? null) || (saved?.waist ?? null) !== (waist ?? null);
+}

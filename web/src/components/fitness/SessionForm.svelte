@@ -12,7 +12,7 @@
     RPE_LABELS,
     type SessionNumber,
   } from '../../../../shared/fitness.ts';
-  import type { SessionReport } from '../../lib/api.ts';
+  import type { SessionReport } from '../../../../shared/fitness.ts';
 
   // Fin de séance : ressenti global (il règle le rythme de la semaine suivante), puis, pour chaque exercice, la
   // difficulté, une gêne éventuelle et où, les répétitions et une note, tous facultatifs.

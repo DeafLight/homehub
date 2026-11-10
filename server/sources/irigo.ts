@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Departure, TransitAlert } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { parseAlerts } from './gtfs-rt.ts';
+import { lineLabel } from './lines.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
 import type { SourceStatus } from './source-status.ts';
 import type { Clock } from './types.ts';
@@ -18,9 +19,6 @@ const MAX_VISITS = 12;
 const DEPARTURES_STALE_MS = 10 * 60_000;
 const ALERTS_REFRESH_MS = 10 * 60_000;
 const ALERTS_STALE_MS = 6 * 3_600_000;
-
-/** « 03 » → « 3 » ; « A » reste « A ». Les lignes du flux d'alertes et de SIRI se comparent ainsi. */
-export const lineLabel = (ref: string) => ref.trim().replace(/^0+(?=\w)/u, '');
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 const decodeXml = (s: string) =>

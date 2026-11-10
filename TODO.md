@@ -129,6 +129,8 @@ Reste :
       notifications).
 - [x] Sécurité (0.40.0, revue de code §1 et §5) : `X-Real-IP` / `X-Forwarded-For` crus seulement venant d'un proxy
       de confiance (`trustedProxies`) ; base de produits (`scan`, `recheck`) réservée à la tablette et aux téléphones.
+- [x] Refonte (0.42.0, revue de code §8, §10, §12 à §14) : minuteur de séance testé, verrou d'écran qui ne fuit
+      plus, cinq écrans découpés (logique testée dans `web/src/lib/`), types d'API partagés, tests des sources.
 
 ## Transports (après le design)
 

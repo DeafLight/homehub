@@ -1,57 +1,44 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
-  import { normalizeProductCode, PRODUCT_FORMATS, validProductCode } from '../../../shared/barcode.ts';
-  import type { Container, Product, StockMark, StockMovementResult } from '../../../shared/types.ts';
+  import type { Container, Product, ProductInfo, StockMovementResult } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
-  import Modal from '../components/stock/Modal.svelte';
-  import ProductForm from '../components/stock/ProductForm.svelte';
-  import ProductSheet from '../components/stock/ProductSheet.svelte';
-  import ShopPrompt from '../components/stock/ShopPrompt.svelte';
+  import ScanDialog from '../components/stock/ScanDialog.svelte';
+  import ScanEntries from '../components/stock/ScanEntries.svelte';
+  import ScanViewer from '../components/stock/ScanViewer.svelte';
+  import { canDetectBarcodes, createBarcodeCamera } from '../lib/barcode-camera.ts';
   import { type BeepKind, beep, unlockAudio } from '../lib/beep.ts';
   import { getAppContext } from '../lib/context.ts';
-  import { cameraError } from '../lib/face.ts';
   import { type PageRoute, detailPath, phonePath, routePath } from '../lib/route.ts';
+  import {
+    addEntry,
+    afterOut,
+    cameraProblem,
+    entryOf,
+    type Facing,
+    type Flash,
+    markUndone,
+    noteShoppingAdded,
+    readManualCode,
+    refillContainer,
+    renameProduct,
+    type ScanDialog as Dialog,
+    type ScanEntry,
+    type ScanMode,
+  } from '../lib/scan.ts';
   import { createReadGate } from '../lib/scan-gate.ts';
-  import { formatTime } from '../lib/format.ts';
   import { productDetail, stockText } from '../lib/stock.ts';
 
   // Scanner du stock (tablette : bouton Scanner ; téléphone : onglet Courses). Deux modes : « Ranger les courses »
   // (entrées) et « Jeté / épuisé » (sorties). À chaque code lu : un bip, un éclair, et le scanner attend qu'on retire
   // le produit avant d'en lire un autre (lib/scan-gate.ts) : pas de double comptage. Chaque mouvement s'annule.
+  // Règles du journal et des bandeaux : lib/scan.ts ; caméra : lib/barcode-camera.ts ; affichage : components/stock/Scan*.
   // `back` : page de la tablette à laquelle revenir ; null sur le téléphone.
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
-  type Detected = { rawValue: string; format: string };
-  type Detector = { detect(source: HTMLVideoElement): Promise<Detected[]> };
-  type DetectorClass = { new (options?: { formats: string[] }): Detector; getSupportedFormats(): Promise<string[]> };
-  const DetectorApi = (globalThis as { BarcodeDetector?: DetectorClass }).BarcodeDetector;
+  type OutOptions = { refill?: string; remaining?: number };
 
-  type Mode = 'in' | 'out';
-  type Facing = 'user' | 'environment';
-  /** Bandeau du dernier code lu : nom, marque et contenance (`info`), puis ce qui s'est passé (`detail`). */
-  type Flash = { tone: BeepKind; title: string; detail: string; info: string };
-  type Entry = {
-    id: string;
-    kind: 'in' | 'out' | 'refill' | 'empty';
-    code: string;
-    product: Product | null;
-    title: string;
-    line: string;
-    /** Quand et par qui (null : pas encore enregistré). */
-    mark: StockMark | null;
-    undone: boolean;
-  };
-  type Dialog =
-    | { kind: 'unknown'; code: string; suggestion: { brand?: string | null; quantity?: string | null } | null; baseError: boolean }
-    | { kind: 'out-choice'; product: Product; container: Container }
-    | { kind: 'forgotten'; product: Product; remaining: number }
-    | { kind: 'shop'; code: string; label: string }
-    | { kind: 'sheet'; product: Product }
-    | { kind: 'pick-container'; entry: Entry; name: string };
-
-  const DETECT_EVERY_MS = 150;
   /** Tablette : sans lecture ni toucher pendant ce temps, retour à la page d'origine (la caméra s'éteint). */
   const IDLE_CLOSE_MS = 3 * 60_000;
   const ERROR_SHOW_MS = 5000;
@@ -64,12 +51,12 @@
   let facing = $state<Facing>(phone ? 'environment' : 'user');
   let cameraState = $state<'starting' | 'on' | 'error'>('starting');
   let cameraMessage = $state('');
-  let mode = $state<Mode>('in');
+  let mode = $state<ScanMode>('in');
   let gateState = $state<'ready' | 'hold'>('ready');
   let busy = $state(false);
   let flash = $state<Flash | null>(null);
   let dialog = $state<Dialog | null>(null);
-  let entries = $state<Entry[]>([]);
+  let entries = $state<ScanEntry[]>([]);
   let containers = $state<Container[]>([]);
   let manualCode = $state('');
   let manualError = $state<string | null>(null);
@@ -83,73 +70,29 @@
   let flashCount = 0;
 
   const gate = createReadGate();
-  let stopCamera: (() => void) | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const camera = createBarcodeCamera({
+    video: () => video,
+    paused: () => dialog !== null,
+    onOpen: () => (cameraState = 'on'),
+    onFrame: (codes) => {
+      const code = gate.frame(codes, performance.now());
+      gateState = gate.state;
+      if (code && !busy) void handle(code);
+    },
+  });
   let idleTimer: ReturnType<typeof setInterval> | undefined;
   let lastActivity = Date.now();
   let destroyed = false;
-  let generation = 0;
 
   async function startCamera(which: Facing) {
-    stop();
-    const mine = ++generation;
     facing = which;
     cameraState = 'starting';
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: which, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-      if (destroyed || !video || mine !== generation) {
-        for (const track of stream.getTracks()) track.stop();
-        return;
-      }
-      video.srcObject = stream;
-      await video.play();
-      stopCamera = () => {
-        for (const track of stream.getTracks()) track.stop();
-        if (video) video.srcObject = null;
-      };
-      cameraState = 'on';
-      if (DetectorApi) {
-        const supported = await DetectorApi.getSupportedFormats().catch(() => [] as string[]);
-        loop(mine, new DetectorApi({ formats: PRODUCT_FORMATS.filter((f) => supported.includes(f)) }));
-      }
+      await camera.start(which);
     } catch (err) {
       cameraState = 'error';
-      const name = (err as Error)?.name;
-      cameraMessage =
-        name === 'NotReadableError' ? 'Caméra occupée : réessaie dans un instant'
-        : phone && name === 'NotAllowedError' ? 'Caméra refusée : autorise-la dans le navigateur, ou saisis le code à la main'
-        : cameraError(err);
+      cameraMessage = cameraProblem(err, phone);
     }
-  }
-
-  function loop(mine: number, detector: Detector) {
-    const tick = async () => {
-      if (destroyed || mine !== generation || !video) return;
-      // Une question à l'écran : on n'écoute plus la caméra (le produit reste peut-être devant).
-      if (!dialog) {
-        try {
-          const codes = (await detector.detect(video))
-            .filter((d) => validProductCode(d.rawValue, d.format))
-            .map((d) => normalizeProductCode(d.rawValue, d.format));
-          const code = gate.frame(codes, performance.now());
-          gateState = gate.state;
-          if (code && !busy) void handle(code);
-        } catch {
-          // Image pas encore prête : on réessaie au tour suivant.
-        }
-      }
-      if (mine === generation) timer = setTimeout(tick, DETECT_EVERY_MS);
-    };
-    void tick();
-  }
-
-  function stop() {
-    clearTimeout(timer);
-    stopCamera?.();
-    stopCamera = null;
   }
 
   function show(tone: BeepKind, title: string, detail = '', info = '') {
@@ -159,9 +102,16 @@
     if (tone === 'error') setTimeout(() => id === flashCount && (flash = null), ERROR_SHOW_MS);
   }
 
+  /** Une question : deux notes, le bandeau, puis la fenêtre s'il y en a une. */
+  function ask(title: string, detail: string, next: Dialog | null, info = '') {
+    beep('ask');
+    show('ask', title, detail, info);
+    if (next) dialog = next;
+  }
+
   /** Le produit est sans doute encore devant la caméra : il faut d'abord le retirer (sans lecteur : rien à attendre). */
   function holdGate() {
-    if (cameraState !== 'on' || !DetectorApi) return;
+    if (cameraState !== 'on' || !canDetectBarcodes) return;
     gate.hold(performance.now());
     gateState = gate.state;
   }
@@ -169,23 +119,6 @@
   function closeDialog() {
     dialog = null;
     holdGate();
-  }
-
-  function pushEntry(entry: Omit<Entry, 'undone'>) {
-    entries = [{ ...entry, undone: false }, ...entries].slice(0, 40);
-  }
-
-  function entryOf(result: StockMovementResult, kind: Entry['kind'], code: string): Omit<Entry, 'undone'> {
-    // Contenant vidé : son nom en titre, ce qu'il contenait en dessous.
-    const name = (kind === 'empty' ? result.container?.name : null) ?? result.product?.current.name ?? result.container?.name ?? code;
-    const lines: Record<Entry['kind'], string> = {
-      in: `Rangé · ${stockText(result.quantity)}`,
-      out: result.forgotten ? `Jeté · entrée oubliée, ${stockText(result.quantity).toLowerCase()}` : `Jeté · ${stockText(result.quantity)}`,
-      refill: `Transvasé dans ${result.container?.name ?? 'le contenant'} · emballage jeté`,
-      empty: `Contenant vidé${result.product ? ` · c’était ${result.product.current.name}, ${stockText(result.quantity).toLowerCase()}` : ''}`,
-    };
-    const shopping = result.shopping === 'added' ? ' · ajouté à la liste de courses' : '';
-    return { id: result.movementId, kind, code, product: result.product, title: name, line: `${lines[kind]}${shopping}`, mark: { at: result.at, by: result.by } };
   }
 
   async function handle(code: string) {
@@ -196,11 +129,8 @@
     try {
       const found = await api.scan(code);
       if (found.kind === 'container') await onContainer(found.container);
-      else if (found.kind === 'unknown') {
-        beep('ask');
-        show('ask', 'Produit inconnu', 'Décris-le pour le garder en mémoire');
-        dialog = { kind: 'unknown', code, suggestion: found.suggestion, baseError: found.baseError };
-      } else await onProduct(found.product, found.quantity);
+      else if (found.kind === 'unknown') ask('Produit inconnu', 'Décris-le pour le garder en mémoire', { kind: 'unknown', code, suggestion: found.suggestion, baseError: found.baseError });
+      else await onProduct(found.product, found.quantity);
     } catch (err) {
       beep('error');
       show('error', 'Pas enregistré', (err as Error).message);
@@ -214,60 +144,42 @@
     const info = productDetail(product.current);
     if (mode === 'in') {
       const result = await api.stockIn(product.code);
-      pushEntry(entryOf(result, 'in', product.code));
+      entries = addEntry(entries, entryOf(result, 'in', product.code));
       show('ok', name, `+1 · ${stockText(result.quantity)}`, info);
       return;
     }
-    const container = product.refill ? containers.find((c) => c.id === product.refill) : undefined;
-    if (container) {
-      beep('ask');
-      show('ask', name, 'Transvasé ou épuisé ?', info);
-      dialog = { kind: 'out-choice', product, container };
-    } else if (quantity === 0) {
-      beep('ask');
-      show('ask', name, 'Pas en stock : entrée oubliée ?', info);
-      dialog = { kind: 'forgotten', product, remaining: 0 };
-    } else await takeOut(product, {});
+    const container = refillContainer(product, containers);
+    if (container) ask(name, 'Transvasé ou épuisé ?', { kind: 'out-choice', product, container }, info);
+    else if (quantity === 0) ask(name, 'Pas en stock : entrée oubliée ?', { kind: 'forgotten', product, remaining: 0 }, info);
+    else await takeOut(product, {});
   }
 
-  async function takeOut(product: Product, options: { refill?: string; remaining?: number }) {
+  async function takeOut(product: Product, options: OutOptions) {
     const result = await api.stockOut(product.code, options);
-    pushEntry(entryOf(result, options.refill ? 'refill' : 'out', product.code));
-    afterOut(result, product.current.name, productDetail(product.current));
+    entries = addEntry(entries, entryOf(result, options.refill ? 'refill' : 'out', product.code));
+    finishOut(result, product.current.name, productDetail(product.current));
   }
 
-  /**
-   * Réponse d'une fenêtre : la fermer, puis sortir le produit. Les valeurs sont prises avant : le `{@const d}` du
-   * gabarit se relit sur `dialog`, qui vaut null une fois la fenêtre fermée.
-   */
-  function closeThenOut(product: Product, options: { refill?: string; remaining?: number }) {
+  /** Réponse d'une fenêtre : la fermer, puis sortir le produit (valeurs reçues en arguments, pas relues sur `dialog`). */
+  function closeThenOut(product: Product, options: OutOptions) {
     closeDialog();
     return act(() => takeOut(product, options));
   }
 
-  function afterOut(result: StockMovementResult, name: string, info = '') {
+  function finishOut(result: StockMovementResult, name: string, info = '') {
     const changed = result.container;
     if (changed) containers = containers.map((c) => (c.id === changed.id ? changed : c));
-    if (result.shopping === 'propose' && result.product && result.shoppingLabel) {
-      beep('ask');
-      show('ask', name, 'Épuisé', info);
-      dialog = { kind: 'shop', code: result.product.code, label: result.shoppingLabel };
-    } else {
-      const detail = result.container && !result.product ? 'Contenant vide' : result.container ? `Dans ${result.container.name}` : stockText(result.quantity);
-      show('ok', name, result.shopping === 'added' ? `${detail} · ajouté à la liste de courses` : detail, info);
-    }
+    const next = afterOut(result, name, info);
+    if (next.dialog) ask(next.flash.title, next.flash.detail, next.dialog, next.flash.info);
+    else show(next.flash.tone, next.flash.title, next.flash.detail, next.flash.info);
   }
 
   async function onContainer(container: Container) {
-    if (mode === 'in') {
-      beep('ask');
-      show('ask', container.name, 'Étiquette de contenant : passe en mode « Jeté / épuisé » pour le déclarer vide');
-      return;
-    }
+    if (mode === 'in') return ask(container.name, 'Étiquette de contenant : passe en mode « Jeté / épuisé » pour le déclarer vide', null);
     const result = await api.emptyContainer(container.id);
     containers = containers.map((c) => (c.id === container.id ? (result.container ?? c) : c));
-    pushEntry(entryOf(result, 'empty', container.code));
-    afterOut({ ...result, container: null }, container.name);
+    entries = addEntry(entries, entryOf(result, 'empty', container.code));
+    finishOut({ ...result, container: null }, container.name);
   }
 
   async function act(action: () => Promise<void>) {
@@ -282,53 +194,59 @@
     }
   }
 
-  async function undo(entry: Entry) {
+  async function undo(entry: ScanEntry) {
     lastActivity = Date.now();
     await act(async () => {
       const { quantity } = await api.undoStock(entry.id);
-      entries = entries.map((e) => (e.id === entry.id ? { ...e, undone: true, line: `Annulé · ${stockText(quantity)}` } : e));
+      entries = markUndone(entries, entry.id, `Annulé · ${stockText(quantity)}`);
       if (entry.kind !== 'in') containers = (await api.stock()).containers;
     });
   }
 
-  /** « C'était une recharge » : la sortie devient un transvasement dans un contenant (existant ou nouveau). */
-  async function convertToRefill(entry: Entry, containerId: string | null, newName: string) {
-    if (!entry.product) return;
+  /**
+   * Transvasé dans un contenant (existant, ou créé à l'instant) : une sortie déjà notée devient un transvasement
+   * (annulée puis refaite), une sortie pas encore faite (`entry.id` vide) se fait directement dans le contenant.
+   */
+  async function refill(entry: ScanEntry, target: { containerId: string } | { name: string }) {
     const product = entry.product;
+    if (!product) return;
     await act(async () => {
-      const id = containerId ?? (await api.addContainer(newName.trim())).id;
-      await api.undoStock(entry.id);
-      entries = entries.map((e) => (e.id === entry.id ? { ...e, undone: true, line: 'Remplacé par un transvasement' } : e));
-      containers = (await api.stock()).containers;
+      let id: string;
+      if ('containerId' in target) id = target.containerId;
+      else {
+        const created = await api.addContainer(target.name.trim());
+        if (!entry.id) containers = [...containers, created];
+        id = created.id;
+      }
+      if (entry.id) {
+        await api.undoStock(entry.id);
+        entries = markUndone(entries, entry.id, 'Remplacé par un transvasement');
+        containers = (await api.stock()).containers;
+      }
       closeDialog();
       await takeOut(product, { refill: id });
     });
   }
 
-  /** Transvasé dans un contenant créé à l'instant : une sortie déjà notée (convertie) ou une sortie à faire. */
-  async function refillIntoNew(entry: Entry, name: string) {
-    if (entry.id) return convertToRefill(entry, null, name);
-    const product = entry.product;
-    if (!product) return;
-    await act(async () => {
-      const created = await api.addContainer(name.trim());
-      containers = [...containers, created];
-      closeDialog();
-      await takeOut(product, { refill: created.id });
-    });
+  /** Produit inconnu décrit : enregistré, puis traité comme s'il venait d'être lu (jamais en stock). */
+  async function describe(code: string, info: ProductInfo) {
+    const product = await api.saveProduct(code, info);
+    dialog = null;
+    await act(() => onProduct(product, 0));
+    if (!dialog) closeDialog();
   }
 
   function submitManual(event: SubmitEvent) {
     event.preventDefault();
     unlockAudio();
-    const digits = manualCode.replace(/\D/gu, '');
-    if (!validProductCode(digits)) {
-      manualError = 'Code invalide : 8, 12 ou 13 chiffres, avec la clé';
+    const read = readManualCode(manualCode);
+    if ('error' in read) {
+      manualError = read.error;
       return;
     }
     manualError = null;
     manualCode = '';
-    void handle(normalizeProductCode(digits));
+    void handle(read.code);
   }
 
   const leave = () => navigate(back ? routePath(back) : phonePath('shopping'));
@@ -352,10 +270,10 @@
   onDestroy(() => {
     destroyed = true;
     clearInterval(idleTimer);
-    stop();
+    camera.stop();
   });
 
-  function setMode(next: Mode) {
+  function setMode(next: ScanMode) {
     unlockAudio();
     mode = next;
     flash = null;
@@ -383,34 +301,17 @@
   </header>
 
   <div class="layout">
-    <div class="viewer {flash && shown ? `hold ${flash.tone}` : ''}">
-      <!-- svelte-ignore a11y_media_has_caption -->
-      <video bind:this={video} playsinline muted class:mirror={facing === 'user'}></video>
-      {#if cameraState !== 'on'}
-        <div class="message">{cameraState === 'starting' ? 'Ouverture de la caméra…' : cameraMessage}</div>
-      {:else if !DetectorApi}
-        <div class="message">Ce navigateur ne lit pas les codes-barres : saisis le code à la main.</div>
-      {/if}
-      {#if flash && shown}
-        <!-- Code lu : éclair, puis bandeau tant que le produit est devant la caméra. -->
-        {#key flash}<div class="flash {flash.tone}" aria-hidden="true"></div>{/key}
-        <div class="band {flash.tone}" role="status">
-          <Icon name={flash.tone === 'error' ? 'alert' : flash.tone === 'ask' ? 'message' : 'check'} size={phone ? 26 : 36} strokeWidth={2.4} />
-          <span class="band-text">
-            <strong>{flash.title}</strong>
-            {#if flash.info}<span class="band-info">{flash.info}</span>{/if}
-            {#if flash.detail}<span>{flash.detail}</span>{/if}
-          </span>
-          {#if gateState === 'hold' && !dialog}<span class="remove">Retire le produit</span>{/if}
-        </div>
-      {:else}
-        <div class="guide" aria-hidden="true"></div>
-        <div class="hint">{mode === 'in' ? 'Présente le code-barres d’un produit à ranger' : 'Présente le code-barres du paquet vide'}</div>
-      {/if}
-      <button type="button" class="switch" aria-label="Changer de caméra" onclick={() => startCamera(facing === 'user' ? 'environment' : 'user')}>
-        <Icon name="refresh" size={26} />
-      </button>
-    </div>
+    <ScanViewer
+      bind:video
+      {facing}
+      {cameraState}
+      {cameraMessage}
+      flash={shown ? flash : null}
+      remove={gateState === 'hold' && !dialog}
+      {mode}
+      {phone}
+      onSwitch={() => startCamera(facing === 'user' ? 'environment' : 'user')}
+    />
 
     <aside>
       <form class="manual" onsubmit={submitManual}>
@@ -430,138 +331,37 @@
       </p>
 
       <h2 class="card-label">{entries.length ? 'Ce passage' : 'Rien de scanné pour l’instant'}</h2>
-      <ul class="entries">
-        {#each entries as entry (entry.id)}
-          <li class:undone={entry.undone}>
-            <span class="kind {entry.kind}"><Icon name={entry.kind === 'in' ? 'cart' : entry.kind === 'out' ? 'trash' : 'jar'} size={22} /></span>
-            <span class="entry-text">
-              <strong>{entry.title}</strong>
-              <span>{entry.kind !== 'empty' && entry.product && productDetail(entry.product.current) ? `${productDetail(entry.product.current)} · ` : ''}{entry.line}</span>
-              {#if entry.mark}<span class="when">{formatTime(new Date(entry.mark.at))} · {nameOf(entry.mark.by.ownerId) ?? 'anonyme'}</span>{/if}
-            </span>
-            {#if !entry.undone}
-              <span class="entry-actions">
-                {#if entry.product}
-                  <button type="button" class="btn small" onclick={() => entry.product && (dialog = { kind: 'sheet', product: entry.product })}>Ce n’est pas ça ?</button>
-                {/if}
-                {#if entry.kind === 'out' && entry.product}
-                  <button type="button" class="btn small" onclick={() => (dialog = { kind: 'pick-container', entry, name: '' })}>Recharge ?</button>
-                {/if}
-                <button type="button" class="btn small" aria-label="Annuler" disabled={busy} onclick={() => undo(entry)}><Icon name="undo" size={20} /> Annuler</button>
-              </span>
-            {/if}
-          </li>
-        {/each}
-      </ul>
+      <ScanEntries
+        {entries}
+        {busy}
+        {nameOf}
+        onSheet={(product) => (dialog = { kind: 'sheet', product })}
+        onRefill={(entry) => (dialog = { kind: 'pick-container', entry, name: '' })}
+        onUndo={undo}
+      />
     </aside>
   </div>
 </div>
 
-{#if dialog?.kind === 'unknown'}
-  {@const d = dialog}
-  <Modal label="Produit inconnu" locked>
-    <ProductForm
-      title="Produit inconnu"
-      code={d.code}
-      initial={d.suggestion}
-      hint={d.baseError ? 'base injoignable' : 'absent de la base'}
-      submitLabel={mode === 'in' ? 'Enregistrer et ranger' : 'Enregistrer'}
-      onSubmit={async (info) => {
-        const product = await api.saveProduct(d.code, info);
-        dialog = null;
-        await act(() => onProduct(product, 0));
-        if (!dialog) closeDialog();
-      }}
-      onCancel={closeDialog}
-    />
-  </Modal>
-{:else if dialog?.kind === 'out-choice'}
-  {@const d = dialog}
-  <Modal label="Transvasé ou épuisé" locked>
-    <h2>{d.product.current.name}</h2>
-    <p class="dialog-text">D’habitude transvasé dans <strong>{d.container.name}</strong>.</p>
-    <div class="dialog-actions">
-      <button type="button" class="btn primary" disabled={busy} onclick={() => closeThenOut(d.product, { refill: d.container.id })}>
-        <Icon name="jar" size={22} /> Transvasé dans {d.container.name}
-      </button>
-      <button type="button" class="btn" disabled={busy} onclick={() => closeThenOut(d.product, {})}>Épuisé</button>
-      <button type="button" class="btn" onclick={closeDialog}>Annuler</button>
-    </div>
-  </Modal>
-{:else if dialog?.kind === 'forgotten'}
-  {@const d = dialog}
-  <Modal label="Entrée oubliée" locked>
-    <h2>{d.product.current.name}</h2>
-    <p class="dialog-text">Il n’était pas en stock : l’entrée a dû être oubliée. Il en reste à la maison ?</p>
-    <div class="stepper">
-      <button type="button" class="btn" aria-label="Un de moins" disabled={d.remaining === 0} onclick={() => (d.remaining -= 1)}><Icon name="minus" size={24} /></button>
-      <span class="count">{d.remaining}</span>
-      <button type="button" class="btn" aria-label="Un de plus" onclick={() => (d.remaining += 1)}><Icon name="plus" size={24} /></button>
-    </div>
-    <div class="dialog-actions">
-      <button type="button" class="btn primary" disabled={busy} onclick={() => closeThenOut(d.product, { remaining: d.remaining })}>
-        {d.remaining === 0 ? 'Non, plus rien' : `Il en reste ${d.remaining}`}
-      </button>
-      <button type="button" class="btn" onclick={() => (dialog = { kind: 'pick-container', entry: { id: '', kind: 'out', code: d.product.code, product: d.product, title: d.product.current.name, line: '', mark: null, undone: false }, name: '' })}>
-        <Icon name="jar" size={22} /> C’était une recharge
-      </button>
-      <button type="button" class="btn" onclick={closeDialog}>Annuler</button>
-    </div>
-  </Modal>
-{:else if dialog?.kind === 'shop'}
-  {@const d = dialog}
-  <Modal label="Liste de courses" locked>
-    <ShopPrompt
-      code={d.code}
-      label={d.label}
-      onDone={(added) => {
-        if (added) entries = entries.map((e, i) => (i === 0 ? { ...e, line: `${e.line} · ajouté à la liste de courses` } : e));
-        show('ok', d.label, added ? 'Ajouté à la liste de courses' : 'Épuisé');
-        closeDialog();
-      }}
-    />
-  </Modal>
-{:else if dialog?.kind === 'sheet'}
-  {@const d = dialog}
-  <Modal label="Fiche du produit" onClose={closeDialog} wide>
-    <ProductSheet
-      product={d.product}
-      quantity={null}
-      {containers}
-      onChange={(product) => {
-        dialog = { kind: 'sheet', product };
-        entries = entries.map((e) => (e.code === product.code ? { ...e, product, title: product.current.name } : e));
-      }}
-      onClose={closeDialog}
-    />
-  </Modal>
-{:else if dialog?.kind === 'pick-container'}
-  {@const d = dialog}
-  <Modal label="Transvasé dans un contenant" onClose={closeDialog}>
-    <h2>Transvasé dans…</h2>
-    <p class="dialog-text">L’emballage de {d.entry.title} est jeté, mais le produit reste dans un contenant de la maison.</p>
-    <div class="dialog-actions">
-      {#each containers as container (container.id)}
-        <button
-          type="button"
-          class="btn"
-          disabled={busy}
-          onclick={() =>
-            d.entry.id
-              ? convertToRefill(d.entry, container.id, '')
-              : d.entry.product && closeThenOut(d.entry.product, { refill: container.id })}
-        >
-          <Icon name="jar" size={22} /> {container.name}
-        </button>
-      {/each}
-    </div>
-    <form class="manual" onsubmit={(e) => { e.preventDefault(); if (d.name.trim()) void refillIntoNew(d.entry, d.name); }}>
-      <input bind:value={d.name} maxlength="60" placeholder="Nouveau contenant (Bidon de lessive…)" aria-label="Nouveau contenant" />
-      <button type="submit" class="btn small" disabled={busy || !d.name.trim()}>Créer</button>
-    </form>
-    <div class="dialog-actions"><button type="button" class="btn" onclick={closeDialog}>Annuler</button></div>
-  </Modal>
-{/if}
+<ScanDialog
+  bind:dialog
+  {mode}
+  {busy}
+  {containers}
+  onClose={closeDialog}
+  onOut={closeThenOut}
+  onDescribe={describe}
+  onShopDone={(label, added) => {
+    if (added) entries = noteShoppingAdded(entries);
+    show('ok', label, added ? 'Ajouté à la liste de courses' : 'Épuisé');
+    closeDialog();
+  }}
+  onSheetChange={(product) => {
+    dialog = { kind: 'sheet', product };
+    entries = renameProduct(entries, product);
+  }}
+  onRefill={refill}
+/>
 
 <style>
   .scan {
@@ -647,213 +447,6 @@
     font-size: 1rem;
   }
 
-  .phone .hint,
-  .phone .message {
-    font-size: var(--text-label);
-  }
-
-  .viewer {
-    position: relative;
-    overflow: hidden;
-    border: 6px solid transparent;
-    border-radius: var(--radius-lg);
-    background: #000;
-    transition: border-color 0.15s;
-  }
-
-  /* Produit lu, à retirer : bordure de couleur qui pulse. */
-  .viewer.hold {
-    animation: pulse 1s ease-in-out infinite;
-  }
-
-  .viewer.hold.ok {
-    border-color: var(--ok);
-  }
-
-  .viewer.hold.ask {
-    border-color: var(--warn);
-  }
-
-  .viewer.hold.error {
-    border-color: var(--bad);
-  }
-
-  @keyframes pulse {
-    50% {
-      border-color: transparent;
-    }
-  }
-
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  video.mirror {
-    transform: scaleX(-1);
-  }
-
-  .guide {
-    position: absolute;
-    inset: 28% 14%;
-    border: 3px dashed rgb(255 255 255 / 0.7);
-    border-radius: var(--radius-md);
-  }
-
-  .hint,
-  .message {
-    position: absolute;
-    left: 50%;
-    max-width: 90%;
-    transform: translateX(-50%);
-    padding: 10px 18px;
-    border-radius: 999px;
-    background: rgb(15 17 21 / 0.8);
-    font-size: var(--text-body);
-    text-align: center;
-  }
-
-  .hint {
-    top: var(--space-2);
-  }
-
-  .message {
-    top: 45%;
-    border-radius: var(--radius-md);
-  }
-
-  .flash {
-    position: absolute;
-    inset: 0;
-    animation: flash 0.45s ease-out forwards;
-    pointer-events: none;
-  }
-
-  .flash.ok {
-    background: var(--ok);
-  }
-
-  .flash.ask {
-    background: var(--warn);
-  }
-
-  .flash.error {
-    background: var(--bad);
-  }
-
-  @keyframes flash {
-    from {
-      opacity: 0.75;
-    }
-    to {
-      opacity: 0;
-    }
-  }
-
-  .band {
-    position: absolute;
-    left: var(--space-2);
-    right: var(--space-2);
-    bottom: var(--space-2);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    color: var(--bg);
-  }
-
-  .band.ok {
-    background: var(--ok);
-  }
-
-  .band.ask {
-    background: var(--warn);
-  }
-
-  .band.error {
-    background: var(--bad);
-  }
-
-  .band-text {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-    font-size: var(--text-body);
-  }
-
-  /* Nom long : sur deux lignes au plus, plutôt que coupé à la première. */
-  .band-text strong {
-    display: -webkit-box;
-    overflow: hidden;
-    font-size: var(--text-title);
-    line-height: 1.2;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-  }
-
-  .band-info {
-    font-weight: 600;
-  }
-
-  /* Téléphone : texte plus petit, une information par ligne, l'invitation à retirer le produit en dessous. */
-  .phone .band {
-    gap: var(--space-1);
-    padding: 12px var(--space-2);
-  }
-
-  .phone .band-text {
-    flex-basis: 0;
-    font-size: var(--text-label);
-  }
-
-  .phone .band-text strong {
-    font-size: var(--text-body);
-  }
-
-  .phone .remove {
-    flex-basis: 100%;
-    padding: 8px 14px;
-    font-size: var(--text-label);
-    text-align: center;
-  }
-
-  /* L'invitation à retirer le produit : ce qui évite les doublons. */
-  .remove {
-    padding: 10px 18px;
-    border-radius: 999px;
-    background: var(--bg);
-    color: var(--fg);
-    font-size: var(--text-body);
-    font-weight: 700;
-    animation: nudge 0.9s ease-in-out infinite;
-  }
-
-  @keyframes nudge {
-    50% {
-      transform: translateY(-6px);
-    }
-  }
-
-  .switch {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
-    display: grid;
-    width: 56px;
-    height: 56px;
-    place-items: center;
-    border: 0;
-    border-radius: 50%;
-    background: rgb(15 17 21 / 0.75);
-    color: var(--fg);
-  }
-
   aside {
     display: flex;
     flex-direction: column;
@@ -884,76 +477,6 @@
     color: var(--danger-fg);
   }
 
-  .entries {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-    overflow-y: auto;
-    list-style: none;
-  }
-
-  .entries li {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 6px var(--space-2);
-    padding: 12px var(--space-2);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-  }
-
-  .entries li.undone {
-    opacity: 0.5;
-  }
-
-  .kind {
-    display: grid;
-    width: 40px;
-    height: 40px;
-    place-items: center;
-    border-radius: 50%;
-    background: var(--rain-bg);
-    color: var(--rain-soft);
-  }
-
-  .kind.out {
-    background: var(--warn-bg);
-    color: var(--warn);
-  }
-
-  .kind.refill,
-  .kind.empty {
-    background: var(--ok-bg);
-    color: var(--ok-fg);
-  }
-
-  .entry-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .entry-text strong {
-    overflow: hidden;
-    font-size: var(--text-body);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .entry-text span {
-    color: var(--fg-muted);
-  }
-
-  .entry-text .when {
-    font-size: var(--text-small);
-    font-variant-numeric: tabular-nums;
-  }
-
   .who {
     display: flex;
     flex-wrap: wrap;
@@ -976,42 +499,8 @@
     text-decoration: underline;
   }
 
-  .entry-actions {
-    display: flex;
-    flex-wrap: wrap;
-    grid-column: 2;
-    gap: 6px;
-  }
-
   h2 {
     margin: 0;
     font-size: var(--text-title);
-  }
-
-  .dialog-text {
-    margin: 0;
-    color: var(--fg-soft);
-    font-size: var(--text-body);
-  }
-
-  .dialog-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-
-  .stepper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-  }
-
-  .count {
-    min-width: 2ch;
-    font-size: var(--text-display);
-    font-weight: 600;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
   }
 </style>

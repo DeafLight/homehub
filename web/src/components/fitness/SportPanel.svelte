@@ -1,34 +1,24 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { exerciseById, FAMILIES, FAMILY_LABELS } from '../../../../shared/fitness-catalogue.ts';
-  import {
-    type FitnessState,
-    nextSession,
-    OPTION_LABELS,
-    PALIERS,
-    palierHint,
-    pendingReview,
-    planSession,
-    RPE_LABELS,
-    type SessionNumber,
-    sessionSeconds,
-    type SlotProposal,
-    slotProposals,
-    WARMUP_MINUTES,
-    weekOf,
-  } from '../../../../shared/fitness.ts';
-  import type { Api, SessionReport } from '../../lib/api.ts';
-  import { familyExercises, formatMinutes, waistSeries } from '../../lib/fitness.ts';
+  import { type FitnessState, nextSession, pendingReview, planSession, type SessionNumber, type SessionReport, slotProposals, weekOf } from '../../../../shared/fitness.ts';
+  import type { Api } from '../../lib/api.ts';
+  import { familyExercises, waistSeries } from '../../lib/fitness.ts';
   import { createResource } from '../../lib/resource.svelte.ts';
   import Icon from '../Icon.svelte';
-  import ExerciseAnimation from './ExerciseAnimation.svelte';
   import ExerciseDetail from './ExerciseDetail.svelte';
+  import ExerciseList from './ExerciseList.svelte';
+  import HistoryCard from './HistoryCard.svelte';
+  import NextSessionCard from './NextSessionCard.svelte';
+  import ProposalCard from './ProposalCard.svelte';
   import SessionForm from './SessionForm.svelte';
   import StatsView from './StatsView.svelte';
+  import WeekLogCard from './WeekLogCard.svelte';
+  import WeekReviewCard from './WeekReviewCard.svelte';
 
   // Onglet Sport du téléphone : la prochaine séance, le bilan de la semaine (rythme à choisir), les changements
   // d'exercice proposés, le cardio et le tour de taille de la semaine, l'historique, les statistiques et le catalogue des
-  // exercices.
+  // exercices. Ce composant garde le programme et la vue affichée ; chaque carte est un composant de ce dossier.
   // Données personnelles : seul ce téléphone les voit.
   type Props = { api: Api; now: Date; onScrollTop: () => void };
   let { api, now, onScrollTop }: Props = $props();
@@ -47,6 +37,9 @@
     view = next;
     onScrollTop();
   }
+
+  /** Fiche d'un exercice, avec retour vers `back`. */
+  const open = (back: View) => (id: string) => go({ name: 'exercise', id, back });
 
   const program = $derived(fitness.data);
   const session = $derived(chosen ?? (program ? nextSession(program) : 1));
@@ -72,46 +65,12 @@
     }
   }
 
+  /** Séance notée ; un refus du serveur s'affiche dans le formulaire (SessionForm), qui reste ouvert. */
   async function submit(report: SessionReport) {
     const next = await api.addFitnessSession(report);
     fitness.set(next);
     chosen = null;
     go({ name: 'home' });
-  }
-
-  const choose = (option: Parameters<Api['chooseRhythm']>[1]) => review && act(() => api.chooseRhythm(review.week, option));
-  const answer = (p: SlotProposal, accept: boolean) => act(() => api.changeExercise(p.session, p.family, accept ? p.change : 'dismiss'));
-
-  // Cardio et tour de taille de la semaine : champs locaux, enregistrés au bouton.
-  let cardio = $state<number | null>(null);
-  let waistInput = $state<number | null>(null);
-  let loadedWeek = $state<string | null>(null);
-  $effect(() => {
-    if (!program || loadedWeek === thisWeek) return;
-    const log = program.weeks[thisWeek];
-    cardio = log?.cardio ?? null;
-    waistInput = log?.waist ?? null;
-    loadedWeek = thisWeek;
-  });
-  const weekDirty = $derived(
-    program !== null && ((program.weeks[thisWeek]?.cardio ?? null) !== (cardio ?? null) || (program.weeks[thisWeek]?.waist ?? null) !== (waistInput ?? null)),
-  );
-  const saveWeek = () =>
-    act(() => api.saveFitnessWeek(thisWeek, { cardio: typeof cardio === 'number' ? Math.round(cardio) : null, waist: typeof waistInput === 'number' ? waistInput : null }));
-
-  let confirmDelete = $state<string | null>(null);
-  const formatDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-
-  /** Points du tour de taille, pour la courbe. */
-  function waistPath(points: { waist: number }[]) {
-    const W = 300;
-    const H = 80;
-    const min = Math.min(...points.map((p) => p.waist));
-    const max = Math.max(...points.map((p) => p.waist));
-    const span = max - min || 1;
-    return points
-      .map((p, i) => `${(i / (points.length - 1)) * (W - 12) + 6},${H - 8 - ((p.waist - min) / span) * (H - 16)}`)
-      .join(' ');
   }
 </script>
 
@@ -127,29 +86,19 @@
   {#if view.name === 'exercise'}
     {@const exercise = exerciseById(view.id)}
     {#if exercise}
-      <ExerciseDetail {exercise} onOpen={(id) => go({ name: 'exercise', id, back: view.name === 'exercise' ? view.back : { name: 'home' } })} />
+      <ExerciseDetail {exercise} onOpen={open(view.name === 'exercise' ? view.back : { name: 'home' })} />
     {/if}
   {:else if view.name === 'stats'}
     {#if program}
-      <StatsView {program} {now} onOpen={(id) => go({ name: 'exercise', id, back: { name: 'stats' } })} />
+      <StatsView {program} {now} onOpen={open({ name: 'stats' })} />
     {/if}
   {:else if view.name === 'catalogue'}
     <h2 class="section">Les exercices</h2>
     {#each FAMILIES as family (family)}
       <h3 class="family">{FAMILY_LABELS[family]}</h3>
-      <ul class="list">
-        {#each familyExercises(family) as e (e.id)}
-          <li>
-            <button type="button" class="thumbed" onclick={() => go({ name: 'exercise', id: e.id, back: { name: 'catalogue' } })}>
-              <span class="thumb"><ExerciseAnimation id={e.id} still height={40} /></span>
-              <span class="text">
-                <span>{e.name}</span>
-                <span class="muted small">{e.primary.join(', ')}</span>
-              </span>
-            </button>
-          </li>
-        {/each}
-      </ul>
+      <ExerciseList items={familyExercises(family)} key={(e) => e.id} exercise={(e) => e} boxed onOpen={open({ name: 'catalogue' })}>
+        {#snippet detail(e)}{e.primary.join(', ')}{/snippet}
+      </ExerciseList>
     {/each}
   {:else if !program}
     {#if fitness.error}<p class="muted">Impossible de charger le programme : {fitness.error}</p>{:else}<p class="muted">Chargement…</p>{/if}
@@ -157,113 +106,26 @@
     <SessionForm {session} {plan} onSubmit={submit} onCancel={() => go({ name: 'home' })} />
   {:else}
     {#if review}
-      <section class="card review">
-        <h2>Bilan de la semaine</h2>
-        <p>
-          {#if review.verdict === 'up'}
-            {review.sessions} séances, aucune dure : tu peux augmenter.
-          {:else}
-            Semaine difficile : tu peux alléger le rythme.
-          {/if}
-        </p>
-        <div class="choices">
-          {#each review.choices as c, i (c.option)}
-            <button type="button" class:primary={i === 0} disabled={busy} onclick={() => choose(c.option)}>
-              <span>{c.option === 'next-palier' ? `Palier ${c.rhythm.palier} (${PALIERS[c.rhythm.palier].name})` : OPTION_LABELS[c.option]}</span>
-              <span class="small">{c.rhythm.effort} s / {c.rhythm.rest} s · {PALIERS[c.rhythm.palier].rounds} tours · {formatMinutes(c.seconds)}</span>
-            </button>
-          {/each}
-        </div>
-      </section>
+      <WeekReviewCard {review} {busy} onChoose={(option) => act(() => api.chooseRhythm(review.week, option))} />
     {/if}
 
-    <section class="card">
-      <div class="next-head">
-        <h2>Séance {session}</h2>
-        <div class="pick" role="group" aria-label="Choisir une autre séance">
-          {#each [1, 2, 3] as const as n (n)}
-            <button type="button" class:on={n === session} aria-pressed={n === session} onclick={() => (chosen = n)}>{n}</button>
-          {/each}
-        </div>
-      </div>
-      <p class="rhythm">
-        Palier {program.palier} · {PALIERS[program.palier].name} · {PALIERS[program.palier].rounds} tours ·
-        <strong>{program.effort} s</strong> d’effort / <strong>{program.rest} s</strong> de repos
-      </p>
-      <p class="muted small">
-        {formatMinutes(sessionSeconds(program))}, plus {WARMUP_MINUTES} min d’échauffement ; 1 min de pause entre les tours.
-      </p>
-      <ul class="list plan">
-        {#each plan as item (item.family)}
-          <li>
-            <button type="button" class="thumbed" onclick={() => go({ name: 'exercise', id: item.exercise.id, back: { name: 'home' } })}>
-              <span class="thumb"><ExerciseAnimation id={item.exercise.id} still height={40} /></span>
-              <span class="text">
-                <span>{item.exercise.name}</span>
-                <span class="muted small">
-                  {FAMILY_LABELS[item.family]}{item.exercise.unit === 's' ? ' · tenir' : ''}{item.exercise.sides ? ' · change de côté à chaque tour' : ''}
-                  {#if item.normal}· à la place de {item.normal.name}{/if}
-                </span>
-              </span>
-            </button>
-          </li>
-        {/each}
-      </ul>
-      <button type="button" class="big" onclick={() => go({ name: 'log' })}>Noter la séance</button>
-      <p class="hint">{palierHint(program)}</p>
-    </section>
+    <NextSessionCard {program} {session} {plan} onPick={(n) => (chosen = n)} onOpen={open({ name: 'home' })} onLog={() => go({ name: 'log' })} />
 
     {#each proposals as p (`${p.session}-${p.family}`)}
-      <section class="card proposal">
-        <p>
-          <strong>{p.from.name}</strong> (séance {p.session}) : {p.reason}.
-          {p.change === 'normal' ? 'Reprendre' : 'Passer à'} <strong>{p.to.name}</strong> ?
-        </p>
-        <div class="row">
-          <button type="button" class="primary" disabled={busy} onclick={() => answer(p, true)}>Oui</button>
-          <button type="button" disabled={busy} onclick={() => go({ name: 'exercise', id: p.to.id, back: { name: 'home' } })}>Voir</button>
-          <button type="button" disabled={busy} onclick={() => answer(p, false)}>Non merci</button>
-        </div>
-      </section>
+      <ProposalCard
+        proposal={p}
+        {busy}
+        onAnswer={(accept) => act(() => api.changeExercise(p.session, p.family, accept ? p.change : 'dismiss'))}
+        onOpen={open({ name: 'home' })}
+      />
     {/each}
 
-    <section class="card">
-      <h2>Cette semaine</h2>
-      <p class="muted">{weekSessions} séance{weekSessions > 1 ? 's' : ''} sur 3</p>
-      <div class="week">
-        <label>Cardio <input type="number" inputmode="numeric" min="0" max="5000" bind:value={cardio} placeholder="—" /> min</label>
-        <label>Tour de taille <input type="number" inputmode="decimal" min="30" max="250" step="0.5" bind:value={waistInput} placeholder="—" /> cm</label>
-      </div>
-      {#if weekDirty}<button type="button" class="big" disabled={busy} onclick={saveWeek}>Enregistrer</button>{/if}
-      {#if waist.length >= 2}
-        <svg class="chart" viewBox="0 0 300 80" role="img" aria-label="Tour de taille au fil des semaines">
-          <polyline points={waistPath(waist)} fill="none" stroke="var(--rain)" stroke-width="2.5" stroke-linejoin="round" />
-        </svg>
-        <p class="muted small">
-          Tour de taille : {waist[0].waist} cm → {waist.at(-1)?.waist} cm ({waist.length} semaines)
-        </p>
-      {/if}
-    </section>
+    {#key thisWeek}
+      <WeekLogCard saved={program.weeks[thisWeek]} sessions={weekSessions} {waist} {busy} onSave={(log) => act(() => api.saveFitnessWeek(thisWeek, log))} />
+    {/key}
 
     {#if program.sessions.length}
-      <section class="card">
-        <h2>Historique</h2>
-        <ul class="history">
-          {#each program.sessions.slice(-10).reverse() as s (s.id)}
-            <li>
-              <span class="when">{formatDate(s.at)}</span>
-              <span class="what">
-                Séance {s.session} · {s.effort}/{s.rest} · {RPE_LABELS[s.rpe].toLowerCase()}{s.stopped ? ' · arrêtée' : ''}
-              </span>
-              {#if confirmDelete === s.id}
-                <button type="button" class="danger" disabled={busy} onclick={() => act(() => api.removeFitnessSession(s.id))}>Supprimer</button>
-              {:else}
-                <button type="button" class="icon" aria-label="Supprimer cette séance" onclick={() => (confirmDelete = s.id)}><Icon name="trash" size={18} /></button>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      </section>
+      <HistoryCard sessions={program.sessions} {busy} onRemove={(id) => act(() => api.removeFitnessSession(id))} />
     {/if}
 
     <button type="button" class="link" onclick={() => go({ name: 'stats' })}>
@@ -300,154 +162,17 @@
     font-weight: 600;
   }
 
-  .card {
-    margin-bottom: 14px;
-    padding: 14px 16px;
-    border-radius: 18px;
-    background: var(--surface);
-  }
-
-  .card h2,
   .section {
     margin: 0 0 6px;
     font-size: 1.25rem;
-  }
-
-  .card p {
-    margin: 0 0 8px;
   }
 
   .muted {
     color: var(--fg-muted);
   }
 
-  .small {
-    font-size: 0.88rem;
-  }
-
   .error {
     color: var(--danger-fg);
-  }
-
-  .review {
-    border: 2px solid var(--rain);
-  }
-
-  .choices {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .choices button {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    min-height: 56px;
-    padding: 8px 14px;
-    border: 1px solid var(--border-strong);
-    border-radius: 14px;
-    background: none;
-    color: var(--fg);
-    font: inherit;
-    font-weight: 600;
-    text-align: left;
-  }
-
-  .choices button .small {
-    font-weight: 400;
-    color: var(--fg-muted);
-  }
-
-  .choices button.primary {
-    border-color: var(--rain);
-    background: var(--rain);
-    color: var(--bg);
-  }
-
-  .choices button.primary .small {
-    color: var(--bg);
-  }
-
-  .next-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .pick {
-    display: flex;
-    gap: 4px;
-  }
-
-  .pick button {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border-strong);
-    border-radius: 50%;
-    background: none;
-    color: var(--fg-muted);
-    font: inherit;
-    font-weight: 700;
-  }
-
-  .pick button.on {
-    border-color: var(--fg);
-    color: var(--fg);
-  }
-
-  .rhythm {
-    font-size: 1.05rem;
-  }
-
-  .list {
-    margin: 0 0 12px;
-    padding: 0;
-    list-style: none;
-  }
-
-  .list li {
-    border-bottom: 1px solid var(--surface-2);
-  }
-
-  .list li:last-child {
-    border-bottom: 0;
-  }
-
-  .list button {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 100%;
-    min-height: 54px;
-    padding: 8px 0;
-    border: 0;
-    background: none;
-    color: var(--fg);
-    font: inherit;
-    font-size: 1.08rem;
-    text-align: left;
-  }
-
-  .list button.thumbed {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .thumb {
-    display: grid;
-    flex: none;
-    width: 64px;
-    place-items: center;
-  }
-
-  .text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
   }
 
   .family {
@@ -457,135 +182,6 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--fg-muted);
-  }
-
-  ul.list:not(.plan) {
-    padding: 0 14px;
-    border-radius: 18px;
-    background: var(--surface);
-  }
-
-  .big {
-    width: 100%;
-    min-height: 54px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--rain);
-    color: var(--bg);
-    font: inherit;
-    font-size: 1.1rem;
-    font-weight: 700;
-  }
-
-  .hint {
-    margin: 10px 0 0 !important;
-    color: var(--ok-fg);
-    font-size: 0.95rem;
-  }
-
-  .proposal .row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .proposal .row button {
-    flex: 1;
-    min-height: 44px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: var(--fg);
-    font: inherit;
-    font-weight: 600;
-  }
-
-  .proposal .row button.primary {
-    background: var(--rain);
-    color: var(--bg);
-  }
-
-  .week {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 18px;
-    margin-bottom: 10px;
-  }
-
-  .week label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .week input {
-    width: 4.5em;
-    min-height: 42px;
-    padding: 0 8px;
-    border: 1px solid var(--border-strong);
-    border-radius: 10px;
-    background: var(--bg);
-    color: var(--fg);
-    font: inherit;
-    font-size: 1.05rem;
-    text-align: right;
-  }
-
-  .chart {
-    display: block;
-    width: 100%;
-    height: auto;
-    margin-top: 10px;
-  }
-
-  .history {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .history li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 48px;
-    border-bottom: 1px solid var(--surface-2);
-  }
-
-  .history li:last-child {
-    border-bottom: 0;
-  }
-
-  .when {
-    min-width: 86px;
-    color: var(--fg-muted);
-    font-size: 0.92rem;
-  }
-
-  .what {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .icon {
-    display: grid;
-    width: 40px;
-    height: 40px;
-    place-items: center;
-    border: 0;
-    border-radius: 50%;
-    background: none;
-    color: var(--fg-muted);
-  }
-
-  .danger {
-    min-height: 38px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--danger-bg);
-    color: var(--danger-fg);
-    font: inherit;
-    font-weight: 600;
   }
 
   .link {

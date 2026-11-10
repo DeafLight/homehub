@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import { canWrite } from '../../../shared/rights.ts';
-  import { FAMILY_ID, type Note, type Task } from '../../../shared/types.ts';
+  import type { Note, Task } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
@@ -9,15 +8,18 @@
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
   import SportPanel from '../components/fitness/SportPanel.svelte';
+  import BottomSheet from '../components/phone/BottomSheet.svelte';
+  import PhoneAgenda from '../components/phone/PhoneAgenda.svelte';
+  import PhoneNav from '../components/phone/PhoneNav.svelte';
+  import PhoneNotes from '../components/phone/PhoneNotes.svelte';
+  import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
-  import { agendaDays } from '../lib/agenda.ts';
   import { getAppContext } from '../lib/context.ts';
-  import { capitalize, formatAgo, formatDay } from '../lib/format.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { clearPairing, loadPairing } from '../lib/phone.ts';
+  import { canMarkSeen, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { routineFooter, routineTitle } from '../lib/routine.ts';
   import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
@@ -28,16 +30,16 @@
   const HOMEWORK_REFRESH_MS = 10 * 60_000;
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
-  // jours, mots reçus et, pour un adulte qui a un programme, le sport. Tout ce qui est coché ou ajouté l'est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout.
+  // jours, mots reçus et, pour un adulte qui a un programme, le sport. Tout ce qui est coché ou ajouté l'est au nom de
+  // ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout. Règles : lib/phone-app.ts ;
+  // onglets : components/phone/.
   type Props = { tab: PhoneTab; shared?: string };
   let { tab, shared }: Props = $props();
 
   const { api, config, profiles, clock, navigate } = getAppContext();
   const pairing = loadPairing();
   const me = profiles.find((p) => p.id === pairing?.ownerId);
-  /** « Vu » : sur les mots de mon profil ; ceux de toute la famille, seulement pour un parent. */
   const member = config.members.find((m) => m.id === pairing?.ownerId);
-  const canMarkSeen = (note: Note) => member !== undefined && canWrite(member, note.to);
 
   /** Le serveur ne reconnaît plus le téléphone (retiré depuis la tablette). */
   let revoked = $state(false);
@@ -78,13 +80,8 @@
   let writing = $state(false);
   let noteError = $state<string | null>(null);
 
-  /** Mots reçus (pour moi ou pour toute la famille, sauf les miens) : ceux pas encore vus d'abord. */
-  const received = $derived(
-    (notes.data ?? [])
-      .filter((n) => (n.to === me?.id || n.to === FAMILY_ID) && n.from.ownerId !== me?.id)
-      .sort((a, b) => Number(Boolean(a.seenAt)) - Number(Boolean(b.seenAt))),
-  );
-  const unseen = $derived(received.filter((n) => !n.seenAt && canMarkSeen(n)).length);
+  const received = $derived(receivedNotes(notes.data ?? [], me?.id ?? ''));
+  const unseen = $derived(unseenCount(received, member));
   /** Étapes de la routine du moment pas encore cochées (pastille de l'onglet Tâches). */
   const routineLeft = $derived(routine.data?.items.filter((i) => !i.done).length ?? 0);
   let routineError = $state<string | null>(null);
@@ -136,15 +133,9 @@
     if (shared !== undefined) navigate(phonePath(tab));
   }
 
-  const TABS: { tab: PhoneTab; label: string; icon: 'cart' | 'check' | 'calendar' | 'message' | 'dumbbell' }[] = [
-    { tab: 'shopping', label: 'Courses', icon: 'cart' },
-    { tab: 'tasks', label: 'Tâches', icon: 'check' },
-    { tab: 'agenda', label: 'Agenda', icon: 'calendar' },
-    { tab: 'notes', label: 'Mots', icon: 'message' },
-    ...(member?.fitness ? [{ tab: 'sport' as const, label: 'Sport', icon: 'dumbbell' as const }] : []),
-  ];
+  const TABS = phoneTabs(Boolean(member?.fitness));
   let scroller = $state<HTMLElement | null>(null);
-  const nameOf = (id: string) => profiles.find((p) => p.id === id);
+  const profileOf = (id: string) => profiles.find((p) => p.id === id);
 </script>
 
 <div class="phone">
@@ -165,52 +156,17 @@
       {#if lists.actionError}<p class="error">{lists.actionError}</p>{/if}
 
       {#if tab === 'notes'}
-        {#if noteError}<p class="error">{noteError}</p>{/if}
-        {#if notes.data}
-          <ul class="notes">
-            {#each received as note (note.id)}
-              {@const author = nameOf(note.from.ownerId ?? '')}
-              <li class:read={note.seenAt}>
-                {#if author}<Avatar profile={author} size={36} />{/if}
-                <div class="note-body">
-                  <span class="note-text">{note.text}</span>
-                  <span class="muted small">
-                    {author?.name ?? 'Tablette'}{note.to === FAMILY_ID ? ' · pour la famille' : ''} · {formatAgo(new Date(note.at), clock.now)}
-                  </span>
-                </div>
-                {#if !note.seenAt && canMarkSeen(note)}
-                  <button type="button" class="seen" onclick={() => seeNote(note)}>Vu</button>
-                {/if}
-              </li>
-            {:else}
-              <li class="muted">Pas de mot cette semaine.</li>
-            {/each}
-          </ul>
-        {:else if notes.error}
-          <p class="muted">Impossible de charger les mots : {notes.error}</p>
-        {/if}
+        <PhoneNotes
+          received={notes.data ? received : null}
+          loadError={notes.error}
+          actionError={noteError}
+          now={clock.now}
+          {profileOf}
+          canSee={(note) => canMarkSeen(member, note)}
+          onSee={seeNote}
+        />
       {:else if tab === 'agenda'}
-        {#if agenda.data}
-          {#each agendaDays(agenda.data, new Set([me.id, FAMILY_ID]), clock.now) as day (day.date.getTime())}
-            <section class="day">
-              <h2>{capitalize(formatDay(day.date, clock.now))}</h2>
-              <ul>
-                {#each day.items as item (item.id)}
-                  {@const owner = nameOf(item.ownerId)}
-                  <li>
-                    <span class="when">{item.when}</span>
-                    <span class="title">{item.title}</span>
-                    {#if owner}<Avatar profile={owner} size={26} />{/if}
-                  </li>
-                {/each}
-              </ul>
-            </section>
-          {:else}
-            <p class="muted">Rien de prévu cette semaine.</p>
-          {/each}
-        {:else if agenda.error}
-          <p class="muted">Impossible de charger l’agenda : {agenda.error}</p>
-        {/if}
+        <PhoneAgenda weeks={agenda.data} loadError={agenda.error} meId={me.id} now={clock.now} {profileOf} />
       {:else if tab === 'sport'}
         {#if member?.fitness}
           <SportPanel {api} now={clock.now} onScrollTop={() => scroller?.scrollTo({ top: 0 })} />
@@ -232,23 +188,7 @@
           />
         {:else}
           {#if routine.data}
-            {@const current = routine.data}
-            {@const footer = routineFooter(current)}
-            <section class="routine" aria-label={routineTitle(current)}>
-              <h2>{routineTitle(current)}</h2>
-              {#if routineError}<p class="error">{routineError}</p>{/if}
-              <ul>
-                {#each current.items as item (item.id)}
-                  <li>
-                    <label class:done={item.done}>
-                      <input type="checkbox" checked={item.done} style:accent-color={me.color} onchange={(e) => toggleRoutine(item, e.currentTarget.checked)} />
-                      {item.label}
-                    </label>
-                  </li>
-                {/each}
-              </ul>
-              {#if footer}<p class="routine-footer">{footer}</p>{/if}
-            </section>
+            <PhoneRoutine routine={routine.data} color={me.color} error={routineError} onToggle={toggleRoutine} />
           {/if}
           {#if homework.data}
             <div class="homework">
@@ -285,42 +225,27 @@
       </button>
     {/if}
 
-    <nav style:grid-template-columns={`repeat(${TABS.length}, 1fr)`}>
-      {#each TABS as item (item.tab)}
-        <button type="button" class:on={item.tab === tab} aria-current={item.tab === tab ? 'page' : undefined} onclick={() => navigate(phonePath(item.tab))}>
-          <span class="tab-icon">
-            <Icon name={item.icon} size={26} />
-            {#if item.tab === 'notes' && unseen > 0}<span class="badge">{unseen}</span>{/if}
-            {#if item.tab === 'tasks' && routineLeft > 0}<span class="badge routine-badge">{routineLeft}</span>{/if}
-          </span>
-          {item.label}
-        </button>
-      {/each}
-    </nav>
+    <PhoneNav tabs={TABS} current={tab} {unseen} {routineLeft} onGo={(target) => navigate(phonePath(target))} />
 
     {#if writing}
-      <div class="sheet-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && (writing = false)}>
-        <div class="sheet" role="dialog" aria-modal="true" aria-label="Laisser un mot">
-          <NoteForm from={me} profiles={profiles.filter((p) => p.id !== me.id)} onSubmit={writeNote} onCancel={() => (writing = false)} />
-        </div>
-      </div>
+      <BottomSheet label="Laisser un mot" onClose={() => (writing = false)}>
+        <NoteForm from={me} profiles={profiles.filter((p) => p.id !== me.id)} onSubmit={writeNote} onCancel={() => (writing = false)} />
+      </BottomSheet>
     {/if}
 
     {#if adding}
-      <div class="sheet-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && cancelAdd()}>
-        <div class="sheet" role="dialog" aria-modal="true" aria-label="Ajouter">
-          <AddForm
-            kind={tab === 'shopping' ? 'shopping' : 'task'}
-            text={shared ?? ''}
-            ownerId={me.id}
-            {profiles}
-            now={clock.now}
-            note={shared !== undefined ? 'Partagé depuis une autre appli' : undefined}
-            onSubmit={add}
-            onCancel={cancelAdd}
-          />
-        </div>
-      </div>
+      <BottomSheet label="Ajouter" onClose={cancelAdd}>
+        <AddForm
+          kind={tab === 'shopping' ? 'shopping' : 'task'}
+          text={shared ?? ''}
+          ownerId={me.id}
+          {profiles}
+          now={clock.now}
+          note={shared !== undefined ? 'Partagé depuis une autre appli' : undefined}
+          onSubmit={add}
+          onCancel={cancelAdd}
+        />
+      </BottomSheet>
     {/if}
   {/if}
 </div>
@@ -372,100 +297,6 @@
     color: var(--danger-fg);
   }
 
-  .day h2 {
-    margin: 18px 0 6px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--fg-muted);
-  }
-
-  .day ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    border-radius: 18px;
-    background: var(--surface);
-  }
-
-  .day li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 52px;
-    padding: 0 14px;
-    border-bottom: 1px solid var(--surface-2);
-  }
-
-  .day li:last-child {
-    border-bottom: 0;
-  }
-
-  .when {
-    min-width: 58px;
-    font-variant-numeric: tabular-nums;
-    color: var(--fg-muted);
-  }
-
-  .title {
-    flex: 1;
-    font-size: 1.1rem;
-  }
-
-  .notes {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    border-radius: 18px;
-    background: var(--surface);
-  }
-
-  .notes li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 64px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--surface-2);
-  }
-
-  .notes li:last-child {
-    border-bottom: 0;
-  }
-
-  .notes li.read {
-    opacity: 0.55;
-  }
-
-  .note-body {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .note-text {
-    font-size: 1.15rem;
-    overflow-wrap: anywhere;
-  }
-
-  .small {
-    font-size: 0.9rem;
-  }
-
-  .seen {
-    min-height: 40px;
-    padding: 0 16px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--rain);
-    color: var(--bg);
-    font: inherit;
-    font-weight: 700;
-  }
-
   .stock-link {
     display: flex;
     align-items: center;
@@ -492,84 +323,6 @@
     padding: 16px 18px;
   }
 
-  .routine {
-    margin-bottom: 18px;
-    padding: 12px 14px 6px;
-    border-radius: 18px;
-    background: var(--surface);
-  }
-
-  .routine h2 {
-    margin: 0 0 4px;
-    font-size: 1.15rem;
-    font-weight: 700;
-  }
-
-  .routine ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .routine li {
-    border-bottom: 1px solid var(--surface-2);
-  }
-
-  .routine li:last-child {
-    border-bottom: 0;
-  }
-
-  .routine label {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-height: var(--list-row);
-    font-size: var(--list-font);
-  }
-
-  .routine label.done {
-    color: var(--fg-muted);
-    text-decoration: line-through;
-  }
-
-  .routine input {
-    width: 26px;
-    height: 26px;
-    margin: 0;
-  }
-
-  .routine-footer {
-    margin: 4px 0 8px;
-    color: var(--ok-fg);
-    font-weight: 600;
-  }
-
-  .badge.routine-badge {
-    background: var(--rain-soft);
-  }
-
-  .tab-icon {
-    position: relative;
-    display: inline-grid;
-  }
-
-  .badge {
-    position: absolute;
-    top: -6px;
-    right: -12px;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
-    box-sizing: border-box;
-    border-radius: 999px;
-    background: var(--danger-fg);
-    color: var(--bg);
-    font-size: 0.75rem;
-    font-weight: 700;
-    line-height: 20px;
-    text-align: center;
-  }
-
   .fab {
     position: fixed;
     right: max(18px, calc(50vw - 302px));
@@ -583,58 +336,6 @@
     background: var(--rain);
     color: var(--bg);
     box-shadow: 0 6px 18px rgb(0 0 0 / 40%);
-  }
-
-  nav {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--surface-2);
-    background: var(--surface-rail);
-  }
-
-  nav button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 6px 0;
-    border-radius: 14px;
-    border: 0;
-    background: none;
-    color: var(--fg-muted);
-    font: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  nav button.on {
-    color: var(--fg);
-    background: var(--surface-2);
-  }
-
-  .sheet-backdrop {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    background: rgb(0 0 0 / 60%);
-  }
-
-  .sheet {
-    width: 100%;
-    max-width: 640px;
-    max-height: 92dvh;
-    box-sizing: border-box;
-    padding: 22px 16px calc(16px + env(safe-area-inset-bottom));
-    border-radius: 26px 26px 0 0;
-    background: var(--surface);
-    overflow-y: auto;
-  }
-
-  .sheet :global(textarea) {
-    font-size: max(16px, 1.1rem);
   }
 
   .unpaired {

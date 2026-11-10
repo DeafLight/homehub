@@ -579,3 +579,51 @@ export type StockMovementResult = StockMark & {
 
 /** « Revérifier » : ce que dit la base maintenant, à côté de la version en vigueur. */
 export type ProductRecheck = { current: ProductInfo; base: ProductInfo | null; differs: boolean; baseError: boolean };
+
+// --- Échanges de l'API : corps envoyés et réponses, écrits une fois pour le serveur et le client (web/src/lib/api.ts) ---
+
+/** Nouvelle tâche (POST /api/lists/tasks). */
+export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
+
+/** Sortie du stock (POST /api/stock/out) : tout d'un coup, transvasée dans un contenant, ou entrée oubliée. */
+export type StockOutOptions = { all?: boolean; refill?: string | null; remaining?: number };
+
+/** Préférences d'un produit : liste de courses d'office (null : réglage du stock), contenant habituel. */
+export type ProductPreferences = { autoShop?: boolean | null; refill?: string | null };
+
+/** Analyse d'un visage par la tablette : empreinte, et scores contre une photo (`real`) ou un écran (`live`). */
+export type FaceReadingInput = { embedding: number[]; real: number; live: number };
+
+/** Ressemblance avec une personne enregistrée (0 à 1). */
+export type FaceScore = { ownerId: string; score: number };
+
+/** Seuils de la reconnaissance (faces.* de homehub.yaml). */
+export type FaceThresholds = { threshold: number; margin: number; antispoof: number; liveness: number };
+
+/**
+ * Verdict d'une analyse : `ok`, ou la raison du refus (`photo` : score contre une photo trop bas ; `screen` : contre
+ * un écran ; `none` : aucun visage enregistré ; `low` : ressemblance sous le seuil ; `close` : trop proche de la
+ * personne suivante pour trancher).
+ */
+export type FaceVerdict = {
+  result: 'ok' | 'photo' | 'screen' | 'none' | 'low' | 'close';
+  /** Personne la plus ressemblante, et sa ressemblance ; `next` : celle de la suivante. */
+  ownerId: string | null;
+  score: number;
+  next: number;
+};
+
+/** Diagnostic d'une analyse (POST /api/faces/diagnose) : verdict, ressemblances et seuils en vigueur. */
+export type FaceDiagnosis = { scores: FaceScore[]; verdict: FaceVerdict; rules: FaceThresholds };
+
+/**
+ * Personne reconnue (POST /api/faces/identify) : sa session, présentée ensuite dans X-Actor-Session. `expiresAt` :
+ * seulement pour une session nouvelle (celle qui est présentée et prolongée n'en renvoie pas).
+ */
+export type FaceSession = { ownerId: string; token: string; expiresAt?: string };
+
+/** Empreintes enregistrées et apprises, par personne. */
+export type FaceCounts = Record<string, { enrolled: number; learned: number }>;
+
+/** Visages connus de la tablette (GET /api/faces). */
+export type FacesOverview = { enrolled: string[]; samples: FaceCounts };

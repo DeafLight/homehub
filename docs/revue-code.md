@@ -25,13 +25,13 @@ ce mécanisme, pas aux symptômes un par un.
 | 5 | Moyenne | `/stock/products/:code/recheck` sans contrôle d'accès, déclenche des appels sortants | Corrigé en 0.40.0 (avec `GET /stock/scan/:code`) |
 | 6 | Moyenne | Service du dashboard : un magasin créé en cachette (DIP), six try/catch recopiés, transports mélangés aux écrans | Corrigé (`ff4bd37`) |
 | 7 | Moyenne | Chaînes « config → membres → find » partout (Loi de Déméter) | Corrigé côté serveur ; 26 restent dans le front |
-| 8 | Moyenne | Composants Svelte géants (Scan 1017 lignes, Transit 921, Phone 661, SportPanel 613, Stock 609) | Prochaines étapes |
+| 8 | Moyenne | Composants Svelte géants (Scan 1017 lignes, Transit 921, Phone 661, SportPanel 613, Stock 609) | Corrigé en 0.42.0 |
 | 9 | Moyenne | Règles « quelle page fait quoi » recopiées dans quatre composants | Corrigé (`b99dec0`) |
-| 10 | Moyenne | Machine à états du minuteur de séance dans le composant, sans test ; verrou d'écran qui peut fuir | Prochaines étapes |
+| 10 | Moyenne | Machine à états du minuteur de séance dans le composant, sans test ; verrou d'écran qui peut fuir | Corrigé en 0.42.0 (reste : Screensaver, `createResource`) |
 | 11 | Basse | Messages d'erreur incohérents (`prettifyError`, premier problème, texte fixe) | Corrigé pour les routes refaites |
-| 12 | Basse | Types recopiés entre `web/src/lib/api.ts` et le serveur | Prochaines étapes |
-| 13 | Basse | Couplage latéral entre sources, utilitaires mal rangés, en-tête manquant | Prochaines étapes |
-| 14 | Basse | Magasins et sources sans test (`transit-settings`, `fitness`, `stock`, `gtfs-rt`, `geocode`) | Prochaines étapes |
+| 12 | Basse | Types recopiés entre `web/src/lib/api.ts` et le serveur | Corrigé en 0.42.0 |
+| 13 | Basse | Couplage latéral entre sources, utilitaires mal rangés, en-tête manquant | En partie en 0.42.0 (module scolaire, en-tête) |
+| 14 | Basse | Magasins et sources sans test (`transit-settings`, `fitness`, `stock`, `gtfs-rt`, `geocode`) | Corrigé en 0.42.0 |
 
 ## 1. Sécurité : l'adresse du client est crue sur parole
 
@@ -191,6 +191,20 @@ Plus de 300 lignes de script dans un composant, c'est de la logique que vitest n
 `web/src/lib/` sont, elles, très bien testées. Il faut continuer à y descendre la logique (machine à états du scan,
 formulaires) et découper l'affichage en sous-composants.
 
+**Fait en 0.42.0.** Même comportement et même rendu (captures comparées au pixel près) ; la logique descend dans
+`web/src/lib/`, testée, et l'affichage dans des sous-composants :
+
+| Écran | Lignes | Logique sortie (testée) | Sous-composants |
+|---|---|---|---|
+| `Scan.svelte` | 1017 → 506 | `lib/scan.ts` (historique, suites d'une sortie, code tapé, erreurs de caméra), `lib/barcode-camera.ts` | `stock/ScanViewer`, `ScanEntries`, `ScanDialog` |
+| `Transit.svelte` | 921 → 214 | `lib/transit-edit.ts` (adresses, clés de recherche, choix d'itinéraire, marche), `lib/debounce.ts` | `transit/PlacesCard`, `HomeStopsCard`, `CommutesCard`, `transit.css` |
+| `Phone.svelte` | 661 → 362 | `lib/phone-app.ts` (onglets, mots reçus, non lus) | `phone/PhoneNotes`, `PhoneAgenda`, `PhoneRoutine`, `PhoneNav`, `BottomSheet` |
+| `SportPanel.svelte` | 613 → 209 | `lib/fitness.ts` (courbe du tour de taille, saisie de la semaine) | `fitness/SportCard`, `ExerciseList`, `WeekReviewCard`, `NextSessionCard`, `WeekLogCard`, `HistoryCard`, `ProposalCard` |
+| `Stock.svelte` | 609 → 325 | `lib/stock.ts` (filtres, compteurs, sous-titres, état d'un contenant) | `stock/StockList`, `ContainersList`, `ContainerLabelDialog` |
+
+Seule différence : sur le téléphone, une saisie de la semaine non enregistrée (cardio, tour de taille) se perd quand on
+change de vue, puisque le formulaire est recréé (`{#key}`) au lieu d'être recopié par un `$effect`.
+
 ## 9. Règles de routes éparpillées
 
 **Avant**, quatre composants refaisaient chacun leur liste d'exceptions :
@@ -214,14 +228,19 @@ prédicats portent le nom de ce qu'ils décident : `returnsHomeWhenIdle`, `allow
   injectée.
 - `Workout.svelte:119-131` : si `wakeLock.request()` se résout **après** la sortie de la page, le verrou n'est jamais
   rendu et l'écran reste allumé. Il faut un drapeau `destroyed`, ou rendre le verrou dans le `.then`.
+- **Fait en 0.42.0** : `web/src/lib/workout-timer.ts`, fonctions pures (`startWorkout`, `tickWorkout`,
+  `togglePause`, `skipStep`, `stopWorkout`, `workoutView`) qui prennent l'heure en paramètre et rendent l'état suivant
+  et les signaux à jouer (bips, vibrations) ; 11 tests. `web/src/lib/wake-lock.ts` rend un verrou accordé trop tard,
+  le redemande au retour sur la page, et `Workout.svelte` le rend à la sortie ; 5 tests.
 - `web/src/components/Screensaver.svelte:104-115` : trois `$effect` qui appellent tous `wake()`. Un seul effet avec une
   condition `shouldWake` (`$derived`) serait plus lisible. Ce ne sont pas des `$derived` déguisés, puisqu'ils ont un
   effet de bord, mais leur multiplication cache la règle.
 - `web/src/components/fitness/SportPanel.svelte:89-95` : `$effect` qui recopie le programme dans des champs de
   formulaire. C'est le motif « état dérivé synchronisé à la main » ; un composant de formulaire initialisé par ses props
   (et `{#key thisWeek}`) l'éviterait.
-- `SportPanel.svelte:75-80` : `submit` contourne `act()`, donc ni `busy`, ni message d'erreur. Une séance refusée par
-  le serveur part en rejet de promesse non géré.
+  **Fait en 0.42.0** : `WeekLogCard` s'initialise par ses props, sous `{#key thisWeek}`.
+- `SportPanel.svelte:75-80` : `submit` contourne `act()`. **Vérifié en 0.42.0** : faux problème, `SessionForm`
+  attrape déjà le refus, garde le formulaire et affiche le message.
 - `web/src/lib/resource.svelte.ts:27` : le rafraîchissement continue page cachée. Sur la tablette ce n'est pas grave ;
   sur le téléphone, c'est de la batterie et des données.
 - 15 appels manuels `resource.destroy()` : un oubli fait fuir un `setInterval`. Une fonction qui s'enregistre elle-même
@@ -249,6 +268,15 @@ gardés mot pour mot.
 
 `shared/types.ts` existe précisément pour ça. Une divergence ne se verrait qu'à l'exécution.
 
+**Fait en 0.42.0.** `shared/types.ts` porte `NewTask`, `StockOutOptions`, `ProductPreferences` et les types de la
+reconnaissance faciale (`FaceReadingInput`, `FaceScore`, `FaceThresholds`, `FaceVerdict`, `FaceDiagnosis`,
+`FaceSession`, `FacesOverview`) ; `shared/fitness.ts` porte `SessionReport` et `TabletSessionReport`. Serveur et
+`api.ts` les importent. Les schémas zod sont vérifiés contre ces types à la compilation (`sameShape` dans
+`server/sources/schemas.ts`) : un champ ajouté d'un seul côté ne compile plus.
+
+La mise en commun a trouvé une divergence réelle : le front croyait `expiresAt` toujours présent dans la session d'une
+personne reconnue, alors qu'une session prolongée n'en renvoie pas. Le type partagé le dit maintenant facultatif.
+
 ## 13. Rangement
 
 - `server/sources/pronote.ts:11` importe `formatSubject` et `normalizeName` de `ecoledirecte.ts` : une source dépend
@@ -256,6 +284,18 @@ gardés mot pour mot.
 - `Logger` est défini dans `server/config-store.ts:18`, et `WEEK_DAYS` dans `server/config.ts:16` : des types
   transverses rangés dans des modules spécialisés.
 - `server/config.ts` n'a pas de commentaire d'en-tête (règle 3 du projet).
+
+**Fait en 0.42.0.** `server/sources/school.ts` (`formatSubject`, `normalizeName`, testés) est commun à ÉcoleDirecte et
+Pronote ; `server/sources/lines.ts` (`lineLabel`) à Irigo, au GTFS et au service des transports ; `config.ts` a son
+en-tête.
+
+**Reste**, sans urgence :
+
+- `irigo.ts` importe le décodeur de `gtfs-rt.ts` : c'est un analyseur de format, pas une source, la dépendance est
+  acceptable ;
+- `Logger` (`config-store.ts`) et `WEEK_DAYS` (`config.ts`) sont toujours rangés dans des modules spécialisés ;
+- les doublons `ENTITIES` et `normalize` (point 4), et la caméra du scanner (`lib/barcode-camera.ts`) à côté de celle
+  des visages (`lib/face.ts`).
 
 ## 14. Tests
 
@@ -269,9 +309,11 @@ Les points forts :
 
 Les manques :
 
-- **Sources sans test** : `transit-settings`, `fitness` (le magasin ; les règles de `shared/` sont testées), `stock`
-  (le magasin), `gtfs-rt`, `geocode`.
-- **Front** : rien sur les composants, qui portent pourtant de la logique (point 8). `web/src/lib/` est bien couvert.
+- ~~**Sources sans test**~~ : fait en 0.42.0, `transit-settings.test.ts` (repli sur le YAML, trajet en vigueur,
+  validation), `fitness.test.ts` et `stock.test.ts` (les magasins, sur de vrais fichiers temporaires),
+  `gtfs-rt.test.ts` (décodeur protobuf, langues) et `geocode.test.ts` (faux service). 499 tests en tout.
+- **Front** : rien sur les composants. Depuis la 0.42.0, leur logique est descendue dans `web/src/lib/`, testée
+  (point 8).
 - **Avant la refonte**, les droits (`access.ts`), le PIN, la reconnaissance faciale et le stock n'étaient testés qu'au
   travers de HTTP, et pas tous les refus. La branche ajoute `access.test.ts`, `pin-gate.test.ts`, `http.test.ts`,
   `household.test.ts`, `services/faces.test.ts`, `services/stock.test.ts`, `services/transit.test.ts` et
@@ -288,15 +330,19 @@ Les manques :
 
 Aucune route, aucun JSON ni aucun écran ne change. Pas de nouvelle fonctionnalité, pas de changement de version.
 
+La 0.42.0 est la deuxième passe, elle aussi sans fonctionnalité ni changement d'API : minuteur de séance et verrou
+d'écran (point 10), cinq écrans découpés (point 8), types partagés (point 12), module scolaire commun (point 13),
+tests des sources (point 14).
+
 ## Prochaines étapes, par valeur
 
 1. ~~Proxy de confiance pour `X-Real-IP` (point 1)~~ : fait en 0.40.0.
 2. ~~Contrôle d'accès sur `recheck` (point 5)~~ : fait en 0.40.0.
-3. **Minuteur de séance** sorti dans `web/src/lib/` avec ses tests, et correction du verrou d'écran (point 10).
-4. **Découper `Scan.svelte`** : machine à états du scan dans `web/src/lib/scan.ts`, fiche produit et formulaires en
-   composants. Même travail ensuite pour `Transit.svelte` et `SportPanel.svelte`.
-5. **Types partagés** dans `shared/types.ts` (point 12), et un `household` côté client (point 7).
-6. **Tests des magasins** `transit-settings`, `fitness`, `stock`, et des sources `gtfs-rt`, `geocode`.
-7. **`createResource`** qui se nettoie seul et se met en pause page cachée.
-8. **Rangement** : module scolaire commun (Pronote / ÉcoleDirecte), `Logger` et `WEEK_DAYS` dans des modules
-   transverses, `ENTITIES` et `normalize` réunis, en-tête de `config.ts`.
+3. ~~Minuteur de séance et verrou d'écran (point 10)~~ : fait en 0.42.0.
+4. ~~Découper Scan, Transit, Phone, SportPanel et Stock (point 8)~~ : fait en 0.42.0.
+5. ~~Types partagés (point 12)~~ : fait en 0.42.0. Reste un `household` côté client pour les 26
+   `members.find` du front (point 7).
+6. ~~Tests des sources (point 14)~~ : fait en 0.42.0.
+7. **`createResource`** qui se nettoie seul et se met en pause page cachée ; un seul `$effect` dans `Screensaver`.
+8. **Rangement** : ~~module scolaire commun, en-tête de `config.ts`~~ (0.42.0) ; reste `Logger` et `WEEK_DAYS` dans
+   des modules transverses, `ENTITIES` et `normalize` réunis, une boucle caméra commune au scanner et aux visages.

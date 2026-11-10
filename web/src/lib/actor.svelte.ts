@@ -9,7 +9,8 @@
 // comme vue à l'instant, et tout reprend comme d'habitude. Sur un téléphone, rien de tout cela : il agit pour son profil, et le serveur décide.
 import { canWrite } from '../../../shared/rights.ts';
 import { FAMILY_ID, type PublicConfig } from '../../../shared/types.ts';
-import { ApiError, type FaceSession } from './api.ts';
+import type { FaceSession } from '../../../shared/types.ts';
+import { ApiError } from './api.ts';
 
 type Member = PublicConfig['members'][number];
 

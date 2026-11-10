@@ -10,6 +10,7 @@ import type { Logger } from '../config-store.ts';
 import { localDay } from '../../shared/dates.ts';
 import { homeworkFrom, htmlToText, sortHomework } from './homework.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
+import { formatSubject, normalizeName } from './school.ts';
 import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
@@ -122,17 +123,6 @@ export function parseLocalDateTime(value: string): Date {
   const [y, mo, d, h, mi] = value.split(/[-\s:]/).map(Number);
   return new Date(y, mo - 1, d, h, mi);
 }
-
-/** « SCIENCES VIE & TERRE » → « Sciences vie & terre » ; les sigles avec chiffres restent (« Anglais LV1 »). */
-export function formatSubject(value: string): string {
-  const words = value.trim().toLowerCase().split(/\s+/);
-  return words
-    .map((w, i) => (/\d/.test(w) ? w.toUpperCase() : i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-    .join(' ');
-}
-
-export const normalizeName = (s: string) =>
-  s.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
 
 /** Session HTTP : cookies et jetons qui tournent à chaque réponse. */
 function createHttp(fetchFn: typeof fetch) {

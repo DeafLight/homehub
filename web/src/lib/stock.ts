@@ -1,5 +1,5 @@
 // Libellés du stock (logique pure, testée) : fiche d'un produit, provenance, quantités.
-import type { Author, Product, ProductInfo, StockMark, StockMovement } from '../../../shared/types.ts';
+import type { Author, Container, Product, ProductInfo, StockEntry, StockMark, StockMovement } from '../../../shared/types.ts';
 import { dayDiff, formatTime } from './format.ts';
 
 const BASE_NAMES: Record<string, string> = {
@@ -96,3 +96,25 @@ export function movementLabel(m: Pick<StockMovement, 'kind' | 'count' | 'forgott
       return 'Contenant vidé';
   }
 }
+
+export type StockFilter = 'in' | 'out' | 'all';
+
+/** Produits à afficher : en stock, épuisés ou tous, puis ceux dont le nom ou la marque contient la recherche. */
+export function filterStock<T extends Pick<StockEntry, 'product' | 'quantity'>>(items: T[], filter: StockFilter, search: string): T[] {
+  const base = filter === 'in' ? items.filter((i) => i.quantity > 0) : filter === 'out' ? items.filter((i) => i.quantity === 0) : items;
+  const query = search.trim().toLocaleLowerCase('fr');
+  return query ? base.filter((i) => `${i.product.current.name} ${i.product.current.brand ?? ''}`.toLocaleLowerCase('fr').includes(query)) : base;
+}
+
+/** Nombre de produits derrière chaque filtre. */
+export function stockCounts(items: Pick<StockEntry, 'quantity'>[]): Record<StockFilter, number> {
+  const inStock = items.filter((i) => i.quantity > 0).length;
+  return { in: inStock, out: items.length - inStock, all: items.length };
+}
+
+/** Sous-titre d'un produit de l'inventaire : marque, contenance, rayon ; sinon une invitation à compléter la fiche. */
+export const productSubtitle = (product: Product) => [productDetail(product.current), product.current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche';
+
+/** État d'un contenant : ce qu'il contient, ou vide (avec ce qu'il contenait). */
+export const containerState = (c: Pick<Container, 'full' | 'productName'>) =>
+  c.full ? (c.productName ?? 'Plein') : c.productName ? `Vide (${c.productName})` : 'Vide';
