@@ -159,7 +159,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   record, meilleure semaine ; sur les 12 dernières semaines, séances et cardio par semaine, temps d'effort avec les
   changements de palier, ressenti moyen ; par exercice, fois au programme, répétitions (ou secondes) notées, « dur »,
   « facile » et gênes ; jours de séance ; tour de taille sur 4 semaines et depuis le début ; tout l'historique par mois.
-- **Sport sur la tablette** (bouton « Sport » dans l'en-tête du dashboard d'un profil qui a un programme, `/sport`) :
+- **Sport sur la tablette** (bouton « Sport » dans l'en-tête du dashboard d'un profil qui a un programme, affiché seulement quand cette personne
+  est reconnue devant la tablette, `/sport`) :
   séance du jour de la personne reconnue devant la tablette, elle seule (pas un parent pour un autre), sans rien de
   personnel (ni notes, ni historique, ni tour de taille), et catalogue des exercices. Séance guidée (`/seance`) :
   échauffement de 5 min (cinq mouvements doux d'une minute), puis chaque effort avec son compte à rebours et son

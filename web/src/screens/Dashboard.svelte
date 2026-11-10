@@ -27,8 +27,11 @@
 
   const { api, actor, config, profiles, clock, navigate } = getAppContext();
   const profile = $derived(profiles.find((p) => p.id === ownerId));
-  /** Programme de sport sur ce profil : lien vers la séance du jour. */
-  const sport = $derived(config.members.some((m) => m.id === ownerId && m.fitness));
+  /**
+   * Lien vers la séance du jour : seulement pour la personne de ce profil, reconnue devant la tablette (la page Sport
+   * ne montre rien aux autres), et si elle a un programme de sport.
+   */
+  const sport = $derived(actor.current?.id === ownerId && config.members.some((m) => m.id === ownerId && m.fitness));
   const dashboard = createResource(() => api.dashboard(ownerId), DASHBOARD_REFRESH_MS);
   onDestroy(dashboard.destroy);
 
