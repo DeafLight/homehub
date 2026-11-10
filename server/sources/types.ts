@@ -1,6 +1,5 @@
-// Ports vers les sources de données. Chaque widget dépend d'une interface, pas d'une implémentation :
-// les données d'exemple d'aujourd'hui seront remplacées une par une (agenda Google, météo, Immich...)
-// sans toucher au service ni aux routes.
+// Ports vers les sources de données. Chaque widget dépend d'une interface, pas d'une implémentation : une source
+// (agenda iCal ou d'exemple, Open-Meteo, ÉcoleDirecte ou Pronote…) se change sans toucher au service ni aux routes.
 import type { Author, CalendarEvent, Homework, Note, SchoolCourse, Task, Weather, WeatherForecast } from '../../shared/types.ts';
 
 /** Horloge injectable, pour des tests déterministes. */
