@@ -19,9 +19,10 @@ import {
 } from '../../shared/types.ts';
 import { localDay, localTime } from '../../shared/dates.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
+import { createHousehold } from '../household.ts';
 import type { GtfsSource } from '../sources/gtfs.ts';
 import { lineLabel, type TransitSource } from '../sources/irigo.ts';
-import { type CommuteTrip, createTransitSettingsStore, type TransitSettingsStore } from '../sources/transit-settings.ts';
+import { type CommuteTrip, type TransitSettingsStore, transitSettingsFromConfig } from '../sources/transit-settings.ts';
 import type { RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
@@ -88,9 +89,10 @@ const sameDirection = (destination: string, headsigns: string[]) => {
 
 export function createDashboardService(deps: DashboardServiceDeps): DashboardService {
   const { config, sources, clock, logger, routines, plans, transit, gtfs } = deps;
-  const transitSettings = deps.transitSettings ?? createTransitSettingsStore({ path: '', clock, config });
-  const ownerIds = () => [...config.current().members.map((m) => m.id), FAMILY_ID];
-  const hasOwner = (ownerId: string) => ownerIds().includes(ownerId);
+  const transitSettings = deps.transitSettings ?? transitSettingsFromConfig(config);
+  const household = createHousehold(config);
+  const ownerIds = household.ownerIds;
+  const hasOwner = household.isOwner;
 
   const upcomingRange = () => {
     const from = clock();

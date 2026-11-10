@@ -7,6 +7,7 @@ import { KIOSK_KEY_MIN_LENGTH } from './access.ts';
 import { createApp } from './app.ts';
 import { calendarsOf, hasCalendars, loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
+import { createHousehold } from './household.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
@@ -71,9 +72,9 @@ function ecoleDirecteCredentials(env: NodeJS.ProcessEnv): Credentials | undefine
   return { identifiant, motdepasse, ...(cn && cv && { trust: { cn, cv } }) };
 }
 
-const memberOf = (ownerId: string) => config.current().members.find((m) => m.id === ownerId);
+const household = createHousehold(config);
 
-const sample = createSampleSources(() => config.current().members.map((m) => m.id), FAMILY_ID, clock);
+const sample = createSampleSources(() => household.members().map((m) => m.id), FAMILY_ID, clock);
 const ical = createIcalAgendaSource({
   calendarsFor: (ownerId) => calendarsOf(config.current(), ownerId),
   refreshMinutes: () => config.current().agenda.refreshMinutes,
@@ -111,7 +112,7 @@ const sources: Sources = {
   }),
   school: firstSchoolSource(
     createEcoleDirecteSource({
-      studentFor: (ownerId) => memberOf(ownerId)?.ecoledirecte,
+      studentFor: (ownerId) => household.member(ownerId)?.ecoledirecte,
       refreshMinutes: () => config.current().ecoledirecte.refreshMinutes,
       credentials: () => ecoleDirecteCredentials(process.env),
       client: createEcoleDirecteClient(),
@@ -120,7 +121,7 @@ const sources: Sources = {
       status: sourceStatus,
     }),
     createPronoteSource({
-      childFor: (ownerId) => memberOf(ownerId)?.pronote,
+      childFor: (ownerId) => household.member(ownerId)?.pronote,
       refreshMinutes: () => config.current().pronote.refreshMinutes,
       store: createFileStateStore(join(stateDir, 'pronote.json')),
       client: createPawnoteClient(),

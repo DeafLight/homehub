@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { parseConfig } from './config.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { createConfigStore } from './config-store.ts';
+import { createDevicesApi } from './devices-api.ts';
+import { createFacesApi } from './faces-api.ts';
+import { createHousehold } from './household.ts';
+import { createRouter } from './http.ts';
 import { createListsApi } from './lists-api.ts';
+import { createPinGate } from './pin-gate.ts';
+import { createFaceRecognition } from './services/faces.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createListsStore } from './sources/lists.ts';
@@ -40,7 +46,13 @@ function setup() {
   const faces = createFaceStore({ path: join(dir, 'faces.json') });
   const sessions = createActorSessions(fixedClock);
   const access = createAccess({ config, devices, isKey: kioskKeyMatcher(KEY), actorOf: (t) => sessions.get(t, 10) });
-  const api = createListsApi({ config, lists, notes, devices, pins, faces, sessions, access });
+  const household = createHousehold(config);
+  const gate = createPinGate(pins);
+  const recognition = createFaceRecognition({ faces, sessions, household, rules: () => config.current().faces, clock: fixedClock, logger: { info() {} } });
+  const api = createRouter();
+  api.route('/', createListsApi({ household, lists, notes, access }));
+  api.route('/', createDevicesApi({ household, devices, pins: gate, access }));
+  api.route('/', createFacesApi({ household, faces, recognition, sessions, pins: gate, access }));
   /** Session de la personne reconnue devant la tablette. */
   const as = (ownerId: string) => sessions.open(ownerId, 10).token;
   const parent = as('alex');

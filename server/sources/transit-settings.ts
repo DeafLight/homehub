@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Author, CommuteSettings, HomeStop, TimeWindow, TransitSettings } from '../../shared/types.ts';
 import { WEEK_DAYS } from '../config.ts';
 import type { ConfigProvider } from '../config-store.ts';
+import { createHousehold } from '../household.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
@@ -110,6 +111,32 @@ export type TransitSettingsStore = {
   commuteFor(ownerId: string): CommuteTrip | null;
 };
 
+/** Trajet d'un membre décrit dans le YAML (section `commute`), tant que la page n'a pas été enregistrée. */
+function commuteFromYaml(config: ConfigProvider, ownerId: string): CommuteTrip | null {
+  const c = createHousehold(config).member(ownerId)?.commute;
+  if (!c) return null;
+  return {
+    line: c.line,
+    origin: c.stop,
+    headsigns: c.towards ? [c.towards] : [],
+    oneWay: !c.towards,
+    ...(c.label && { label: c.label }),
+    walkFrom: c.walkMinutes,
+    walkTo: 0,
+    mode: 'window',
+    days: c.days.map((d) => WEEK_DAYS.indexOf(d)),
+    window: { from: c.from, to: c.to },
+    arriveBefore: DEFAULT_ARRIVE_BEFORE,
+    showBefore: DEFAULT_SHOW_BEFORE,
+  };
+}
+
+/** Réglages des transports d'après le YAML seul (sans page enregistrée) : arrêts de l'accueil et trajets. */
+export const transitSettingsFromConfig = (config: ConfigProvider): Pick<TransitSettingsStore, 'homeStops' | 'commuteFor'> => ({
+  homeStops: () => config.current().transit.stops,
+  commuteFor: (ownerId) => commuteFromYaml(config, ownerId),
+});
+
 export function createTransitSettingsStore({ path, clock, config }: { path: string; clock: Clock; config: ConfigProvider }): TransitSettingsStore {
   /** null : page jamais enregistrée (le YAML s'applique). */
   const state = createJsonFile<SettingsFile | null>({ path, schema: fileSchema.nullable(), initial: () => null, pretty: true });
@@ -122,24 +149,7 @@ export function createTransitSettingsStore({ path, clock, config }: { path: stri
       : { places: [], commutes: {}, stops: config.current().transit.stops, saved: false };
   };
 
-  function fromYaml(ownerId: string): CommuteTrip | null {
-    const c = config.current().members.find((m) => m.id === ownerId)?.commute;
-    if (!c) return null;
-    return {
-      line: c.line,
-      origin: c.stop,
-      headsigns: c.towards ? [c.towards] : [],
-      oneWay: !c.towards,
-      ...(c.label && { label: c.label }),
-      walkFrom: c.walkMinutes,
-      walkTo: 0,
-      mode: 'window',
-      days: c.days.map((d) => WEEK_DAYS.indexOf(d)),
-      window: { from: c.from, to: c.to },
-      arriveBefore: DEFAULT_ARRIVE_BEFORE,
-      showBefore: DEFAULT_SHOW_BEFORE,
-    };
-  }
+  const yaml = transitSettingsFromConfig(config);
 
   function fromPage(settings: TransitSettingsInput, ownerId: string): CommuteTrip | null {
     const c: CommuteSettings | undefined = settings.commutes[ownerId];
@@ -174,10 +184,10 @@ export function createTransitSettingsStore({ path, clock, config }: { path: stri
       return current();
     },
 
-    homeStops: () => saved()?.settings.stops ?? config.current().transit.stops,
+    homeStops: () => saved()?.settings.stops ?? yaml.homeStops(),
     commuteFor: (ownerId) => {
       const file = saved();
-      return file ? fromPage(file.settings, ownerId) : fromYaml(ownerId);
+      return file ? fromPage(file.settings, ownerId) : yaml.commuteFor(ownerId);
     },
   };
 }

@@ -2,7 +2,7 @@
 // partir de ce que le serveur donne pour la séance du jour, sans rien de personnel (ni notes, ni historique, ni tour
 // de taille).
 import { type Exercise, exerciseById, type FitnessFamily } from './fitness-catalogue.ts';
-import { type Palier, ROUND_BREAK_SECONDS, type SessionNumber } from './fitness.ts';
+import { type FitnessState, nextSession, PALIERS, type Palier, planSession, ROUND_BREAK_SECONDS, type SessionNumber } from './fitness.ts';
 
 /** Séance du jour vue par la tablette (GET /api/fitness/tablet). */
 export type TabletSession = {
@@ -14,6 +14,20 @@ export type TabletSession = {
   rest: number;
   exercises: { family: FitnessFamily; id: string }[];
 };
+
+/** Séance du jour d'un programme, pour la tablette : numéro, rythme et exercices, rien d'autre. */
+export function tabletSessionOf(ownerId: string, state: FitnessState): TabletSession {
+  const session = nextSession(state);
+  return {
+    ownerId,
+    session,
+    palier: state.palier,
+    rounds: PALIERS[state.palier].rounds,
+    effort: state.effort,
+    rest: state.rest,
+    exercises: planSession(state, session).map(({ family, exercise }) => ({ family, id: exercise.id })),
+  };
+}
 
 /** Échauffement : cinq mouvements doux d'une minute, pour monter en température sans s'essouffler. */
 export const WARMUP: readonly { id: string; seconds: number; cue: string }[] = [
