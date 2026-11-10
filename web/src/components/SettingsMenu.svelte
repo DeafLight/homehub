@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { getAppContext } from '../lib/context.ts';
-  import { dashboardLayout } from '../lib/layout.svelte.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { type DetailName, detailPath } from '../lib/route.ts';
   import Icon from './Icon.svelte';
@@ -66,22 +65,6 @@
       <button type="button" role="menuitem" onclick={() => go('routines')}><Icon name="list" size={28} /> Routines</button>
       <button type="button" role="menuitem" onclick={() => go('transit')}><Icon name="bus" size={28} /> Transports</button>
       <button type="button" role="menuitem" onclick={() => go('nas')}><Icon name="server" size={28} /> État du NAS</button>
-      <!-- Essai du dashboard « focus » des élèves : bascule propre à cette tablette. -->
-      <button
-        type="button"
-        role="menuitemcheckbox"
-        aria-checked={dashboardLayout.current === 'focus'}
-        onclick={() => {
-          dashboardLayout.set(dashboardLayout.current === 'focus' ? 'classic' : 'focus');
-          position = null;
-        }}
-      >
-        <Icon name="school" size={28} />
-        <span class="choice">
-          Dashboard élève : {dashboardLayout.current === 'focus' ? 'focus' : 'classique'}
-          <span class="hint">toucher pour passer au {dashboardLayout.current === 'focus' ? 'classique' : 'focus'}</span>
-        </span>
-      </button>
       <div class="version">HomeHub v{__APP_VERSION__}</div>
     </div>
   {/if}
@@ -155,17 +138,6 @@
 
   .menu button:active {
     background: var(--border-strong);
-  }
-
-  .choice {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .hint {
-    font-size: 0.95rem;
-    font-weight: 400;
-    color: var(--fg-muted);
   }
 
   .version {

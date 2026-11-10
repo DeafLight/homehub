@@ -7,23 +7,21 @@
   import Icon from '../Icon.svelte';
 
   // Mots laissés au profil (ou à la famille) et pas encore vus : le plus récent, puis les suivants une fois « Vu ».
-  // `compact` : dans la colonne d'un profil qui a un emploi du temps.
   type Props = {
     notes: Note[];
     profiles: Profile[];
     now: Date;
-    compact?: boolean;
     onSeen(note: Note): void;
     onWrite(): void;
   };
-  let { notes, profiles, now, compact = false, onSeen, onWrite }: Props = $props();
+  let { notes, profiles, now, onSeen, onWrite }: Props = $props();
 
   const note = $derived(notes[0] ?? null);
   const author = $derived(profiles.find((p) => p.id === note?.from.ownerId));
 </script>
 
 <Card>
-  <div class="note" class:compact>
+  <div class="note">
     <div class="head">
       <span class="card-label">Mots</span>
       <button type="button" class="write" aria-label="Laisser un mot" onclick={onWrite}>
@@ -103,10 +101,6 @@
     font-size: 1.6rem;
     font-weight: 600;
     overflow-wrap: anywhere;
-  }
-
-  .compact .text {
-    font-size: 1.3rem;
   }
 
   .author {

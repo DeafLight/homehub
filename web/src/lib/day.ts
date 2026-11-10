@@ -36,10 +36,6 @@ export function fitsInDay(event: CalendarEvent, day: Date): boolean {
   return !event.allDay && new Date(event.start) >= from && endOf(event) <= to;
 }
 
-/** Événements qui commencent après la fin de `day` (pour « Cette semaine », après demain). */
-export const eventsAfter = (events: CalendarEvent[], day: Date) =>
-  events.filter((e) => new Date(e.start) >= addDays(startOfDay(day), 1));
-
 export type TimelineItem = {
   id: string;
   kind: 'course' | 'event';

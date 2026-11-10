@@ -94,11 +94,9 @@
 
 <div class="focus" style:--accent={profile.color}>
   <DayTimeline
-    title={shown === 'today' ? 'Aujourd’hui' : 'Demain'}
     day={shown === 'today' ? now : tomorrow}
     {plan}
     hours={timelineHours(plan.items)}
-    allDayRows={plan.allDay.length}
     {now}
     color={profile.color}
     header={switcher}

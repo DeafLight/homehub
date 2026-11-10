@@ -8,19 +8,16 @@
   import Icon from '../Icon.svelte';
 
   type Props = {
-    title: string;
     day: Date;
     plan: DayPlan;
-    /** Plage horaire, commune aux frises affichées côte à côte pour qu'elles s'alignent. */
+    /** Plage horaire de la frise. */
     hours: { startHour: number; endHour: number };
-    /** Lignes réservées aux événements sur la journée : les frises voisines restent alignées. */
-    allDayRows: number;
     now: Date;
     color: string;
-    /** En tête de carte, à la place du titre (bascule aujourd'hui / demain du dashboard focus). */
-    header?: Snippet;
+    /** En tête de carte, à la place d'un titre (bascule aujourd'hui / demain du dashboard). */
+    header: Snippet;
   };
-  let { title, day, plan, hours, allDayRows, now, color, header }: Props = $props();
+  let { day, plan, hours, now, color, header }: Props = $props();
 
   const accentBg = $derived(mix(color, '#0f1115', 0.3));
   const accentLight = $derived(mix(color, '#ffffff', 0.55));
@@ -37,9 +34,9 @@
   const nowVisible = $derived(isToday && now.getHours() >= hours.startHour && now.getHours() < hours.endHour);
 </script>
 
-<Card title={header ? undefined : title} link={{ to: 'week', label: 'Semaine détaillée' }}>
-  {#if header}{@render header()}{/if}
-  {#if allDayRows > 0}
+<Card link={{ to: 'week', label: 'Semaine détaillée' }}>
+  {@render header()}
+  {#if plan.allDay.length > 0}
     <ul class="all-day">
       {#each plan.allDay as event (event.id)}
         <li style:background={accentBg}>
@@ -47,9 +44,6 @@
           <span class="title">{event.title}</span>
           <span class="meta" style:color={accentLight}>{whenOnDay(event, day)}</span>
         </li>
-      {/each}
-      {#each { length: allDayRows - plan.allDay.length } as _, i (i)}
-        <li class="filler" aria-hidden="true"><Icon name="calendar" size={18} /><span>&nbsp;</span></li>
       {/each}
     </ul>
   {/if}
@@ -117,10 +111,6 @@
     padding: 8px 14px;
     border-radius: 12px;
     font-size: 1.1rem;
-  }
-
-  .filler {
-    visibility: hidden;
   }
 
   .timeline {

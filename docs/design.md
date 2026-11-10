@@ -54,8 +54,8 @@ restent ; les espacements, les tailles de texte et les cartes deviennent des rè
   Scanner ressort en bleu.
 - **Bus sur l'accueil** : une ligne par arrêt, une pastille par ligne et destination avec le prochain passage et un
   point vert pour le temps réel.
-- **Dashboard élève** : trois colonnes de même largeur (frise du jour, puis de demain à partir de 18 h ; routine et
-  tâches ; devoirs et mots).
+- **Dashboard élève** (« focus ») : une frise (aujourd'hui ou demain), la carte du moment en grand, le reste en tuiles
+  qui ouvrent leur carte dans un panneau.
 
 ## Écrans
 
