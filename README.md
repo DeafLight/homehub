@@ -292,7 +292,7 @@ server/
   app.ts                   routes HTTP (fines : validation → service → JSON)
   services/dashboard.ts    logique métier, sans HTTP ni implémentation de source
   sources/types.ts         interfaces des sources (agenda, tâches, mots, météo) + horloge
-  sources/sample.ts        implémentations d'exemple, en mémoire
+  sources/sample.ts        agenda d'exemple, en mémoire (tant qu'aucun agenda n'est configuré)
   sources/open-meteo.ts    météo Open-Meteo
   sources/ical.ts          agendas iCal (adresses secrètes Google Agenda)
   sources/ecoledirecte.ts  emploi du temps et devoirs ÉcoleDirecte (client de l'API privée + source)

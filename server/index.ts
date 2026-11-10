@@ -26,7 +26,7 @@ import { createStockStore } from './sources/stock.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
-import { createSampleSources } from './sources/sample.ts';
+import { createSampleAgenda } from './sources/sample.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { searchAddress } from './sources/geocode.ts';
 import { createGtfsSource } from './sources/gtfs.ts';
@@ -74,7 +74,7 @@ function ecoleDirecteCredentials(env: NodeJS.ProcessEnv): Credentials | undefine
 
 const household = createHousehold(config);
 
-const sample = createSampleSources(() => household.members().map((m) => m.id), FAMILY_ID, clock);
+const sampleAgenda = createSampleAgenda(() => household.members().map((m) => m.id), FAMILY_ID, clock);
 const ical = createIcalAgendaSource({
   calendarsFor: (ownerId) => calendarsOf(config.current(), ownerId),
   refreshMinutes: () => config.current().agenda.refreshMinutes,
@@ -99,11 +99,10 @@ await fitness.load();
 // Open Food Facts demande un User-Agent qui dit qui appelle : le nom et l'adresse du projet, rien de la famille.
 const productBase = createOpenFoodFactsClient({ userAgent: `HomeHub/${version} (https://github.com/DeafLight/homehub)` });
 const sources: Sources = {
-  ...sample,
   tasks: listsTaskSource(lists, FAMILY_ID),
   notes,
   // Agenda d'exemple tant qu'aucun agenda n'est configuré (développement, première installation).
-  agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sample.agenda).eventsFor(...args) },
+  agenda: { eventsFor: (...args) => (hasCalendars(config.current()) ? ical : sampleAgenda).eventsFor(...args) },
   weather: createOpenMeteoWeatherSource({
     location: () => config.current().weather,
     clock,
