@@ -82,7 +82,7 @@ export function buildForecastUrl(location: WeatherConfig): string {
 
 /** Convertit la réponse d'Open-Meteo au format de l'API HomeHub. */
 export function toWeather(data: OpenMeteoResponse, label: string, now: Date): Weather {
-  const { current, hourly, daily } = data;
+  const { current, hourly } = data;
   const nowSeconds = now.getTime() / 1000;
   const horizon = nowSeconds + RAIN_HORIZON_HOURS * 3600;
   // Premier créneau horaire pluvieux qui n'est pas encore terminé (il peut avoir commencé : il pleut).
