@@ -146,7 +146,6 @@ export type Api = {
   setProductPreferences(code: string, prefs: { autoShop?: boolean | null; refill?: string | null }): Promise<Product>;
   stockIn(code: string, count?: number, price?: number | null): Promise<StockMovementResult>;
   stockOut(code: string, options?: { all?: boolean; refill?: string | null; remaining?: number }): Promise<StockMovementResult>;
-  setStockQuantity(code: string, quantity: number): Promise<StockMovementResult>;
   undoStock(movementId: string): Promise<{ quantity: number }>;
   /** Historique d'un produit, du plus récent au plus ancien. */
   stockMovements(code: string): Promise<StockMovement[]>;
@@ -262,7 +261,6 @@ export function createApi(
     setProductPreferences: (code, prefs) => send('PATCH', `/stock/products/${encodeURIComponent(code)}`, prefs),
     stockIn: (code, count = 1, price = null) => send('POST', '/stock/in', { code, count, price }),
     stockOut: (code, options = {}) => send('POST', '/stock/out', { code, ...options }),
-    setStockQuantity: (code, quantity) => send('POST', '/stock/quantity', { code, quantity }),
     undoStock: (movementId) => send('POST', '/stock/undo', { movementId }),
     stockMovements: (code) => request(`/stock/products/${encodeURIComponent(code)}/movements`),
     shopProduct: (code, always = false) => send('POST', '/stock/shopping', { code, always }),
