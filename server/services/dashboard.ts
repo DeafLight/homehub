@@ -3,7 +3,6 @@
 import {
   FAMILY_ID,
   type DashboardData,
-  type Commute,
   type HomeData,
   type TransitData,
   type Homework,
@@ -17,15 +16,17 @@ import {
   type WeatherForecast,
   type WeekData,
 } from '../../shared/types.ts';
-import { localDay, localTime } from '../../shared/dates.ts';
+import { localDay } from '../../shared/dates.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { createHousehold } from '../household.ts';
 import type { GtfsSource } from '../sources/gtfs.ts';
-import { lineLabel, type TransitSource } from '../sources/irigo.ts';
-import { type CommuteTrip, type TransitSettingsStore, transitSettingsFromConfig } from '../sources/transit-settings.ts';
+import type { TransitSource } from '../sources/irigo.ts';
+import { type TransitSettingsStore, transitSettingsFromConfig } from '../sources/transit-settings.ts';
 import type { RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
+import { accessory } from './accessory.ts';
+import { createTransitBoard } from './transit.ts';
 
 const UPCOMING_DAYS = 7;
 const UPCOMING_LIMIT = 5;
@@ -72,24 +73,8 @@ export type DashboardServiceDeps = {
   gtfs?: GtfsSource;
 };
 
-/** Passages gardés par arrêt et pour un trajet. */
-const STOP_DEPARTURES = 8;
-const COMMUTE_DEPARTURES = 4;
-/** Trajet selon l'emploi du temps : la carte reste un moment après l'heure de la course (« Trop tard », suivant). */
-const PLAN_LINGER_MS = 5 * 60_000;
-/** Écart toléré entre l'horaire théorique du GTFS et celui du temps réel pour reconnaître la même course. */
-const SAME_TRIP_MS = 90_000;
-const normalize = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-const words = (s: string) => normalize(s).split(/[^a-z0-9]+/u).filter((w) => w.length > 3 && w !== 'angers');
-/** Même destination à peu près : le GTFS dit « ANGERS Bois Rinier », le temps réel peut dire « Bois Rinier ». */
-const sameDirection = (destination: string, headsigns: string[]) => {
-  const got = new Set(words(destination));
-  return headsigns.some((h) => words(h).some((w) => got.has(w)) || normalize(destination).includes(normalize(h)));
-};
-
 export function createDashboardService(deps: DashboardServiceDeps): DashboardService {
   const { config, sources, clock, logger, routines, plans, transit, gtfs } = deps;
-  const transitSettings = deps.transitSettings ?? transitSettingsFromConfig(config);
   const household = createHousehold(config);
   const ownerIds = household.ownerIds;
   const hasOwner = household.isOwner;
@@ -101,25 +86,21 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     return { from, to };
   };
 
-  // La météo est accessoire : une panne de la source masque le bloc au lieu de faire échouer l'écran.
-  async function weather() {
-    try {
-      return await sources.weather.current();
-    } catch (err) {
-      logger.error(`Météo indisponible : ${(err as Error).message}`);
-      return null;
-    }
-  }
+  // Météo, emploi du temps, devoirs : accessoires, une panne masque le bloc au lieu de faire échouer l'écran.
+  const weather = () => accessory(logger, 'Météo indisponible', () => sources.weather.current(), null);
+  const coursesIn = (ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null> =>
+    accessory(logger, 'Emploi du temps indisponible', () => sources.school.coursesFor(ownerId, range), null);
+  const homeworkOf = (ownerId: string): Promise<Homework[] | null> =>
+    accessory(logger, 'Devoirs indisponibles', async () => (await sources.school.homeworkFor?.(ownerId)) ?? null, null);
 
-  /** Cours sur l'intervalle. Accessoire, comme la météo : une panne masque l'emploi du temps. */
-  async function coursesIn(ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null> {
-    try {
-      return await sources.school.coursesFor(ownerId, range);
-    } catch (err) {
-      logger.error(`Emploi du temps indisponible : ${(err as Error).message}`);
-      return null;
-    }
-  }
+  const board = createTransitBoard({
+    transit,
+    gtfs,
+    settings: deps.transitSettings ?? transitSettingsFromConfig(config),
+    coursesFor: coursesIn,
+    clock,
+    logger,
+  });
 
   /** Cours d'aujourd'hui et de demain. */
   async function schoolDays(ownerId: string): Promise<SchoolDays | null> {
@@ -138,16 +119,6 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     };
   }
 
-  /** Devoirs à faire à partir d'aujourd'hui. Accessoires : une panne les masque. */
-  async function homeworkOf(ownerId: string): Promise<Homework[] | null> {
-    try {
-      return (await sources.school.homeworkFor?.(ownerId)) ?? null;
-    } catch (err) {
-      logger.error(`Devoirs indisponibles : ${(err as Error).message}`);
-      return null;
-    }
-  }
-
   /** Prochain jour (à partir de demain) qui a des devoirs pas encore faits, pour le rappel de l'accueil. */
   async function nextHomework(ownerId: string): Promise<ProfileSummary['homework']> {
     const list = await homeworkOf(ownerId);
@@ -156,116 +127,6 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     if (left.length === 0) return null;
     const due = left[0].due;
     return { due, left: left.filter((h) => h.due === due).length };
-  }
-
-  /** Passages d'un arrêt ; accessoires, comme la météo : une panne donne null (et un message). */
-  async function departuresAt(stopId: string) {
-    if (!transit) return null;
-    try {
-      return await transit.departures(stopId);
-    } catch (err) {
-      logger.error(`Irigo indisponible : ${(err as Error).message}`);
-      return null;
-    }
-  }
-
-  async function alertsFor(lines: string[]) {
-    if (!transit || lines.length === 0) return [];
-    try {
-      return await transit.alerts(lines);
-    } catch (err) {
-      logger.error(`Perturbations Irigo indisponibles : ${(err as Error).message}`);
-      return [];
-    }
-  }
-
-  async function transitData(): Promise<TransitData> {
-    const stops = (
-      await Promise.all(
-        transitSettings.homeStops().map(async (stop) => {
-          const data = await departuresAt(stop.id);
-          if (!data) return null;
-          const lines = stop.lines && new Set(stop.lines.map(lineLabel));
-          const departures = data.departures.filter((d) => !lines || lines.has(d.line)).slice(0, STOP_DEPARTURES);
-          return { id: stop.id, label: stop.label ?? data.name ?? stop.id, departures, lines: stop.lines };
-        }),
-      )
-    ).filter((s) => s !== null);
-    const lines = new Set(stops.flatMap((s) => s.lines?.map(lineLabel) ?? s.departures.map((d) => d.line)));
-    return { stops: stops.map(({ lines: _, ...stop }) => stop), alerts: await alertsFor([...lines]) };
-  }
-
-  /**
-   * Course à prendre aujourd'hui pour arriver avant le premier cours non annulé (marge et marche à l'arrivée
-   * comprises) : la dernière qui arrive à temps, d'après les horaires théoriques. null sans cours, sans horaires ou
-   * sans course qui convienne.
-   */
-  async function planOf(ownerId: string, trip: CommuteTrip, now: Date): Promise<Commute['plan'] | null> {
-    if (!gtfs || !trip.destination) return null;
-    const day = new Date(now);
-    day.setHours(0, 0, 0, 0);
-    const next = new Date(day);
-    next.setDate(next.getDate() + 1);
-    const courses = (await coursesIn(ownerId, { from: day, to: next }))?.sort((a, b) => a.start.localeCompare(b.start));
-    const first = courses?.find((c) => !c.cancelled);
-    if (!courses || !first) return null;
-    const index = await gtfs.index().catch((err) => {
-      logger.error(`Horaires Irigo indisponibles : ${(err as Error).message}`);
-      return null;
-    });
-    if (!index) return null;
-    const arriveBy = Date.parse(first.start) - (trip.arriveBefore + trip.walkTo) * 60_000;
-    const chosen = index
-      .trips({ line: trip.line, origin: trip.origin, destination: trip.destination }, now)
-      .filter((t) => t.arrives.getTime() <= arriveBy)
-      .at(-1);
-    if (!chosen) return null;
-    return {
-      departs: chosen.departs.toISOString(),
-      arrives: chosen.arrives.toISOString(),
-      leaveAt: new Date(chosen.departs.getTime() - trip.walkFrom * 60_000).toISOString(),
-      firstCourse: first.start,
-      firstCancelled: courses.some((c) => c.cancelled && c.start < first.start),
-    };
-  }
-
-  /**
-   * Trajet du matin de `ownerId` : selon l'emploi du temps (de `showBefore` minutes avant l'heure de partir jusqu'à
-   * peu après la course), ou sur sa plage horaire fixe ; null en dehors, sans trajet ou si Irigo ne répond pas.
-   */
-  async function commuteOf(ownerId: string): Promise<Commute | null> {
-    const trip = transitSettings.commuteFor(ownerId);
-    if (!trip) return null;
-    const now = clock();
-    if (!trip.days.includes(now.getDay())) return null;
-    let plan: Commute['plan'] | null = null;
-    if (trip.mode === 'school') {
-      plan = await planOf(ownerId, trip, now);
-      if (!plan) return null;
-      const from = Date.parse(plan.leaveAt) - trip.showBefore * 60_000;
-      if (now.getTime() < from || now.getTime() > Date.parse(plan.departs) + PLAN_LINGER_MS) return null;
-    } else {
-      const time = localTime(now);
-      if (time < trip.window.from || time >= trip.window.to) return null;
-    }
-    const data = await departuresAt(trip.origin);
-    if (!data) return null;
-    const line = lineLabel(trip.line);
-    const departures = data.departures.filter(
-      (d) => d.line === line && (trip.oneWay || trip.headsigns.length === 0 || sameDirection(d.destination, trip.headsigns)),
-    );
-    // La course prévue en tête, même au-delà des premiers passages ; puis les suivantes.
-    const planned = plan && departures.find((d) => Math.abs(Date.parse(d.aimed ?? d.at) - Date.parse(plan.departs)) <= SAME_TRIP_MS);
-    const kept = departures.filter((d) => !plan || Date.parse(d.at) >= Date.parse(plan.departs) - 30 * 60_000 || d === planned);
-    return {
-      line,
-      stop: data.name ?? trip.origin,
-      ...(trip.label && { label: trip.label }),
-      walkMinutes: trip.walkFrom,
-      departures: kept.slice(0, COMMUTE_DEPARTURES),
-      alerts: await alertsFor([line]),
-      ...(plan && { plan }),
-    };
   }
 
   /** Prochain cours à venir, pour le résumé de l'accueil. */
@@ -333,14 +194,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       return { weather: currentWeather, profiles, familyHighlight: family?.nextEvent ?? null };
     },
 
-    async weatherForecast() {
-      try {
-        return await sources.weather.forecast();
-      } catch (err) {
-        logger.error(`Météo indisponible : ${(err as Error).message}`);
-        return null;
-      }
-    },
+    weatherForecast: () => accessory(logger, 'Météo indisponible', () => sources.weather.forecast(), null),
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
@@ -352,7 +206,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
         schoolDays(ownerId),
         routineOf(ownerId),
         homeworkOf(ownerId),
-        commuteOf(ownerId),
+        board.commute(ownerId),
       ]);
       const [nextEvent = null, ...rest] = events;
       return {
@@ -394,7 +248,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
 
     routine: (ownerId) => (hasOwner(ownerId) ? routineOf(ownerId) : Promise.resolve(null)),
     homework: (ownerId) => (hasOwner(ownerId) ? homeworkOf(ownerId) : Promise.resolve(null)),
-    transit: transitData,
+    transit: board.departures,
 
     async setRoutineDone(ownerId, itemId, done, by) {
       const match = /^(morning|evening)-(\d+)$/.exec(itemId);
