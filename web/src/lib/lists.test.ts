@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ListTask } from '../../../shared/types.ts';
-import { authorLabel, dueLabel, isLate, repeatLabel, sharedText, taskMeta } from './lists.ts';
+import { dueLabel, isLate, repeatLabel, sharedText, taskMeta } from './lists.ts';
 
 /** Lundi 2 novembre 2026, 18:00. */
 const now = new Date(2026, 10, 2, 18, 0);
@@ -45,11 +45,6 @@ describe('listes', () => {
     expect(taskMeta(done, now, nameOf)).toBe('Fait à 07:40 par Léa');
     expect(isLate(task({ due: '2026-11-01' }), now)).toBe(true);
     expect(isLate(task({ due: '2026-11-02' }), now)).toBe(false);
-  });
-
-  it('auteurs', () => {
-    expect(authorLabel({ ownerId: 'sam', via: 'phone' }, nameOf)).toBe('Sam · téléphone');
-    expect(authorLabel({ ownerId: null, via: 'tablet' }, nameOf)).toBe('tablette');
   });
 
   it('texte partagé : titre, texte et lien sans doublon', () => {

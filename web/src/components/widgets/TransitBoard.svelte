@@ -4,15 +4,17 @@
   import { departureRows, departureText, isTram } from '../../lib/transit.ts';
 
   // Prochains passages Irigo aux arrêts suivis (accueil, piste A) : une seule ligne par arrêt, une pastille par ligne et
-  // destination avec son prochain passage ; le point vert dit que l'heure vient du temps réel. La hauteur ne dépend
-  // plus du nombre de passages annoncés. Perturbations des lignes suivies en dessous, deux au plus.
-  type Props = { transit: TransitData; now: Date; chips?: number };
-  let { transit, now, chips = 3 }: Props = $props();
+  // destination avec son prochain passage, trois au plus ; le point vert dit que l'heure vient du temps réel. La
+  // hauteur ne dépend pas du nombre de passages annoncés. Perturbations des lignes suivies en dessous, deux au plus.
+  type Props = { transit: TransitData; now: Date };
+  let { transit, now }: Props = $props();
+
+  const CHIPS = 3;
 </script>
 
 <div class="board">
   {#each transit.stops as stop (stop.id)}
-    {@const rows = departureRows(stop.departures, now, 1).slice(0, chips)}
+    {@const rows = departureRows(stop.departures, now, 1).slice(0, CHIPS)}
     <div class="stop">
       <span class="stop-name">{stop.label}</span>
       {#if rows.length === 0}

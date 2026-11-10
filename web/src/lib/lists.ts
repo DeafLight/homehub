@@ -1,6 +1,6 @@
-// Listes de la famille : libellés des échéances, des répétitions et des auteurs, choix proposés à l'ajout.
+// Listes de la famille : libellés des échéances et des répétitions, choix proposés à l'ajout.
 import { localDay } from '../../../shared/dates.ts';
-import type { Author, ListTask, Repeat } from '../../../shared/types.ts';
+import type { ListTask, Repeat } from '../../../shared/types.ts';
 import { addDays } from './day.ts';
 import { capitalize, dayDiff, formatTime } from './format.ts';
 
@@ -44,13 +44,6 @@ export function taskMeta(task: ListTask, now: Date, nameOf: NameOf): string {
   }
   const parts = [task.due ? dueLabel(task.due, now) : null, task.repeat ? `${repeatLabel(task.repeat)} ↻` : null];
   return parts.filter(Boolean).join(' · ') || 'Sans date';
-}
-
-/** « Sam · téléphone », « tablette ». */
-export function authorLabel(author: Author, nameOf: NameOf): string {
-  const via = author.via === 'phone' ? 'téléphone' : 'tablette';
-  const who = nameOf(author.ownerId);
-  return who ? `${who} · ${via}` : via;
 }
 
 export type DueChoice = { label: string; value: string | null };
