@@ -21,6 +21,7 @@
   import { familyExercises, formatMinutes, waistSeries } from '../../lib/fitness.ts';
   import { createResource } from '../../lib/resource.svelte.ts';
   import Icon from '../Icon.svelte';
+  import ExerciseAnimation from './ExerciseAnimation.svelte';
   import ExerciseDetail from './ExerciseDetail.svelte';
   import SessionForm from './SessionForm.svelte';
 
@@ -133,9 +134,12 @@
       <ul class="list">
         {#each familyExercises(family) as e (e.id)}
           <li>
-            <button type="button" onclick={() => go({ name: 'exercise', id: e.id, back: { name: 'catalogue' } })}>
-              <span>{e.name}</span>
-              <span class="muted small">{e.primary.join(', ')}</span>
+            <button type="button" class="thumbed" onclick={() => go({ name: 'exercise', id: e.id, back: { name: 'catalogue' } })}>
+              <span class="thumb"><ExerciseAnimation id={e.id} still height={40} /></span>
+              <span class="text">
+                <span>{e.name}</span>
+                <span class="muted small">{e.primary.join(', ')}</span>
+              </span>
             </button>
           </li>
         {/each}
@@ -186,11 +190,14 @@
       <ul class="list plan">
         {#each plan as item (item.family)}
           <li>
-            <button type="button" onclick={() => go({ name: 'exercise', id: item.exercise.id, back: { name: 'home' } })}>
-              <span>{item.exercise.name}</span>
-              <span class="muted small">
-                {FAMILY_LABELS[item.family]}{item.exercise.unit === 's' ? ' · tenir' : ''}{item.exercise.sides ? ' · change de côté à chaque tour' : ''}
-                {#if item.normal}· à la place de {item.normal.name}{/if}
+            <button type="button" class="thumbed" onclick={() => go({ name: 'exercise', id: item.exercise.id, back: { name: 'home' } })}>
+              <span class="thumb"><ExerciseAnimation id={item.exercise.id} still height={40} /></span>
+              <span class="text">
+                <span>{item.exercise.name}</span>
+                <span class="muted small">
+                  {FAMILY_LABELS[item.family]}{item.exercise.unit === 's' ? ' · tenir' : ''}{item.exercise.sides ? ' · change de côté à chaque tour' : ''}
+                  {#if item.normal}· à la place de {item.normal.name}{/if}
+                </span>
               </span>
             </button>
           </li>
@@ -411,6 +418,26 @@
     font: inherit;
     font-size: 1.08rem;
     text-align: left;
+  }
+
+  .list button.thumbed {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .thumb {
+    display: grid;
+    flex: none;
+    width: 64px;
+    place-items: center;
+  }
+
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
 
   .family {

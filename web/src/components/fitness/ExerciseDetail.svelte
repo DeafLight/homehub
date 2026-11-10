@@ -2,8 +2,10 @@
   import { type Exercise, FAMILY_LABELS } from '../../../../shared/fitness-catalogue.ts';
   import { PALIERS } from '../../../../shared/fitness.ts';
   import { placementOf } from '../../lib/fitness.ts';
+  import ExerciseAnimation from './ExerciseAnimation.svelte';
+  import MuscleMap from './MuscleMap.svelte';
 
-  // Fiche d'un exercice : comment le faire, muscles travaillés, erreurs fréquentes, versions voisines.
+  // Fiche d'un exercice : animation, comment le faire, muscles travaillés, erreurs fréquentes, versions voisines.
   type Props = { exercise: Exercise; onOpen: (id: string) => void };
   let { exercise, onOpen }: Props = $props();
 
@@ -20,6 +22,10 @@
     {#each place.places as p, i (i)}{i ? ' · ' : ''}Séance {p.session}, palier {p.palier} ({PALIERS[p.palier].name}){:else}Remplaçant doux, quand un exercice gêne{/each}
   </p>
 
+  {#key exercise.id}
+    <div class="animation"><ExerciseAnimation id={exercise.id} label={`Animation : ${exercise.name}`} /></div>
+  {/key}
+
   <h3>Position de départ</h3>
   <p>{exercise.start}</p>
   <h3>Mouvement</h3>
@@ -28,6 +34,7 @@
   <p>{exercise.breath}</p>
 
   <h3>Muscles</h3>
+  <MuscleMap primary={exercise.primary} secondary={exercise.secondary} />
   <ul class="muscles">
     {#each exercise.primary as m (m)}<li class="primary">{m}</li>{/each}
     {#each exercise.secondary as m (m)}<li>{m}</li>{/each}
@@ -70,6 +77,10 @@
     margin: 0;
     font-size: 1.05rem;
     line-height: 1.45;
+  }
+
+  .animation {
+    margin-top: 12px;
   }
 
   .meta {

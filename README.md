@@ -152,8 +152,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   toujours « garder ce rythme » (effort 20–60 s, repos 10–40 s). À partir de 45 s d'effort, une bonne semaine propose
   le palier suivant, avec 10 s d'effort en moins. Par exercice, jamais d'office : « dur » deux fois, la version plus
   facile ; « facile » deux fois, la plus difficile ; une gêne, un remplaçant doux. Cardio et tour de taille de la
-  semaine, courbe du tour de taille, historique. Catalogue des exercices : position, mouvement, respiration, muscles,
-  erreurs fréquentes, versions voisines. Données personnelles (`fitness.json`) : seul le téléphone de la personne les
+  semaine, courbe du tour de taille, historique. Catalogue des exercices : animation de chaque exercice (bonhomme dessiné
+  par HomeHub, 2 à 4 positions en boucle, pause et ralenti, à l'arrêt si le téléphone demande moins d'animations),
+  vignette dans les listes, position, mouvement, respiration, muscles sur une silhouette face et dos (principaux en
+  plein, les autres en clair), erreurs fréquentes, versions voisines. Données personnelles (`fitness.json`) : seul le téléphone de la personne les
   lit, ni la tablette ni les autres téléphones.
 - **Minuteurs** (tablette) : bouton minuteur sur l'accueil et dans le rail. La durée se choisit sur une roue (glisser
   le doigt autour du cadran : un tour, une heure, autant de tours qu'on veut jusqu'à 24 h ; − 1, + 1, + 5, + 1 h ;
