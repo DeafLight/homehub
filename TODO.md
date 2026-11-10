@@ -102,7 +102,10 @@ Reste :
       silhouette face et dos, dans la fiche et avant chaque exercice.
 - [ ] Sport, 0.38.0 : séance guidée sur la tablette (échauffement, compte à rebours, tours, bips, exercice suivant
       pendant le repos), carte « séance du jour » ; profil choisi par la reconnaissance faciale ; rien de personnel
-      affiché (ni tour de taille, ni notes, ni historique).
+      affiché (ni tour de taille, ni notes, ni historique). Pendant la séance guidée, le profil reste connecté : ni
+      fin de la session de la personne reconnue (`faces.sessionMinutes`), ni retour à l'accueil sans contact
+      (`ui.idleTimeoutSeconds`), ni veille (`ui.screensaverMinutes`), même loin de la caméra et sans toucher l'écran.
+      En quittant la séance (fin, abandon, retour), tout reprend comme d'habitude, délais repartis de zéro.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 
