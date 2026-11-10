@@ -24,7 +24,7 @@
   const name = $derived(today ? (config.members.find((m) => m.id === today?.ownerId)?.name ?? '') : '');
 
   // Séance du jour relue à chaque changement de personne reconnue ; le serveur dit pour qui (personne : la bulle
-  // « Regarde la tablette »), et l'oublie dès qu'elle n'est plus là.
+  // « Regarde la tablette »).
   $effect(() => {
     void actor.current?.id;
     let live = true;
@@ -42,6 +42,21 @@
       });
     return () => {
       live = false;
+    };
+  });
+
+  // On s'éloigne souvent de la tablette avant de commencer (tapis, tenue) : tant que la page est ouverte, la
+  // personne reconnue reste retenue sans son visage (actor.keep) et sa session sur le serveur est prolongée. Une
+  // autre personne reconnue la remplace ; le retour à l'accueil sans contact (ui.idleTimeoutSeconds) la libère.
+  const KEEP_MS = 2_000;
+  const KEEPALIVE_MS = 30_000;
+  $effect(() => {
+    if (!actor.current) return;
+    const keep = setInterval(() => actor.keep(), KEEP_MS);
+    const keepAlive = setInterval(() => void api.tabletWorkout().catch((err: unknown) => actor.check(err)), KEEPALIVE_MS);
+    return () => {
+      clearInterval(keep);
+      clearInterval(keepAlive);
     };
   });
 

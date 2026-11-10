@@ -52,6 +52,11 @@ export type Actor = {
   sawFace(): void;
   /** Retour de la séance guidée : la personne retenue compte comme vue à l'instant (délais repartis de zéro). */
   stay(): void;
+  /**
+   * Page Sport : la personne retenue ne part pas faute de visage (on s'éloigne pour se préparer), sans compter comme
+   * présente pour la veille. Une autre personne reconnue la remplace toujours.
+   */
+  keep(): void;
   /** Oublie la personne (et ferme sa session sur le serveur). */
   end(): void;
   /** Erreur de l'API : session inconnue du serveur (redémarré, expirée) : on l'oublie. */
@@ -197,6 +202,10 @@ export function createActor({ config, isKiosk, endSession, now = Date.now }: Act
     stay() {
       lastSeen = now();
       lastFace = now();
+    },
+
+    keep() {
+      lastSeen = now();
     },
 
     end,
