@@ -4,7 +4,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { formatLongDate, formatTime } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { holdsActor, isPhoneRoute } from '../lib/route.ts';
+  import { allowsScreensaver } from '../lib/route.ts';
   import { formatCountdown, secondsLeft, timerLook, timerName } from '../lib/timers.ts';
   import { departureRows, departureText } from '../lib/transit.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
@@ -44,7 +44,7 @@
   let lastTouch = Date.now();
   let position = $state({ x: 50, y: 50 });
 
-  const enabled = $derived(kiosk && config.ui.screensaverMinutes > 0 && !isPhoneRoute(router.route) && !holdsActor(router.route));
+  const enabled = $derived(kiosk && config.ui.screensaverMinutes > 0 && allowsScreensaver(router.route));
 
   const fully = () => (globalThis as { fully?: Fully }).fully;
   let savedBrightness: number | null = null;

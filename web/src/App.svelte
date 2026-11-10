@@ -7,7 +7,7 @@
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
   import { sharedText } from './lib/lists.ts';
-  import { HOME_PATH, holdsActor, isPhoneRoute, routePath } from './lib/route.ts';
+  import { HOME_PATH, returnsHomeWhenIdle, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Faces from './screens/Faces.svelte';
@@ -47,12 +47,10 @@
   // Pas sur un téléphone, qui n'a pas d'accueil de tablette, ni pendant un scan (personne ne touche l'écran : le
   // scanner se ferme seul après quelques minutes sans lecture) ou une séance guidée. Le délai repart de zéro en
   // quittant ces pages.
-  const holding = $derived(holdsActor(router.route));
+  const idleHome = $derived(returnsHomeWhenIdle(router.route));
   $effect(() => {
-    if (holding) return;
-    return watchIdle(config.ui.idleTimeoutSeconds * 1000, () => {
-      if (!isPhoneRoute(router.route) && !holdsActor(router.route)) router.navigate(HOME_PATH);
-    });
+    if (!idleHome) return;
+    return watchIdle(config.ui.idleTimeoutSeconds * 1000, () => router.navigate(HOME_PATH));
   });
 </script>
 

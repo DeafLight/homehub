@@ -29,14 +29,39 @@ export const PHONE_SCAN_PATH = '/m/scanner';
 export const PHONE_STOCK_PATH = '/m/stock';
 
 /**
- * Pages de la tablette où la personne reconnue reste retenue sans la caméra : le scanner (la caméra lit les codes) et
- * la séance guidée (loin de la caméra, sans toucher l'écran). Ni retour à l'accueil, ni veille.
+ * Ce qui distingue une route pour le reste de l'écran, au même endroit plutôt qu'en conditions éparses :
+ * - `phone` : page du téléphone, sans accueil de tablette (ni retour automatique, ni veille, ni minuteurs) ;
+ * - `holdsActor` : page de la tablette où la personne reconnue reste retenue sans la caméra : le scanner (la caméra
+ *   lit les codes) et la séance guidée (loin de la caméra, sans toucher l'écran). Ni retour à l'accueil, ni veille ;
+ * - `camera` : la page se sert elle-même de la caméra (visages) : pas de reconnaissance en même temps.
  */
-export const holdsActor = (route: Route) => route.name === 'scan' || route.name === 'workout';
+type RouteTraits = { phone?: true; holdsActor?: true; camera?: true };
+const TRAITS: Partial<Record<Route['name'], RouteTraits>> = {
+  phone: { phone: true },
+  pair: { phone: true },
+  share: { phone: true },
+  phonescan: { phone: true },
+  phonestock: { phone: true },
+  scan: { holdsActor: true },
+  workout: { holdsActor: true },
+  faces: { camera: true },
+};
+const traits = (route: Route): RouteTraits => TRAITS[route.name] ?? {};
 
-/** Routes du téléphone : pas de retour automatique à l'accueil de la tablette. */
-export const isPhoneRoute = (route: Route) =>
-  route.name === 'phone' || route.name === 'pair' || route.name === 'share' || route.name === 'phonescan' || route.name === 'phonestock';
+export const holdsActor = (route: Route) => traits(route).holdsActor === true;
+
+/** Routes du téléphone. */
+export const isPhoneRoute = (route: Route) => traits(route).phone === true;
+
+/** Retour à l'accueil sans contact, et veille : sur les pages de la tablette, sauf celles qui retiennent la personne. */
+export const returnsHomeWhenIdle = (route: Route) => !isPhoneRoute(route) && !holdsActor(route);
+export const allowsScreensaver = returnsHomeWhenIdle;
+
+/** Reconnaissance faciale en continu : de même, et pas sur une page qui prend la caméra. */
+export const watchesPresence = (route: Route) => returnsHomeWhenIdle(route) && traits(route).camera !== true;
+
+/** Minuteurs de cuisine : sur toutes les pages de la tablette. */
+export const showsTimers = (route: Route) => !isPhoneRoute(route);
 
 export function routePath(route: Route): string {
   if (route.name === 'home') return HOME_PATH;
