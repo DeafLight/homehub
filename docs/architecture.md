@@ -45,23 +45,30 @@ flowchart LR
 
 ## Couches du serveur
 
-Les routes restent fines : elles valident, appellent le service, renvoient du JSON. Le service ne connaît ni HTTP ni
-la façon dont une source obtient ses données. `server/index.ts` assemble le tout (injection de dépendances).
+Les routes restent fines : une garde d'accès, `readBody` pour le corps, un appel au service, du JSON. Un refus se
+lève (`fail`, `HttpError`) et `server/http.ts` le traduit en `{error, identify?}` sur chaque routeur. Le service ne
+connaît ni HTTP ni la façon dont une source obtient ses données. `server/app.ts` monte un routeur par groupe
+(`*-api.ts`) ; `server/index.ts` assemble le tout (injection de dépendances). Les fichiers d'état passent tous par
+`sources/json-file.ts` (écriture atomique, mémoire remplacée seulement une fois le fichier écrit).
 
 ```mermaid
 flowchart TB
-  subgraph http["HTTP (server/app.ts, lists-api.ts, stock-api.ts)"]
-    routes["Routes /api/*<br/>validation zod"]
-    access["access.ts<br/>qui appelle : tablette, téléphone, personne"]
+  subgraph http["HTTP (server/app.ts, *-api.ts, http.ts)"]
+    routes["Routes /api/*<br/>readBody (zod), fail → {error}"]
+    access["access.ts, pin-gate.ts<br/>qui appelle : tablette, téléphone, personne ;<br/>gardes qui lèvent un refus"]
+    household["household.ts<br/>membres de la famille"]
     rights["shared/rights.ts<br/>qui peut écrire sur quel profil"]
   end
   subgraph services["Services"]
-    dash["services/dashboard.ts<br/>accueil, dashboards, semaine, trajets"]
+    dash["services/dashboard.ts<br/>accueil, dashboards, semaine"]
+    transitS["services/transit.ts<br/>passages, trajet du matin"]
+    facesS["services/faces.ts<br/>reconnaissance, session"]
+    stockS["services/stock.ts<br/>scan, entrées, sorties, courses"]
     nasS["services/nas.ts<br/>page NAS"]
   end
   subgraph sources["Sources (server/sources/)"]
     distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode,<br/>open-food-facts (sans cache : copie dans stock)"]
-    locales["Locales, fichiers JSON<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock"]
+    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness"]
     cache["refreshing-cache.ts<br/>rafraîchit, garde la dernière valeur"]
     status["source-status.ts<br/>dernier succès ou erreur"]
   end
@@ -69,7 +76,9 @@ flowchart TB
   horloge["Horloge injectée<br/>(tests à date fixe)"]
 
   routes --> access --> rights
-  routes --> dash & nasS
+  access --> household
+  routes --> dash & nasS & facesS & stockS
+  dash --> transitS --> distant
   routes --> locales
   dash --> distant & locales
   nasS --> status
