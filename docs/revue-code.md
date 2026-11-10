@@ -18,11 +18,11 @@ ce mécanisme, pas aux symptômes un par un.
 
 | # | Gravité | Constat | État |
 |---|---|---|---|
-| 1 | **Critique (sécurité)** | `X-Real-IP` / `X-Forwarded-For` crus sans condition : une adresse de bouclage vaut tablette | Signalé, non corrigé (changerait le comportement) |
+| 1 | **Critique (sécurité)** | `X-Real-IP` / `X-Forwarded-For` crus sans condition : une adresse de bouclage vaut tablette | Corrigé en 0.40.0 (`trustedProxies`) |
 | 2 | **Haute (intégrité)** | Mémoire modifiée avant l'écriture disque dans les magasins JSON | Corrigé (`905610e`) |
 | 3 | **Haute (conception)** | Routes HTTP obèses : droits, validation, règles et persistance mêlés, 37 copies du contrôle d'accès | Corrigé (`598e051`) |
 | 4 | **Haute (duplication)** | Persistance JSON recopiée onze fois, avec des variantes de comportement | Corrigé (`905610e`) |
-| 5 | Moyenne | `/stock/products/:code/recheck` sans contrôle d'accès, déclenche des appels sortants | Signalé |
+| 5 | Moyenne | `/stock/products/:code/recheck` sans contrôle d'accès, déclenche des appels sortants | Corrigé en 0.40.0 (avec `GET /stock/scan/:code`) |
 | 6 | Moyenne | Service du dashboard : un magasin créé en cachette (DIP), six try/catch recopiés, transports mélangés aux écrans | Corrigé (`ff4bd37`) |
 | 7 | Moyenne | Chaînes « config → membres → find » partout (Loi de Déméter) | Corrigé côté serveur ; 26 restent dans le front |
 | 8 | Moyenne | Composants Svelte géants (Scan 1017 lignes, Transit 921, Phone 661, SportPanel 613, Stock 609) | Prochaines étapes |
@@ -46,11 +46,22 @@ partout et appairer un téléphone.
 Le commentaire suppose que l'architecture de déploiement est respectée. Le code ne le vérifie pas : c'est **Postel
 appliqué à l'envers**. Il faut être tolérant sur le format, pas sur l'origine.
 
-**Correction proposée** (non faite : elle change le comportement et le déploiement doit la suivre) :
+**Correction (0.40.0).** `server/access.ts` distingue maintenant l'adresse de la **connexion** (qu'on ne peut pas
+inventer) de l'adresse du **client** :
 
-- ne croire ces en-têtes que si l'adresse de la connexion est celle du proxy (liste `trustedProxies` dans la
-  configuration) ;
-- sinon, prendre l'adresse de la connexion.
+- `requestOrigin()` ne lit `X-Real-IP`, puis `X-Forwarded-For`, que si la connexion vient d'un proxy de confiance
+  (`trustedProxies` dans la configuration : adresses ou plages CIDR, validées par zod). Dans `X-Forwarded-For`, elle
+  prend la première adresse en partant de la droite qui n'est pas un proxy de confiance, puisque le client écrit ce
+  qu'il veut à gauche. Sinon, l'adresse du client est celle de la connexion ;
+- `isKioskRequest()` : la clé ; ou une connexion **locale directe**, sans en-tête de proxy (développement, captures,
+  vérification de santé du conteneur) ; ou une adresse de `kiosk.addresses`, jamais une adresse locale annoncée par
+  un en-tête ;
+- défaut sûr : aucun proxy de confiance. Le déploiement réel n'en a pas besoin : la tablette y est reconnue à sa clé,
+  les téléphones à leur jeton, et la vérification de santé se fait en local direct.
+
+Aucun autre usage de l'adresse du client dans le serveur (les codes PIN se bloquent par profil, les journaux ne la
+notent pas). Tests : `access.test.ts` (« adresse du client »), `config.test.ts`, et les tests d'API simulent
+désormais une vraie connexion (`connectedFrom()` dans `server/testing.ts`) au lieu de poser `X-Real-IP`.
 
 ## 2. Intégrité : la mémoire avant le disque
 
@@ -125,6 +136,17 @@ Deux autres doublons ont été réunis :
 `server/stock-api.ts:93` : toute requête qui atteint le serveur déclenche un appel à Open Food Facts. Ce n'est pas une
 fuite (le résultat est public), mais c'est une **porte ouverte vers l'extérieur sans authentification**. Il faut au
 moins `access.trusted(c)`. Ce n'est pas corrigé, parce que cela changerait la réponse pour un appelant actuel.
+
+**Correction (0.40.0).** `recheck` exige `access.appliance(c)`, comme les autres écritures du stock (la tablette, ou
+un téléphone appairé). Le tour de toutes les routes a trouvé un second cas : `GET /stock/scan/:code`, qui lit la base
+pour un produit inconnu ou ancien **et enregistre sa réponse** ; il a reçu la même garde. Le reste est voulu :
+
+- `POST /pairing/claim` est public, le code à usage unique sert de preuve ;
+- `DELETE /faces/session` ferme seulement la session dont on présente le jeton ;
+- les lectures ouvertes (`/home`, `/week`, `/dashboard/…`, `/transit`, `/weather`) passent par les caches des sources,
+  sans appel sortant choisi par l'appelant.
+
+Tests : `stock-api.test.ts` (« base de produits (appel sortant) »).
 
 ## 6. Service du dashboard : dépendance cachée, try/catch recopiés
 
@@ -268,8 +290,8 @@ Aucune route, aucun JSON ni aucun écran ne change. Pas de nouvelle fonctionnali
 
 ## Prochaines étapes, par valeur
 
-1. **Proxy de confiance** pour `X-Real-IP` (point 1), avec le compose du NAS.
-2. **Contrôle d'accès sur `recheck`** (point 5).
+1. ~~Proxy de confiance pour `X-Real-IP` (point 1)~~ : fait en 0.40.0.
+2. ~~Contrôle d'accès sur `recheck` (point 5)~~ : fait en 0.40.0.
 3. **Minuteur de séance** sorti dans `web/src/lib/` avec ses tests, et correction du verrou d'écran (point 10).
 4. **Découper `Scan.svelte`** : machine à états du scan dans `web/src/lib/scan.ts`, fiche produit et formulaires en
    composants. Même travail ensuite pour `Transit.svelte` et `SportPanel.svelte`.

@@ -154,7 +154,7 @@ const app = createApp({ config, service, nas, lists, notes, devices, pins, faces
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
-    `HomeHub ${version} à l'écoute sur le port ${info.port} (${initialConfig.members.length} membres, ${configPath}, clé de tablette : ${kioskKey ? 'oui' : 'non'})`,
+    `HomeHub ${version} à l'écoute sur le port ${info.port} (${initialConfig.members.length} membres, ${configPath}, clé de tablette : ${kioskKey ? 'oui' : 'non'}, proxys de confiance : ${initialConfig.trustedProxies.join(', ') || 'aucun'})`,
   );
 });
 

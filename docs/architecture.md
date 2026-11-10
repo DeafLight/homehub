@@ -236,7 +236,7 @@ classDiagram
 ```mermaid
 flowchart TD
   req["Requête qui modifie"] --> qui{"Qui appelle ?"}
-  qui -- "clé X-Kiosk-Key<br/>ou adresse de la tablette" --> tab["Tablette"]
+  qui -- "clé X-Kiosk-Key, connexion locale directe<br/>ou adresse de la tablette" --> tab["Tablette"]
   qui -- "Authorization: Bearer<br/>jeton connu" --> phone["Téléphone relié<br/>au nom de son profil"]
   qui -- "autre" --> lecture["403 : lecture seule"]
   tab --> session{"X-Actor-Session<br/>valide ?"}
@@ -250,7 +250,12 @@ flowchart TD
 
 Exception : le **stock** (scanner, page Stock) n'attend pas de visage reconnu, puisque la caméra de la tablette sert
 alors à lire les codes-barres. La tablette ou un téléphone relié suffit ; le mouvement est noté au nom de la personne
-reconnue s'il y en a une (ou du profil du téléphone).
+reconnue s'il y en a une (ou du profil du téléphone). Même garde pour la base de produits (`scan`, `recheck`), qui
+appelle Open Food Facts.
+
+**Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
+si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe
+compte comme la tablette (développement, vérification de santé) ; une adresse locale annoncée par un en-tête, jamais.
 
 ## Séquences
 

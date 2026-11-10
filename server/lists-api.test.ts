@@ -17,7 +17,7 @@ import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createPinStore, MAX_PIN_FAILURES, PARENT_PIN_ID } from './sources/pins.ts';
-import { fixedClock } from './testing.ts';
+import { connectedFrom, fixedClock } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 const OTHER = '192.168.1.20';
@@ -57,17 +57,20 @@ function setup() {
   const as = (ownerId: string) => sessions.open(ownerId, 10).token;
   const parent = as('alex');
   const call = (method: string, path: string, { from = OTHER, token, key, actor, body }: CallOptions = {}) =>
-    api.request(path, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Real-IP': from,
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...(key && { 'X-Kiosk-Key': key }),
-        ...(actor && { 'X-Actor-Session': actor }),
+    api.request(
+      path,
+      {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(key && { 'X-Kiosk-Key': key }),
+          ...(actor && { 'X-Actor-Session': actor }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+      connectedFrom(from),
+    );
   return { call, pins, as, parent };
 }
 

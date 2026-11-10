@@ -263,6 +263,7 @@ ui:
   idleTimeoutSeconds: 180
 kiosk:
   addresses: [192.168.1.50]   # facultatif : adresse fixe de la tablette (sinon, sa clé HOMEHUB_KIOSK_KEY)
+trustedProxies: [172.20.0.0/16]  # facultatif : proxy qui peut donner l'adresse du client (X-Real-IP) ; défaut : aucun
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -315,7 +316,7 @@ server/
   sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants
   sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
   sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
-  access.ts                qui écrit : la tablette (kiosk.addresses), un téléphone relié (jeton), sinon personne
+  access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
   lists-api.ts             routes des listes, de l'appairage et des téléphones
   stock-api.ts             routes du stock et du scanner
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
@@ -369,7 +370,7 @@ web/src/
 | `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
 | `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire |
 | `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité, contenants, réglage par défaut |
-| `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` |
+| `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` (tablette ou téléphone relié) |
 | `PUT /api/stock/products/:code` | `{ name, brand, quantity, category }` : produit inconnu décrit, ou corrigé (notre version l'emporte) |
 | `GET /api/stock/products/:code/movements` | historique d'un produit, du plus récent : `{ at, by, kind, count, price, forgotten, undone }` |
 | `POST /api/stock/products/:code/recheck`, `…/accept-base`, `…/conflict` | relit la base (différences) ; prend sa version ; tranche un désaccord (`{ take: "mine" \| "base" }`) |
@@ -385,13 +386,21 @@ web/src/
 | `POST /api/fitness/rhythm` | `{ week, option }` : rythme choisi au bilan de la semaine (parmi ceux proposés) |
 | `POST /api/fitness/slots` | `{ session, family, change }` : changement d'exercice accepté (`easier`, `harder`, `gentle`, `normal`) ou refusé (`dismiss`) |
 
-Toutes les écritures du stock : tablette ou téléphone relié.
+Toutes les écritures du stock, et les lectures de la base de produits (`scan`, `recheck`) : tablette ou téléphone relié.
 
 **Écriture** : la tablette est reconnue à sa clé (`HOMEHUB_KIOSK_KEY`, lue une fois dans `#key=…` puis envoyée dans
 l'en-tête `X-Kiosk-Key` ; placée après `#`, elle n'apparaît jamais dans les journaux du proxy) ou à son adresse
-(`kiosk.addresses`, lue dans `X-Real-IP` posé par le proxy ; `127.0.0.1` compte toujours comme tablette, pour le
-développement), un téléphone relié à son jeton
-(`Authorization: Bearer`). Tout autre appareil lit sans écrire (403). La tablette agit au nom de la personne reconnue
+(`kiosk.addresses`), un téléphone relié à son jeton
+(`Authorization: Bearer`). Tout autre appareil lit sans écrire (403). La base de produits (`GET /api/stock/scan/:code`,
+`POST …/recheck`), qui appelle Open Food Facts, est réservée comme les écritures du stock.
+
+**Adresse du client** : `X-Real-IP` et `X-Forwarded-For` ne sont lus que si la connexion vient d'un proxy de
+confiance (`trustedProxies`, adresses ou plages CIDR ; défaut : aucun). Sinon, c'est l'adresse de la connexion qui
+compte : un appareil qui écrit `X-Real-IP: 127.0.0.1` reste un appareil du réseau. Dans `X-Forwarded-For`, l'adresse
+retenue est la première en partant de la droite qui n'est pas un proxy de confiance. Une connexion locale directe
+(`127.0.0.1` ou `::1`, sans en-tête de proxy : développement, vérification de santé du conteneur) compte comme la
+tablette ; une adresse locale annoncée par un en-tête, jamais. Derrière Nginx Proxy Manager, la clé et les jetons
+suffisent : `trustedProxies` ne sert que si `kiosk.addresses` doit reconnaître la tablette par son adresse. La tablette agit au nom de la personne reconnue
 (en-tête `X-Actor-Session` ; sans elle : 403 avec `identify: true`), un téléphone au nom de son profil ; un parent
 écrit partout, un enfant sur son profil seulement (`shared/rights.ts`). Les icônes de la PWA se régénèrent avec
 `node scripts/make-icons.ts`.

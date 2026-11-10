@@ -1,5 +1,6 @@
-// Routes du stock de la maison. Lecture ouverte comme le reste de l'API. Écriture : la tablette ou un téléphone
-// appairé, sans exiger qu'une personne soit reconnue : pendant un scan la caméra lit les codes-barres, pas les visages.
+// Routes du stock de la maison. Lecture ouverte comme le reste de l'API, sauf ce qui interroge la base de produits
+// (appel sortant, et copie locale enregistrée). Écriture et base : la tablette ou un téléphone appairé, sans exiger
+// qu'une personne soit reconnue : pendant un scan la caméra lit les codes-barres, pas les visages.
 // Le mouvement garde qui l'a fait quand on le sait (personne reconnue juste avant, ou profil du téléphone). Les règles
 // (base de produits, liste de courses) sont dans services/stock.ts ; ici, validation, droits et réponses.
 import { z } from 'zod';
@@ -73,7 +74,9 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
 
   /** Ce qu'est un code scanné : contenant de la maison, produit connu (copie locale, relue dans la base si ancienne), ou inconnu. */
   api.get('/stock/scan/:code', async (c) => {
-    const lookup = await service.scan(productCode(c.req.param('code')));
+    const value = productCode(c.req.param('code'));
+    await access.appliance(c); // peut appeler la base et enregistrer sa réponse
+    const lookup = await service.scan(value);
     return c.json<ScanLookup>(lookup ?? fail(404, 'Étiquette de contenant inconnue (retiré ?)'));
   });
 
@@ -90,7 +93,10 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
   });
 
   /** « Revérifier » : relecture immédiate de la base, sans rien changer. */
-  api.post('/stock/products/:code/recheck', async (c) => c.json((await service.recheck(c.req.param('code'))) ?? fail(404, 'Produit inconnu')));
+  api.post('/stock/products/:code/recheck', async (c) => {
+    await access.appliance(c); // appel sortant vers la base
+    return c.json((await service.recheck(c.req.param('code'))) ?? fail(404, 'Produit inconnu'));
+  });
 
   /** Accepter ce que dit la base (après « Revérifier ») : nouvelle version, même par-dessus notre correction. */
   api.post('/stock/products/:code/accept-base', async (c) => {

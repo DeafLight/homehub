@@ -127,6 +127,8 @@ Reste :
       sauvegarde nocturne du NAS (vérifié le 2026-11-09). Reste à tester une restauration.
 - [ ] Alerte sur le téléphone d'un parent quand une source reste en erreur plusieurs heures (dépend des
       notifications).
+- [x] Sécurité (0.40.0, revue de code §1 et §5) : `X-Real-IP` / `X-Forwarded-For` crus seulement venant d'un proxy
+      de confiance (`trustedProxies`) ; base de produits (`scan`, `recheck`) réservée à la tablette et aux téléphones.
 
 ## Transports (après le design)
 

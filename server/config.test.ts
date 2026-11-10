@@ -10,6 +10,12 @@ describe('parseConfig', () => {
     expect(config.family.name).toBe('Famille');
     expect(config.ui.idleTimeoutSeconds).toBe(180);
     expect(config.ui.screensaverMinutes).toBe(5);
+    expect(config.trustedProxies).toEqual([]); // aucun proxy cru par défaut
+  });
+
+  it('accepte des proxys de confiance en adresses ou en plages CIDR', () => {
+    const proxies = ['172.20.0.0/16', '172.20.0.5', 'fd00::/8', '::1'];
+    expect(parseConfig({ members: [alex], trustedProxies: proxies }).trustedProxies).toEqual(proxies);
   });
 
   it.each([
@@ -23,6 +29,8 @@ describe('parseConfig', () => {
     ['agenda mal nommé', { members: [{ ...alex, calendars: ['https://calendar.google.com/x.ics'] }] }],
     ['météo sans nom de lieu', { members: [alex], weather: { latitude: 48.85, longitude: 2.35 } }],
     ['programme de sport pour un enfant', { members: [{ ...alex, fitness: true }] }],
+    ['proxy de confiance qui n’est pas une adresse', { members: [alex], trustedProxies: ['npm'] }],
+    ['plage de proxys invalide', { members: [alex], trustedProxies: ['172.20.0.0/40'] }],
   ])('refuse : %s', (_, raw) => {
     expect(() => parseConfig(raw)).toThrow(/Configuration invalide/);
   });

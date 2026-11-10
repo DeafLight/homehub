@@ -176,3 +176,11 @@ export const GTFS_FILES = {
   // Le 11 novembre (mercredi férié) : pas de service de semaine.
   'calendar_dates.txt': 'service_id,date,exception_type\nSEM,20261111,2\nWE,20261111,1\n',
 };
+
+/**
+ * Environnement d'une requête de test arrivée par une connexion depuis `address` (troisième argument de
+ * `app.request`) : c'est ce que lit getConnInfo, comme pour une vraie connexion TCP.
+ */
+export function connectedFrom(address: string) {
+  return { incoming: { socket: { remoteAddress: address, remotePort: 50000, remoteFamily: address.includes(':') ? 'IPv6' : 'IPv4' } } };
+}

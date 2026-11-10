@@ -1,7 +1,9 @@
 // Qui appelle l'API : la tablette de la maison (reconnue à sa clé, ou à son adresse), un téléphone appairé (jeton),
 // ou un autre appareil du réseau, qui ne peut que lire. Et qui modifie : le profil du téléphone, ou la personne
-// reconnue devant la tablette ; un parent partout, un enfant sur son profil seulement.
+// reconnue devant la tablette ; un parent partout, un enfant sur son profil seulement. L'adresse du client ne se
+// croit sur parole que si elle vient d'un proxy de confiance (`trustedProxies`).
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { BlockList, isIP } from 'node:net';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context } from 'hono';
 import { canWrite } from '../shared/rights.ts';
@@ -20,8 +22,6 @@ export type Caller = {
   rejectedToken: boolean;
 };
 
-const LOOPBACK = new Set(['127.0.0.1', '::1']);
-
 /** En-tête de la clé de la tablette (reçue une fois dans l'adresse de démarrage : /#key=…). */
 export const KIOSK_KEY_HEADER = 'x-kiosk-key';
 export const KIOSK_KEY_MIN_LENGTH = 20;
@@ -34,30 +34,76 @@ export function kioskKeyMatcher(key: string | undefined): (presented: string | u
   return (presented) => presented !== undefined && timingSafeEqual(digest(presented), expected);
 }
 
-export type KioskRule = { addresses: string[]; isKey: (presented: string | undefined) => boolean };
+/** Adresse IP sans le préfixe IPv4 dans IPv6 (`::ffff:192.168.1.5` → `192.168.1.5`), ou undefined si ce n'en est pas une. */
+export function normalizeAddress(value: string | undefined): string | undefined {
+  const address = value?.trim().replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '');
+  return address && isIP(address) ? address : undefined;
+}
+
+const isLoopback = (address: string) => address === '::1' || address.startsWith('127.');
+
+/** Reconnaît une adresse parmi une liste d'adresses et de plages CIDR (IPv4 ou IPv6). */
+export function addressMatcher(entries: readonly string[]): (address: string) => boolean {
+  if (entries.length === 0) return () => false;
+  const list = new BlockList();
+  for (const entry of entries) {
+    const [base, prefix] = entry.split('/');
+    const type = isIP(base) === 6 ? 'ipv6' : 'ipv4';
+    if (prefix === undefined) list.addAddress(base, type);
+    else list.addSubnet(base, Number(prefix), type);
+  }
+  return (address) => list.check(address, isIP(address) === 6 ? 'ipv6' : 'ipv4');
+}
 
 /**
- * Adresse du client. HomeHub n'est joignable que par le proxy (NPM), qui fixe X-Real-IP : on lui fait confiance.
- * Sans proxy (développement), l'adresse de la connexion.
+ * D'où vient la requête. `connection` : l'adresse de la connexion TCP, la seule qu'on ne peut pas inventer.
+ * `client` : l'adresse du client ; celle de la connexion, sauf si la connexion vient d'un proxy de confiance, qui la
+ * donne dans X-Real-IP (Nginx Proxy Manager) ou X-Forwarded-For. `forwarded` : la requête porte l'un de ces en-têtes.
  */
-export function clientAddress(c: Context): string | undefined {
-  const forwarded = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0];
-  let address = forwarded?.trim();
-  if (!address) {
-    try {
-      address = getConnInfo(c).remote.address;
-    } catch {
-      return undefined; // requête sans connexion (tests)
-    }
+export type Origin = { connection?: string; client?: string; forwarded: boolean };
+
+/**
+ * Ces en-têtes ne valent que ce que vaut celui qui les pose : n'importe qui peut écrire `X-Real-IP: 127.0.0.1`.
+ * On ne les lit donc que si la connexion vient d'un proxy déclaré (`trustedProxies`). Dans X-Forwarded-For, chaque
+ * proxy ajoute à droite l'adresse qu'il a vue, et le client écrit ce qu'il veut à gauche : on prend la première
+ * adresse en partant de la droite qui n'est pas un proxy de confiance.
+ */
+export function requestOrigin(c: Context, isTrustedProxy: (address: string) => boolean): Origin {
+  const realIp = c.req.header('x-real-ip');
+  const forwardedFor = c.req.header('x-forwarded-for');
+  const forwarded = realIp !== undefined || forwardedFor !== undefined;
+  let connection: string | undefined;
+  try {
+    connection = normalizeAddress(getConnInfo(c).remote.address);
+  } catch {
+    return { forwarded }; // requête sans connexion (app.request sans environnement)
   }
-  return address?.replace(/^::ffff:/, '');
+  if (!connection || !isTrustedProxy(connection)) return { connection, client: connection, forwarded };
+  const hops = (forwardedFor ?? '').split(',').map(normalizeAddress).filter((a) => a !== undefined);
+  const client = normalizeAddress(realIp) ?? hops.findLast((a) => !isTrustedProxy(a)) ?? hops[0] ?? connection;
+  return { connection, client, forwarded };
+}
+
+export type KioskRule = {
+  /** Adresses de la tablette (`kiosk.addresses`), comparées à l'adresse du client. */
+  addresses: readonly string[];
+  isKey: (presented: string | undefined) => boolean;
+  isTrustedProxy: (address: string) => boolean;
+};
+
+/**
+ * La tablette : sa clé ; ou une connexion locale directe (développement, captures de la doc, vérification de santé du
+ * conteneur), jamais un en-tête qui le prétend ni une requête relayée par un proxy local ; ou une adresse de
+ * `kiosk.addresses` (qui peut venir d'un proxy de confiance, mais jamais une adresse locale).
+ */
+export function isKioskRequest(c: Context, origin: Origin, rule: KioskRule): boolean {
+  if (rule.isKey(c.req.header(KIOSK_KEY_HEADER))) return true;
+  if (origin.connection !== undefined && isLoopback(origin.connection) && !origin.forwarded) return true;
+  return origin.client !== undefined && !isLoopback(origin.client) && rule.addresses.includes(origin.client);
 }
 
 export async function identify(c: Context, devices: DeviceStore, rule: KioskRule): Promise<Caller> {
-  const address = clientAddress(c);
-  const kiosk =
-    rule.isKey(c.req.header(KIOSK_KEY_HEADER)) ||
-    (address !== undefined && (LOOPBACK.has(address) || rule.addresses.includes(address)));
+  const kiosk = isKioskRequest(c, requestOrigin(c, rule.isTrustedProxy), rule);
   const token = /^Bearer (\S+)$/.exec(c.req.header('authorization') ?? '')?.[1];
   const device = token ? await devices.authenticate(token) : null;
   return { kiosk, device, rejectedToken: Boolean(token) && !device };
@@ -112,8 +158,17 @@ export function createAccess({
 }): Access {
   const household = createHousehold(config);
 
+  // Les proxys de confiance changent avec la configuration (relue à chaud) : matcher recalculé à chaque révision.
+  let proxies = { revision: null as string | null, isTrustedProxy: (_address: string) => false };
+  const isTrustedProxy = (address: string) => {
+    if (proxies.revision !== config.revision()) {
+      proxies = { revision: config.revision(), isTrustedProxy: addressMatcher(config.current().trustedProxies) };
+    }
+    return proxies.isTrustedProxy(address);
+  };
+
   const caller = async (c: Context) => {
-    const who = await identify(c, devices, { addresses: config.current().kiosk.addresses, isKey });
+    const who = await identify(c, devices, { addresses: config.current().kiosk.addresses, isKey, isTrustedProxy });
     return { ...who, actorId: who.kiosk ? actorOf(c.req.header(ACTOR_HEADER)) : null };
   };
 

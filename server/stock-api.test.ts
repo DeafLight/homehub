@@ -12,7 +12,7 @@ import { createListsStore } from './sources/lists.ts';
 import type { BaseProduct, ProductBase } from './sources/open-food-facts.ts';
 import { createStockStore } from './sources/stock.ts';
 import { createStockApi } from './stock-api.ts';
-import { NOW } from './testing.ts';
+import { connectedFrom, NOW } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 const OTHER = '192.168.1.20';
@@ -41,17 +41,18 @@ function setup(catalog: Record<string, BaseProduct | 'error'> = {}) {
   };
   const api = createStockApi({ stock, productBase, lists, access, clock, logger: { error() {} } });
   const call = async <T>(method: string, path: string, body?: unknown, from = TABLET, extra: Record<string, string> = {}) => {
-    const res = await api.request(path, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'X-Real-IP': from, ...extra },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const res = await api.request(
+      path,
+      { method, headers: { 'Content-Type': 'application/json', ...extra }, body: body === undefined ? undefined : JSON.stringify(body) },
+      connectedFrom(from),
+    );
     return { status: res.status, json: (res.status === 204 ? null : await res.json()) as T };
   };
   const shopping = async () => (await lists.lists() as Lists).shopping.map((s) => s.label);
   const later = (days: number) => (now = new Date(now.getTime() + days * 86_400_000));
   const laterMinutes = (minutes: number) => (now = new Date(now.getTime() + minutes * 60_000));
-  return { call, asked, shopping, sessions, later, laterMinutes };
+  const phone = async () => (await devices.claim(devices.createCode('alex').code, 'Téléphone'))!.token;
+  return { call, asked, shopping, sessions, later, laterMinutes, phone };
 }
 
 const compote: BaseProduct = { info: { name: 'Purée de pomme', brand: 'Carrefour Kids', quantity: '4 x 90 g' }, image: 'https://img/1.jpg', base: 'open-food-facts' };
@@ -200,9 +201,28 @@ describe('API du stock', () => {
 
   it('écriture : la tablette sans personne reconnue, pas un autre appareil', async () => {
     const { call } = setup({ [COMPOTE]: compote });
-    await call('GET', `/stock/scan/${COMPOTE}`, undefined, OTHER);
+    await call('GET', `/stock/scan/${COMPOTE}`);
     expect((await call('POST', '/stock/in', { code: COMPOTE }, OTHER)).status).toBe(403);
     expect((await call('POST', '/stock/in', { code: COMPOTE })).status).toBe(201);
     expect((await call('POST', '/stock/in', { code: '123' })).status).toBe(400);
+  });
+
+  it('base de produits (appel sortant) : la tablette ou un téléphone appairé, pas un autre appareil', async () => {
+    const { call, asked, phone } = setup({ [COMPOTE]: compote });
+    expect((await call('GET', `/stock/scan/${COMPOTE}`, undefined, OTHER)).status).toBe(403);
+    // L'adresse de la tablette annoncée par un en-tête, hors proxy de confiance, ne compte pas.
+    expect((await call('GET', `/stock/scan/${COMPOTE}`, undefined, OTHER, { 'X-Real-IP': TABLET })).status).toBe(403);
+    expect(asked).toEqual([]);
+    expect((await call('GET', `/stock/scan/${COMPOTE}`)).status).toBe(200);
+    expect(asked).toEqual([COMPOTE]);
+
+    expect((await call('POST', `/stock/products/${COMPOTE}/recheck`, undefined, OTHER)).status).toBe(403);
+    expect((await call('POST', `/stock/products/${COMPOTE}/recheck`, undefined, OTHER, { 'X-Real-IP': '127.0.0.1' })).status).toBe(403);
+    expect(asked).toEqual([COMPOTE]);
+    const token = await phone();
+    const recheck = await call('POST', `/stock/products/${COMPOTE}/recheck`, undefined, OTHER, { Authorization: `Bearer ${token}` });
+    expect(recheck.status).toBe(200);
+    expect(asked).toEqual([COMPOTE, COMPOTE]);
+    expect((await call('POST', `/stock/products/${COMPOTE}/recheck`, undefined, OTHER, { Authorization: 'Bearer retire' })).status).toBe(401);
   });
 });

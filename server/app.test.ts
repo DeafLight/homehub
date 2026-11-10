@@ -20,7 +20,7 @@ import { createSourceStatus } from './sources/source-status.ts';
 import { buildGtfsIndex, unzip } from './sources/gtfs.ts';
 import { createTimerStore } from './sources/timers.ts';
 import { createTransitSettingsStore } from './sources/transit-settings.ts';
-import { fakeSources, fixedClock, GTFS_FILES, NOW, silentLogger, testConfig, zip } from './testing.ts';
+import { connectedFrom, fakeSources, fixedClock, GTFS_FILES, NOW, silentLogger, testConfig, zip } from './testing.ts';
 
 function setup(staticRoot?: string, clock = fixedClock) {
   const config = createConfigStore(testConfig);
@@ -64,38 +64,45 @@ function setup(staticRoot?: string, clock = fixedClock) {
   });
   // Alex reconnu devant la tablette (configuration de test : pas de parent, chacun écrit sur son profil).
   const { token } = sessions.open('alex', 10);
-  /** Requête de la tablette (en test, l'adresse locale compte comme la tablette), au nom d'Alex sauf `actor: null`. */
-  const put = (body: unknown, { address = '127.0.0.1', actor = token as string | null } = {}) => ({
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Real-IP': address, ...(actor && { 'X-Actor-Session': actor }) },
-    body: JSON.stringify(body),
-  });
+  /**
+   * Requête de la tablette (connexion locale directe, qui compte comme la tablette), au nom d'Alex sauf `actor: null` :
+   * arguments de `app.request` après le chemin (corps et environnement de la connexion).
+   */
+  const put = (body: unknown, { address = '127.0.0.1', actor = token as string | null, method = 'PUT' } = {}) =>
+    [
+      {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(actor && { 'X-Actor-Session': actor }) },
+        body: JSON.stringify(body),
+      },
+      connectedFrom(address),
+    ] as const;
   return { app, config, put, sessions };
 }
 
 describe('API', () => {
   it('transports : réservés à la tablette, adresses, arrêts et lignes ; enregistrés par un parent seulement', async () => {
     const { app, config, put } = setup();
-    const local = { headers: { 'X-Real-IP': '127.0.0.1' } };
-    expect((await app.request('/api/transit/settings', { headers: { 'X-Real-IP': '192.168.1.50' } })).status).toBe(403);
-    expect(await (await app.request('/api/transit/settings', local)).json()).toEqual({ places: [], commutes: {}, stops: [], saved: false });
-    const { addresses } = await (await app.request('/api/transit/addresses?q=1%20rue%20Haute', local)).json();
+    const local = [undefined, connectedFrom('127.0.0.1')] as const;
+    expect((await app.request('/api/transit/settings', undefined, connectedFrom('192.168.1.50'))).status).toBe(403);
+    expect(await (await app.request('/api/transit/settings', ...local)).json()).toEqual({ places: [], commutes: {}, stops: [], saved: false });
+    const { addresses } = await (await app.request('/api/transit/addresses?q=1%20rue%20Haute', ...local)).json();
     expect(addresses).toEqual([{ label: '1 rue Haute, Angers', lat: 47.47, lon: -0.55 }]);
-    expect((await (await app.request('/api/transit/stops?q=mair', local)).json()).stops.map((s: { id: string }) => s.id)).toEqual(['1MAIR']); // 2MAIR : terminus seulement
-    expect((await (await app.request('/api/transit/stops?near=47.47,-0.55', local)).json()).stops[0].id).toBe('1MAIR');
-    expect((await app.request('/api/transit/stops?near=ici', local)).status).toBe(400);
-    const { routes } = await (await app.request('/api/transit/routes?from=47.47,-0.55&to=47.48,-0.55', local)).json();
+    expect((await (await app.request('/api/transit/stops?q=mair', ...local)).json()).stops.map((s: { id: string }) => s.id)).toEqual(['1MAIR']); // 2MAIR : terminus seulement
+    expect((await (await app.request('/api/transit/stops?near=47.47,-0.55', ...local)).json()).stops[0].id).toBe('1MAIR');
+    expect((await app.request('/api/transit/stops?near=ici', ...local)).status).toBe(400);
+    const { routes } = await (await app.request('/api/transit/routes?from=47.47,-0.55&to=47.48,-0.55', ...local)).json();
     expect(routes.map((r: { line: string }) => r.line)).toEqual(['A']);
 
     const place = (id: string, label: string, lat: number) => ({ id, label, icon: 'place', address: label, lat, lon: -0.55 });
     const { totalMinutes: _, ...route } = routes[0];
     const commute = { from: 'p1', to: 'p2', route, mode: 'school', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: 3 };
     const body = { places: [place('p1', 'Maison', 47.47), place('p2', 'Collège', 47.48)], commutes: { lea: commute }, stops: [{ id: '1MAIR', label: 'Mairie' }] };
-    expect((await app.request('/api/transit/settings', put(body))).status).toBe(403); // Alex n'est pas parent
+    expect((await app.request('/api/transit/settings', ...put(body))).status).toBe(403); // Alex n'est pas parent
     config.set(parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def', parent: true }, { id: 'lea', name: 'Léa', color: '#3fb8a8' }] }));
-    expect((await app.request('/api/transit/settings', put({ ...body, commutes: { zoe: commute } }))).status).toBe(400);
-    expect((await app.request('/api/transit/settings', put({ ...body, commutes: { lea: { ...commute, to: 'p9' } } }))).status).toBe(400);
-    const saved = await (await app.request('/api/transit/settings', put(body))).json();
+    expect((await app.request('/api/transit/settings', ...put({ ...body, commutes: { zoe: commute } }))).status).toBe(400);
+    expect((await app.request('/api/transit/settings', ...put({ ...body, commutes: { lea: { ...commute, to: 'p9' } } }))).status).toBe(400);
+    const saved = await (await app.request('/api/transit/settings', ...put(body))).json();
     expect(saved).toMatchObject({ saved: true, stops: [{ id: '1MAIR', label: 'Mairie' }] });
     expect(saved.commutes.lea.walkTo).toBe(3);
   });
@@ -106,15 +113,15 @@ describe('API', () => {
     const body = { members: { lea: { morning: [{ id: 'x1', label: 'Dents', days: null }], evening: [] } }, windows };
     expect((await (await app.request('/api/routines')).json()).members.lea).toEqual({ morning: [], evening: [] });
 
-    expect((await app.request('/api/routines', put(body))).status).toBe(403); // Alex n'est pas parent
-    expect((await app.request('/api/routines', put(body, { actor: null }))).status).toBe(403);
+    expect((await app.request('/api/routines', ...put(body))).status).toBe(403); // Alex n'est pas parent
+    expect((await app.request('/api/routines', ...put(body, { actor: null }))).status).toBe(403);
     config.set(parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def', parent: true }, { id: 'lea', name: 'Léa', color: '#3fb8a8' }] }));
-    expect((await app.request('/api/routines', put({ ...body, members: { zoe: body.members.lea } }))).status).toBe(400);
-    expect((await app.request('/api/routines', put({ ...body, windows: { ...windows, evening: { from: '22:00', to: '21:00' } } }))).status).toBe(400);
+    expect((await app.request('/api/routines', ...put({ ...body, members: { zoe: body.members.lea } }))).status).toBe(400);
+    expect((await app.request('/api/routines', ...put({ ...body, windows: { ...windows, evening: { from: '22:00', to: '21:00' } } }))).status).toBe(400);
     const lea = sessions.open('lea', 10).token;
-    expect((await app.request('/api/routines', put(body, { actor: lea }))).status).toBe(403); // enfant
+    expect((await app.request('/api/routines', ...put(body, { actor: lea }))).status).toBe(403); // enfant
 
-    const res = await app.request('/api/routines', put(body));
+    const res = await app.request('/api/routines', ...put(body));
     expect(res.status).toBe(200);
     expect(await (await app.request('/api/dashboard/lea/routine')).json()).toEqual({ routine: null }); // service de test sans routines
     expect((await app.request('/api/dashboard/zoe/routine')).status).toBe(404);
@@ -127,7 +134,7 @@ describe('API', () => {
   it('minuteurs : lancés et arrêtés par une personne reconnue, visibles par tous', async () => {
     const { app, put } = setup();
     const send = (method: string, path: string, body?: unknown, actor?: string | null) =>
-      app.request(path, { ...put(body ?? {}, actor === undefined ? {} : { actor }), method });
+      app.request(path, ...put(body ?? {}, { ...(actor === undefined ? {} : { actor }), method }));
 
     expect((await send('POST', '/api/timers', { label: 'Cuisson', seconds: 300 }, null)).status).toBe(403); // personne reconnu
     expect((await send('POST', '/api/timers', { seconds: 5 })).status).toBe(400);
@@ -145,7 +152,7 @@ describe('API', () => {
     let now = NOW.getTime();
     const { app, put } = setup(undefined, () => new Date(now));
     const send = (method: string, path: string, options: { actor?: string | null; address?: string } = {}) =>
-      app.request(path, { ...put({ seconds: 10 }, options), method });
+      app.request(path, ...put({ seconds: 10 }, { ...options, method }));
     const { id } = await (await send('POST', '/api/timers')).json();
     expect((await send('DELETE', `/api/timers/${id}`, { actor: null })).status).toBe(403); // en cours
     now += 20_000;
@@ -222,7 +229,7 @@ describe('API', () => {
 
   it('PUT une tâche : 200, puis visible dans le dashboard', async () => {
     const { app, put } = setup();
-    const res = await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }));
+    const res = await app.request('/api/dashboard/alex/tasks/t1', ...put({ done: true }));
     expect(res.status).toBe(200);
     const dashboard = await (await app.request('/api/dashboard/alex')).json();
     expect(dashboard.tasks[0].done).toBe(true);
@@ -230,16 +237,16 @@ describe('API', () => {
 
   it('PUT une tâche : 400 si le corps est invalide, 404 si la tâche est inconnue', async () => {
     const { app, put } = setup();
-    expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: 'oui' }))).status).toBe(400);
-    expect((await app.request('/api/dashboard/alex/tasks/absente', put({ done: true }))).status).toBe(404);
+    expect((await app.request('/api/dashboard/alex/tasks/t1', ...put({ done: 'oui' }))).status).toBe(400);
+    expect((await app.request('/api/dashboard/alex/tasks/absente', ...put({ done: true }))).status).toBe(404);
     // Autre appareil du réseau, non appairé : lecture seule.
-    expect((await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }, { address: '192.168.1.20' }))).status).toBe(403);
+    expect((await app.request('/api/dashboard/alex/tasks/t1', ...put({ done: true }, { address: '192.168.1.20' }))).status).toBe(403);
     // Tablette, personne reconnue : elle le demande.
-    const anonymous = await app.request('/api/dashboard/alex/tasks/t1', put({ done: true }, { actor: null }));
+    const anonymous = await app.request('/api/dashboard/alex/tasks/t1', ...put({ done: true }, { actor: null }));
     expect(anonymous.status).toBe(403);
     expect((await anonymous.json()).identify).toBe(true);
     // Alex n'est pas parent : pas sur le profil de Léa.
-    expect((await app.request('/api/dashboard/lea/tasks/t1', put({ done: true }))).status).toBe(403);
+    expect((await app.request('/api/dashboard/lea/tasks/t1', ...put({ done: true }))).status).toBe(403);
   });
 
   it('route API inconnue : 404 en JSON', async () => {

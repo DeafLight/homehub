@@ -71,6 +71,11 @@ export const configSchema = z.object({
    */
   kiosk: z.object({ addresses: z.array(z.union([z.ipv4(), z.ipv6()])).default([]) }).default({ addresses: [] }),
   /**
+   * Proxys de confiance (adresses ou plages CIDR) : seuls ceux-là peuvent dire, par X-Real-IP ou X-Forwarded-For,
+   * quelle est l'adresse du client. Par défaut aucun : l'adresse retenue est celle de la connexion (voir access.ts).
+   */
+  trustedProxies: z.array(z.union([z.ipv4(), z.ipv6(), z.cidrv4(), z.cidrv6()])).default([]),
+  /**
    * `idleTimeoutSeconds` : retour à l'accueil sans contact ; `screensaverMinutes` : veille de la tablette (écran noir,
    * horloge qui se déplace) sans contact ni visage devant la caméra, 0 : jamais.
    */

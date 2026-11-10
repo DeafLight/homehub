@@ -66,9 +66,17 @@ pronote:
 # Tablette de la maison : elle peut modifier les listes et appairer les téléphones. Elle est reconnue de préférence à
 # sa clé (variable HOMEHUB_KIOSK_KEY, donnée une fois dans son adresse de démarrage : https://…/#key=<clé>), ou à ses
 # adresses IP ci-dessous (fixées dans la box). Les autres appareils du réseau lisent seulement ; les téléphones
-# appairés écrivent au nom de leur profil. En développement, l'accès local (127.0.0.1) est toujours accepté.
+# appairés écrivent au nom de leur profil. Une connexion locale directe (127.0.0.1 : développement, vérification de
+# santé du conteneur) compte aussi comme la tablette ; un en-tête qui prétend venir de 127.0.0.1, jamais.
 kiosk:
   addresses: []
+
+# Proxys de confiance (adresses ou plages CIDR, IPv4 ou IPv6). Seuls ceux-là peuvent donner l'adresse du client dans
+# X-Real-IP ou X-Forwarded-For ; pour toute autre connexion, ces en-têtes sont ignorés (n'importe qui peut les
+# écrire). Par défaut aucun : l'adresse retenue est celle de la connexion. À remplir seulement si kiosk.addresses doit
+# reconnaître la tablette derrière le proxy : l'adresse (ou le réseau Docker) de Nginx Proxy Manager, par exemple
+# [172.20.0.0/16]. La clé de la tablette et les jetons des téléphones n'en ont pas besoin.
+trustedProxies: []
 
 # Reconnaissance faciale de la tablette (qui modifie). Valeurs par défaut ci-dessous ; pour les ajuster : roue dentée ›
 # Visages › Diagnostic, sur la tablette (et les logs, « visages : … »).

@@ -11,7 +11,7 @@ import { createFitnessApi } from './fitness-api.ts';
 import { createHousehold } from './household.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createFitnessStore } from './sources/fitness.ts';
-import { NOW } from './testing.ts';
+import { connectedFrom, NOW } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 
@@ -37,11 +37,15 @@ async function setup(actor: string | null = 'alex') {
   const fitness = createFitnessStore({ path, clock });
   const api = createFitnessApi({ fitness, household: createHousehold(config), access });
   const call = async <T = FitnessState>(method: string, url: string, body?: unknown, auth: string | null = alex, from = '192.168.1.20') => {
-    const res = await api.request(url, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'X-Real-IP': from, ...(auth && { Authorization: `Bearer ${auth}` }) },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const res = await api.request(
+      url,
+      {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(auth && { Authorization: `Bearer ${auth}` }) },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      connectedFrom(from),
+    );
     return { status: res.status, json: (await res.json()) as T & { error?: string } };
   };
   const later = (days: number) => (now = new Date(now.getTime() + days * 86_400_000));
