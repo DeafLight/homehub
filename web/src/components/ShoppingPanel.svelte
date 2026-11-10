@@ -9,14 +9,12 @@
     items: ShoppingItem[];
     frequent: string[];
     readOnly?: boolean;
-    /** Saisie en haut (tablette) ; sur le téléphone, l'ajout passe par le bouton « + ». */
-    showInput?: boolean;
     onAdd(label: string): Promise<void>;
     onToggle(item: ShoppingItem, done: boolean): void;
     onRemove(item: ShoppingItem): void;
     onClear(): void;
   };
-  let { items, frequent, readOnly = false, showInput = true, onAdd, onToggle, onRemove, onClear }: Props = $props();
+  let { items, frequent, readOnly = false, onAdd, onToggle, onRemove, onClear }: Props = $props();
 
   const toBuy = $derived(items.filter((i) => !i.done));
   const basket = $derived(items.filter((i) => i.done));
@@ -41,7 +39,7 @@
 </script>
 
 <div class="shopping">
-  {#if showInput && !readOnly}
+  {#if !readOnly}
     <form class="add" onsubmit={add}>
       <input bind:value={label} maxlength="120" placeholder="Ajouter un article…" enterkeyhint="done" />
       <button type="submit" aria-label="Ajouter" disabled={!label.trim() || busy}><Icon name="plus" size={28} strokeWidth={2.4} /></button>

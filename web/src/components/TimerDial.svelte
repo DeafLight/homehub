@@ -4,8 +4,8 @@
   // Roue du temps de la fenêtre Minuteur, comme un minuteur de cuisine : on fait glisser le doigt autour du cadran
   // (une minute par cran, un tour : une heure, autant de tours qu'on veut jusqu'à 24 h) ; l'arc coloré montre les
   // minutes du tour en cours, l'anneau pâle les heures entières ; au centre, la durée et l'heure de fin.
-  type Props = { minutes: number; color: string; caption: string; size?: number };
-  let { minutes = $bindable(), color, caption, size = 340 }: Props = $props();
+  type Props = { minutes: number; color: string; caption: string };
+  let { minutes = $bindable(), color, caption }: Props = $props();
 
   const C = 150;
   const R = 106;
@@ -61,8 +61,8 @@
   bind:this={svg}
   class="dial"
   viewBox="0 0 300 300"
-  width={size}
-  height={size}
+  width="340"
+  height="340"
   role="slider"
   tabindex="0"
   aria-label="Durée du minuteur"
