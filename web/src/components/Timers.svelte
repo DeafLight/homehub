@@ -4,7 +4,7 @@
   import TimerDial from './TimerDial.svelte';
   import TimerRing from './TimerRing.svelte';
   import { getAppContext } from '../lib/context.ts';
-  import { isPhoneRoute } from '../lib/route.ts';
+  import { showsTimers } from '../lib/route.ts';
   import {
     DIAL_DEFAULT_MINUTES,
     endsAtText,
@@ -40,7 +40,7 @@
     void actor.isKiosk().then((value) => (kiosk = value));
   });
 
-  const enabled = $derived(kiosk && !isPhoneRoute(router.route));
+  const enabled = $derived(kiosk && showsTimers(router.route));
   const running = $derived(timers.list.filter((t) => secondsLeft(t, clock.now) > 0));
   const ringing = $derived(timers.list.filter((t) => secondsLeft(t, clock.now) === 0));
   /** Change seulement quand un minuteur se met à sonner ou s'arrête (pas à chaque seconde). */

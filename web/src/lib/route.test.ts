@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_STOCK_PATH, holdsActor, isPhoneRoute, parseRoute, routePath } from './route.ts';
+import { PHONE_STOCK_PATH, allowsScreensaver, holdsActor, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
 
 describe('stock du téléphone', () => {
   it('a sa propre adresse, aller et retour', () => {
@@ -31,5 +31,20 @@ describe('sport de la tablette', () => {
     expect(holdsActor(parseRoute('/seance/p/alex'))).toBe(true);
     expect(holdsActor(parseRoute('/scanner'))).toBe(true);
     expect(holdsActor(parseRoute('/sport/p/alex'))).toBe(false);
+  });
+
+  it('traits des routes : retour à l’accueil, veille, reconnaissance, minuteurs', () => {
+    const traitsOf = (path: string) => {
+      const route = parseRoute(path);
+      return [returnsHomeWhenIdle(route), allowsScreensaver(route), watchesPresence(route), showsTimers(route)];
+    };
+    expect(traitsOf('/')).toEqual([true, true, true, true]);
+    expect(traitsOf('/p/lea')).toEqual([true, true, true, true]);
+    expect(traitsOf('/visages')).toEqual([true, true, false, true]);
+    expect(traitsOf('/scanner')).toEqual([false, false, false, true]);
+    expect(traitsOf('/seance/p/alex')).toEqual([false, false, false, true]);
+    for (const path of ['/m', '/m/sport', '/m/scanner', '/m/stock', '/appairer', '/partager']) {
+      expect(traitsOf(path)).toEqual([false, false, false, false]);
+    }
   });
 });

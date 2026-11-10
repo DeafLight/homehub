@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { getAppContext } from '../lib/context.ts';
   import { cameraError, prepareFaces, readFace, startCamera } from '../lib/face.ts';
-  import { holdsActor, isPhoneRoute } from '../lib/route.ts';
+  import { holdsActor, watchesPresence } from '../lib/route.ts';
 
   // Caméra de la tablette, discrète : environ une analyse par seconde tant que l'écran est allumé (veille comprise),
   // pour savoir qui est devant (voir lib/actor.svelte.ts) et réveiller la tablette quand quelqu'un arrive. Invisible,
@@ -28,7 +28,7 @@
     return () => document.removeEventListener('visibilitychange', onVisibility);
   });
 
-  const active = $derived(kiosk && visible && !isPhoneRoute(router.route) && router.route.name !== 'faces' && !holdsActor(router.route));
+  const active = $derived(kiosk && visible && watchesPresence(router.route));
 
   $effect(() => {
     if (!active || !video) return;
