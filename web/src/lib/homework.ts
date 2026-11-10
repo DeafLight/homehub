@@ -2,7 +2,7 @@
 // on les coche dans l'appli du service, HomeHub montre seulement ce qui y est coché.
 import type { Homework, ProfileSummary } from '../../../shared/types.ts';
 import { capitalize, dayDiff, pluralize } from './format.ts';
-import { localDay } from './lists.ts';
+import { localDay } from '../../../shared/dates.ts';
 
 /** Heure à partir de laquelle les devoirs du jour ne sont plus montrés (la journée de classe est commencée). */
 export const TODAY_HIDDEN_FROM_HOUR = 12;

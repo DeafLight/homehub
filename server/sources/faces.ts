@@ -5,8 +5,8 @@
 // avec le code parent) s'ajoutent quelques empreintes apprises en route : prises lors de reconnaissances sûres, elles
 // suivent les changements (coiffure, lunettes, lumière) sans jamais remplacer les enregistrées.
 import { randomBytes } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
 
 /** Empreintes enregistrées par personne, au plus (les plus récentes). */
@@ -98,35 +98,9 @@ export function similarity(a: number[], b: number[]): number {
 }
 
 export function createFaceStore({ path }: { path: string }): FaceStore {
-  let data: FacesFile | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
-
-  async function load(): Promise<FacesFile> {
-    if (data) return data;
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return (data = { version: 1, faces: {}, learned: {} });
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return (data = parsed.data);
-  }
-
-  function change<T>(apply: (file: FacesFile) => T): Promise<T> {
-    const run = queue.then(async () => {
-      const file = await load();
-      const result = apply(file);
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-      await rename(tmp, path);
-      return result;
-    });
-    queue = run.catch(() => undefined);
-    return run;
-  }
+  const state = createJsonFile<FacesFile>({ path, schema: fileSchema, initial: () => ({ version: 1, faces: {}, learned: {} }) });
+  const load = () => state.read();
+  const change = <T>(apply: (file: FacesFile) => T) => state.update(apply);
 
   return {
     async enrolled() {

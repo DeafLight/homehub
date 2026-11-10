@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import type { Homework, SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
+import { localDay } from '../../shared/dates.ts';
 import { homeworkFrom, htmlToText, sortHomework } from './homework.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
 import type { SourceStatus } from './source-status.ts';
@@ -115,8 +116,6 @@ const homeworkDaySchema = z.object({
 
 const b64decode = (s: string) => Buffer.from(s, 'base64').toString('utf8');
 const b64encode = (s: string) => Buffer.from(s, 'utf8').toString('base64');
-const isoDay = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** « 2026-11-03 08:35 », heure locale de l'établissement (le serveur tourne en Europe/Paris). */
 export function parseLocalDateTime(value: string): Date {
@@ -255,7 +254,7 @@ export function createEcoleDirecteClient(fetchFn: typeof fetch = (...args) => fe
             await http.post(`Eleves/${studentId}/cahierdetexte.awp?verbe=get`, {}),
           ).data;
           const wanted = Object.entries(days ?? {})
-            .filter(([day]) => /^\d{4}-\d{2}-\d{2}$/u.test(day) && day >= isoDay(from) && day < isoDay(to))
+            .filter(([day]) => /^\d{4}-\d{2}-\d{2}$/u.test(day) && day >= localDay(from) && day < localDay(to))
             .filter(([, items]) => items.some((i) => i.aFaire !== false))
             .map(([day]) => day)
             .sort();
@@ -284,8 +283,8 @@ export function createEcoleDirecteClient(fetchFn: typeof fetch = (...args) => fe
         async timetable(studentId, from, to) {
           const { data } = timetableSchema.parse(
             await http.post(`E/${studentId}/emploidutemps.awp?verbe=get`, {
-              dateDebut: isoDay(from),
-              dateFin: isoDay(to),
+              dateDebut: localDay(from),
+              dateFin: localDay(to),
               avecTrous: false,
             }),
           );

@@ -3,10 +3,11 @@
 // (bidon de lessive, bocal…) où l'on transvase les recharges. Comme les listes : une modification à la fois, écrite
 // sur le disque (fichier temporaire puis renommage) avant d'être confirmée.
 import { randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { containerCode } from '../../shared/barcode.ts';
 import type { Author, Container, Product, ProductInfo, StockData, StockEntry, StockMark, StockMovement, StockSettings } from '../../shared/types.ts';
+import { createJsonFile } from './json-file.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
 
 /** Mouvements gardés (les plus récents) : de quoi annuler et, plus tard, relier les prix. */
@@ -16,7 +17,6 @@ export const BASE_REREAD_DAYS = 180;
 export const NAME_MAX = 120;
 export const FIELD_MAX = 60;
 
-const authorSchema = z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) });
 const infoSchema = z.object({
   name: z.string(),
   brand: z.string().nullable(),
@@ -143,46 +143,18 @@ const sameInfo = (a: ProductInfo, b: ProductInfo) =>
   a.name === b.name && a.brand === b.brand && a.quantity === b.quantity;
 
 export function createStockStore({ path, clock }: { path: string; clock: Clock }): StockStore {
-  let data: StockFile | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
+  // Jamais d'écrasement d'un fichier qu'on ne comprend pas : le stock reste en lecture seule (erreur 500).
+  const state = createJsonFile<StockFile>({
+    path,
+    schema: fileSchema,
+    initial: () => ({ version: 1, products: {}, stock: {}, movements: [], containers: [], nextContainer: 1, settings: { autoShop: false } }),
+    beforeSave(draft) {
+      if (draft.movements.length > MOVEMENTS_KEPT) draft.movements = draft.movements.slice(-MOVEMENTS_KEPT);
+    },
+  });
 
-  async function load(): Promise<StockFile> {
-    if (data) return data;
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return (data = { version: 1, products: {}, stock: {}, movements: [], containers: [], nextContainer: 1, settings: { autoShop: false } });
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    // Jamais d'écrasement d'un fichier qu'on ne comprend pas : le stock reste en lecture seule (erreur 500).
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return (data = parsed.data);
-  }
-
-  async function save(file: StockFile) {
-    if (file.movements.length > MOVEMENTS_KEPT) file.movements = file.movements.slice(-MOVEMENTS_KEPT);
-    const tmp = `${path}.tmp`;
-    await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-    await rename(tmp, path);
-  }
-
-  function change<T>(apply: (file: StockFile, now: Date) => T): Promise<T> {
-    const run = queue.then(async () => {
-      const file = await load();
-      const result = apply(file, clock());
-      await save(file);
-      return result;
-    });
-    queue = run.catch(() => undefined);
-    return run;
-  }
-
-  async function read<T>(get: (file: StockFile) => T): Promise<T> {
-    await queue;
-    return get(await load());
-  }
+  const change = <T>(apply: (file: StockFile, now: Date) => T): Promise<T> => state.update((draft) => apply(draft, clock()));
+  const read = async <T>(get: (file: StockFile) => T): Promise<T> => get(await state.read());
 
   function toProduct(code: string, stored: StoredProduct): Product {
     const current = stored.versions.at(-1) as StoredProduct['versions'][number];

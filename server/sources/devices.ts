@@ -3,9 +3,9 @@
 // Seule l'empreinte du jeton est enregistrée (devices.json, dossier d'état) : le fichier ne permet pas de se
 // faire passer pour un téléphone.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Device, PairingCode } from '../../shared/types.ts';
+import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
 
 export const PAIRING_CODE_TTL_MS = 5 * 60_000;
@@ -42,44 +42,22 @@ export type DeviceStore = {
 };
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
-const publicDevice = ({ tokenHash: _tokenHash, ...device }: DevicesFile['devices'][number]): Device => device;
 
 export function createDeviceStore({ path, clock }: { path: string; clock: Clock }): DeviceStore {
-  let data: DevicesFile | undefined;
+  const state = createJsonFile<DevicesFile>({ path, schema: fileSchema, initial: () => ({ version: 1, devices: [] }) });
   let pending: PairingCode | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
+  /** Dernière utilisation connue de chaque téléphone : à jour en mémoire, enregistrée au plus une fois par période. */
+  const lastSeen = new Map<string, string>();
   const savedLastSeen = new Map<string, number>();
 
-  async function load(): Promise<DevicesFile> {
-    if (data) return data;
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return (data = { version: 1, devices: [] });
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return (data = parsed.data);
-  }
-
-  function change<T>(apply: (file: DevicesFile) => T): Promise<T> {
-    const run = queue.then(async () => {
-      const file = await load();
-      const result = apply(file);
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-      await rename(tmp, path);
-      return result;
-    });
-    queue = run.catch(() => undefined);
-    return run;
-  }
+  const publicDevice = ({ tokenHash: _tokenHash, ...device }: DevicesFile['devices'][number]): Device => ({
+    ...device,
+    lastSeenAt: lastSeen.get(device.id) ?? device.lastSeenAt,
+  });
 
   return {
     async list() {
-      return (await load()).devices.map(publicDevice);
+      return (await state.read()).devices.map(publicDevice);
     },
 
     createCode(ownerId) {
@@ -99,25 +77,28 @@ export function createDeviceStore({ path, clock }: { path: string; clock: Clock 
       const token = randomBytes(32).toString('base64url');
       const now = clock().toISOString();
       const stored = { id: randomUUID(), ownerId, name, system, pairedAt: now, lastSeenAt: now, tokenHash: hash(token) };
-      await change((file) => file.devices.push(stored));
+      await state.update((file) => file.devices.push(stored));
       return { token, device: publicDevice(stored) };
     },
 
     async authenticate(token) {
       const tokenHash = hash(token);
-      const found = (await load()).devices.find((d) => d.tokenHash === tokenHash);
+      const found = (await state.read()).devices.find((d) => d.tokenHash === tokenHash);
       if (!found) return null;
       const now = clock();
-      found.lastSeenAt = now.toISOString();
+      lastSeen.set(found.id, now.toISOString());
       if (now.getTime() - (savedLastSeen.get(found.id) ?? 0) > LAST_SEEN_SAVE_MS) {
         savedLastSeen.set(found.id, now.getTime());
-        await change(() => undefined);
+        await state.update((file) => {
+          const saved = file.devices.find((d) => d.id === found.id);
+          if (saved) saved.lastSeenAt = now.toISOString();
+        });
       }
       return publicDevice(found);
     },
 
     rename(id, name) {
-      return change((file) => {
+      return state.update((file) => {
         const found = file.devices.find((d) => d.id === id);
         if (found) found.name = name;
         return found ? publicDevice(found) : null;
@@ -125,7 +106,7 @@ export function createDeviceStore({ path, clock }: { path: string; clock: Clock 
     },
 
     remove(id) {
-      return change((file) => {
+      return state.update((file) => {
         const before = file.devices.length;
         file.devices = file.devices.filter((d) => d.id !== id);
         return file.devices.length < before;

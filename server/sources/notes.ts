@@ -2,16 +2,16 @@
 // tablette. Enregistrés dans le dossier d'état (notes.json), comme les listes. Un mot s'efface quand son destinataire
 // l'a vu, et au plus tard au bout de NOTE_KEPT_DAYS jours.
 import { randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Author, Note } from '../../shared/types.ts';
+import { createJsonFile } from './json-file.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock, NoteSource } from './types.ts';
 
 export const NOTE_MAX = 200;
 export const NOTE_KEPT_DAYS = 7;
 const DAY_MS = 86_400_000;
 
-const authorSchema = z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) });
 const fileSchema = z.object({
   version: z.literal(1),
   notes: z.array(
@@ -38,49 +38,25 @@ export type NotesStore = NoteSource & {
 };
 
 export function createNotesStore({ path, clock }: { path: string; clock: Clock }): NotesStore {
-  let data: NotesFile | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
-
-  async function load(): Promise<NotesFile> {
-    if (data) return data;
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return (data = { version: 1, notes: [] });
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return (data = parsed.data);
-  }
-
   const recent = (note: Note) => clock().getTime() - new Date(note.at).getTime() < NOTE_KEPT_DAYS * DAY_MS;
+  const state = createJsonFile<NotesFile>({ path, schema: fileSchema, initial: () => ({ version: 1, notes: [] }) });
 
   /** Une modification à la fois ; les mots trop anciens sont oubliés au passage. */
-  function change<T>(apply: (file: NotesFile) => T): Promise<T> {
-    const run = queue.then(async () => {
-      const file = await load();
+  const change = <T>(apply: (file: NotesFile) => T): Promise<T> =>
+    state.update((file) => {
       file.notes = file.notes.filter(recent);
-      const result = apply(file);
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-      await rename(tmp, path);
-      return result;
+      return apply(file);
     });
-    queue = run.catch(() => undefined);
-    return run;
-  }
 
   const sorted = (notes: Note[]) => notes.filter(recent).sort((a, b) => b.at.localeCompare(a.at));
 
   return {
     async list() {
-      return sorted((await load()).notes);
+      return sorted((await state.read()).notes);
     },
 
     async unseenFor(ownerId) {
-      return sorted((await load()).notes.filter((n) => n.to === ownerId && !n.seenAt));
+      return sorted((await state.read()).notes.filter((n) => n.to === ownerId && !n.seenAt));
     },
 
     add(to, text, from) {

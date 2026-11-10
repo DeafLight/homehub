@@ -4,6 +4,7 @@
 //
 // Trois séances qui tournent (1, 2, 3, puis 1…), sans jour fixe : la suivante est celle d'après la dernière faite.
 // Trois paliers (Base 3 tours, Volume 4, Intensité 4). Le rythme : secondes d'effort et de repos de chaque exercice.
+import { localDay } from './dates.ts';
 import { CHAINS, exerciseById, type Exercise, FAMILIES, type FitnessFamily, GENTLE } from './fitness-catalogue.ts';
 
 export type Palier = 1 | 2 | 3;
@@ -86,14 +87,12 @@ export const slotKey = (session: SessionNumber, family: FitnessFamily) => `${ses
 const NO_SLOT: SlotSetting = { offset: 0, swap: null, since: null };
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
-const pad = (n: number) => String(n).padStart(2, '0');
-const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /** Lundi (date locale, AAAA-MM-JJ) de la semaine de `date`. */
 export function weekOf(date: Date): string {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return ymd(d);
+  return localDay(d);
 }
 
 /** Durée d'une séance, sans l'échauffement, en secondes. */
