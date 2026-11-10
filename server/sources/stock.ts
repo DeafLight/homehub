@@ -55,6 +55,7 @@ const fileSchema = z.object({
       id: z.string(),
       at: z.string(),
       code: z.string(),
+      /** « adjust » (quantité comptée) n'est plus écrit, mais reste lu : un ancien fichier peut en contenir. */
       kind: z.enum(['in', 'out', 'refill', 'adjust', 'container-empty']),
       /** Unités entrées ou sorties ; pour « adjust », la nouvelle quantité. */
       count: z.number().int(),
@@ -121,8 +122,6 @@ export type StockStore = {
    * Produit absent du stock : acceptée (entrée oubliée), et `remaining` unités restent en stock.
    */
   remove(code: string, options: { all?: boolean; refill?: string | null; remaining?: number }, by: Author): Promise<OutResult>;
-  /** Quantité fixée à la main (inventaire). */
-  setQuantity(code: string, quantity: number, by: Author): Promise<{ movementId: string; at: string; quantity: number }>;
   /** Mouvements d'un produit (ou d'un contenant, par son étiquette), du plus récent au plus ancien. */
   movements(code: string, limit?: number): Promise<StockMovement[]>;
   /** Annule un mouvement, s'il est le dernier de son produit (ou de son contenant). Renvoie l'article de courses à retirer. */
@@ -363,15 +362,6 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
           autoShop: autoShopOf(file, code),
           container: container ? toContainer(file, container) : null,
         };
-      });
-    },
-
-    setQuantity(code, quantity, by) {
-      return change((file, now) => {
-        const before = quantityOf(file, code);
-        setStock(file, code, quantity, now);
-        const movement = record(file, now, { code, kind: 'adjust', count: quantity, price: null, by, before: { quantity: before } });
-        return { movementId: movement.id, at: movement.at, quantity: quantityOf(file, code) };
       });
     },
 

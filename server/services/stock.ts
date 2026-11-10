@@ -19,7 +19,6 @@ export type StockService = {
   acceptBase(code: string): Promise<Product | StockRefusal>;
   stockIn(code: string, count: number, price: number | null, by: Author): Promise<StockMovementResult | StockRefusal>;
   stockOut(code: string, options: { all: boolean; refill: string | null; remaining: number }, by: Author): Promise<StockMovementResult | StockRefusal>;
-  setQuantity(code: string, quantity: number, by: Author): Promise<StockMovementResult | StockRefusal>;
   emptyContainer(id: string, by: Author): Promise<StockMovementResult | StockRefusal>;
   undo(movementId: string): Promise<{ quantity: number } | StockRefusal>;
   /** « Oui » à la proposition : sur la liste de courses ; `always` : d'office la prochaine fois. */
@@ -150,12 +149,6 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
         forgotten: result.forgotten,
         ...shopping,
       };
-    },
-
-    async setQuantity(code, quantity, by) {
-      const product = await stock.product(code);
-      if (!product) return refuse('unknown-product');
-      return plainMovement(await stock.setQuantity(product.code, quantity, by), product, by);
     },
 
     async emptyContainer(id, by) {

@@ -44,7 +44,6 @@ const outSchema = z.object({
   refill: z.string().nullish(),
   remaining: z.number().int().min(0).max(99).default(0),
 });
-const quantitySchema = z.object({ code, quantity: z.number().int().min(0).max(999) });
 const undoSchema = z.object({ movementId: z.string().min(1) });
 const shopSchema = z.object({ code, always: z.boolean().default(false) });
 const prefsSchema = z.object({ autoShop: z.boolean().nullable().optional(), refill: z.string().nullable().optional() });
@@ -132,14 +131,6 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     const author = await access.appliance(c);
     const result = await service.stockOut(value, { all, refill: refill ?? null, remaining }, author);
     return c.json<StockMovementResult>(orRefuse(result, { 'unknown-product': [404, UNKNOWN_TO_ENTER], 'unknown-container': [400, 'Contenant inconnu'] }));
-  });
-
-  /** Inventaire : la quantité comptée à la main. */
-  api.post('/stock/quantity', async (c) => {
-    const input = await readBody(c, quantitySchema);
-    const author = await access.appliance(c);
-    const result = await service.setQuantity(input.code, input.quantity, author);
-    return c.json<StockMovementResult>(orRefuse(result, { 'unknown-product': [404, 'Produit inconnu'] }));
   });
 
   /** Annuler (scan en double, mauvais mode) : le dernier mouvement du produit seulement. */
