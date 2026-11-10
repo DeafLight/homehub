@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { Author, RoutinePlan, RoutineSettings, RoutineWindows } from '../../shared/types.ts';
 import type { ConfigProvider } from '../config-store.ts';
+import { createHousehold } from '../household.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
@@ -68,13 +69,14 @@ export type RoutinePlanStore = {
 
 export function createRoutinePlanStore({ path, clock, config }: { path: string; clock: Clock; config: ConfigProvider }): RoutinePlanStore {
   /** null : jamais enregistrés. */
+  const household = createHousehold(config);
   const state = createJsonFile<PlansFile | null>({ path, schema: fileSchema.nullable(), initial: () => null, pretty: true });
 
   const current = (): RoutineSettings => {
     const saved = state.current();
     return {
       windows: saved?.windows ?? DEFAULT_ROUTINE_WINDOWS,
-      members: Object.fromEntries(config.current().members.map((m) => [m.id, saved?.members[m.id] ?? NO_STEPS])),
+      members: Object.fromEntries(household.members().map((m) => [m.id, saved?.members[m.id] ?? NO_STEPS])),
     };
   };
 

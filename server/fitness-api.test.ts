@@ -8,6 +8,7 @@ import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createFitnessApi } from './fitness-api.ts';
+import { createHousehold } from './household.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createFitnessStore } from './sources/fitness.ts';
 import { NOW } from './testing.ts';
@@ -34,7 +35,7 @@ async function setup(actor: string | null = 'alex') {
   const access = createAccess({ config, devices, isKey: kioskKeyMatcher(undefined), actorOf: () => actor });
   const path = join(dir, 'fitness.json');
   const fitness = createFitnessStore({ path, clock });
-  const api = createFitnessApi({ fitness, config, access });
+  const api = createFitnessApi({ fitness, household: createHousehold(config), access });
   const call = async <T = FitnessState>(method: string, url: string, body?: unknown, auth: string | null = alex, from = '192.168.1.20') => {
     const res = await api.request(url, {
       method,
