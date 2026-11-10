@@ -1,6 +1,6 @@
 // Devoirs du cahier de texte, communs à Pronote et ÉcoleDirecte : consigne en texte simple, tri, fenêtre affichée.
 import type { Homework } from '../../shared/types.ts';
-import { localDay } from './lists.ts';
+import { localDay } from '../../shared/dates.ts';
 
 /** Au-delà, la consigne est coupée : le détail (et les pièces jointes) reste dans l'appli du service. */
 export const HOMEWORK_TEXT_MAX = 600;

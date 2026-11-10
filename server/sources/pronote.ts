@@ -10,7 +10,7 @@ import type { Homework, SchoolCourse } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { formatSubject, normalizeName } from './ecoledirecte.ts';
 import { homeworkFrom, htmlToText, sortHomework } from './homework.ts';
-import { localDay } from './lists.ts';
+import { localDay } from '../../shared/dates.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
 import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';

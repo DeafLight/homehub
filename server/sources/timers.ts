@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { type Author, type Timer, TIMER_MAX_SECONDS } from '../../shared/types.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
 
 export const MAX_TIMERS = 6;
@@ -19,7 +20,7 @@ const timerSchema = z.object({
   durationSeconds: z.number(),
   startedAt: z.string(),
   endsAt: z.string(),
-  startedBy: z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) }),
+  startedBy: authorSchema,
 });
 const fileSchema = z.object({ version: z.literal(1), timers: z.array(timerSchema) });
 

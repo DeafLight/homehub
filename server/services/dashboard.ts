@@ -17,11 +17,11 @@ import {
   type WeatherForecast,
   type WeekData,
 } from '../../shared/types.ts';
+import { localDay, localTime } from '../../shared/dates.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import type { GtfsSource } from '../sources/gtfs.ts';
 import { lineLabel, type TransitSource } from '../sources/irigo.ts';
 import { type CommuteTrip, createTransitSettingsStore, type TransitSettingsStore } from '../sources/transit-settings.ts';
-import { localDay } from '../sources/lists.ts';
 import type { RoutinePlanStore } from '../sources/routine-plans.ts';
 import { currentPeriod, type RoutineStore, stepKey, stepsOn } from '../sources/routines.ts';
 import { type Clock, type Sources, startOfWeek, type TimeRange } from '../sources/types.ts';
@@ -85,7 +85,6 @@ const sameDirection = (destination: string, headsigns: string[]) => {
   const got = new Set(words(destination));
   return headsigns.some((h) => words(h).some((w) => got.has(w)) || normalize(destination).includes(normalize(h)));
 };
-const hhmmOf = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 export function createDashboardService(deps: DashboardServiceDeps): DashboardService {
   const { config, sources, clock, logger, routines, plans, transit, gtfs } = deps;
@@ -244,7 +243,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       const from = Date.parse(plan.leaveAt) - trip.showBefore * 60_000;
       if (now.getTime() < from || now.getTime() > Date.parse(plan.departs) + PLAN_LINGER_MS) return null;
     } else {
-      const time = hhmmOf(now);
+      const time = localTime(now);
       if (time < trip.window.from || time >= trip.window.to) return null;
     }
     const data = await departuresAt(trip.origin);

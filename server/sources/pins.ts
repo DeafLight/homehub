@@ -3,9 +3,9 @@
 // d'empreinte scrypt salée. Le fichier est relu à chaque vérification : un PIN changé par le script s'applique
 // sans redémarrer. Après quelques erreurs, le code est bloqué un moment.
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
 
 export const PIN_PATTERN = /^\d{4,8}$/;
@@ -40,28 +40,12 @@ export type PinStore = {
 export function createPinStore({ path, clock }: { path: string; clock: Clock }): PinStore {
   const failures = new Map<string, { count: number; lockedUntil?: number }>();
 
-  async function load(): Promise<PinsFile> {
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return { version: 1, pins: {} };
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return parsed.data;
-  }
-
-  async function save(file: PinsFile) {
-    const tmp = `${path}.tmp`;
-    await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-    await rename(tmp, path);
-  }
+  // Relu à chaque vérification : un PIN changé par le script s'applique sans redémarrer.
+  const state = createJsonFile<PinsFile>({ path, schema: fileSchema, initial: () => ({ version: 1, pins: {} }), rereadEachTime: true });
 
   return {
     async protectedIds() {
-      return Object.keys((await load()).pins);
+      return Object.keys((await state.read()).pins);
     },
 
     async check(ids, pin) {
@@ -74,7 +58,7 @@ export function createPinStore({ path, clock }: { path: string; clock: Clock }):
       if (open.length === 0) {
         return { ok: false, reason: 'locked', waitMs: Math.min(...ids.map((id) => lockedUntil(id)!)) - now };
       }
-      const stored = (await load()).pins;
+      const stored = (await state.read()).pins;
       for (const id of open) {
         const entry = stored[id];
         if (!entry || !PIN_PATTERN.test(pin)) continue;
@@ -100,18 +84,17 @@ export function createPinStore({ path, clock }: { path: string; clock: Clock }):
       if (!PIN_PATTERN.test(pin)) throw new Error('Le PIN doit faire 4 à 8 chiffres');
       const salt = randomBytes(16);
       const hash = await derive(pin, salt, 32);
-      const file = await load();
-      file.pins[ownerId] = { salt: salt.toString('base64'), hash: hash.toString('base64') };
-      await save(file);
+      await state.update((file) => {
+        file.pins[ownerId] = { salt: salt.toString('base64'), hash: hash.toString('base64') };
+      });
       failures.delete(ownerId);
     },
 
     async remove(ownerId) {
-      const file = await load();
-      if (!(ownerId in file.pins)) return false;
-      delete file.pins[ownerId];
-      await save(file);
-      return true;
+      return state.update(
+        (file) => ownerId in file.pins && delete file.pins[ownerId],
+        (removed) => removed,
+      );
     },
   };
 }

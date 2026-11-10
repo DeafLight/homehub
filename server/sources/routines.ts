@@ -1,15 +1,15 @@
 // Routines du matin et du soir des membres (étapes : routine-plans.ts) : ce qui a été coché, jour par jour, est
 // enregistré dans le dossier d'état (routines.json) ; la liste repart de zéro chaque jour. Les jours anciens sont
 // oubliés au bout de ROUTINE_DAYS_KEPT jours, assez pour compter les jours de suite.
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { localDay, localTime } from '../../shared/dates.ts';
 import type { Author, RoutinePeriod, RoutineWindows } from '../../shared/types.ts';
-import { localDay } from './lists.ts';
+import { createJsonFile } from './json-file.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
 
 const ROUTINE_DAYS_KEPT = 60;
 
-const authorSchema = z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) });
 const fileSchema = z.object({
   version: z.literal(1),
   /** Jour local AAAA-MM-JJ → clé d'étape (voir `stepKey`) → qui l'a cochée, et quand. */
@@ -17,7 +17,6 @@ const fileSchema = z.object({
 });
 
 type RoutinesFile = z.infer<typeof fileSchema>;
-
 
 const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
 
@@ -33,8 +32,7 @@ export const stepKey = (ownerId: string, period: RoutinePeriod, stepId: string) 
 
 /** Routine affichée à cette heure-ci, d'après les plages réglées (heure locale ; le week-end, les siennes). */
 export function currentPeriod(now: Date, windows: RoutineWindows): RoutinePeriod | null {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const time = localTime(now);
   for (const period of ['morning', 'evening'] as const) {
     const range = (isWeekend(now) && windows.weekend?.[period]) || windows[period];
     if (range.from <= time && time < range.to) return period;
@@ -54,47 +52,25 @@ export type RoutineStore = {
 };
 
 export function createRoutineStore({ path, clock }: { path: string; clock: Clock }): RoutineStore {
-  let data: RoutinesFile | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
-
-  async function load(): Promise<RoutinesFile> {
-    if (data) return data;
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return (data = { version: 1, days: {} });
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return (data = parsed.data);
-  }
-
-  function change(apply: (file: RoutinesFile) => void): Promise<void> {
-    const run = queue.then(async () => {
-      const file = await load();
-      apply(file);
+  const state = createJsonFile<RoutinesFile>({
+    path,
+    schema: fileSchema,
+    initial: () => ({ version: 1, days: {} }),
+    beforeSave(draft) {
       const limit = new Date(clock());
       limit.setDate(limit.getDate() - ROUTINE_DAYS_KEPT);
       const oldest = localDay(limit);
-      for (const day of Object.keys(file.days)) if (day < oldest) delete file.days[day];
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-      await rename(tmp, path);
-    });
-    queue = run.catch(() => undefined);
-    return run;
-  }
+      for (const day of Object.keys(draft.days)) if (day < oldest) delete draft.days[day];
+    },
+  });
 
   return {
     async doneOn(day) {
-      await queue;
-      return new Set(Object.keys((await load()).days[day] ?? {}));
+      return new Set(Object.keys((await state.read()).days[day] ?? {}));
     },
 
     setDone(day, key, done, by) {
-      return change((file) => {
+      return state.update((file) => {
         const entries = (file.days[day] ??= {});
         if (done) entries[key] ??= { at: clock().toISOString(), by };
         else delete entries[key];
@@ -103,8 +79,7 @@ export function createRoutineStore({ path, clock }: { path: string; clock: Clock
     },
 
     async streak(keysOn, today) {
-      await queue;
-      const { days } = await load();
+      const { days } = await state.read();
       const [y, m, d] = today.split('-').map(Number);
       /** null : rien de prévu ce jour-là. */
       const complete = (offset: number) => {

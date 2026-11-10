@@ -2,9 +2,11 @@
 // donnée que HomeHub produit lui-même. Les modifications passent une par une, et chacune est écrite sur le disque
 // (fichier temporaire puis renommage) avant d'être confirmée.
 import { randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { localDay } from '../../shared/dates.ts';
 import type { Author, Lists, ListTask, Repeat, ShoppingItem, Task } from '../../shared/types.ts';
+import { createJsonFile } from './json-file.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock, TaskSource } from './types.ts';
 
 /** Une tâche faite reste affichée jusqu'à la fin du jour ; elle est oubliée au bout de ce délai. */
@@ -12,7 +14,6 @@ const DONE_TASKS_KEPT_DAYS = 30;
 const FREQUENT_LIMIT = 8;
 export const LABEL_MAX = 120;
 
-const authorSchema = z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) });
 const repeatSchema = z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['day', 'week']) });
 
 const fileSchema = z.object({
@@ -66,12 +67,6 @@ export type ListsStore = {
   removeTask(id: string): Promise<boolean>;
 };
 
-/** Jour local AAAA-MM-JJ. */
-export function localDay(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 function addToDay(day: string, { every, unit }: Repeat): string {
   const [y, m, d] = day.split('-').map(Number);
   return localDay(new Date(y, m - 1, d + every * (unit === 'week' ? 7 : 1)));
@@ -98,57 +93,32 @@ function visibleTasks(tasks: StoredTask[], today: string): ListTask[] {
 }
 
 export function createListsStore({ path, clock }: { path: string; clock: Clock }): ListsStore {
-  let data: ListsFile | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
-
-  async function load(): Promise<ListsFile> {
-    if (data) return data;
-    let text: string;
-    try {
-      text = await readFile(path, 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      return (data = { version: 1, shopping: [], tasks: [], history: {} });
-    }
-    const parsed = fileSchema.safeParse(JSON.parse(text));
-    // Jamais d'écrasement d'un fichier qu'on ne comprend pas : les listes restent en lecture seule (erreur 500).
-    if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-    return (data = parsed.data);
-  }
-
-  async function save(file: ListsFile) {
-    const limit = clock().getTime() - DONE_TASKS_KEPT_DAYS * 86_400_000;
-    file.tasks = file.tasks.filter((t) => !t.done || !t.doneAt || new Date(t.doneAt).getTime() > limit);
-    const tmp = `${path}.tmp`;
-    await writeFile(tmp, JSON.stringify(file), { mode: 0o600 });
-    await rename(tmp, path);
-  }
+  // Jamais d'écrasement d'un fichier qu'on ne comprend pas : les listes restent en lecture seule (erreur 500).
+  const state = createJsonFile<ListsFile>({
+    path,
+    schema: fileSchema,
+    initial: () => ({ version: 1, shopping: [], tasks: [], history: {} }),
+    beforeSave(draft) {
+      const limit = clock().getTime() - DONE_TASKS_KEPT_DAYS * 86_400_000;
+      draft.tasks = draft.tasks.filter((t) => !t.done || !t.doneAt || new Date(t.doneAt).getTime() > limit);
+    },
+  });
 
   /** Les modifications passent une par une : chacune lit l'état laissé par la précédente. */
-  function change<T>(apply: (file: ListsFile, now: Date) => T): Promise<T> {
-    const run = queue.then(async () => {
-      const file = await load();
-      const result = apply(file, clock());
-      await save(file);
-      return result;
-    });
-    queue = run.catch(() => undefined);
-    return run;
-  }
+  const change = <T>(apply: (file: ListsFile, now: Date) => T): Promise<T> => state.update((draft) => apply(draft, clock()));
 
   return {
     async lists() {
-      await queue;
-      const file = await load();
-      const openLabels = new Set(file.shopping.map((s) => s.label.toLowerCase()));
-      const frequent = Object.values(file.history)
+      const { shopping, tasks, history } = await state.read();
+      const openLabels = new Set(shopping.map((s) => s.label.toLowerCase()));
+      const frequent = Object.values(history)
         .filter((h) => !openLabels.has(h.label.toLowerCase()))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'fr'))
         .slice(0, FREQUENT_LIMIT)
         .map((h) => h.label);
       return {
-        shopping: [...file.shopping.filter((s) => !s.done), ...file.shopping.filter((s) => s.done)],
-        tasks: visibleTasks(file.tasks, localDay(clock())),
+        shopping: [...shopping.filter((s) => !s.done), ...shopping.filter((s) => s.done)],
+        tasks: visibleTasks(tasks, localDay(clock())),
         frequent,
       };
     },

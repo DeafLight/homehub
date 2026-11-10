@@ -2,7 +2,6 @@
 // exercices, séances notées, cardio et tour de taille de chaque semaine. Données personnelles, dans le dossier d'état
 // (fitness.json, donc dans la sauvegarde), lues et écrites seulement par le téléphone de la personne.
 import { randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { FAMILIES, type FitnessFamily } from '../../shared/fitness-catalogue.ts';
 import {
@@ -21,6 +20,7 @@ import {
   slotTarget,
   weekOf,
 } from '../../shared/fitness.ts';
+import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
 
 const MAX_SESSIONS = 2000;
@@ -101,41 +101,33 @@ export type FitnessStore = {
   changeSlot(ownerId: string, session: SessionNumber, family: FitnessFamily, change: SlotChange | 'dismiss'): Promise<FitnessResult>;
 };
 
+type FitnessFile = { version: 1; members: Record<string, FitnessState> };
+
 export function createFitnessStore({ path, clock }: { path: string; clock: Clock }): FitnessStore {
-  let members: Record<string, FitnessState> = {};
-  let queue: Promise<unknown> = Promise.resolve();
+  const state = createJsonFile<FitnessFile>({
+    path,
+    schema: fileSchema as unknown as z.ZodType<FitnessFile>,
+    initial: () => ({ version: 1, members: {} }),
+    pretty: true,
+  });
 
-  const get = (ownerId: string) => members[ownerId] ?? emptyFitness();
+  const get = (ownerId: string) => state.current().members[ownerId] ?? emptyFitness();
 
-  /** Modifie le programme d'un profil puis enregistre le fichier, une écriture à la fois. */
+  /** Modifie le programme d'un profil puis enregistre le fichier, une écriture à la fois ; un refus n'écrit rien. */
   function update(ownerId: string, change: (state: FitnessState) => FitnessResult): Promise<FitnessResult> {
-    const run = queue.then(async () => {
-      const draft = structuredClone(get(ownerId));
-      const result = change(draft);
-      if ('error' in result) return result;
-      const next = { ...members, [ownerId]: result.state };
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify({ version: 1, members: next }, null, 2), { mode: 0o600 });
-      await rename(tmp, path);
-      members = next;
-      return result;
-    });
-    queue = run.catch(() => undefined);
-    return run;
+    return state.update(
+      (file) => {
+        const result = change(file.members[ownerId] ?? emptyFitness());
+        if (!('error' in result)) file.members[ownerId] = result.state;
+        return result;
+      },
+      (result) => !('error' in result),
+    );
   }
 
   return {
     async load() {
-      let text: string;
-      try {
-        text = await readFile(path, 'utf8');
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-        return;
-      }
-      const parsed = fileSchema.safeParse(JSON.parse(text));
-      if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-      members = parsed.data.members as Record<string, FitnessState>;
+      await state.read();
     },
 
     get,

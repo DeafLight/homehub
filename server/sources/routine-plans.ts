@@ -2,10 +2,11 @@
 // tablette et enregistrés dans le dossier d'état (routine-plans.json). Avant le premier enregistrement : aucune étape,
 // heures par défaut. Chaque étape a un identifiant stable, qui sert de clé aux cases cochées (routines.json) : la
 // renommer ne perd ni les cases du jour ni les jours de suite.
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Author, RoutinePlan, RoutineSettings, RoutineWindows } from '../../shared/types.ts';
 import type { ConfigProvider } from '../config-store.ts';
+import { createJsonFile } from './json-file.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
 
 export const MAX_ROUTINE_STEPS = 12;
@@ -50,7 +51,7 @@ export type RoutineSettingsInput = z.infer<typeof routineSettingsInput>;
 const fileSchema = routineSettingsInput.extend({
   version: z.literal(1),
   updatedAt: z.string(),
-  by: z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) }),
+  by: authorSchema,
 });
 type PlansFile = z.infer<typeof fileSchema>;
 
@@ -66,43 +67,29 @@ export type RoutinePlanStore = {
 };
 
 export function createRoutinePlanStore({ path, clock, config }: { path: string; clock: Clock; config: ConfigProvider }): RoutinePlanStore {
-  let saved: PlansFile | null = null;
-  let queue: Promise<unknown> = Promise.resolve();
+  /** null : jamais enregistrés. */
+  const state = createJsonFile<PlansFile | null>({ path, schema: fileSchema.nullable(), initial: () => null, pretty: true });
 
-  const current = (): RoutineSettings => ({
-    windows: saved?.windows ?? DEFAULT_ROUTINE_WINDOWS,
-    members: Object.fromEntries(config.current().members.map((m) => [m.id, saved?.members[m.id] ?? NO_STEPS])),
-  });
+  const current = (): RoutineSettings => {
+    const saved = state.current();
+    return {
+      windows: saved?.windows ?? DEFAULT_ROUTINE_WINDOWS,
+      members: Object.fromEntries(config.current().members.map((m) => [m.id, saved?.members[m.id] ?? NO_STEPS])),
+    };
+  };
 
   return {
     async load() {
-      let text: string;
-      try {
-        text = await readFile(path, 'utf8');
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-        return;
-      }
-      const parsed = fileSchema.safeParse(JSON.parse(text));
-      if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-      saved = parsed.data;
+      await state.read();
     },
 
     current,
 
-    save(input, by) {
-      const run = queue.then(async () => {
-        // Les membres absents de l'envoi gardent leurs étapes.
-        const members = { ...saved?.members, ...input.members };
-        const file: PlansFile = { version: 1, members, windows: input.windows, updatedAt: clock().toISOString(), by };
-        const tmp = `${path}.tmp`;
-        await writeFile(tmp, JSON.stringify(file, null, 2), { mode: 0o600 });
-        await rename(tmp, path);
-        saved = file;
-        return current();
-      });
-      queue = run.catch(() => undefined);
-      return run;
+    async save(input, by) {
+      // Les membres absents de l'envoi gardent leurs étapes.
+      const members = { ...state.current()?.members, ...input.members };
+      await state.replace({ version: 1, members, windows: input.windows, updatedAt: clock().toISOString(), by });
+      return current();
     },
   };
 }

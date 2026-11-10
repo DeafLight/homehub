@@ -1,4 +1,5 @@
 // Listes de la famille : libellés des échéances, des répétitions et des auteurs, choix proposés à l'ajout.
+import { localDay } from '../../../shared/dates.ts';
 import type { Author, ListTask, Repeat } from '../../../shared/types.ts';
 import { addDays } from './day.ts';
 import { capitalize, dayDiff, formatTime } from './format.ts';
@@ -6,12 +7,6 @@ import { capitalize, dayDiff, formatTime } from './format.ts';
 const weekdayShort = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
 const weekdayLong = new Intl.DateTimeFormat('fr-FR', { weekday: 'long' });
 const dayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
-
-/** Jour local AAAA-MM-JJ (même format que le serveur). */
-export function localDay(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 /** Minuit local du jour AAAA-MM-JJ. */
 export function parseDay(day: string): Date {

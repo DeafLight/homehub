@@ -1,11 +1,12 @@
 // Réglages des transports (page « Transports » de la tablette) : lieux de la famille, trajet de chaque membre et
 // arrêts de l'accueil, enregistrés dans le dossier d'état (transit-settings.json). Les adresses restent donc sur le
 // NAS. Tant que la page n'a jamais été enregistrée, les sections `transit.stops` et `commute` du YAML s'appliquent.
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Author, CommuteSettings, HomeStop, TimeWindow, TransitSettings } from '../../shared/types.ts';
 import { WEEK_DAYS } from '../config.ts';
 import type { ConfigProvider } from '../config-store.ts';
+import { createJsonFile } from './json-file.ts';
+import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
 
 export const MAX_PLACES = 8;
@@ -75,7 +76,7 @@ const fileSchema = z.object({
   version: z.literal(1),
   settings: transitSettingsInput,
   updatedAt: z.string(),
-  by: z.object({ ownerId: z.string().nullable(), via: z.enum(['tablet', 'phone']) }),
+  by: authorSchema,
 });
 type SettingsFile = z.infer<typeof fileSchema>;
 
@@ -110,13 +111,16 @@ export type TransitSettingsStore = {
 };
 
 export function createTransitSettingsStore({ path, clock, config }: { path: string; clock: Clock; config: ConfigProvider }): TransitSettingsStore {
-  let saved: SettingsFile | null = null;
-  let queue: Promise<unknown> = Promise.resolve();
+  /** null : page jamais enregistrée (le YAML s'applique). */
+  const state = createJsonFile<SettingsFile | null>({ path, schema: fileSchema.nullable(), initial: () => null, pretty: true });
+  const saved = () => state.current();
 
-  const current = (): TransitSettings =>
-    saved
-      ? { ...(saved.settings as Omit<TransitSettings, 'saved'>), saved: true }
+  const current = (): TransitSettings => {
+    const file = saved();
+    return file
+      ? { ...(file.settings as Omit<TransitSettings, 'saved'>), saved: true }
       : { places: [], commutes: {}, stops: config.current().transit.stops, saved: false };
+  };
 
   function fromYaml(ownerId: string): CommuteTrip | null {
     const c = config.current().members.find((m) => m.id === ownerId)?.commute;
@@ -160,34 +164,20 @@ export function createTransitSettingsStore({ path, clock, config }: { path: stri
 
   return {
     async load() {
-      let text: string;
-      try {
-        text = await readFile(path, 'utf8');
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-        return;
-      }
-      const parsed = fileSchema.safeParse(JSON.parse(text));
-      if (!parsed.success) throw new Error(`${path} illisible :\n${z.prettifyError(parsed.error)}`);
-      saved = parsed.data;
+      await state.read();
     },
 
     current,
 
-    save(input, by) {
-      const run = queue.then(async () => {
-        const file: SettingsFile = { version: 1, settings: input, updatedAt: clock().toISOString(), by };
-        const tmp = `${path}.tmp`;
-        await writeFile(tmp, JSON.stringify(file, null, 2), { mode: 0o600 });
-        await rename(tmp, path);
-        saved = file;
-        return current();
-      });
-      queue = run.catch(() => undefined);
-      return run;
+    async save(input, by) {
+      await state.replace({ version: 1, settings: input, updatedAt: clock().toISOString(), by });
+      return current();
     },
 
-    homeStops: () => (saved ? saved.settings.stops : config.current().transit.stops),
-    commuteFor: (ownerId) => (saved ? fromPage(saved.settings, ownerId) : fromYaml(ownerId)),
+    homeStops: () => saved()?.settings.stops ?? config.current().transit.stops,
+    commuteFor: (ownerId) => {
+      const file = saved();
+      return file ? fromPage(file.settings, ownerId) : fromYaml(ownerId);
+    },
   };
 }
