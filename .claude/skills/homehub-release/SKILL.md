@@ -1,6 +1,6 @@
 ---
 name: homehub-release
-description: Release a new HomeHub version (version bump, type check, tests in local time and UTC, build, docs captures with noise cleanup, commit, tag, push only after the user's approval, CI watch). Use when a batch of HomeHub changes is ready to ship, or when the user asks to release, tag, or push HomeHub.
+description: Start and release a new HomeHub version. Each new version is developed in its own sub-session; then version bump, type check, tests in local time and UTC, build, docs captures with noise cleanup, commit, tag, push only after the user's approval, CI watch. Use when the user asks for a new HomeHub version or feature, when a batch of HomeHub changes is ready to ship, or when the user asks to release, tag, or push HomeHub.
 ---
 
 # Releasing HomeHub
@@ -8,6 +8,17 @@ description: Release a new HomeHub version (version bump, type check, tests in l
 One batch of changes = one version. Run from the repo root (`C:\src\DeafLight\homehub`).
 Deployment on the NAS is a separate step in the private NAS config repo (its `truenas-app-deploy` skill,
 "HomeHub" section): prepare it right after tagging, push both together once the user approves.
+
+## 0. Every new version starts in its own sub-session (user's standing rule)
+When the user asks for a new version, or for a feature that will become one, do not develop it in the current
+session: start a new session for it (`start_session`, the user asked for it in words), then answer in one line where
+it runs. The brief must stand alone:
+- repo `C:\src\DeafLight\homehub` (and the NAS config repo for deployment), target version `X.Y.Z`;
+- the scope agreed with the user, in your own words (what the user will see, what is out of scope), and the
+  relevant `TODO.md` item;
+- follow `CLAUDE.md`, this skill and `homehub-monde-fictif`; check the screens in the fictional world;
+- done = HomeHub tag `vX.Y.Z` and NAS config commit ready, the user asked once before pushing both.
+Small fixes to a version still in progress, and questions, stay in the session that has the context.
 
 ## 1. Before the version bump
 - Feature complete: tests next to the code, `README.md` (feature bullet), `docs/ecrans.md`, `TODO.md` box checked.
