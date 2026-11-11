@@ -6,18 +6,23 @@
   import { isTram } from '../../lib/transit.ts';
   import { MAX_HOME_STOPS, nearKey } from '../../lib/transit-edit.ts';
   import Icon from '../Icon.svelte';
+  import SaveStatus from '../SaveStatus.svelte';
+  import type { SaveState } from '../../lib/autosave.ts';
 
   // Carte « Arrêts de l'accueil » de la page Transports : les arrêts affichés à l'accueil, à chercher par leur nom ou
-  // parmi ceux proches d'un lieu. Modifie le brouillon de la page ; rien n'est enregistré ici.
+  // parmi ceux proches d'un lieu. Modifie le brouillon de la page ; la page l'enregistre d'elle-même.
   type Props = {
     draft: TransitSettings;
     api: Api;
     /** Arrêts proches de chaque lieu, par coordonnées (`nearKey`). */
     near: Record<string, StopChoice[]>;
     onEdit: () => void;
+    /** État de l\'enregistrement automatique, affiché dans le titre (zone « stops »). */
+    saveState: SaveState;
+    onUndo: () => void;
     onMessage: (text: string) => void;
   };
-  let { draft = $bindable(), api, near, onEdit, onMessage }: Props = $props();
+  let { draft = $bindable(), api, near, onEdit, onMessage, saveState, onUndo }: Props = $props();
 
   const SEARCH_DELAY_MS = 400;
   const debouncer = createDebouncer(SEARCH_DELAY_MS);
@@ -60,7 +65,7 @@
 {/snippet}
 
 <section class="card">
-  <h2><Icon name="home" size={28} /> Arrêts de l’accueil <span class="muted small">({MAX_HOME_STOPS} au plus)</span></h2>
+  <h2><Icon name="home" size={28} /> Arrêts de l’accueil <span class="muted small">({MAX_HOME_STOPS} au plus)</span> <SaveStatus state={saveState} zone="stops" {onUndo} /></h2>
   {#each draft.stops as stop, i (stop.id)}
     <div class="row">
       <span class="grow">{stop.label ?? stop.id} <span class="muted small">{stop.id}</span></span>

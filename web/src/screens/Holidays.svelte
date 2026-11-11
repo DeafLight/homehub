@@ -1,18 +1,21 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { formatHolidayDay } from '../../../shared/school-holidays.ts';
   import type { HolidayChoice, HolidaySettings, HolidaysData } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import HolidayChip from '../components/HolidayChip.svelte';
   import Icon from '../components/Icon.svelte';
+  import SaveStatus from '../components/SaveStatus.svelte';
   import { ApiError } from '../lib/api.ts';
+  import { createAutoSave, requireParent, type SaveState } from '../lib/autosave.ts';
   import { getAppContext } from '../lib/context.ts';
   import { choiceLabel, groupAcademies, type HolidayMode, modeOf, sameChoice, ZONES, type Zone } from '../lib/holiday-settings.ts';
   import type { PageRoute } from '../lib/route.ts';
 
   // Réglage des vacances scolaires, ouvert depuis la roue dentée : le calendrier officiel d'une académie (liste
-  // filtrée par la saisie, regroupée par zone) ou d'une zone entière, ou rien. Avant d'enregistrer, l'aperçu montre
-  // les prochaines vacances du choix. Tout le monde peut regarder ; seul un parent reconnu enregistre.
+  // filtrée par la saisie, regroupée par zone) ou d'une zone entière, ou rien. L'aperçu montre les prochaines
+  // vacances du choix, enregistré de lui-même (lib/autosave.ts). Tout le monde peut regarder ; seul un parent reconnu
+  // enregistre.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -23,8 +26,7 @@
   let mode = $state<HolidayMode>('academie');
   let query = $state('');
   let loadError = $state<string | null>(null);
-  let message = $state<{ text: string; ok?: boolean } | null>(null);
-  let saving = $state(false);
+  let saveState = $state<SaveState>({ kind: 'idle' });
   let preview = $state<HolidaysData | 'loading' | 'error' | null>(null);
 
   const academies = $derived(settings?.academies ?? []);
@@ -62,14 +64,33 @@
     );
   });
 
+  const auto = createAutoSave({
+    onState: (next) => (saveState = next),
+    async save() {
+      // Mode choisi sans académie ni zone encore : rien à enregistrer.
+      if (!settings || !dirty || (mode !== 'none' && !draft)) return false;
+      await requireParent(actor, 'Seul un parent peut régler les vacances');
+      const sent = $state.snapshot(draft);
+      try {
+        const next = await api.saveHolidaySettings(sent);
+        settings = next;
+        if (sameChoice(draft, sent)) draft = next.choice;
+      } catch (err) {
+        actor.check(err);
+        throw new Error(err instanceof ApiError ? err.message : 'Enregistrement impossible');
+      }
+      return true;
+    },
+  });
+  onDestroy(() => void auto.flush());
+
   function pick(choice: HolidayChoice) {
     draft = choice;
-    message = null;
+    auto.touch('choice');
   }
 
   function setMode(next: HolidayMode) {
     mode = next;
-    message = null;
     if (next === 'none') pick(null);
     else if (next !== modeOf(draft)) {
       // Choix de l'autre mode : on repart de ce qui était enregistré s'il était de ce mode, sinon rien de choisi.
@@ -78,29 +99,12 @@
     }
   }
 
-  function cancel() {
+  /** Revient à ce qui est enregistré (enregistrement refusé). */
+  function undo() {
     if (!settings) return;
     draft = settings.choice;
     mode = modeOf(draft);
-    message = null;
-  }
-
-  async function save() {
-    if (!settings || saving) return;
-    if (mode !== 'none' && !draft) return void (message = { text: mode === 'zone' ? 'Choisis une zone' : 'Choisis une académie' });
-    if (!(await actor.allow(null))) return;
-    if ((await actor.isKiosk()) && !actor.current?.parent) return void (message = { text: 'Seul un parent peut régler les vacances' });
-    saving = true;
-    try {
-      settings = await api.saveHolidaySettings(draft);
-      draft = settings.choice;
-      message = { text: 'Vacances enregistrées', ok: true };
-    } catch (err) {
-      actor.check(err);
-      message = { text: err instanceof ApiError ? err.message : 'Enregistrement impossible' };
-    } finally {
-      saving = false;
-    }
+    auto.reset();
   }
 
   const MODES: { id: HolidayMode; label: string }[] = [
@@ -117,9 +121,9 @@
     <span class="who muted">
       <Icon name="lock" size={22} />
       {#if actor.current?.parent}
-        {actor.current.name} peut enregistrer
+        {actor.current.name} peut modifier
       {:else}
-        Seul un parent peut enregistrer
+        Seul un parent peut modifier
       {/if}
     </span>
   </header>
@@ -169,7 +173,7 @@
       </section>
 
       <section class="card preview">
-        <h2><Icon name="calendar" size={26} /> Aperçu</h2>
+        <h2><Icon name="calendar" size={26} /> Aperçu <SaveStatus state={saveState} zone="choice" onUndo={undo} /></h2>
         <p class="choice">{choiceLabel(draft, academies)}</p>
         {#if !draft}
           <p class="muted">{mode === 'none' ? 'Rien n’apparaîtra sur l’accueil ni dans les dashboards.' : 'Choisis un calendrier pour voir ses vacances.'}</p>
@@ -198,19 +202,6 @@
       </section>
     </div>
 
-    <footer>
-      {#if message}
-        <span class="message" class:ok={message.ok}>{message.text}</span>
-      {/if}
-      <span class="actions">
-        {#if dirty}
-          <button type="button" class="secondary" onclick={cancel}>Annuler</button>
-        {/if}
-        <button type="button" class="primary" disabled={!dirty || saving} onclick={save}>
-          {saving ? 'Enregistrement…' : dirty ? 'Enregistrer' : 'Enregistré'}
-        </button>
-      </span>
-    </footer>
   {/if}
 </div>
 
@@ -420,42 +411,4 @@
     font-weight: 600;
   }
 
-  footer {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .message {
-    font-size: 1.15rem;
-    color: var(--danger-fg);
-  }
-
-  .message.ok {
-    color: var(--ok-fg);
-  }
-
-  .actions {
-    display: flex;
-    gap: 10px;
-    margin-left: auto;
-  }
-
-  .primary,
-  .secondary {
-    min-height: 56px;
-    padding: 0 30px;
-    border-radius: 16px;
-    font-size: 1.2rem;
-    font-weight: 700;
-  }
-
-  .primary {
-    background: var(--rain);
-    color: var(--fg);
-  }
-
-  .secondary {
-    background: var(--surface-2);
-  }
 </style>

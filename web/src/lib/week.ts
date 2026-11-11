@@ -174,3 +174,14 @@ export const weekdayShort = (date: Date) => weekdayShortFormat.format(date).repl
 /** Libellé de la semaine affichée par rapport à la semaine en cours. */
 export const weekOffsetLabel = (offset: number) =>
   offset === 0 ? 'Cette semaine' : offset === 1 ? 'Semaine prochaine' : `Dans ${offset} semaines`;
+
+/** Bandeaux « journée entière » montrés par jour au plus : la ligne garde sa hauteur, le reste devient « +N ». */
+export const MAX_ALL_DAY = 2;
+
+/**
+ * Les bandeaux montrés d'un jour et le nombre de ceux qui ne tiennent pas : la pastille « +N » se range sur la ligne
+ * du dernier bandeau montré, la hauteur ne change donc pas.
+ */
+export function allDayShown(items: WeekAllDay[], max = MAX_ALL_DAY): { shown: WeekAllDay[]; more: number } {
+  return { shown: items.slice(0, max), more: Math.max(0, items.length - max) };
+}

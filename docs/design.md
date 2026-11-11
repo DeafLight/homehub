@@ -2,7 +2,7 @@
 
 Refonte en cours (depuis 0.32.0) : **piste A, « affinée »**, retenue parmi trois maquettes. Le thème et les couleurs
 restent ; les espacements, les tailles de texte et les cartes deviennent des règles communes, appliquées page par page
-(accueil et dashboards d'abord, le reste ensuite, voir le [TODO](../TODO.md)).
+(accueil et dashboards en 0.32.0, semaine et météo en 0.47.0, le reste ensuite, voir le [TODO](../TODO.md)).
 
 ![Planche du design](images/planche-design.png)
 
@@ -24,6 +24,7 @@ restent ; les espacements, les tailles de texte et les cartes deviennent des rè
 | `--bg` | `#0f1115` | fond de page |
 | `--surface-rail` | `#14171d` | rail des profils |
 | `--surface` | `#181b22` | cartes |
+| `--surface-1` | `#1f222a` | colonne du jour et cours de la semaine |
 | `--surface-2` | `#262a33` | boutons, éléments dans une carte |
 | `--border-strong` | `#3a3f4a` | bordures appuyées |
 | `--fg` | `#e8eaed` | texte |
@@ -50,6 +51,13 @@ restent ; les espacements, les tailles de texte et les cartes deviennent des rè
   ne fait que nommer. Quand elle ouvre une page (« Mes tâches › »), elle garde ce style.
 - **Hauteur fixe** : sur la tablette, une carte ne pousse jamais ses voisines ; elle fait défiler sa liste ou masque
   ce qui ne tient pas (pastilles des bus).
+- **Pages de détail** (semaine, météo, puis les suivantes) : en-tête commun `PageHeader.svelte` (retour, titre en
+  `--text-heading`, sous-titre en `--text-small`, actions à droite), marges `--space-3` / `--space-4`, écart
+  `--space-2` entre les blocs, cartes `Card.svelte` (`aside` pour une légende à droite de l'étiquette, `grow` pour
+  prendre la hauteur restante). Pas de couleur en dur : les mélanges calculés en JS partent de `TOKENS`
+  (`lib/color.ts`), copie des variables.
+- **Réglages enregistrés d'eux-mêmes** (`lib/autosave.ts`, `SaveStatus.svelte`) : pas de bouton « Enregistrer » ;
+  l'état (« Enregistrement… », « Enregistré », problème et « Annuler ») s'affiche dans le titre de la carte modifiée.
 - **Actions rapides en bas à droite** sur l'accueil (Minuteur · Scanner · Réglages), en bas du rail ailleurs ; le
   Scanner ressort en bleu.
 - **Bus sur l'accueil** : une ligne par arrêt, une pastille par ligne et destination avec le prochain passage et un
@@ -67,9 +75,9 @@ Captures de chaque page : [ecrans.md](ecrans.md).
   la carte « Mes tâches » chevauche le haut de la suivante.~~ Réglé en 0.32.0 (colonnes de hauteur fixe).
 - ~~**Accueil** : le bloc des bus grandit avec chaque arrêt suivi et pousse le reste de la colonne.~~ Réglé en 0.32.0
   (une ligne par arrêt).
-- **Noms des matières** : en capitales sans accents dans ÉcoleDirecte, remis en minuscules mais toujours sans accent
-  (« Mathematiques », « Francais »).
-- **Pages de réglages** (Routines, Transports) : le bouton « Enregistré » reste en bas à droite, loin des
-  modifications.
+- ~~**Noms des matières** : en capitales sans accents dans ÉcoleDirecte, remis en minuscules mais toujours sans accent
+  (« Mathematiques », « Francais »).~~ Réglé en 0.47.0 (table des accents, `server/sources/school.ts`).
+- ~~**Pages de réglages** (Routines, Transports) : le bouton « Enregistré » reste en bas à droite, loin des
+  modifications.~~ Réglé en 0.47.0 (enregistrement automatique, état dans la carte modifiée).
 - ~~Variables CSS limitées aux couleurs et aux arrondis.~~ Espacements et tailles de texte ajoutés en 0.32.0 ; les
   pages autres que l'accueil et les dashboards les reprendront au fil de la refonte.

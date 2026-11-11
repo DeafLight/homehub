@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import BackButton from '../components/BackButton.svelte';
+  import Card from '../components/Card.svelte';
   import Icon from '../components/Icon.svelte';
+  import PageHeader from '../components/PageHeader.svelte';
   import HourlyChart from '../components/widgets/HourlyChart.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { formatDay, formatTime } from '../lib/format.ts';
@@ -23,7 +24,8 @@
 
   const WEATHER_REFRESH_MS = 10 * 60_000;
 
-  // Page météo détaillée : `back` est la page qui l'a ouverte (accueil ou profil), où ramène le bouton retour.
+  // Page météo détaillée (piste A, docs/design.md) : le temps actuel en grand, quatre cartes (vent, humidité, soleil,
+  // pluie), les 24 prochaines heures et les jours suivants. `back` est la page qui l'a ouverte (accueil ou profil).
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -36,16 +38,11 @@
 </script>
 
 <div class="weather-page">
-  <header>
-    <BackButton {back} />
+  <PageHeader {back} title={weather.data?.forecast ? `Météo · ${weather.data.forecast.location}` : 'Météo'}>
     {#if weather.data?.forecast}
-      {@const forecast = weather.data.forecast}
-      <h1>Météo · {forecast.location}</h1>
-      <span class="muted updated">Météo-France · mis à jour à {formatTime(new Date(forecast.observedAt))}</span>
-    {:else}
-      <h1>Météo</h1>
+      <span class="muted">Météo-France · mis à jour à {formatTime(new Date(weather.data.forecast.observedAt))}</span>
     {/if}
-  </header>
+  </PageHeader>
 
   {#if weather.data?.forecast}
     {@const { current, hours, days } = weather.data.forecast}
@@ -54,78 +51,81 @@
     {@const rain = rainLine(spell, clock.now)}
     <div class="layout">
       <div class="column">
-        <section class="card now">
-          <div class="now-main">
-            <Icon name={weatherIcon(current.weatherCode, current.isDay)} size={96} color={weatherIconColor(current.weatherCode, current.isDay)} strokeWidth={1.5} />
-            <span class="big">{formatTemperature(current.temperatureC)}</span>
+        <!-- Seule carte sans étiquette : la température prime, comme l'horloge de l'accueil. -->
+        <Card>
+          <div class="now">
+            <div class="now-main">
+              <Icon name={weatherIcon(current.weatherCode, current.isDay)} size={96} color={weatherIconColor(current.weatherCode, current.isDay)} strokeWidth={1.5} />
+              <span class="big">{formatTemperature(current.temperatureC)}</span>
+            </div>
+            <span class="condition">{weatherLabel(current.weatherCode)}</span>
+            <span class="muted">
+              {[
+                current.apparentC === null ? null : `Ressenti ${formatTemperature(current.apparentC)}`,
+                today ? `min ${formatTemperature(today.minC)}` : null,
+                today ? `max ${formatTemperature(today.maxC)}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+            <span class="rain-pill" class:dry={!rain}>{rain ?? 'Pas de pluie dans les 24 h'}</span>
           </div>
-          <span class="label-big">{weatherLabel(current.weatherCode)}</span>
-          <span class="muted">
-            {[
-              current.apparentC === null ? null : `Ressenti ${formatTemperature(current.apparentC)}`,
-              today ? `min ${formatTemperature(today.minC)}` : null,
-              today ? `max ${formatTemperature(today.maxC)}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
-          <span class="rain-pill" class:dry={!rain}>{rain ?? 'Pas de pluie dans les 24 h'}</span>
-        </section>
+        </Card>
 
-        <section class="tiles">
-          <div class="tile">
-            <span class="tile-label">Vent</span>
-            <span class="tile-value">
-              {optional(current.windKmh, (n) => `${Math.round(n)} km/h`)}{current.windFromDeg === null ? '' : ` ${windDirection(current.windFromDeg)}`}
-            </span>
-            <span class="muted small">{current.gustsKmh === null ? '' : `Rafales ${Math.round(current.gustsKmh)} km/h`}</span>
-          </div>
-          <div class="tile">
-            <span class="tile-label">Humidité</span>
-            <span class="tile-value">{optional(current.humidityPct, (n) => `${Math.round(n)} %`)}</span>
-            <span class="muted small">{current.humidityPct === null ? '' : humidityLabel(current.humidityPct)}</span>
-          </div>
-          <div class="tile">
-            <span class="tile-label">Soleil</span>
-            <span class="tile-value">{timeOf(today?.sunrise ?? null)} · {timeOf(today?.sunset ?? null)}</span>
-            <span class="muted small">Lever · coucher</span>
-          </div>
-          <div class="tile">
-            <span class="tile-label">Pluie</span>
-            <span class="tile-value">{spell ? formatMm(spell.totalMm) : 'Sec'}</span>
-            <span class="muted small">
-              {spell ? `De ${formatHour(spell.start)} à ${formatHour(spell.end)}` : 'Dans les 24 h'}
-            </span>
-          </div>
-        </section>
+        <div class="tiles">
+          <Card title="Vent">
+            <div class="tile">
+              <span class="tile-value">
+                {optional(current.windKmh, (n) => `${Math.round(n)} km/h`)}{current.windFromDeg === null ? '' : ` ${windDirection(current.windFromDeg)}`}
+              </span>
+              <span class="muted">{current.gustsKmh === null ? '' : `Rafales ${Math.round(current.gustsKmh)} km/h`}</span>
+            </div>
+          </Card>
+          <Card title="Humidité">
+            <div class="tile">
+              <span class="tile-value">{optional(current.humidityPct, (n) => `${Math.round(n)} %`)}</span>
+              <span class="muted">{current.humidityPct === null ? '' : humidityLabel(current.humidityPct)}</span>
+            </div>
+          </Card>
+          <Card title="Soleil">
+            <div class="tile">
+              <span class="tile-value">{timeOf(today?.sunrise ?? null)} · {timeOf(today?.sunset ?? null)}</span>
+              <span class="muted">Lever · coucher</span>
+            </div>
+          </Card>
+          <Card title="Pluie">
+            <div class="tile">
+              <span class="tile-value">{spell ? formatMm(spell.totalMm) : 'Sec'}</span>
+              <span class="muted">{spell ? `De ${formatHour(spell.start)} à ${formatHour(spell.end)}` : 'Dans les 24 h'}</span>
+            </div>
+          </Card>
+        </div>
       </div>
 
       <div class="column">
-        <section class="card">
-          <div class="card-head">
-            <h2>Prochaines 24 heures</h2>
+        <Card title="Prochaines 24 heures">
+          {#snippet aside()}
             <span class="legend">
               <span><span class="swatch line"></span>Température</span>
               <span><span class="swatch bar"></span>Pluie (mm)</span>
             </span>
-          </div>
+          {/snippet}
           <HourlyChart {hours} />
-        </section>
+        </Card>
 
-        <section class="card grow">
-          <h2>Prochains jours</h2>
+        <Card title="Prochains jours" grow>
           <div class="days">
             {#each days as day, i (day.date)}
               <div class="day" class:today={i === 0}>
                 <span class="day-name">{formatDay(new Date(day.date), clock.now)}</span>
                 <Icon name={weatherIcon(day.weatherCode, true)} size={44} color={weatherIconColor(day.weatherCode, true)} strokeWidth={1.6} />
                 <span class="day-label">{weatherLabel(day.weatherCode)}</span>
-                <span class="day-temps"><b>{formatTemperature(day.maxC)}</b> <span class="muted">{formatTemperature(day.minC)}</span></span>
+                <span class="day-temps"><b>{formatTemperature(day.maxC)}</b> <span class="min">{formatTemperature(day.minC)}</span></span>
                 <span class="muted small">{dayExtra(day.precipitationMm, day.windMaxKmh)}</span>
               </div>
             {/each}
           </div>
-        </section>
+        </Card>
       </div>
     </div>
   {:else if weather.data}
@@ -140,40 +140,18 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 28px 40px 36px;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
     box-sizing: border-box;
   }
 
-  header {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: 2.5rem;
-    font-weight: 600;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-  }
-
-  .updated {
-    margin-left: auto;
-  }
-
   .muted {
-    font-size: 1.2rem;
+    font-size: var(--text-small);
     color: var(--fg-muted);
   }
 
   .small {
-    font-size: 1rem;
+    font-size: var(--text-label);
   }
 
   .layout {
@@ -181,40 +159,30 @@
     min-height: 0;
     display: grid;
     grid-template-columns: 400px minmax(0, 1fr);
-    gap: 20px;
+    gap: var(--space-2);
   }
 
+  /* Colonnes de hauteur fixe : les cartes se partagent la hauteur, aucune ne pousse la page. */
   .column {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-2);
     min-height: 0;
   }
 
-  .card {
+  .now {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 24px 28px;
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-  }
-
-  .grow {
-    flex-grow: 1;
-  }
-
-  .now {
     gap: 6px;
-    padding: 28px;
   }
 
   .now-main {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: var(--space-3);
   }
 
+  /* Comme l'horloge de l'accueil, la température sort de l'échelle de texte : lisible de loin. */
   .big {
     font-size: 7rem;
     font-weight: 600;
@@ -222,19 +190,19 @@
     letter-spacing: -0.04em;
   }
 
-  .label-big {
-    font-size: 1.9rem;
+  .condition {
+    font-size: var(--text-title);
     font-weight: 600;
   }
 
   .rain-pill {
-    margin-top: 8px;
+    margin-top: var(--space-1);
     align-self: flex-start;
-    padding: 8px 14px;
+    padding: var(--space-1) 14px;
     border-radius: 999px;
     background: var(--rain-bg);
     color: var(--rain-soft);
-    font-size: 1.05rem;
+    font-size: var(--text-small);
     font-weight: 600;
   }
 
@@ -245,43 +213,28 @@
 
   .tiles {
     flex-grow: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: var(--space-2);
   }
 
   .tile {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 18px 20px;
-    border-radius: 22px;
-    background: var(--surface);
-  }
-
-  .tile-label {
-    font-size: 0.9rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--fg-muted);
+    gap: 4px;
   }
 
   .tile-value {
-    font-size: 1.6rem;
+    font-size: var(--text-title);
     font-weight: 600;
-  }
-
-  .card-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
   }
 
   .legend {
     display: flex;
-    gap: 18px;
-    font-size: 0.95rem;
+    gap: var(--space-2);
+    font-size: var(--text-label);
     color: var(--fg-muted);
   }
 
@@ -307,19 +260,21 @@
 
   .days {
     flex-grow: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+    gap: var(--space-2);
   }
 
   .day {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
-    padding: 18px;
-    border-radius: 20px;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
     background: var(--surface-2);
+    overflow: hidden;
   }
 
   .day.today {
@@ -327,20 +282,20 @@
   }
 
   .day-name {
-    font-size: 1.25rem;
+    font-size: var(--text-body);
     font-weight: 600;
   }
 
   .day-label {
-    font-size: 1.05rem;
+    font-size: var(--text-small);
     color: var(--fg-soft);
   }
 
   .day-temps {
-    font-size: 1.4rem;
+    font-size: var(--text-title);
   }
 
-  .day-temps .muted {
-    font-size: inherit;
+  .day-temps .min {
+    color: var(--fg-muted);
   }
 </style>

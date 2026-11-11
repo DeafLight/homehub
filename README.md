@@ -118,13 +118,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   jours), monter ou descendre, supprimer ; « Nouvelle étape » ; heures en semaine et, au besoin, le week-end. Tout le
   monde peut regarder ; seul un parent reconnu (ou un téléphone de parent) enregistre (`routine-plans.json`). Chaque
   étape garde un identifiant : la renommer ou la déplacer ne perd ni ses cases du jour ni les jours de suite.
+- **Enregistrement automatique des réglages** (pages Routines, Transports, Vacances scolaires) : pas de bouton
+  « Enregistrer », chaque modification part d'elle-même un instant après (la saisie finie, les clics enchaînés). Son
+  état s'affiche à côté de ce qu'on vient de modifier, dans le titre de la carte : « Enregistrement… », « Enregistré »,
+  ou le problème (étape sans nom, « Seul un parent peut modifier ») avec « Annuler » pour revenir à ce qui est
+  enregistré. Sur la tablette, le premier enregistrement attend qu'un parent soit reconnu.
 - **Dashboard d'un élève** (profil avec emploi du temps), dit « focus » : une seule frise avec la bascule « Aujourd'hui | Demain » (demain d'office une fois la journée de cours finie), la carte du
   moment en grand (routine du matin ; après l'école, les devoirs qui restent jusqu'à 19 h ; puis la routine du soir ;
   sinon les rendez-vous), et le reste en tuiles (devoirs, routine, tâches, mots, prochain rendez-vous) : un chiffre
   et un mot, bordées de la couleur du profil quand il y a du nouveau (mot, devoirs pour demain). Une tuile ouvre sa
   carte complète dans un panneau, refermé d'un toucher à côté ou seul après 30 s.
 - **Devoirs** (élève avec ÉcoleDirecte ou Pronote) : carte « Devoirs » sur son dashboard, à la place de « À venir » :
-  par jour (« Pour demain », « Pour lundi » ; ceux du jour le matin seulement), matière, consigne (toucher pour la
+  par jour (« Pour demain », « Pour lundi » ; ceux du jour le matin seulement), matière (accents remis aux noms
+  qu'ÉcoleDirecte donne en capitales : « Mathématiques », « Français » ; sigles gardés : « EPS »), consigne (toucher pour la
   lire en entier), « Contrôle » quand ÉcoleDirecte l'annonce, pièces jointes et durée prévue s'il y en a. Aussi dans
   l'onglet Tâches de son téléphone. **Lecture seule** : un devoir se coche dans l'appli de l'école ; HomeHub montre
   « ✓ fait » au rafraîchissement suivant.
@@ -151,7 +157,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   l'Alsace-Moselle ni à l'outre-mer.
 - **Page « Vacances scolaires »** (roue dentée de la tablette ; un parent enregistre) : « Par académie » (liste
   regroupée par zone, Corse et outre-mer à part, filtrée par la saisie sans accents ni majuscules), « Par zone »
-  (A, B ou C) ou « Aucune ». Avant d'enregistrer, un aperçu montre les prochaines vacances du choix. Enregistré dans
+  (A, B ou C) ou « Aucune ». Un aperçu montre les prochaines vacances du choix. Enregistré dans
   `HOMEHUB_STATE_DIR/holiday-settings.json`, qui prend le pas sur la section `holidays` du YAML ; sans rien
   d'enregistré ni de section `holidays`, la page s'ouvre sur « Aucune ».
 - **Page « Transports »** (roue dentée de la tablette ; un parent enregistre) : les lieux de la famille (maison,

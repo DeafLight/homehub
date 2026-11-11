@@ -157,7 +157,7 @@ describe('toHomework', () => {
     } as unknown as Assignment;
     expect(toHomework(a)).toEqual({
       id: 'a1',
-      subject: 'Histoire-geographie',
+      subject: 'Histoire-géographie',
       due: '2026-11-05',
       text: 'Lire le chapitre 3\nExercice 2',
       done: true,
@@ -220,7 +220,7 @@ describe('conversions', () => {
       groupNames: [],
       subject: { id: 's', name: 'HISTOIRE-GEOGRAPHIE', inGroups: false },
     };
-    expect(toCourse(lesson)).toMatchObject({ subject: 'Histoire-geographie', room: '225', teacher: 'M. X, Mme Y', cancelled: true });
+    expect(toCourse(lesson)).toMatchObject({ subject: 'Histoire-géographie', room: '225', teacher: 'M. X, Mme Y', cancelled: true });
     expect(toCourse({ ...lesson, classrooms: [], teacherNames: [] })).toMatchObject({ room: undefined, teacher: undefined });
     expect(
       toCourse({ ...times, id: '2', is: 'activity', title: 'Sortie', attendants: [], resourceTypeName: '', resourceValue: '' }),

@@ -30,3 +30,9 @@ export function textColorOn(background: string, dark = '#0f1115', light = '#ffff
   const contrastLight = (luminance(light) + 0.05) / (l + 0.05);
   return contrastDark >= contrastLight ? dark : light;
 }
+
+/**
+ * Copies en #rrggbb de jetons de app.css, pour les mélanges calculés ici (mix() ne lit pas les variables CSS) :
+ * à changer avec eux.
+ */
+export const TOKENS = { bg: '#0f1115', surface: '#181b22', fgMuted: '#9aa1ab', white: '#ffffff' } as const;

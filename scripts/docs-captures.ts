@@ -160,7 +160,7 @@ async function call(token: string, method: string, path: string, body?: unknown)
 const A = TOKENS.alex;
 const L = TOKENS.lea;
 const steps = (prefix: string, labels: string[]) => labels.map((label, i) => ({ id: `${prefix}${i}`, label, days: null }));
-await call(A, 'PUT', '/routines', {
+const ROUTINES = {
   windows: { morning: { from: '05:00', to: '11:00' }, evening: { from: '17:00', to: '23:00' } },
   members: {
     alex: { morning: [], evening: [] },
@@ -169,7 +169,8 @@ await call(A, 'PUT', '/routines', {
     lea: { morning: [...steps('lm', ['S’habiller', 'Petit-déjeuner', 'Dents']), { id: 'lm3', label: 'Cartable', days: [1, 2, 3, 4, 5] }], evening: steps('le', ['Douche', 'Pyjama', 'Devoirs']) },
     tom: { morning: steps('tm', ['S’habiller', 'Petit-déjeuner', 'Dents']), evening: steps('te', ['Bain', 'Pyjama', 'Histoire']) },
   },
-});
+};
+await call(A, 'PUT', '/routines', ROUTINES);
 for (const label of ['Lait', 'Pain', 'Tomates', 'Pâtes', 'Lessive', 'Yaourts nature', 'Pommes']) await call(A, 'POST', '/lists/shopping', { label });
 const day = (offset: number) => {
   const d = new Date(DOCS_NOW + offset * 86_400_000);
@@ -312,6 +313,20 @@ const { token: faceToken } = (await (await fetch(`${BASE}/api/faces/identify`, {
 })).json()) as { token: string };
 const asAlexAtTablet = `{ const f = globalThis.fetch; globalThis.fetch = (url, init = {}) =>
   f(url, String(url).includes('/api/') ? { ...init, headers: { ...init.headers, 'X-Actor-Session': '${faceToken}' } } : init); }`;
+// Enregistrement automatique d'un réglage : Pyjama retiré le samedi, « Enregistré » dans le titre de la carte. Le
+// front attend un visage reconnu par la caméra (absente sans fenêtre) : il se croit ici sur un téléphone, et la
+// session du visage fictif d'Alex (un parent) porte l'écriture côté serveur. La routine est remise ensuite.
+const asPhoneLikeAlex = `${asAlexAtTablet} { const g = globalThis.fetch; globalThis.fetch = async (url, init) => {
+  const res = await g(url, init);
+  if (!String(url).endsWith('/api/me')) return res;
+  return new Response(JSON.stringify({ ...(await res.json()), kiosk: false }), { headers: { 'content-type': 'application/json' } });
+}; }`;
+await shoot('tablette-routines-enregistre', `${BASE}/routines`, TABLET, {
+  init: asPhoneLikeAlex,
+  after: `${click('Léa')}; setTimeout(() => document.querySelector('[aria-label="Pyjama le samedi"]')?.click(), 300)`,
+  settle: 2500,
+});
+await call(A, 'PUT', '/routines', ROUTINES);
 await shoot('tablette-sport', `${BASE}/sport/p/alex`, TABLET, { init: asAlexAtTablet });
 // Séance guidée : échauffement passé, premier effort.
 await shoot('tablette-seance', `${BASE}/seance/p/alex`, TABLET, {

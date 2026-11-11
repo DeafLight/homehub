@@ -7,18 +7,23 @@
   import { isTram } from '../../lib/transit.ts';
   import { boundedMinutes, endsKey, newCommute, routeChoices, routeKey, toggleDay, walkMinutes } from '../../lib/transit-edit.ts';
   import Icon from '../Icon.svelte';
+  import SaveStatus from '../SaveStatus.svelte';
+  import type { SaveState } from '../../lib/autosave.ts';
 
   // Carte « Trajets » de la page Transports : le trajet de chaque membre (départ, arrivée, jours, calé sur l'emploi
   // du temps ou sur une plage fixe), la ligne directe choisie parmi celles que proposent les horaires Irigo, et les
-  // temps de marche. Modifie le brouillon de la page ; rien n'est enregistré ici.
+  // temps de marche. Modifie le brouillon de la page ; la page l'enregistre d'elle-même.
   type Props = {
     draft: TransitSettings;
     api: Api;
     members: Profile[];
     nameOf: (id: string) => string;
     onEdit: () => void;
+    /** État de l\'enregistrement automatique, affiché dans le titre (zone « commutes »). */
+    saveState: SaveState;
+    onUndo: () => void;
   };
-  let { draft = $bindable(), api, members, nameOf, onEdit }: Props = $props();
+  let { draft = $bindable(), api, members, nameOf, onEdit, saveState, onUndo }: Props = $props();
 
   // Premier membre au départ ; la liste ne change pas pendant que la page est ouverte.
   let selected = $state(untrack(() => members[0]?.id ?? ''));
@@ -105,7 +110,7 @@
 {/snippet}
 
 <section class="card">
-  <h2><Icon name="bus" size={28} /> Trajets</h2>
+  <h2><Icon name="bus" size={28} /> Trajets <SaveStatus state={saveState} zone="commutes" {onUndo} /></h2>
   <div class="members" role="tablist">
     {#each members as member (member.id)}
       <button

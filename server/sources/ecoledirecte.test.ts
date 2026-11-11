@@ -109,8 +109,8 @@ describe('createEcoleDirecteClient', () => {
     const session = await createEcoleDirecteClient(fn).login(CREDENTIALS);
     const homework = await session.homework(4321, new Date(2026, 10, 2), new Date(2026, 10, 23));
     expect(homework).toEqual([
-      { id: '11', subject: 'Francais', due: '2026-11-03', text: 'Lire p. 12', done: true, attachments: 1 },
-      { id: '12', subject: 'Mathematiques', due: '2026-11-03', text: 'Réviser le chapitre 2', done: false, test: true },
+      { id: '11', subject: 'Français', due: '2026-11-03', text: 'Lire p. 12', done: true, attachments: 1 },
+      { id: '12', subject: 'Mathématiques', due: '2026-11-03', text: 'Réviser le chapitre 2', done: false, test: true },
       { id: '13', subject: 'Anglais LV1', due: '2026-11-05', text: 'Learn verbs', done: false },
     ]);
     // Hors de la fenêtre (20 décembre) : pas de détail demandé.

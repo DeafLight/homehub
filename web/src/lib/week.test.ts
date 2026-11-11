@@ -1,6 +1,7 @@
+// Tests de la grille de la semaine : jours, plage d'heures, profils de départ, libellés, bandeaux du jour entier.
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent, SchoolCourse, WeekData } from '../../../shared/types.ts';
-import { initialOwners, weekDays, weekHours, weekOffsetLabel, weekRangeLabel } from './week.ts';
+import { allDayShown, initialOwners, weekDays, weekHours, weekOffsetLabel, weekRangeLabel } from './week.ts';
 
 const at = (day: number, hour: number, minute = 0) => new Date(2026, 10, day, hour, minute).toISOString();
 const ev = (id: string, day: number, start: number, end: number): CalendarEvent => ({ id, title: id, start: at(day, start), end: at(day, end) });
@@ -88,5 +89,12 @@ describe('semaine', () => {
     expect(weekRangeLabel(new Date(2026, 10, 2))).toBe('Semaine du 2 au 8 novembre');
     expect(weekRangeLabel(new Date(2026, 10, 30))).toBe('Semaine du 30 novembre au 6 décembre');
     expect([0, 1, 2].map(weekOffsetLabel)).toEqual(['Cette semaine', 'Semaine prochaine', 'Dans 2 semaines']);
+  });
+
+  it('journée entière : deux bandeaux au plus par jour, puis « +N »', () => {
+    const item = (id: string) => ({ id, ownerId: 'lea', title: id, meta: '' });
+    expect(allDayShown([item('a')])).toEqual({ shown: [item('a')], more: 0 });
+    expect(allDayShown([item('a'), item('b')])).toEqual({ shown: [item('a'), item('b')], more: 0 });
+    expect(allDayShown([item('a'), item('b'), item('c'), item('d')])).toEqual({ shown: [item('a'), item('b')], more: 2 });
   });
 });

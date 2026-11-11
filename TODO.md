@@ -12,9 +12,11 @@
 - [x] Trois pistes maquettées, piste A retenue.
 - [x] Règles communes (espacements, tailles de texte, carte et étiquette) ; accueil (bus sur une ligne par arrêt,
       barre Minuteur · Scanner · Réglages) et dashboards (colonnes de hauteur fixe, Scanner dans le rail) en 0.32.0.
-- [ ] Pages suivantes : semaine, météo, listes, transports, téléphones, NAS, routines, puis le téléphone (PWA).
-- [ ] Noms des matières sans accents (« Mathematiques ») : table de correction des libellés ÉcoleDirecte.
-- [ ] Pages de réglages : bouton « Enregistré » près des modifications.
+- [ ] Pages suivantes : listes, transports, téléphones, NAS, routines, puis le téléphone (PWA). Semaine et météo
+      faites en 0.47.0 (en-tête commun `PageHeader`).
+- [x] Noms des matières sans accents (« Mathematiques ») : table de correction des libellés ÉcoleDirecte (0.47.0).
+- [x] Pages de réglages : bouton « Enregistré » près des modifications (0.47.0 : enregistrement automatique, état
+      dans le titre de la carte modifiée).
 
 ## Recettes, menus et drive (prochain gros sujet, avec le redesign)
 

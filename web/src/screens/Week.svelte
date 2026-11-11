@@ -1,22 +1,22 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { FAMILY_ID, WEEKS_AHEAD } from '../../../shared/types.ts';
-  import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
-  import { mix } from '../lib/color.ts';
+  import PageHeader from '../components/PageHeader.svelte';
+  import { mix, TOKENS } from '../lib/color.ts';
   import { getAppContext } from '../lib/context.ts';
   import { timelinePercent } from '../lib/day.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import type { PageRoute } from '../lib/route.ts';
-  import { initialOwners, weekdayShort, weekDays, weekHours, weekOffsetLabel, weekRangeLabel } from '../lib/week.ts';
+  import { allDayShown, initialOwners, weekdayShort, weekDays, weekHours, weekOffsetLabel, weekRangeLabel } from '../lib/week.ts';
 
   const WEEK_REFRESH_MS = 5 * 60_000;
-  const SURFACE = '#181b22';
   /** Hauteur d'une ligne de texte dans un bloc (px), pour couper proprement à la dernière ligne entière. */
   const BLOCK_LINE_PX = 19;
   const BLOCK_PADDING_PX = 6;
 
-  // Semaine détaillée en grille : 7 colonnes, agendas en couleur du profil, cours un par un comme les événements.
+  // Semaine détaillée en grille (piste A, docs/design.md) : 7 colonnes, agendas en couleur du profil, cours un par un
+  // comme les événements ; deux bandeaux « journée entière » au plus par jour, la grille garde sa hauteur.
   // `back` est la page qui l'a ouverte : elle choisit aussi les profils affichés au départ.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
@@ -44,7 +44,7 @@
     for (let h = hours.startHour; h <= hours.endHour; h += 2) result.push(h);
     return result;
   });
-  const colorOf = (ownerId: string) => profiles.find((p) => p.id === ownerId)?.color ?? '#9aa1ab';
+  const colorOf = (ownerId: string) => profiles.find((p) => p.id === ownerId)?.color ?? TOKENS.fgMuted;
   const top = (date: Date) => timelinePercent(date, hours.startHour, hours.endHour);
   const markTop = (hour: number) => ((hour - hours.startHour) / (hours.endHour - hours.startHour)) * 100;
   const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
@@ -70,14 +70,7 @@
 </script>
 
 <div class="week-page">
-  <header>
-    <BackButton {back} />
-    <div class="titles">
-      <h1>{fromProfile ? `Semaine de ${fromProfile.name}` : 'Semaine de la famille'}</h1>
-      {#if data}
-        <span class="muted">{weekRangeLabel(new Date(data.start))}</span>
-      {/if}
-    </div>
+  <PageHeader {back} title={fromProfile ? `Semaine de ${fromProfile.name}` : 'Semaine de la famille'} subtitle={data ? weekRangeLabel(new Date(data.start)) : null}>
     <nav class="week-nav" aria-label="Semaines">
       <button class="round" type="button" aria-label="Semaine précédente" disabled={offset === 0} onclick={() => goTo(offset - 1)}>
         <Icon name="back" size={28} strokeWidth={2} />
@@ -87,7 +80,7 @@
         <Icon name="chevron" size={28} strokeWidth={2} />
       </button>
     </nav>
-  </header>
+  </PageHeader>
 
   <div class="chips">
     {#each profiles as profile (profile.id)}
@@ -97,7 +90,7 @@
         class:on
         type="button"
         aria-pressed={on}
-        style:background={on ? mix(profile.color, '#0f1115', 0.28) : undefined}
+        style:background={on ? mix(profile.color, TOKENS.bg, 0.28) : undefined}
         style:border-color={on ? profile.color : undefined}
         onclick={() => toggle(profile.id)}
       >
@@ -121,7 +114,7 @@
         {#each days as day (day.date.getTime())}
           {@const today = sameDay(day.date, clock.now)}
           <div class="day-head">
-            <span class="weekday">{weekdayShort(day.date)}</span>
+            <span class="weekday card-label">{weekdayShort(day.date)}</span>
             <span class="num" class:today style:background={today ? accent : undefined}>{day.date.getDate()}</span>
           </div>
         {/each}
@@ -130,9 +123,15 @@
         <div class="row all-day">
           <span class="axis"></span>
           {#each days as day (day.date.getTime())}
+            {@const { shown, more } = allDayShown(day.allDay)}
             <div class="all-day-col">
-              {#each day.allDay as item (item.id)}
-                <span class="all-day-item" style:background={colorOf(item.ownerId)}>{item.title}</span>
+              {#each shown as item, i (item.id)}
+                <span class="all-day-line">
+                  <span class="all-day-item" style:background={colorOf(item.ownerId)}>{item.title}</span>
+                  {#if more > 0 && i === shown.length - 1}
+                    <span class="all-day-more" aria-label="{more} de plus">+{more}</span>
+                  {/if}
+                </span>
               {/each}
             </div>
           {/each}
@@ -150,7 +149,7 @@
           {/each}
           {#each days as day (day.date.getTime())}
             {@const today = sameDay(day.date, clock.now)}
-            <div class="column" class:today class:weekend={day.date.getDay() % 6 === 0}>
+            <div class="column" class:today>
               {#each day.blocks as block (block.id)}
                 {@const color = colorOf(block.ownerId)}
                 {@const n = lines(block.start, block.end)}
@@ -163,11 +162,11 @@
                   style:left="calc({(block.lane / block.lanes) * 100}% + 1px)"
                   style:width="calc({100 / block.lanes}% - 2px)"
                   style:border-left-color={color}
-                  style:background={block.kind === 'event' ? mix(color, SURFACE, 0.32) : undefined}
+                  style:background={block.kind === 'event' ? mix(color, TOKENS.surface, 0.32) : undefined}
                 >
                   <span class="block-text" class:single={n === 1} style:--lines={n} style:max-height="{n * BLOCK_LINE_PX}px">
                     <!-- Heure puis titre sur une même ligne, qui se replie si le bloc est assez haut ; la salle d'un cours ensuite. -->
-                    <span class="block-time" style:color={block.kind === 'event' ? mix(color, '#ffffff', 0.5) : undefined}>{block.meta}</span>
+                    <span class="block-time" style:color={block.kind === 'event' ? mix(color, TOKENS.white, 0.5) : undefined}>{block.meta}</span>
                     <span class="block-title">{block.title}</span>
                     {#if block.cancelled}
                       <span class="block-detail">annulé</span>
@@ -195,32 +194,13 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 24px 32px 28px;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
     box-sizing: border-box;
   }
 
-  header {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-  }
-
-  .titles {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: 2.25rem;
-    font-weight: 600;
-  }
-
   .muted {
-    font-size: 1.15rem;
+    font-size: var(--text-small);
     color: var(--fg-muted);
   }
 
@@ -232,10 +212,9 @@
   }
 
   .week-nav {
-    margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-1);
   }
 
   .round {
@@ -255,17 +234,17 @@
 
   .current {
     min-height: 64px;
-    padding: 0 22px;
+    padding: 0 var(--space-3);
     border-radius: 999px;
     background: var(--surface-2);
-    font-size: 1.2rem;
+    font-size: var(--text-body);
     font-weight: 600;
   }
 
   .chips {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-1);
     flex-wrap: wrap;
   }
 
@@ -280,12 +259,12 @@
     border-radius: 999px;
     background: transparent;
     color: var(--fg-muted);
-    font-size: 1.15rem;
+    font-size: var(--text-small);
     font-weight: 600;
   }
 
   .chip.on {
-    color: #ffffff;
+    color: var(--fg);
   }
 
   .chip:not(.on) .dot {
@@ -305,7 +284,6 @@
   .chip.school.on {
     background: var(--surface-2);
     border-color: var(--border-strong);
-    color: var(--fg);
   }
 
   .separator {
@@ -315,12 +293,13 @@
     background: var(--surface-2);
   }
 
+  /* Carte de la piste A ; un peu moins de marge à gauche, que l'axe des heures occupe déjà. */
   .grid {
     flex-grow: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 16px 20px 16px 12px;
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-1);
     border-radius: var(--radius-lg);
     background: var(--surface);
   }
@@ -349,14 +328,6 @@
     gap: 4px;
   }
 
-  .weekday {
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--fg-muted);
-  }
-
   .num {
     width: 40px;
     height: 40px;
@@ -364,22 +335,22 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    font-size: 1.25rem;
+    font-size: var(--text-body);
     font-weight: 700;
   }
 
   .num.today {
-    color: #0f1115;
+    color: var(--bg);
   }
 
   .head,
   .all-day {
-    padding-bottom: 8px;
+    padding-bottom: var(--space-1);
     border-bottom: 1px solid var(--surface-2);
   }
 
   .all-day {
-    padding-top: 8px;
+    padding-top: var(--space-1);
   }
 
   .all-day-col {
@@ -388,10 +359,19 @@
     gap: 4px;
   }
 
+  .all-day-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
   .all-day-item {
+    flex: 1 1 auto;
+    min-width: 0;
     padding: 4px 10px;
     border-radius: 8px;
-    color: #0f1115;
+    color: var(--bg);
     font-size: 0.9rem;
     font-weight: 600;
     overflow: hidden;
@@ -399,12 +379,22 @@
     white-space: nowrap;
   }
 
+  .all-day-more {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--fg-soft);
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
   .body {
     position: relative;
     flex-grow: 1;
     min-height: 0;
     margin-top: 12px;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-1);
   }
 
   .hours {
@@ -431,20 +421,16 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: #232731;
+    background: var(--surface-2);
   }
 
   .column {
     position: relative;
-    border-radius: 12px;
-  }
-
-  .column.weekend {
-    background: rgba(255, 255, 255, 0.015);
+    border-radius: var(--radius-sm);
   }
 
   .column.today {
-    background: rgba(255, 255, 255, 0.035);
+    background: var(--surface-1);
   }
 
   .block {
@@ -458,10 +444,10 @@
   }
 
   .block.course {
-    background: #1f232b;
-    border-top: 1px dashed #3a404b;
-    border-right: 1px dashed #3a404b;
-    border-bottom: 1px dashed #3a404b;
+    background: var(--surface-1);
+    border-top: 1px dashed var(--border-strong);
+    border-right: 1px dashed var(--border-strong);
+    border-bottom: 1px dashed var(--border-strong);
   }
 
   .block-text {
@@ -489,7 +475,7 @@
   .block-title {
     font-size: 0.95rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--fg);
     overflow-wrap: anywhere;
   }
 
@@ -501,7 +487,7 @@
 
   .course .block-title {
     font-weight: 600;
-    color: #c9ced6;
+    color: var(--fg-soft);
   }
 
   .cancelled .block-title {

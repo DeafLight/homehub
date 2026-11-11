@@ -5,20 +5,25 @@
   import { createDebouncer } from '../../lib/debounce.ts';
   import { MAX_PLACES, nearKey, nextIcon, placeAddress, placeInUse } from '../../lib/transit-edit.ts';
   import Icon, { type IconName } from '../Icon.svelte';
+  import SaveStatus from '../SaveStatus.svelte';
+  import type { SaveState } from '../../lib/autosave.ts';
 
   // Carte « Lieux » de la page Transports : chaque lieu de la famille (nom, icône, adresse cherchée sur la
-  // Géoplateforme) et le nombre d'arrêts proches. Modifie le brouillon de la page ; rien n'est enregistré ici.
+  // Géoplateforme) et le nombre d'arrêts proches. Modifie le brouillon de la page ; la page l'enregistre d'elle-même.
   type Props = {
     draft: TransitSettings;
     api: Api;
     /** Arrêts proches de chaque lieu, par coordonnées (`nearKey`). */
     near: Record<string, StopChoice[]>;
     onEdit: () => void;
+    /** État de l\'enregistrement automatique, affiché dans le titre (zone « places »). */
+    saveState: SaveState;
+    onUndo: () => void;
     /** Un lieu a une nouvelle adresse : ses arrêts proches sont à chercher. */
     onAddress: () => void;
     onMessage: (text: string) => void;
   };
-  let { draft = $bindable(), api, near, onEdit, onAddress, onMessage }: Props = $props();
+  let { draft = $bindable(), api, near, onEdit, onAddress, onMessage, saveState, onUndo }: Props = $props();
 
   const ICONS: Record<PlaceIcon, IconName> = { home: 'home', school: 'school', sport: 'flag', place: 'pin' };
   const SEARCH_DELAY_MS = 400;
@@ -87,7 +92,7 @@
 {/snippet}
 
 <section class="card">
-  <h2><Icon name="pin" size={28} /> Lieux</h2>
+  <h2><Icon name="pin" size={28} /> Lieux <SaveStatus state={saveState} zone="places" {onUndo} /></h2>
   {#each draft.places as place (place.id)}
     <div class="row">
       <button type="button" class="icon" aria-label="Changer l'icône de « {place.label} »" onclick={() => ((place.icon = nextIcon(place.icon)), onEdit())}>

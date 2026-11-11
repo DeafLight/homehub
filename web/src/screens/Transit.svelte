@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import type { StopChoice, TransitSettings } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
@@ -8,6 +8,7 @@
   import PlacesCard from '../components/transit/PlacesCard.svelte';
   import '../components/transit/transit.css';
   import { ApiError } from '../lib/api.ts';
+  import { createAutoSave, requireParent, type SaveState } from '../lib/autosave.ts';
   import { getAppContext } from '../lib/context.ts';
   import type { PageRoute } from '../lib/route.ts';
   import { nearKey, settingsProblem, toInput } from '../lib/transit-edit.ts';
@@ -15,7 +16,8 @@
   // Réglages des transports, ouverts depuis la roue dentée : les lieux de la famille (situés par leur adresse), le
   // trajet de chacun (ligne directe proposée d'après les horaires Irigo, calé sur l'emploi du temps ou sur une plage
   // fixe) et les arrêts de l'accueil. Tout le monde peut regarder ; seul un parent reconnu enregistre.
-  // La page garde le brouillon et l'enregistre ; chaque carte (components/transit/) le modifie.
+  // La page garde le brouillon et l'enregistre d'elle-même après chaque modification (lib/autosave.ts) ; chaque carte
+  // (components/transit/) le modifie et affiche l'état de l'enregistrement dans son titre.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -26,8 +28,7 @@
   let saved = $state<TransitSettings | null>(null);
   let draft = $state<TransitSettings | null>(null);
   let loadError = $state<string | null>(null);
-  let message = $state<{ text: string; ok?: boolean } | null>(null);
-  let saving = $state(false);
+  let saveState = $state<SaveState>({ kind: 'idle' });
 
   const clone = (s: TransitSettings) => JSON.parse(JSON.stringify(s)) as TransitSettings;
   const dirty = $derived(Boolean(draft && saved && JSON.stringify(draft) !== JSON.stringify(saved)));
@@ -41,8 +42,25 @@
     }
   });
 
-  const edit = () => (message = null);
-  const warn = (text: string) => (message = { text });
+  const auto = createAutoSave({
+    problem: () => (draft ? settingsProblem(toInput(draft), nameOf) : null),
+    onState: (next) => (saveState = next),
+    async save() {
+      if (!draft || !dirty) return false;
+      await requireParent(actor, 'Seul un parent peut modifier les transports');
+      const sent = JSON.stringify(draft);
+      try {
+        saved = await api.saveTransitSettings(toInput(draft));
+      } catch (err) {
+        actor.check(err);
+        throw new Error(err instanceof ApiError ? err.message : 'Enregistrement impossible');
+      }
+      // Ce qui a été modifié pendant l'envoi reste dans le brouillon (et repart au prochain enregistrement).
+      if (JSON.stringify(draft) === sent) draft = clone(saved);
+      return true;
+    },
+  });
+  onDestroy(() => void auto.flush());
 
   /** Arrêts proches de chaque lieu (nombre affiché, et choix rapide pour l'accueil). */
   let near = $state<Record<string, StopChoice[]>>({});
@@ -61,29 +79,10 @@
     if (draft) void loadNearCounts();
   });
 
-  function cancel() {
+  /** Revient à ce qui est enregistré (enregistrement refusé). */
+  function undo() {
     if (saved) draft = clone(saved);
-    message = null;
-  }
-
-  async function save() {
-    if (!draft || saving) return;
-    const input = toInput(draft);
-    const problem = settingsProblem(input, nameOf);
-    if (problem) return void (message = { text: problem });
-    if (!(await actor.allow(null))) return;
-    if ((await actor.isKiosk()) && !actor.current?.parent) return void (message = { text: 'Seul un parent peut enregistrer les transports' });
-    saving = true;
-    try {
-      saved = await api.saveTransitSettings(input);
-      draft = clone(saved);
-      message = { text: 'Transports enregistrés', ok: true };
-    } catch (err) {
-      actor.check(err);
-      message = { text: err instanceof ApiError ? err.message : 'Enregistrement impossible' };
-    } finally {
-      saving = false;
-    }
+    auto.reset();
   }
 </script>
 
@@ -94,9 +93,9 @@
     <span class="who muted">
       <Icon name="lock" size={22} />
       {#if actor.current?.parent}
-        {actor.current.name} peut enregistrer
+        {actor.current.name} peut modifier
       {:else}
-        Seul un parent peut enregistrer
+        Seul un parent peut modifier
       {/if}
     </span>
   </header>
@@ -107,29 +106,33 @@
     <div class="scroll">
       <div class="columns">
         <div class="column">
-          <PlacesCard bind:draft {api} {near} onEdit={edit} onAddress={loadNearCounts} onMessage={warn} />
-          <HomeStopsCard bind:draft {api} {near} onEdit={edit} onMessage={warn} />
+          <PlacesCard
+            bind:draft
+            {api}
+            {near}
+            {saveState}
+            onUndo={undo}
+            onEdit={() => auto.touch('places')}
+            onAddress={loadNearCounts}
+            onMessage={(text) => auto.warn('places', text)}
+          />
+          <HomeStopsCard
+            bind:draft
+            {api}
+            {near}
+            {saveState}
+            onUndo={undo}
+            onEdit={() => auto.touch('stops')}
+            onMessage={(text) => auto.warn('stops', text)}
+          />
         </div>
-        <CommutesCard bind:draft {api} {members} {nameOf} onEdit={edit} />
+        <CommutesCard bind:draft {api} {members} {nameOf} {saveState} onUndo={undo} onEdit={() => auto.touch('commutes')} />
       </div>
       {#if !draft.saved}
         <p class="muted small">Pas encore enregistré : les arrêts et le trajet du fichier de configuration s’appliquent jusque-là.</p>
       {/if}
     </div>
 
-    <footer>
-      {#if message}
-        <span class="message" class:ok={message.ok}>{message.text}</span>
-      {/if}
-      <span class="actions">
-        {#if dirty}
-          <button type="button" class="secondary" onclick={cancel}>Annuler</button>
-        {/if}
-        <button type="button" class="primary" disabled={!dirty || saving} onclick={save}>
-          {saving ? 'Enregistrement…' : dirty ? 'Enregistrer' : 'Enregistré'}
-        </button>
-      </span>
-    </footer>
   {/if}
 </div>
 
@@ -179,36 +182,5 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-  }
-
-  footer {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .message {
-    font-size: 1.15rem;
-    color: var(--danger-fg);
-  }
-
-  .message.ok {
-    color: var(--ok-fg);
-  }
-
-  .actions {
-    display: flex;
-    gap: 10px;
-    margin-left: auto;
-  }
-
-  .primary {
-    min-height: 56px;
-    padding: 0 30px;
-    border-radius: 16px;
-    background: var(--rain);
-    color: #fff;
-    font-size: 1.2rem;
-    font-weight: 700;
   }
 </style>

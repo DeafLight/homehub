@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import type { RoutinePeriod, RoutineSettings, TimeWindow } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
+  import SaveStatus from '../components/SaveStatus.svelte';
   import { ApiError } from '../lib/api.ts';
+  import { createAutoSave, requireParent, type SaveState } from '../lib/autosave.ts';
   import { getAppContext } from '../lib/context.ts';
   import { draftProblem, hasDay, MAX_STEPS, moveStep, newStepId, PERIODS, stepsOnDay, toggleDay, toInput, WEEK } from '../lib/routine-edit.ts';
   import type { PageRoute } from '../lib/route.ts';
 
   // Réglages des routines, ouverts depuis la roue dentée : les étapes du matin et du soir de chacun (nom, jours,
   // ordre) et les heures où elles s'affichent. Tout le monde peut regarder ; seul un parent reconnu enregistre.
-  // Les modifications restent en brouillon (changer de membre ne les perd pas) jusqu'à « Enregistrer ».
+  // Chaque modification s'enregistre d'elle-même (lib/autosave.ts) ; son état s'affiche dans le titre de la carte.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -25,8 +27,7 @@
   let loadError = $state<string | null>(null);
   let selected = $state(members[0]?.id ?? '');
   let adding = $state<Record<RoutinePeriod, string>>({ morning: '', evening: '' });
-  let message = $state<{ text: string; ok?: boolean } | null>(null);
-  let saving = $state(false);
+  let saveState = $state<SaveState>({ kind: 'idle' });
 
   const clone = (settings: RoutineSettings) => JSON.parse(JSON.stringify(settings)) as RoutineSettings;
   const dirty = $derived(Boolean(draft && saved && JSON.stringify(draft) !== JSON.stringify(saved)));
@@ -42,20 +43,36 @@
     }
   });
 
-  function edit() {
-    message = null;
-  }
+  const auto = createAutoSave({
+    problem: () => (draft ? draftProblem(draft, nameOf) : null),
+    onState: (next) => (saveState = next),
+    async save() {
+      if (!draft || !dirty) return false;
+      await requireParent(actor, 'Seul un parent peut modifier les routines');
+      const sent = JSON.stringify(draft);
+      try {
+        saved = await api.saveRoutines(toInput(draft));
+      } catch (err) {
+        actor.check(err);
+        throw new Error(err instanceof ApiError ? err.message : 'Enregistrement impossible');
+      }
+      // Ce qui a été modifié pendant l'envoi reste dans le brouillon (et repart au prochain enregistrement).
+      if (JSON.stringify(draft) === sent) draft = clone(saved);
+      return true;
+    },
+  });
+  onDestroy(() => void auto.flush());
+
+  const zoneOf = (period: RoutinePeriod) => `${selected}:${period}`;
+  const edit = (zone: string) => auto.touch(zone);
 
   function addStep(period: RoutinePeriod) {
     const label = adding[period].trim();
     if (!plan || !label) return;
-    if (plan[period].length >= MAX_STEPS) {
-      message = { text: `${MAX_STEPS} étapes au plus` };
-      return;
-    }
+    if (plan[period].length >= MAX_STEPS) return auto.warn(zoneOf(period), `${MAX_STEPS} étapes au plus`);
     plan[period].push({ id: newStepId([...plan.morning, ...plan.evening]), label, days: null });
     adding[period] = '';
-    edit();
+    edit(zoneOf(period));
   }
 
   function setWeekend(period: RoutinePeriod, range: TimeWindow | undefined) {
@@ -63,45 +80,21 @@
     const weekend = { ...draft.windows.weekend, [period]: range };
     if (!range) delete weekend[period];
     draft.windows.weekend = Object.keys(weekend).length ? weekend : undefined;
-    edit();
+    edit('hours');
   }
 
-  function cancel() {
+  /** Revient à ce qui est enregistré (enregistrement refusé). */
+  function undo() {
     if (saved) draft = clone(saved);
-    message = null;
-  }
-
-  async function save() {
-    if (!draft || saving) return;
-    const problem = draftProblem(draft, nameOf);
-    if (problem) {
-      message = { text: problem };
-      return;
-    }
-    if (!(await actor.allow(null))) return;
-    if ((await actor.isKiosk()) && !actor.current?.parent) {
-      message = { text: 'Seul un parent peut enregistrer les routines' };
-      return;
-    }
-    saving = true;
-    try {
-      saved = await api.saveRoutines(toInput(draft));
-      draft = clone(saved);
-      message = { text: 'Routines enregistrées', ok: true };
-    } catch (err) {
-      actor.check(err);
-      message = { text: err instanceof ApiError ? err.message : 'Enregistrement impossible' };
-    } finally {
-      saving = false;
-    }
+    auto.reset();
   }
 </script>
 
 {#snippet range(value: TimeWindow, label: string)}
   <span class="range">
-    <input type="time" aria-label="{label} : début" bind:value={value.from} oninput={edit} />
+    <input type="time" aria-label="{label} : début" bind:value={value.from} oninput={() => edit('hours')} />
     <span class="muted">–</span>
-    <input type="time" aria-label="{label} : fin" bind:value={value.to} oninput={edit} />
+    <input type="time" aria-label="{label} : fin" bind:value={value.to} oninput={() => edit('hours')} />
   </span>
 {/snippet}
 
@@ -112,9 +105,9 @@
     <span class="who muted">
       <Icon name="lock" size={22} />
       {#if actor.current?.parent}
-        {actor.current.name} peut enregistrer
+        {actor.current.name} peut modifier
       {:else}
-        Seul un parent peut enregistrer
+        Seul un parent peut modifier
       {/if}
     </span>
   </header>
@@ -142,18 +135,22 @@
       <div class="columns">
         {#each PERIODS as period (period)}
           <section class="card">
-            <h2><Icon name={period === 'morning' ? 'sun' : 'moon'} size={28} /> {PERIOD_TITLES[period]}</h2>
+            <h2>
+              <Icon name={period === 'morning' ? 'sun' : 'moon'} size={28} />
+              {PERIOD_TITLES[period]}
+              <SaveStatus state={saveState} zone={zoneOf(period)} onUndo={undo} />
+            </h2>
             {#each plan[period] as step, i (step.id)}
               <div class="step">
                 <span class="order">
-                  <button type="button" aria-label="Monter « {step.label} »" disabled={i === 0} onclick={() => ((plan[period] = moveStep(plan[period], i, -1)), edit())}>
+                  <button type="button" aria-label="Monter « {step.label} »" disabled={i === 0} onclick={() => ((plan[period] = moveStep(plan[period], i, -1)), edit(zoneOf(period)))}>
                     <span class="up"><Icon name="chevron" size={20} /></span>
                   </button>
-                  <button type="button" aria-label="Descendre « {step.label} »" disabled={i === plan[period].length - 1} onclick={() => ((plan[period] = moveStep(plan[period], i, 1)), edit())}>
+                  <button type="button" aria-label="Descendre « {step.label} »" disabled={i === plan[period].length - 1} onclick={() => ((plan[period] = moveStep(plan[period], i, 1)), edit(zoneOf(period)))}>
                     <span class="down"><Icon name="chevron" size={20} /></span>
                   </button>
                 </span>
-                <input class="label" type="text" maxlength="60" aria-label="Nom de l'étape" bind:value={step.label} oninput={edit} />
+                <input class="label" type="text" maxlength="60" aria-label="Nom de l'étape" bind:value={step.label} oninput={() => edit(zoneOf(period))} />
                 <span class="days">
                   {#each WEEK as { day, short, name } (day)}
                     <button
@@ -162,11 +159,11 @@
                       class:on={hasDay(step, day)}
                       aria-pressed={hasDay(step, day)}
                       aria-label="{step.label} le {name}"
-                      onclick={() => ((plan[period][i] = toggleDay(step, day)), edit())}>{short}</button
+                      onclick={() => ((plan[period][i] = toggleDay(step, day)), edit(zoneOf(period)))}>{short}</button
                     >
                   {/each}
                 </span>
-                <button type="button" class="remove" aria-label="Supprimer « {step.label} »" onclick={() => (plan[period].splice(i, 1), edit())}>
+                <button type="button" class="remove" aria-label="Supprimer « {step.label} »" onclick={() => (plan[period].splice(i, 1), edit(zoneOf(period)))}>
                   <Icon name="trash" size={22} />
                 </button>
               </div>
@@ -184,7 +181,10 @@
       </div>
 
       <section class="card hours">
-        <h2><Icon name="clock" size={28} /> Heures d'affichage <span class="muted small">(toute la famille)</span></h2>
+        <h2>
+          <Icon name="clock" size={28} /> Heures d'affichage <span class="muted small">(toute la famille)</span>
+          <SaveStatus state={saveState} zone="hours" onUndo={undo} />
+        </h2>
         <div class="hours-grid">
           <span></span>
           <span class="muted">Matin</span>
@@ -209,21 +209,9 @@
     </div>
 
     <footer>
-      {#if message}
-        <span class="message" class:ok={message.ok}>{message.text}</span>
-      {:else}
-        <span class="muted">
-          Aujourd'hui ({DAY_NAMES[clock.now.getDay()]}), {nameOf(selected)} : {today.morning} étape{today.morning > 1 ? 's' : ''} le matin,
-          {today.evening} le soir
-        </span>
-      {/if}
-      <span class="actions">
-        {#if dirty}
-          <button type="button" class="secondary" onclick={cancel}>Annuler</button>
-        {/if}
-        <button type="button" class="primary" disabled={!dirty || saving} onclick={save}>
-          {saving ? 'Enregistrement…' : dirty ? 'Enregistrer' : 'Enregistré'}
-        </button>
+      <span class="muted">
+        Aujourd'hui ({DAY_NAMES[clock.now.getDay()]}), {nameOf(selected)} : {today.morning} étape{today.morning > 1 ? 's' : ''} le matin,
+        {today.evening} le soir · chaque modification s’enregistre d’elle-même
       </span>
     </footer>
   {/if}
@@ -443,8 +431,7 @@
   }
 
   .add button,
-  .same,
-  .secondary {
+  .same {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -485,28 +472,7 @@
     gap: 16px;
   }
 
-  .message {
-    font-size: 1.15rem;
-    color: var(--danger-fg);
-  }
 
-  .message.ok {
-    color: var(--ok-fg);
-  }
 
-  .actions {
-    display: flex;
-    gap: 10px;
-    margin-left: auto;
-  }
 
-  .primary {
-    min-height: 56px;
-    padding: 0 30px;
-    border-radius: 16px;
-    background: var(--rain);
-    color: #fff;
-    font-size: 1.2rem;
-    font-weight: 700;
-  }
 </style>

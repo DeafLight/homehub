@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.46.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.47.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -61,13 +61,15 @@ Prochaine activité commune, liste de courses, semaine, mots à toute la famille
 
 ### Semaine
 
-Les 7 jours, chaque agenda à la couleur de son profil ; filtres par personne et pour les cours.
+Les 7 jours, chaque agenda à la couleur de son profil ; filtres par personne et pour les cours. Une carte de la
+piste A, de hauteur fixe : deux bandeaux « journée entière » au plus par jour, puis « +N ».
 
 ![Semaine](images/tablette-semaine.png)
 
 ### Météo
 
-Conditions actuelles, courbe des 24 heures, 4 jours.
+Conditions actuelles en grand (seule carte sans étiquette), vent, humidité, soleil et pluie, courbe des 24 heures,
+4 jours : cartes et étiquettes de la piste A, colonnes de hauteur fixe.
 
 ![Météo](images/tablette-meteo.png)
 
@@ -110,9 +112,15 @@ est présentée avec chaque requête.)
 
 ### Routines (réglages)
 
-Étapes du matin et du soir de chaque membre, jours de chaque étape, heures d'affichage.
+Étapes du matin et du soir de chaque membre, jours de chaque étape, heures d'affichage. Plus de bouton « Enregistrer » :
+chaque modification s'enregistre d'elle-même, et son état (« Enregistrement… », « Enregistré », ou le refus avec
+« Annuler ») s'affiche dans le titre de la carte modifiée. Comme sur les pages Transports et Vacances scolaires.
 
 ![Routines](images/tablette-routines.png)
+
+Pyjama retiré le samedi : « Enregistré » dans la carte Soir.
+
+![Routine enregistrée](images/tablette-routines-enregistre.png)
 
 ### Transports (réglages)
 
@@ -123,7 +131,7 @@ Lieux de la famille, trajet de chacun, arrêts de l'accueil. Ici, avant le premi
 ### Vacances scolaires (réglages)
 
 Calendrier de l'académie (liste regroupée par zone, filtrée par la saisie), d'une zone entière, ou aucun ; à droite,
-l'aperçu des prochaines vacances avant d'enregistrer. Ici, l'académie de Nantes, venue du fichier de configuration ;
+l'aperçu des prochaines vacances du choix, enregistré de lui-même. Ici, l'académie de Nantes, venue du fichier de configuration ;
 sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 
 ![Vacances scolaires](images/tablette-vacances-reglages.png)
