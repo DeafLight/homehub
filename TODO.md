@@ -49,9 +49,7 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (toujours jamais d'office en 0.52 :
 
       à proposer, ingrédient par ingrédient, et annulable).
-- [ ] Secondaire, si possible : envoyer la liste au panier d'un drive (enseigne à définir, type Hyper U) depuis la
-      tablette ; ce que le drive n'a pas reste dans la liste classique. HomeHub remplit le panier ; la commande et
-      le paiement se valident chez l'enseigne.
+- [ ] Drive : remplir le panier d'une enseigne depuis la liste de courses (voir « Drive » ci-dessous).
 - [ ] Suites du carnet : modifier les groupes d'ingrédients et d'étapes (« Pour la pâte ») dans notre version ;
       photo à changer ou à prendre ; doublons par titre (même recette sur deux sites) ; Jow : ses CGU interdisent
       l'extraction, n'importer que ce qu'on partage soi-même (c'est le cas) et ne rien republier.
@@ -71,6 +69,46 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       émincés » → oignon, 2 pièces) pour l'agréger ; pour le drive, quelle enseigne a un panier accessible, et
       comment associer un ingrédient à un produit (et retenir le choix). Fait pour les sites et les ingrédients
       (clé normalisée, rayon deviné, prêts pour la liste agrégée) ; reste le drive.
+
+### Drive (remplir le panier d'une enseigne)
+
+But : depuis la liste de courses (menu et produits hors recettes), retrouver chaque article chez **une enseigne
+choisie** et remplir son panier. Le plus important est le panier ; le créneau et le paiement peuvent se finir dans
+l'appli de l'enseigne.
+
+Jusqu'où on peut aller :
+
+| Étape | Faisable ? |
+|---|---|
+| Chercher les produits, remplir le panier | Oui en principe, mais sans API publique : à étudier par enseigne |
+| Voir les créneaux, en réserver un | Peut-être, par le même chemin que le panier ; secondaire |
+| Payer | **Non** : HomeHub ne touche jamais aux données de carte (3-D Secure de la banque de toute façon) ; on valide chez l'enseigne |
+
+- [ ] **À étudier d'abord**, pour 2 ou 3 enseignes de la région (Leclerc, Hyper U / Courses U, Carrefour,
+      Intermarché, Auchan…) :
+      - s'il existe une voie officielle : API partenaire, import d'une liste, lien « ajouter au panier » (comme les
+        partenariats des applis de recettes), programme d'affiliation ;
+      - sinon, ce que fait leur site dans le navigateur (recherche, fiche produit avec EAN, ajout au panier,
+        créneaux) et ce qu'en disent les CGU et le robots.txt ;
+      - les protections anti-robots en place. **Pas de contournement** : ni faux navigateur, ni robot sur le NAS
+        qui se ferait passer pour une personne, comme pour les recettes ;
+      - en déduire le chemin retenu, par ordre de préférence : voie officielle, puis **le navigateur de la
+        personne**, connectée à son compte (extension ou favori « Remplir le panier » qui lit la liste de HomeHub
+        et ajoute les produits depuis sa propre session), puis rien (liste à cocher pendant qu'on remplit le panier
+        à la main dans l'appli).
+- [ ] Choisir l'enseigne dans les réglages (une seule au départ, magasin de retrait).
+- [ ] Ingrédient ou article → **produit de l'enseigne** : proposition devinée (nom, rayon, contenance, EAN quand le
+      produit est déjà au stock), choisie une fois puis **retenue** (« lardons » → tel paquet chez cette enseigne) ;
+      plusieurs choix possibles (préféré, de secours).
+- [ ] Quantité en **paquets** : 350 g de lardons → 2 paquets de 200 g (même arrondi au paquet que le stock).
+- [ ] Article introuvable ou en rupture : il reste dans la liste classique, signalé ; produit de remplacement
+      proposé, jamais choisi d'office.
+- [ ] Récapitulatif avant envoi : ce qui part au panier, prix estimé si l'enseigne le donne, ce qui reste à
+      acheter ailleurs ; les lignes envoyées sont marquées dans la liste.
+- [ ] Puis, si le chemin retenu le permet : créneaux affichés (et réservés ?) ; prix et EAN du panier repris dans
+      l'historique des prix (voir « Prix »).
+- [ ] Compte de l'enseigne : jamais de mot de passe stocké par HomeHub si le chemin passe par le navigateur de la
+      personne ; sinon, à décider avec l'utilisateur (jeton de session chiffré, révocable).
 
 ## Stock de la maison (sujet à part, utile aux recettes et au-delà)
 
