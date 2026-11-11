@@ -50,6 +50,18 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Contenants de la maison : ajout, renommage, retrait, « Vide », **étiquette à imprimer**. Écriture depuis la tablette
   (sans reconnaissance du visage : la caméra sert au scan ; au nom de la personne reconnue s'il y en a une) ou un
   téléphone relié. Prix : facultatifs, pas encore saisis (lecture des tickets à venir).
+- **Recettes** (`/recettes` sur la tablette, par le bouton de l'accueil ou du bandeau des profils ; onglet Recettes
+  du téléphone, `/m/recettes`) : le carnet de la famille. On partage une recette depuis son téléphone (Marmiton, Jow,
+  Cookeo, ou tout site qui publie ses recettes au format schema.org) : HomeHub lit la page (titre, portions,
+  ingrédients et quantités, étapes, photo, temps, mode Cookeo) et la range avec son origine ; une page illisible
+  propose la saisie à la main, lien gardé. **Notre version** se modifie (portions par défaut, ingrédients, quantités,
+  étapes, astuces) et c'est elle qui sert ; la source reste visible telle que lue. Chaque ingrédient est analysé
+  (quantité, unité, nom ; « 2 à 3 », « ½ », « une pincée de », « facultatif ») : les quantités suivent les portions
+  choisies, la ligne d'origine est toujours gardée, et une correction à la main (**Ajuster**) l'emporte. Fiche : photo,
+  temps, portions ±, ingrédients, étapes numérotées avec le mode Cookeo et un minuteur en un geste pour chaque durée
+  (« 15 minutes », « 1 h 30 »). **Mode cuisine** (tablette) : une étape à la fois en grand, l'écran reste allumé, pas
+  de retour à l'accueil. Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
+  ou qui a ajouté la recette ; retirer : un parent.
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
@@ -65,8 +77,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches` (avec, en tête, la
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`
-  (7 prochains jours, soi et la famille), `/m/mots`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
-  ouvre l'ajout prérempli (`/partager`). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
+  (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
+  ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
   La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
   et son système ; on le renomme en touchant son nom.
   Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code et avant de retirer un
@@ -289,6 +301,12 @@ code-barres leur est envoyé. Chaque produit trouvé est copié dans `stock.json
 produit lu il y a plus de 180 jours, ou sur « Revérifier ». Ce qui a été corrigé à la main l'emporte : une relecture
 qui le contredit est signalée sur la fiche (garder la nôtre ou prendre la base), jamais appliquée d'office.
 
+Les **recettes** sont lues sur la page partagée, chez son site : une seule demande (et une pour la photo), avec un
+User-Agent qui nomme HomeHub, seulement quand quelqu'un importe. Le serveur refuse les adresses locales ou privées
+(et après chaque redirection), au-delà de 3 Mo ou de 10 s ; seuls `http` et `https` passent. La recette et sa photo
+sont ensuite copiées dans `recipes.json` et `recipes/` : le site n'est plus jamais relu. Le carnet est privé à la
+maison ; certains sites interdisent l'extraction systématique de leurs recettes, HomeHub ne lit que la page partagée.
+
 Sans agenda configuré, l'agenda est d'exemple (`server/sources/sample.ts`) ; les tâches et les mots sont toujours
 réels.
 
@@ -315,6 +333,8 @@ kiosk:
 trustedProxies: [172.20.0.0/16]  # facultatif : proxy qui peut donner l'adresse du client (X-Real-IP) ; défaut : aucun
 holidays:            # facultatif : vacances scolaires (la page « Vacances scolaires » prend le pas) ; sinon, aucune
   academie: Nantes   # ou zone: B (A, B ou C) ; Corse et outre-mer : academie: Corse, Réunion…
+recipes:             # facultatif
+  allowedHosts: []   # sites autorisés malgré une adresse privée (un serveur de recettes de la maison) ; défaut : aucun
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -328,7 +348,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -368,12 +388,19 @@ server/
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
   sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants
   sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
+  sources/recipes.ts       carnet de recettes (recipes.json, photos dans recipes/), doublons par adresse
+  sources/web-page.ts      lecture d'une page web sûre : adresses publiques seulement, redirections revérifiées, taille et délai bornés
+  sources/recipe-page.ts   recette d'une page (schema.org Recipe en JSON-LD ou microdonnées), site d'origine
+  services/recipes.ts      import d'une recette (page, photo) et nettoyage d'une version modifiée
+  recipes-api.ts           routes du carnet de recettes
   sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
   access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
   lists-api.ts             routes des listes, de l'appairage et des téléphones
   stock-api.ts             routes du stock et du scanner
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
+shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
+shared/recipes.ts          recettes : types, limites, durées des étapes, portions, temps
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -438,6 +465,11 @@ web/src/
 | `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
 | `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |
 | `PUT /api/stock/settings` | `{ autoShop }` : réglage par défaut des produits épuisés |
+| `GET /api/recipes` | `{ recipes }` : le carnet, du plus récent (titre, photo, portions, temps, Cookeo, site, auteur) |
+| `GET /api/recipes/:id`, `GET /api/recipes/:id/photo` | une recette (`ours` : notre version ; `source` : adresse, site, date, version lue) ; sa photo |
+| `POST /api/recipes/import` | `{ url }` (ou un texte partagé qui contient le lien) → `{ recipe, existing }` (201 si nouvelle ; `existing` : déjà au carnet) ou `{ draft, reason }` quand la page n'a pas de recette lisible ; 400 pour une adresse refusée. Quelqu'un de reconnu ou un téléphone relié, vérifié avant toute lecture |
+| `POST /api/recipes` | `{ content, url? }` : recette saisie à la main (avec le lien d'une page illisible) |
+| `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent |
 | `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |
 | `POST /api/fitness/sessions`, `DELETE /api/fitness/sessions/:id` | séance terminée `{ session, rpe, stopped, note, exercises: [{ family, rating, pain, reps, note }] }`, ou retirée |
 | `PUT /api/fitness/weeks/:lundi` | `{ cardio, waist }` de la semaine |

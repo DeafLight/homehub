@@ -13,6 +13,8 @@
   import PhoneNav from '../components/phone/PhoneNav.svelte';
   import PhoneNotes from '../components/phone/PhoneNotes.svelte';
   import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
+  import ImportForm from '../components/recipes/ImportForm.svelte';
+  import RecipeCards from '../components/recipes/RecipeCards.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import SchoolLifeCard from '../components/widgets/SchoolLifeCard.svelte';
   import SchoolLifeDetail from '../components/widgets/SchoolLifeDetail.svelte';
@@ -23,7 +25,8 @@
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
-  import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath } from '../lib/route.ts';
+  import { handoff, searchRecipes } from '../lib/recipes.ts';
+  import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
@@ -31,13 +34,15 @@
   const NOTES_REFRESH_MS = 30_000;
   const ROUTINE_REFRESH_MS = 60_000;
   const HOMEWORK_REFRESH_MS = 10 * 60_000;
+  const RECIPES_REFRESH_MS = 5 * 60_000;
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
-  // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus et, pour un adulte qui a un programme, le
-  // sport. Tout ce qui est coché ou ajouté l’est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre
-  // directement l'ajout. Règles : lib/phone-app.ts ; onglets : components/phone/.
-  type Props = { tab: PhoneTab; shared?: string };
-  let { tab, shared }: Props = $props();
+  // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes et, pour un adulte
+  // qui a un programme, le sport. Tout ce qui est coché ou ajouté l’est au nom de ce profil. `shared` : texte reçu par
+  // « Partager », qui ouvre directement l'ajout ; `sharedLink` : lien reçu, qui ouvre l'import de recette (l'ajout à
+  // une liste reste proposé). Règles : lib/phone-app.ts ; onglets : components/phone/.
+  type Props = { tab: PhoneTab; shared?: string; sharedLink?: string };
+  let { tab, shared, sharedLink }: Props = $props();
 
   const { api, config, profiles, clock, navigate } = getAppContext();
   const pairing = loadPairing();
@@ -65,6 +70,7 @@
   // Vacances scolaires, en tête de l'agenda (même rythme) ; une panne la masque seulement.
   const holidays = createResource(() => api.holidays(), AGENDA_REFRESH_MS);
   const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
+  const recipes = createResource(() => api.recipes(), RECIPES_REFRESH_MS);
   const routine = createResource(async () => (pairing ? (await api.routine(pairing.ownerId)).routine : null), ROUTINE_REFRESH_MS);
   // Devoirs (Pronote ou ÉcoleDirecte), en lecture seule ; le serveur les garde en cache, rafraîchis plus rarement.
   const homework = createResource(async () => (pairing ? (await api.homework(pairing.ownerId)).homework : null), HOMEWORK_REFRESH_MS);
@@ -83,6 +89,7 @@
     agenda.destroy();
     holidays.destroy();
     notes.destroy();
+    recipes.destroy();
     check.destroy();
   });
 
@@ -128,7 +135,19 @@
     writing = false;
     await notes.refresh();
   }
-  let adding = $state(untrack(() => shared !== undefined));
+  let adding = $state(untrack(() => shared !== undefined && sharedLink === undefined));
+  let importing = $state(untrack(() => sharedLink !== undefined));
+  let recipeSearch = $state('');
+
+  function manualRecipe(draft: typeof handoff.draft) {
+    handoff.draft = draft;
+    navigate(phoneRecipePath(null));
+  }
+
+  function cancelImport() {
+    importing = false;
+    if (sharedLink !== undefined) navigate(phonePath('recipes'));
+  }
 
   async function add(input: AddInput) {
     if (input.kind === 'shopping') await lists.addShopping(input.label);
@@ -182,6 +201,17 @@
           </div>
         {/if}
         <PhoneAgenda weeks={agenda.data} loadError={agenda.error} holiday={holidays.data?.holiday ?? null} meId={me.id} now={clock.now} {profileOf} />
+      {:else if tab === 'recipes'}
+        {#if recipes.data}
+          {#if recipes.data.recipes.length === 0}
+            <p class="muted">Le carnet est vide. Sur une recette (Marmiton, Jow, Cookeo…), touche <strong>Partager</strong> puis <strong>HomeHub</strong>, ou le bouton +.</p>
+          {:else}
+            <input class="recipe-search" type="search" bind:value={recipeSearch} placeholder="Chercher une recette" aria-label="Chercher une recette" />
+            <RecipeCards recipes={searchRecipes(recipes.data.recipes, recipeSearch)} photoUrl={api.recipePhotoUrl} phone onOpen={(r) => navigate(phoneRecipePath(r.id))} />
+          {/if}
+        {:else if recipes.error}
+          <p class="muted">Impossible de charger le carnet : {recipes.error}</p>
+        {/if}
       {:else if tab === 'sport'}
         {#if member?.fitness}
           <SportPanel {api} now={clock.now} onScrollTop={() => scroller?.scrollTo({ top: 0 })} />
@@ -234,6 +264,10 @@
       <button type="button" class="fab" aria-label="Ajouter une tâche" onclick={() => (adding = true)}>
         <Icon name="plus" size={30} strokeWidth={2.4} />
       </button>
+    {:else if tab === 'recipes'}
+      <button type="button" class="fab" aria-label="Ajouter une recette" onclick={() => (importing = true)}>
+        <Icon name="plus" size={30} strokeWidth={2.4} />
+      </button>
     {:else if tab === 'notes'}
       <button type="button" class="fab" aria-label="Laisser un mot" onclick={() => (writing = true)}>
         <Icon name="plus" size={30} strokeWidth={2.4} />
@@ -252,6 +286,20 @@
       <BottomSheet label="Vie scolaire" onClose={() => (schoolLifeOpen = false)}>
         <h2 class="sheet-title">Vie scolaire</h2>
         <SchoolLifeDetail life={schoolLife.data} {profiles} now={clock.now} stacked />
+      </BottomSheet>
+    {/if}
+
+    {#if importing}
+      <BottomSheet label="Importer une recette" onClose={cancelImport}>
+        <ImportForm
+          link={sharedLink ?? ''}
+          note={sharedLink !== undefined ? 'Partagé depuis une autre appli' : undefined}
+          onImport={(url) => api.importRecipe(url)}
+          onOpen={(recipe) => navigate(phoneRecipePath(recipe.id))}
+          onManual={manualRecipe}
+          onCancel={cancelImport}
+          other={sharedLink !== undefined ? { label: 'Ajouter à une liste', run: () => ((importing = false), (adding = true)) } : undefined}
+        />
       </BottomSheet>
     {/if}
 
@@ -350,6 +398,20 @@
   .sheet-title {
     margin: 0 0 12px;
     font-size: 1.3rem;
+  }
+
+  .recipe-search {
+    width: 100%;
+    min-height: 48px;
+    margin-bottom: 12px;
+    padding: 0 16px;
+    box-sizing: border-box;
+    border: 2px solid var(--surface-2);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    font-size: max(16px, 1.05rem);
   }
 
   .homework :global(.card) {

@@ -33,6 +33,7 @@ flowchart LR
     ign["Géoplateforme IGN<br/>(adresses)"]
     off["Open Food Facts,<br/>Beauty, Products<br/>(produits)"]
     edu["data.education.gouv.fr<br/>(vacances scolaires)"]
+    cuisine["Sites de recettes<br/>(page partagée seulement)"]
   end
   tablette -- HTTPS --> npm
   tel -- HTTPS --> npm
@@ -41,7 +42,7 @@ flowchart LR
   api --- yaml
   api --- etat
   cron --> releve --> api
-  api --> meteo & ical & ecole & irigo & ign & off & edu
+  api --> meteo & ical & ecole & irigo & ign & off & edu & cuisine
 ```
 
 ## Couches du serveur
@@ -66,10 +67,11 @@ flowchart TB
     facesS["services/faces.ts<br/>reconnaissance, session"]
     stockS["services/stock.ts<br/>scan, entrées, sorties, courses"]
     nasS["services/nas.ts<br/>page NAS"]
+    recipesS["services/recipes.ts<br/>import d'une recette, notre version"]
   end
   subgraph sources["Sources (server/sources/)"]
-    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock)"]
-    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness"]
+    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock),<br/>web-page + recipe-page (sans cache : copie dans recipes)"]
+    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness, recipes"]
     cache["refreshing-cache.ts<br/>rafraîchit, garde la dernière valeur"]
     status["source-status.ts<br/>dernier succès ou erreur"]
   end
@@ -78,7 +80,8 @@ flowchart TB
 
   routes --> access --> rights
   access --> household
-  routes --> dash & nasS & facesS & stockS
+  routes --> dash & nasS & facesS & stockS & recipesS
+  recipesS --> distant
   dash --> transitS --> distant
   routes --> locales
   dash --> distant & locales
@@ -94,7 +97,7 @@ flowchart TB
 ```mermaid
 flowchart LR
   main["main.ts<br/>API, routeur, horloge<br/>→ contexte Svelte"] --> app["App.svelte<br/>écran courant, retour à l'accueil,<br/>surveillance de version"]
-  app --> ecrans["screens/<br/>Home, Dashboard, Week, Weather,<br/>Lists, Stock, Scan, Routines, Transit,<br/>Phones, Faces, Nas, Phone (PWA)"]
+  app --> ecrans["screens/<br/>Home, Dashboard, Week, Weather,<br/>Lists, Stock, Scan, Routines, Transit,<br/>Recipes, Recipe, Phones, Faces, Nas,<br/>Phone (PWA)"]
   ecrans --> comp["components/<br/>cartes, panneaux, minuteurs"]
   comp --> widgets["components/widgets/<br/>affichage pur"]
   ecrans --> lib["lib/<br/>logique sans DOM, testée<br/>(formats, semaine, trajets, routines…)"]
@@ -104,7 +107,7 @@ flowchart LR
 
 ## Modèle de données
 
-Les principaux types de `shared/types.ts`, partagés par le serveur et le front, et le fichier d'état qui les garde.
+Les principaux types de `shared/types.ts` (et `shared/recipes.ts` pour le carnet), partagés par le serveur et le front, et le fichier d'état qui les garde.
 
 ```mermaid
 classDiagram
@@ -195,6 +198,26 @@ classDiagram
     name
     full
   }
+  class Recipe {
+    id
+    ours : RecipeContent
+    source : url, site, imageUrl, content lu
+    photo
+    addedBy, updatedBy
+  }
+  class RecipeContent {
+    title
+    servings, servingsUnit
+    steps, tips
+    prep / cook / totalMinutes
+    appliance : cookeo
+  }
+  class IngredientLine {
+    text (ligne d'origine)
+    quantity, quantityMax, unit
+    name, key, aisle, section
+    optional, manual
+  }
   class Author {
     ownerId
     via : tablet | phone
@@ -215,6 +238,9 @@ classDiagram
   Movement ..> ProductVersion : en vigueur à sa date
   Product ..> Container
   Movement ..> Author
+  Recipe "1" --> "1..2" RecipeContent : recipes.json
+  RecipeContent "1" --> "*" IngredientLine
+  Recipe ..> Author
 ```
 
 | Fichier d'état | Contenu |
@@ -225,6 +251,7 @@ classDiagram
 | `routine-plans.json` | étapes et heures des routines |
 | `timers.json` | minuteurs en cours |
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
+| `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
 | `faces.json` | empreintes de visage (aucune image) |
@@ -253,6 +280,13 @@ Exception : le **stock** (scanner, page Stock) n'attend pas de visage reconnu, p
 alors à lire les codes-barres. La tablette ou un téléphone relié suffit ; le mouvement est noté au nom de la personne
 reconnue s'il y en a une (ou du profil du téléphone). Même garde pour la base de produits (`scan`, `recheck`), qui
 appelle Open Food Facts.
+
+Les **recettes** : le carnet est familial. Ajouter (importer un lien, saisir à la main) : quelqu'un de reconnu sur la
+tablette ou un téléphone relié, vérifié avant toute lecture du site ; modifier notre version : un parent ou qui l'a
+ajoutée ; retirer : un parent. La lecture d'une page (`sources/web-page.ts`) n'accepte que `http`/`https` vers une
+adresse publique (vérifiée après résolution DNS, et de nouveau à chaque redirection, quatre au plus), 3 Mo et 10 s au
+plus ; `recipes.allowedHosts` autorise nommément un site de la maison. Limite connue : un nom qui change d'adresse
+entre la vérification et la connexion (rebinding DNS) n'est pas couvert.
 
 **Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
 si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe

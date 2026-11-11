@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
+import { BLOG_URL, recipeUrl } from './docs-captures/fake-recipes.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -204,6 +205,31 @@ await call(A, 'POST', '/stock/containers', { name: 'Boîte à riz' });
 await call('', 'POST', '/stock/out', { code: DOCS_PRODUCTS.riz, all: true });
 await call(L, 'POST', '/stock/out', { code: DOCS_PRODUCTS.lait });
 
+// Carnet de recettes : trois recettes importées du faux site (cuisine.exemple.test), une saisie à la main ; notre
+// version des galettes modifiée (astuce, beurre demi-sel corrigé à la main).
+type Imported = { recipe: { id: string; ours: { ingredients: { text: string }[] } & Record<string, unknown> } };
+const lentilles = ((await call(A, 'POST', '/recipes/import', { url: recipeUrl('mijote-lentilles-cookeo') })) as Imported).recipe;
+const galettes = ((await call(L, 'POST', '/recipes/import', { url: recipeUrl('galettes-sarrasin') })) as Imported).recipe;
+await call(A, 'POST', '/recipes/import', { url: `Regarde ça : ${recipeUrl('riz-saute-legumes')}` });
+await call(A, 'PUT', `/recipes/${galettes.id}`, {
+  content: {
+    ...galettes.ours,
+    ingredients: galettes.ours.ingredients.map((l) => (l.text.startsWith('Beurre') ? { ...l, text: 'Beurre demi-sel pour la poêle', name: 'beurre demi-sel', manual: true } : l)),
+    tips: 'La pâte est meilleure préparée la veille. Garniture du dimanche : jambon, emmental et un œuf au plat.',
+  },
+});
+const fromBlog = (await call(A, 'POST', '/recipes/import', { url: BLOG_URL })) as { draft?: unknown };
+if (!fromBlog.draft) throw new Error('import du blog : brouillon attendu');
+await call(A, 'POST', '/recipes', {
+  content: {
+    title: 'Pâtes au thon de Sam',
+    servings: 4,
+    ingredients: ['400 g de pâtes', '1 boîte de thon au naturel', '1 brique de crème fraîche', '1 citron', 'Persil'].map((text) => ({ text })),
+    steps: ['Cuire les pâtes 10 minutes.', 'Mélanger le thon émietté, la crème et le jus du citron, ajouter aux pâtes égouttées.', 'Parsemer de persil.'].map((text) => ({ text })),
+    tips: 'Les enfants les préfèrent sans persil.',
+  },
+});
+
 // DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
 if (process.env.DOCS_SERVE) {
   await call(A, 'DELETE', `/timers/${timer.id}`);
@@ -352,6 +378,22 @@ const typeCode = (code: string) => `{
 const pause = 'await new Promise((r) => setTimeout(r, 250));';
 await shoot('tablette-scanner', `${BASE}/scanner`, TABLET, {
   after: `(async () => { ${typeCode(DOCS_PRODUCTS.pates)} ${pause} ${click('Jeté / épuisé')}; ${pause} ${typeCode(DOCS_PRODUCTS.cafe)} })()`,
+});
+// Recettes : carnet, fiche, mode cuisine (tablette) ; carnet, fiche, notre version et import partagé (téléphone).
+await shoot('tablette-recettes', `${BASE}/recettes`, TABLET);
+await shoot('tablette-recette', `${BASE}/recette/${galettes.id}`, TABLET);
+await shoot('tablette-recette-cuisine', `${BASE}/recette/${lentilles.id}/cuisine`, TABLET, { after: click('Suivante') });
+await shoot('telephone-recettes', `${BASE}/m/recettes`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-recette', `${BASE}/m/recette/${lentilles.id}`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-recette-modifier', `${BASE}/m/recette/${galettes.id}/modifier`, PHONE, {
+  init: asPhone('lea'),
+  after: `[...document.querySelectorAll('h2, h3, legend, span, p')].find((e) => e.textContent.trim() === 'Ingrédients')?.scrollIntoView()`,
+});
+await shoot('telephone-recette-partage', `${BASE}/partager?text=${encodeURIComponent(`Super recette ${BLOG_URL}`)}`, PHONE, {
+  init: asPhone('alex'),
+  wait: 4000,
+  after: `document.querySelector('form button[type=submit]')?.click()`,
+  settle: 2000,
 });
 await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });

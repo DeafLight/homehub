@@ -19,9 +19,9 @@ export const TIMER_ACTIVITIES = [
 ] as const;
 const DEFAULT_LOOK = { emoji: '⏱️', color: '#cfd3d9' };
 
-/** Emoji et couleur d'un minuteur, d'après son nom. */
+/** Emoji et couleur d'un minuteur, d'après son nom (« Cuisson », ou « Cuisson · … » lancé depuis une recette). */
 export function timerLook(label: string): { emoji: string; color: string } {
-  const activity = TIMER_ACTIVITIES.find((a) => a.label === label);
+  const activity = TIMER_ACTIVITIES.find((a) => a.label === label || label.startsWith(`${a.label} · `));
   return activity ? { emoji: activity.emoji, color: activity.color } : DEFAULT_LOOK;
 }
 

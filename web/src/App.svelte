@@ -7,6 +7,7 @@
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
   import { sharedText } from './lib/lists.ts';
+  import { sharedLink } from './lib/recipes.ts';
   import { HOME_PATH, returnsHomeWhenIdle, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
@@ -24,6 +25,8 @@
   import Pair from './screens/Pair.svelte';
   import Phone from './screens/Phone.svelte';
   import Phones from './screens/Phones.svelte';
+  import Recipe from './screens/Recipe.svelte';
+  import Recipes from './screens/Recipes.svelte';
   import Weather from './screens/Weather.svelte';
   import Week from './screens/Week.svelte';
 
@@ -83,6 +86,16 @@
   <Sport back={router.route.back} />
 {:else if router.route.name === 'workout'}
   <Workout back={router.route.back} />
+{:else if router.route.name === 'recipes'}
+  <Recipes back={router.route.back} />
+{:else if router.route.name === 'recipe'}
+  {#key router.route.id}
+    <Recipe id={router.route.id} mode={router.route.mode} />
+  {/key}
+{:else if router.route.name === 'phonerecipe'}
+  {#key router.route.id}
+    <Recipe id={router.route.id} mode={router.route.mode} phone />
+  {/key}
 {:else if router.route.name === 'phonescan'}
   <Scan back={null} />
 {:else if router.route.name === 'phonestock'}
@@ -90,8 +103,11 @@
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}
-  <!-- Texte reçu par « Partager » (share_target du manifeste) : l'ajout s'ouvre prérempli. -->
-  <Phone tab="tasks" shared={sharedText(new URLSearchParams(location.search))} />
+  <!-- Reçu par « Partager » (share_target du manifeste) : un lien ouvre l'import de recette (ou, au choix, l'ajout à
+       une liste) ; un texte, l'ajout prérempli. -->
+  {@const params = new URLSearchParams(location.search)}
+  {@const link = sharedLink(params)}
+  <Phone tab={link ? 'recipes' : 'tasks'} shared={sharedText(params)} sharedLink={link ?? undefined} />
 {:else if router.route.name === 'pair'}
   <Pair />
 {:else if router.route.name === 'week'}

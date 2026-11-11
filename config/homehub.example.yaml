@@ -127,6 +127,12 @@ ui:
 holidays:
   academie: Nantes
 
+# Recettes (facultatif) : le carnet lit la page d'une recette partagée, seulement sur un site à l'adresse publique.
+#   allowedHosts : noms de sites autorisés malgré une adresse locale ou privée (un serveur de recettes de la maison) ;
+#                  aucun par défaut
+# recipes:
+#   allowedHosts: [recettes.maison.lan]
+
 # Météo (Open-Meteo, modèles Météo-France). Sans cette section, le bloc météo est masqué.
 #   label          : nom du lieu affiché
 #   latitude/longitude : coordonnées en degrés décimaux ; deux décimales (~1 km) suffisent

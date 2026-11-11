@@ -146,6 +146,14 @@ export const configSchema = z.object({
     })
     .refine((h) => (h.academie === undefined) !== (h.zone === undefined), { message: 'donner `academie` ou `zone`, pas les deux' })
     .optional(),
+  /**
+   * Import de recettes : lien partagé, lu par le serveur. Les adresses locales ou privées sont refusées (on ne fait
+   * pas lire au serveur une page du réseau de la maison) ; `allowedHosts` en autorise quelques-unes nommément (ex. un
+   * Mealie à la maison).
+   */
+  recipes: z
+    .object({ allowedHosts: z.array(z.string().trim().toLowerCase().min(1).max(253)).default([]) })
+    .default({ allowedHosts: [] }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({

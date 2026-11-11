@@ -30,6 +30,9 @@ ui:
   screensaverMinutes: 0
 holidays:
   academie: Nantes
+# Le faux site de recettes (fake-recipes.ts) n'a pas d'adresse publique : autorisé nommément.
+recipes:
+  allowedHosts: [cuisine.exemple.test]
 weather:
   label: Angers
   latitude: 47.47

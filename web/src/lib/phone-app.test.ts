@@ -9,7 +9,7 @@ const alex = { id: 'alex', parent: true };
 
 describe('appli du téléphone', () => {
   it('onglet Sport seulement avec un programme', () => {
-    expect(phoneTabs(false).map((t) => t.tab)).toEqual(['shopping', 'tasks', 'agenda', 'notes']);
+    expect(phoneTabs(false).map((t) => t.tab)).toEqual(['shopping', 'tasks', 'agenda', 'notes', 'recipes']);
     expect(phoneTabs(true).at(-1)).toEqual({ tab: 'sport', label: 'Sport', icon: 'dumbbell' });
   });
 

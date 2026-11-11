@@ -55,3 +55,39 @@ describe('vacances scolaires', () => {
     expect(routePath({ name: 'holidays', back: { name: 'dashboard', ownerId: 'alex' } })).toBe('/vacances/p/alex');
   });
 });
+
+describe('recettes', () => {
+  it('carnet de la tablette, avec la page d’où il part ; onglet du téléphone', () => {
+    expect(parseRoute('/recettes')).toEqual({ name: 'recipes', back: { name: 'home' } });
+    expect(parseRoute('/recettes/p/alex')).toEqual({ name: 'recipes', back: { name: 'dashboard', ownerId: 'alex' } });
+    expect(parseRoute('/m/recettes')).toEqual({ name: 'phone', tab: 'recipes' });
+  });
+
+  it('fiche, édition, mode cuisine et nouvelle recette, aller et retour', () => {
+    const cases = [
+      ['/recette/abc', { name: 'recipe', id: 'abc', mode: 'view' }],
+      ['/recette/abc/modifier', { name: 'recipe', id: 'abc', mode: 'edit' }],
+      ['/recette/abc/cuisine', { name: 'recipe', id: 'abc', mode: 'cook' }],
+      ['/recette/nouvelle', { name: 'recipe', id: null, mode: 'edit' }],
+      ['/m/recette/abc', { name: 'phonerecipe', id: 'abc', mode: 'view' }],
+      ['/m/recette/abc/modifier', { name: 'phonerecipe', id: 'abc', mode: 'edit' }],
+      ['/m/recette/nouvelle', { name: 'phonerecipe', id: null, mode: 'edit' }],
+    ] as const;
+    for (const [path, route] of cases) {
+      expect(parseRoute(path)).toEqual(route);
+      expect(routePath(route)).toBe(path);
+    }
+    expect(parseRoute('/m/recette/abc/cuisine')).toEqual({ name: 'phonerecipe', id: 'abc', mode: 'view' });
+  });
+
+  it('une recette ouverte sur la tablette reste à l’écran, reconnaissance comprise ; le carnet, non', () => {
+    const traitsOf = (path: string) => {
+      const route = parseRoute(path);
+      return [returnsHomeWhenIdle(route), allowsScreensaver(route), watchesPresence(route), showsTimers(route)];
+    };
+    expect(traitsOf('/recette/abc/cuisine')).toEqual([false, false, true, true]);
+    expect(traitsOf('/recette/abc')).toEqual([false, false, true, true]);
+    expect(traitsOf('/recettes')).toEqual([true, true, true, true]);
+    expect(traitsOf('/m/recette/abc')).toEqual([false, false, false, false]);
+  });
+});

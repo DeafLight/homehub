@@ -1,4 +1,4 @@
-// Assemblage de l'application HTTP : chaque groupe de routes (dashboard, listes, stock…) vit dans son fichier ; ici,
+// Assemblage de l'application HTTP : chaque groupe de routes (dashboard, listes, stock, recettes…) vit dans son fichier ; ici,
 // les dépendances communes (droits, membres, PIN, reconnaissance faciale), le montage sous /api et le front compilé.
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Context, Hono } from 'hono';
@@ -14,11 +14,13 @@ import { createHousehold } from './household.ts';
 import { createRouter, fail } from './http.ts';
 import { createListsApi } from './lists-api.ts';
 import { createPinGate } from './pin-gate.ts';
+import { createRecipesApi } from './recipes-api.ts';
 import { createRoutinesApi } from './routines-api.ts';
 import { createSchoolLifeApi } from './school-life-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import { createSchoolLifeService, type SchoolLifeService } from './services/school-life.ts';
 import { createFaceRecognition } from './services/faces.ts';
+import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import type { ActorSessions, FaceStore } from './sources/faces.ts';
@@ -29,6 +31,7 @@ import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
 import type { ProductBase } from './sources/open-food-facts.ts';
 import type { PinStore } from './sources/pins.ts';
+import type { RecipeStore } from './sources/recipes.ts';
 import type { RoutinePlanStore } from './sources/routine-plans.ts';
 import type { StockStore } from './sources/stock.ts';
 import type { TimerStore } from './sources/timers.ts';
@@ -54,6 +57,9 @@ export type AppDeps = {
   plans: RoutinePlanStore;
   stock: StockStore;
   fitness: FitnessStore;
+  recipes: RecipeStore;
+  /** Lecture des pages de recettes ; absente (tests) : l'import propose la saisie à la main. */
+  recipeImporter?: RecipeImporter;
   /** Base de produits (Open Food Facts…) ; absente (tests) : tout code inconnu se saisit à la main. */
   productBase?: ProductBase;
   /** Page « Transports » ; absents (tests) : page indisponible. */
@@ -102,6 +108,7 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });
   api.route('/', createSchoolLifeApi({ schoolLife, access }));
+  api.route('/', createRecipesApi({ recipes: deps.recipes, importer: deps.recipeImporter, household, access, clock }));
   api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 
   const app = createRouter();

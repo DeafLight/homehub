@@ -168,6 +168,11 @@
         <Icon name="timer" size={32} />
         <span>Minuteur</span>
       </button>
+      <!-- Carnet de recettes : fiche, mode cuisine. -->
+      <button type="button" class="action" onclick={() => navigate(detailPath('recipes', router.route))}>
+        <Icon name="book" size={32} />
+        <span>Recettes</span>
+      </button>
       <!-- Scanner du stock : ranger les courses, déclarer un produit épuisé. -->
       <button type="button" class="action accent" onclick={() => navigate(detailPath('scan', router.route))}>
         <Icon name="barcode" size={32} />

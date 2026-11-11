@@ -49,6 +49,10 @@ import type {
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
+import type { ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary } from '../../../shared/recipes.ts';
+
+/** Réponse d'un import : la recette (nouvelle ou déjà au carnet), ou de quoi la saisir à la main et pourquoi. */
+export type ImportResponse = ImportResult | { draft: RecipeDraft; reason: string };
 
 export class ApiError extends Error {
   readonly status: number;
@@ -165,6 +169,19 @@ export type Api = {
   /** Séance du jour de la personne reconnue devant la tablette (la lire prolonge aussi sa session). */
   tabletWorkout(): Promise<TabletSession>;
   finishTabletWorkout(report: TabletSessionReport): Promise<TabletSession>;
+  /** Carnet de recettes (lecture ouverte). */
+  recipes(): Promise<{ recipes: RecipeSummary[] }>;
+  recipe(id: string): Promise<Recipe>;
+  /** Lien partagé (ou texte qui en contient un) : la recette lue, ou de quoi la saisir à la main. */
+  importRecipe(url: string): Promise<ImportResponse>;
+  /** Saisie à la main ; `url` : la page d'où elle vient, quand rien n'y était lisible. */
+  createRecipe(content: RecipeContent, url?: string | null): Promise<Recipe>;
+  /** Notre version (un parent, ou qui a ajouté la recette). */
+  saveRecipe(id: string, content: RecipeContent): Promise<Recipe>;
+  /** Retirer du carnet : un parent. */
+  removeRecipe(id: string): Promise<void>;
+  /** Adresse de la photo gardée (pour une balise img). */
+  recipePhotoUrl(id: string): string;
 };
 
 export type Credentials = { token?: string | null; kioskKey?: string | null; actor?: string | null };
@@ -282,5 +299,12 @@ export function createApi(
     saveFitnessSettings: (settings) => send('PUT', '/fitness/settings', settings),
     tabletWorkout: () => request('/fitness/tablet'),
     finishTabletWorkout: (report) => send('POST', '/fitness/tablet/sessions', report),
+    recipes: () => request('/recipes'),
+    recipe: (id) => request(`/recipes/${encodeURIComponent(id)}`),
+    importRecipe: (url) => send('POST', '/recipes/import', { url }),
+    createRecipe: (content, url) => send('POST', '/recipes', { content, url: url ?? null }),
+    saveRecipe: (id, content) => send('PUT', `/recipes/${encodeURIComponent(id)}`, { content }),
+    removeRecipe: (id) => send('DELETE', `/recipes/${encodeURIComponent(id)}`),
+    recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };
 }

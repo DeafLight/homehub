@@ -1,7 +1,7 @@
 # Écrans
 
-Captures de HomeHub 0.48.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
-faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, calendrier
+Captures de HomeHub 0.49.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
 
@@ -160,6 +160,25 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 
 ![Le NAS](images/tablette-nas.png)
 
+### Recettes
+
+Le carnet de la famille : trois recettes importées d'un faux site de cuisine (photo, temps, portions, site d'origine,
+pastille Cookeo), une saisie à la main. Recherche sans accents, filtre Cookeo ; « Ajouter » (quelqu'un de reconnu)
+importe un lien ou ouvre la saisie.
+
+![Recettes](images/tablette-recettes.png)
+
+Fiche des galettes, importées par Léa : notre version, avec son astuce et une ligne corrigée à la main (le beurre,
+plus bas). Portions ± (les quantités suivent), étapes numérotées, minuteur en un geste pour chaque durée trouvée dans
+le texte ; « Voir la source » montre la recette telle que lue.
+
+![Fiche d'une recette](images/tablette-recette.png)
+
+Mode cuisine du mijoté au Cookeo : une étape à la fois en grand, le mode Cookeo de l'étape, le minuteur de sa durée ;
+l'écran reste allumé et la tablette ne revient pas à l'accueil.
+
+![Mode cuisine](images/tablette-recette-cuisine.png)
+
 ## Téléphone (PWA)
 
 | Courses | Tâches et devoirs | Agenda | Mots |
@@ -218,6 +237,17 @@ Les scans sont au nom du profil du téléphone (Alex), chaque passage avec son h
 Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
 
 <img src="images/telephone-scanner.png" alt="Scanner du téléphone" width="260">
+
+### Recettes du téléphone
+
+Onglet Recettes : le carnet en liste, la fiche en une colonne, notre version à modifier (ici par Léa, qui a ajouté
+les galettes : chaque ligne d'ingrédient analysée, « Ajuster » pour corriger quantité, unité ou nom, « corrigé » quand
+c'est fait). Une page partagée sans recette lisible (un billet de blog) propose la saisie à la main, lien gardé ; un
+lien partagé peut aussi aller sur une liste.
+
+| Carnet | Fiche | Notre version | Lien partagé |
+|---|---|---|---|
+| ![Carnet](images/telephone-recettes.png) | ![Fiche](images/telephone-recette.png) | ![Notre version](images/telephone-recette-modifier.png) | ![Lien partagé](images/telephone-recette-partage.png) |
 
 ## Non capturés
 

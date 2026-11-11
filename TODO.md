@@ -23,11 +23,12 @@
 Idée directrice : le fonctionnement d'une appli comme Jow (recettes de la semaine → liste de courses), mais avec
 des recettes de plusieurs sites, et toujours à partir de **notre version** de chaque recette.
 
-- [ ] Importer une recette en la **partageant depuis le téléphone** (PWA, « Partager » existe déjà via `/partager`) :
+- [x] Importer une recette en la **partageant depuis le téléphone** (PWA, « Partager » existe déjà via `/partager`) :
       lien d'une recette de sites à définir (Jow, Marmiton, Moulinex / Cookeo…). Le serveur lit la recette (titre,
       portions, ingrédients avec quantités, étapes, photo, temps ; mode Cookeo s'il y en a) et la range dans le
-      carnet, avec sa source.
-- [ ] Notre version : chaque recette importée se personnalise (portions par défaut, ingrédients, quantités, étapes,
+      carnet, avec sa source. Fait : lecteur générique schema.org (JSON-LD, microdonnées), sans cas par site ;
+      saisie à la main si la page n'a rien de lisible ; mode cuisine sur la tablette.
+- [x] Notre version : chaque recette importée se personnalise (portions par défaut, ingrédients, quantités, étapes,
       astuces) ; c'est elle qui sert ensuite, la source restant consultable.
 - [ ] Notes et commentaires de chaque membre sur une recette ; un commentaire peut être résolu.
 - [ ] Menu de la semaine : choisir des recettes et le nombre de personnes pour chacune.
@@ -39,10 +40,16 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Secondaire, si possible : envoyer la liste au panier d'un drive (enseigne à définir, type Hyper U) depuis la
       tablette ; ce que le drive n'a pas reste dans la liste classique. HomeHub remplit le panier ; la commande et
       le paiement se valident chez l'enseigne.
-- [ ] À étudier d'abord : pour chaque site visé, ce que la page d'une recette laisse lire (données structurées
+- [ ] Suites du carnet : modifier les groupes d'ingrédients et d'étapes (« Pour la pâte ») dans notre version ;
+      photo à changer ou à prendre ; doublons par titre (même recette sur deux sites) ; Jow : ses CGU interdisent
+      l'extraction, n'importer que ce qu'on partage soi-même (c'est le cas) et ne rien republier.
+- [ ] Vérifier en conditions réelles : partager depuis Marmiton, Jow et Moulinex sur un vrai téléphone ; lecture
+      des quantités sur une dizaine de recettes (corriger les règles de `shared/ingredients.ts` au besoin).
+- [x] À étudier d'abord : pour chaque site visé, ce que la page d'une recette laisse lire (données structurées
       schema.org `Recipe` ?) et dans quelles conditions ; comment reconnaître un ingrédient (« 2 gros oignons
       émincés » → oignon, 2 pièces) pour l'agréger ; pour le drive, quelle enseigne a un panier accessible, et
-      comment associer un ingrédient à un produit (et retenir le choix).
+      comment associer un ingrédient à un produit (et retenir le choix). Fait pour les sites et les ingrédients
+      (clé normalisée, rayon deviné, prêts pour la liste agrégée) ; reste le drive.
 
 ## Stock de la maison (sujet à part, utile aux recettes et au-delà)
 

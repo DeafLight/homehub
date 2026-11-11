@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Page de recette inventée (tests) : JSON-LD dans un @graph, comme sur un grand site de recettes. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Galettes du dimanche : la recette facile</title>
+<meta property="og:site_name" content="Cuisine d'exemple">
+<meta property="og:image" content="https://cuisine.exemple.test/og.jpg">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"WebSite","name":"Cuisine d'exemple"},
+ {"@type":"BreadcrumbList","itemListElement":[]},
+ {"@type":"Recipe","name":"Galettes du dimanche","image":["/photos/galettes.jpg","/photos/galettes-2.jpg"],
+  "prepTime":"PT15M","cookTime":"PT20M","totalTime":"PT35M","recipeYield":"12 galettes",
+  "recipeIngredient":["250 g de farine de sarrasin","2 &oelig;ufs","50 cl d&#39;eau","1 pincée de sel","Beurre pour la poêle"],
+  "recipeInstructions":[
+   {"@type":"HowToStep","text":"Mélanger la farine et le sel dans un saladier."},
+   {"@type":"HowToStep","text":"Ajouter les œufs puis l'eau petit à petit, en fouettant."},
+   {"@type":"HowToStep","text":"Laisser reposer la pâte 1 h au frais."},
+   {"@type":"HowToStep","text":"Cuire chaque galette 2 min de chaque côté dans une poêle beurrée."}
+  ],
+  "keywords":"galette, sarrasin, dimanche"}
+]}
+</script>
+</head>
+<body><h1>Galettes du dimanche</h1></body>
+</html>

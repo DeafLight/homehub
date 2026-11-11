@@ -7,8 +7,8 @@
   import Icon from './Icon.svelte';
   import SettingsMenu from './SettingsMenu.svelte';
 
-  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, personne reconnue devant la tablette et
-  // roue dentée (tablette seulement).
+  // Rail latéral : retour à l'accueil, passage direct d'un profil à l'autre, personne reconnue devant la tablette,
+  // minuteur, recettes, scanner et roue dentée (tablette seulement).
   type Props = { currentId: string };
   let { currentId }: Props = $props();
 
@@ -38,6 +38,9 @@
     <button type="button" class="timer" aria-label="Minuteur" onclick={() => (timers.dialog = true)}>
       <Icon name="timer" size={28} />
     </button>
+    <button type="button" class="timer" aria-label="Recettes" onclick={() => navigate(detailPath('recipes', router.route))}>
+      <Icon name="book" size={28} />
+    </button>
     <!-- Scanner du stock : ranger les courses, déclarer un produit épuisé. -->
     <button type="button" class="timer scan" aria-label="Scanner" onclick={() => navigate(detailPath('scan', router.route))}>
       <Icon name="barcode" size={28} />
@@ -55,7 +58,7 @@
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 20px 0;
+    padding: 16px 0 12px;
     box-sizing: border-box;
     background: var(--surface-rail);
     overflow-y: auto;
@@ -104,9 +107,10 @@
     box-sizing: border-box;
   }
 
+  /* Minuteur, Recettes, Scanner, Réglages : assez petits pour que l'heure tienne sous eux (800 px de haut). */
   .timer {
-    width: 56px;
-    height: 56px;
+    width: 50px;
+    height: 50px;
     border: 0;
     border-radius: 50%;
     background: var(--surface-2);
@@ -127,7 +131,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   .time {
