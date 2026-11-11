@@ -39,7 +39,7 @@ npm run docs:captures  # refait docs/images dans le monde fictif
 
 | Skill | Quand |
 |---|---|
-| `homehub-release` | Démarrer une version (dans sa propre sous-session) puis la sortir : numéro, vérifications, captures, commit, tag, push après accord, CI |
+| `homehub-release` | Démarrer une version (dans sa propre session et sa propre branche) puis la sortir : numéro, vérifications, captures, commit, tag, push après accord, CI |
 | `homehub-monde-fictif` | Voir un écran dans le monde fictif, simuler un téléphone ou une personne reconnue, ajouter une capture |
 
 ## Règles du projet
@@ -56,4 +56,6 @@ npm run docs:captures  # refait docs/images dans le monde fictif
 6. Toute fonctionnalité visible : tests (`*.test.ts` à côté du code), README, `docs/ecrans.md` et captures à jour,
    case cochée dans `TODO.md`.
 7. Rien n'est poussé sans l'accord de l'utilisateur ; un lot de changements = une version.
-8. Chaque nouvelle version se développe dans sa propre sous-session (voir `homehub-release`, étape 0).
+8. Chaque nouveau développement (version, fonctionnalité, correctif après publication) se fait dans une nouvelle
+   session et sur une nouvelle branche, jamais directement sur `main` ; `main` n'avance que par fusion en avance
+   rapide de la branche, après accord (voir `homehub-release`, étapes 0 et 5).
