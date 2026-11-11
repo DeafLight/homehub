@@ -24,7 +24,7 @@ const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
 const schoolDaysOnly = (days: number[]) => days.every((d) => d >= 1 && d <= 5);
 
 /**
- * Étapes prévues le jour de `date` (celles sans jours précisés : tous les jours). Un jour de vacances scolaires
+ * Étapes prévues le jour de `date` (celles sans jours précisés : tous les jours). Un jour sans école (vacances, férié)
  * (`holiday`), les étapes des jours d'école sont mises de côté.
  */
 export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: Date, holiday = false) =>
@@ -38,7 +38,7 @@ export const stepKey = (ownerId: string, period: RoutinePeriod, stepId: string) 
 
 /**
  * Routine affichée à cette heure-ci, d'après les plages réglées (heure locale ; le week-end, les siennes, et de même
- * pendant les vacances scolaires : `holiday`).
+ * les jours sans école, vacances ou fériés : `holiday`).
  */
 export function currentPeriod(now: Date, windows: RoutineWindows, holiday = false): RoutinePeriod | null {
   const time = localTime(now);

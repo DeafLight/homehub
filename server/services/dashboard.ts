@@ -17,7 +17,7 @@ import {
   type WeekData,
 } from '../../shared/types.ts';
 import { localDay } from '../../shared/dates.ts';
-import { type HolidayStatus, type SchoolHoliday, holidayStatus, isHolidayDay } from '../../shared/school-holidays.ts';
+import { type HolidayStatus, type SchoolHoliday, holidayStatus, isNoSchoolDay } from '../../shared/school-holidays.ts';
 import type { HolidaysData } from '../../shared/types.ts';
 import type { SchoolHolidaySource } from '../sources/school-holidays.ts';
 import type { HolidaysConfig } from '../config.ts';
@@ -105,23 +105,23 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
   const holidayToday = async (): Promise<{ holidays: SchoolHoliday[]; today: string; off: boolean; status: HolidayStatus | null }> => {
     const holidays = await holidayList();
     const today = localDay(clock());
-    return { holidays, today, off: isHolidayDay(holidays, today), status: holidayStatus(holidays, today) };
+    return { holidays, today, off: isNoSchoolDay(holidays, today), status: holidayStatus(holidays, today) };
   };
-  /** Cours de l'intervalle, sans ceux qui tomberaient pendant les vacances scolaires. */
+  /** Cours de l'intervalle, sans ceux qui tomberaient un jour sans école (vacances scolaires, jour férié). */
   const coursesIn = async (ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null> => {
     const [courses, holidays] = await Promise.all([
       accessory(logger, 'Emploi du temps indisponible', () => sources.school.coursesFor(ownerId, range), null),
       holidayList(),
     ]);
-    return courses && courses.filter((c) => !isHolidayDay(holidays, localDay(new Date(c.start))));
+    return courses && courses.filter((c) => !isNoSchoolDay(holidays, localDay(new Date(c.start))));
   };
-  /** Devoirs à faire, sans ceux pour un jour de vacances scolaires (rien à rendre ces jours-là). */
+  /** Devoirs à faire, sans ceux pour un jour sans école (vacances, férié : rien à rendre ces jours-là). */
   const homeworkOf = async (ownerId: string): Promise<Homework[] | null> => {
     const [list, holidays] = await Promise.all([
       accessory(logger, 'Devoirs indisponibles', async () => (await sources.school.homeworkFor?.(ownerId)) ?? null, null),
       holidayList(),
     ]);
-    return list && list.filter((h) => !isHolidayDay(holidays, h.due));
+    return list && list.filter((h) => !isNoSchoolDay(holidays, h.due));
   };
 
   const board = createTransitBoard({
@@ -178,7 +178,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     if (!routines || !plans) return null;
     const holidays = await holidayList();
     const today = localDay(now);
-    const off = isHolidayDay(holidays, today);
+    const off = isNoSchoolDay(holidays, today);
     const period = currentPeriod(now, plans.current().windows, off);
     if (!period) return null;
     const all = stepsOf(ownerId, period).map((step, i) => ({ ...step, itemId: `${period}-${i}` }));
@@ -187,7 +187,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     const keyOf = (stepId: string) => stepKey(ownerId, period, stepId);
     const [done, streak] = await Promise.all([
       routines.doneOn(today),
-      routines.streak((date) => stepsOn(all, date, isHolidayDay(holidays, localDay(date))).map((s) => keyOf(s.id)), today),
+      routines.streak((date) => stepsOn(all, date, isNoSchoolDay(holidays, localDay(date))).map((s) => keyOf(s.id)), today),
     ]);
     return {
       period,
@@ -232,7 +232,10 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
         const source = deps.holidays;
         const list = source ? await accessory(logger, 'Vacances scolaires indisponibles', () => source.preview(preview), null) : null;
         const today = localDay(clock());
-        return { holiday: holidayStatus(list, today), zone: source?.zone(preview) ?? null, holidays: list && list.filter((h) => (h.end ?? h.start) >= today) };
+        // Aperçu d'un réglage : ses vacances seulement, pas les jours fériés (les mêmes pour tous).
+        const status = list && holidayStatus(list, today);
+        const school = status && !status.kind.startsWith('public') ? status : null;
+        return { holiday: school, zone: source?.zone(preview) ?? null, holidays: list && list.filter((h) => (h.end ?? h.start) >= today) };
       }
       const { holidays, today, status } = await holidayToday();
       const configured = deps.holidays?.zone() ?? null;
@@ -308,7 +311,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       const period = match[1] as RoutinePeriod;
       const step = stepsOf(ownerId, period)[Number(match[2])];
       const now = clock();
-      const off = isHolidayDay(await holidayList(), localDay(now));
+      const off = isNoSchoolDay(await holidayList(), localDay(now));
       if (!step || stepsOn([step], now, off).length === 0) return null; // pas prévue aujourd'hui
       await routines.setDone(localDay(now), stepKey(ownerId, period, step.id), done, by);
       return { id: itemId, label: step.label, done };

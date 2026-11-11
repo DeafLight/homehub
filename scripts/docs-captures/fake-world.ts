@@ -9,6 +9,8 @@ export const DOCS_NOW = new Date(2026, 10, 5, 7, 35, 0).getTime();
 export const DOCS_BEFORE_HOLIDAYS = new Date(2026, 11, 7, 7, 35, 0).getTime();
 /** Lundi 21 décembre 2026, 10:00 : vacances de Noël, reprise lundi 4 janvier. */
 export const DOCS_HOLIDAYS = new Date(2026, 11, 21, 10, 0, 0).getTime();
+/** Mercredi 11 novembre 2026, 07:35 : jour férié, ni bus ni cours, routine du week-end. */
+export const DOCS_PUBLIC_HOLIDAY = new Date(2026, 10, 11, 7, 35, 0).getTime();
 
 /** Décale l'horloge du processus : `new Date()` et `Date.now()` partent de DOCS_NOW, puis avancent normalement. */
 export function installFakeClock(target = DOCS_NOW): void {

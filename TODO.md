@@ -121,7 +121,8 @@ Reste :
       (0.44).
 - [x] Vacances scolaires réglées depuis la tablette (roue dentée) : académie cherchée dans une liste regroupée par
       zone, ou zone A, B ou C, ou aucune ; aperçu des prochaines vacances avant d'enregistrer (0.45).
-- [ ] Jours fériés (calendrier officiel) : comme un jour de vacances pour l'école (trajet, cours, routines).
+- [x] Jours fériés (calendrier officiel) : comme un jour de vacances pour l'école (trajet, cours, routines) ;
+      « Férié · 11 novembre », la veille « Demain férié » (0.46).
 - [ ] Vie scolaire en lecture seule (ÉcoleDirecte, Pronote) : notes récentes, absences et retards, messages de
       l'établissement, sur le dashboard d'un parent.
 

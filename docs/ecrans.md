@@ -1,8 +1,8 @@
 # Écrans
 
-Captures de HomeHub 0.45.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.46.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, calendrier
-scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (en décembre pour les vacances). La météo est réelle,
+scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
 
 Tablette : 1280 × 800 (Fully Kiosk). Téléphone : 390 × 844 (PWA).
@@ -47,6 +47,11 @@ Léa : plus de bandeau du bus ni de cours, et la routine du matin sans « Cartab
 Sur le téléphone, la même puce en tête de l'agenda :
 
 <img src="images/telephone-agenda-vacances.png" alt="Agenda du téléphone pendant les vacances" width="260">
+
+Un jour férié compte comme un jour de vacances pour l'école. Mercredi 11 novembre, la puce dit « Férié · 11 novembre »
+(la veille : « Demain férié · 11 novembre ») ; ni bus ni cours ce jour-là, routine du matin sans « Cartable ».
+
+![Dashboard de Léa un jour férié](images/tablette-ferie-dashboard.png)
 
 ### Dashboard de la famille
 

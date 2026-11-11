@@ -143,6 +143,12 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   prennent les heures du week-end et laissent de côté les étapes des jours d'école (celles prévues certains jours de
   semaine seulement, comme « Cartable » du lundi au vendredi). Vacances des élèves (pas celles des enseignants) ; Corse
   et outre-mer par leur académie.
+- **Jours fériés** (France métropolitaine, calculés sur place, sans réseau ni réglage : dates fixes, plus lundi de
+  Pâques, Ascension et lundi de Pentecôte) : traités comme un jour de vacances pour l'école (ni trajet du matin, ni
+  cours, ni devoirs pour ce jour-là, routines aux heures du week-end sans les étapes des jours d'école). La même puce
+  dit « Férié · 11 novembre » le jour même, et la veille d'un jour de classe férié « Demain férié · Ascension »
+  (« Lundi férié · lundi de Pâques » le vendredi) ; rien pendant les vacances, qui l'emportent. Pas les jours propres à
+  l'Alsace-Moselle ni à l'outre-mer.
 - **Page « Vacances scolaires »** (roue dentée de la tablette ; un parent enregistre) : « Par académie » (liste
   regroupée par zone, Corse et outre-mer à part, filtrée par la saisie sans accents ni majuscules), « Par zone »
   (A, B ou C) ou « Aucune ». Avant d'enregistrer, un aperçu montre les prochaines vacances du choix. Enregistré dans
@@ -346,6 +352,8 @@ server/
   access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
   lists-api.ts             routes des listes, de l'appairage et des téléphones
   stock-api.ts             routes du stock et du scanner
+shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
+shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -372,7 +380,7 @@ web/src/
 | `PUT /api/dashboard/:id/tasks/:taskId` | `{ "done": true }` → la tâche mise à jour (écriture) |
 | `GET /api/dashboard/:id/routine` | `{ routine }` : la routine du moment seule (appli du téléphone), `null` hors de ses heures |
 | `GET /api/transit` | `{ stops, alerts }` : prochains passages Irigo aux arrêts suivis, perturbations de leurs lignes |
-| `GET /api/school/holidays` | `{ holiday, zone, holidays }` : ce qu'on dit des vacances scolaires aujourd'hui (`soon`, `last-day`, `during`), la zone, les périodes à venir (`start` premier jour sans école, `end` reprise) ; `null` si non configurées. `?academie=Nantes` ou `?zone=B` : aperçu d'un autre réglage (tablette ou téléphone appairé) |
+| `GET /api/school/holidays` | `{ holiday, zone, holidays }` : ce qu'on dit des vacances scolaires et des jours fériés aujourd'hui (`soon`, `last-day`, `during`, `public-holiday`, `public-holiday-next`), la zone, les périodes à venir (`start` premier jour sans école, `end` reprise) ; zone et périodes `null` si non configurées (les jours fériés restent annoncés). `?academie=Nantes` ou `?zone=B` : aperçu d'un autre réglage (tablette ou téléphone appairé) |
 | `GET /api/school/holidays/settings`, `PUT /api/school/holidays/settings` | réglage de la page « Vacances scolaires » `{ choice, saved, academies }` (tablette ou téléphone appairé) ; enregistrer : `{ choice }` avec `{ academie }`, `{ zone }` ou `null` (désactivées), un parent |
 | `GET /api/dashboard/:id/homework` | `{ homework }` : les devoirs à faire seuls (appli du téléphone), `null` sans cahier de texte |
 | `PUT /api/dashboard/:id/routine/:itemId` | `{ "done": true }` → l'étape de la routine du jour (`morning-0`, `evening-2`…) (écriture) |

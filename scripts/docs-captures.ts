@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
-import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
+import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
@@ -374,8 +374,8 @@ await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('al
 
 // --- Vacances scolaires (calendrier d'exemple, zone B) : serveur et navigateur relancés à d'autres dates, même état.
 // Lundi 7 décembre : la puce annonce les vacances de Noël ; lundi 21 décembre : vacances, plus de bus ni de cours,
-// routine sans « Cartable » (jours d'école), agenda du téléphone.
-if (!only || only.test('vacances')) {
+// routine sans « Cartable » (jours d'école), agenda du téléphone. Mercredi 11 novembre : jour férié, traité pareil.
+if (!only || only.test('vacances') || only.test('ferie')) {
   for (const [now, captures] of [
     [DOCS_BEFORE_HOLIDAYS, [['tablette-vacances-bientot', '/p/lea', TABLET, '']]],
     [DOCS_HOLIDAYS, [
@@ -383,6 +383,7 @@ if (!only || only.test('vacances')) {
       ['tablette-vacances-dashboard', '/p/lea', TABLET, ''],
       ['telephone-agenda-vacances', '/m/agenda', PHONE, asPhone('lea')],
     ]],
+    [DOCS_PUBLIC_HOLIDAY, [['tablette-ferie-dashboard', '/p/lea', TABLET, '']]],
   ] as const) {
     browserNow = now;
     await startServer(now);

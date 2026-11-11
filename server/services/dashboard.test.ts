@@ -466,20 +466,25 @@ describe('vacances scolaires', () => {
   const transit = { departures: async () => ({ name: 'Mairie', departures: [] }), alerts: async () => [] };
   const by = { ownerId: 'lea', via: 'tablet' as const };
 
-  function setup(list: (typeof NOEL)[] | 'panne') {
+  function setup(list: (typeof NOEL)[] | 'panne', clock = fixedClock) {
     const store = createConfigStore(parseConfig({
       members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', from: '17:30', to: '18:30' } }],
     }));
     const dir = mkdtempSync(join(tmpdir(), 'homehub-vacances-'));
-    const routines = createRoutineStore({ path: join(dir, 'routines.json'), clock: fixedClock });
-    const plans = createRoutinePlanStore({ path: join(dir, 'plans.json'), clock: fixedClock, config: store });
+    const routines = createRoutineStore({ path: join(dir, 'routines.json'), clock });
+    const plans = createRoutinePlanStore({ path: join(dir, 'plans.json'), clock, config: store });
     const svc = createDashboardService({
       config: store,
       sources: fakeSources({
-        courses: { lea: [course('maths', 2), course('anglais', 3)] },
-        homework: { lea: [{ id: 'fr', subject: 'fr', due: '2026-11-03', text: '', done: false }, { id: 'svt', subject: 'svt', due: '2026-11-10', text: '', done: false }] },
+        courses: { lea: [course('maths', 2), course('anglais', 3), course('histoire', 11), course('physique', 12)] },
+        homework: { lea: [
+          { id: 'fr', subject: 'fr', due: '2026-11-03', text: '', done: false },
+          { id: 'svt', subject: 'svt', due: '2026-11-10', text: '', done: false },
+          { id: 'geo', subject: 'geo', due: '2026-11-11', text: '', done: false },
+          { id: 'eps', subject: 'eps', due: '2026-11-12', text: '', done: false },
+        ] },
       }),
-      clock: fixedClock,
+      clock,
       logger: silentLogger(),
       routines,
       plans,
@@ -515,8 +520,36 @@ describe('vacances scolaires', () => {
     expect(data?.commute).toBeNull();
     expect(data?.school).toEqual({ today: [], tomorrow: [] });
     expect(data?.routine?.items.map((i) => i.label)).toEqual(['Pyjama']);
-    expect(data?.homework?.map((h) => h.id)).toEqual(['svt']); // après la reprise seulement
+    expect(data?.homework?.map((h) => h.id)).toEqual(['svt', 'eps']); // après la reprise seulement
     expect(await svc.setRoutineDone('lea', 'evening-1', true, by)).toBeNull(); // Devoirs : pas pendant les vacances
+  });
+
+  it('jour férié (mercredi 11 novembre) : comme un jour de vacances, même sans vacances configurées', async () => {
+    const { svc, plans } = setup([], () => new Date(2026, 10, 11, 18, 0));
+    const férié = { kind: 'public-holiday', name: '11 novembre', day: '2026-11-11' };
+    expect((await svc.home()).holiday).toEqual(férié);
+    await plans.save({
+      members: { lea: { morning: [], evening: [
+        { id: 'p', label: 'Pyjama', days: null },
+        { id: 'd', label: 'Devoirs', days: [1, 2, 3, 4] },
+      ] } },
+      windows: { morning: { from: '05:00', to: '11:00' }, evening: { from: '17:00', to: '23:00' } },
+    }, by);
+    const data = await svc.dashboard('lea');
+    expect(data?.holiday).toEqual(férié);
+    expect(data?.commute).toBeNull();
+    expect(data?.school).toEqual({ today: [], tomorrow: [expect.objectContaining({ id: 'physique' })] });
+    expect(data?.routine?.items.map((i) => i.label)).toEqual(['Pyjama']);
+    expect(data?.homework?.map((h) => h.id)).toEqual(['fr', 'svt', 'eps']); // rien à rendre le 11
+    expect((await svc.holidays()).holiday).toEqual(férié);
+  });
+
+  it('la veille d’un jour férié : annoncé, journée d’école ordinaire', async () => {
+    const { svc } = setup([TOUSSAINT, NOEL], () => new Date(2026, 10, 10, 18, 0));
+    const data = await svc.dashboard('lea');
+    expect(data?.holiday).toEqual({ kind: 'public-holiday-next', name: '11 novembre', day: '2026-11-11', days: 1 });
+    expect(data?.commute).not.toBeNull();
+    expect((await svc.week(0)).owners[0].courses?.map((c) => c.id)).toEqual(['physique']); // semaine du 9 : le cours du 11 disparaît
   });
 
   it('aperçu d’un autre réglage : ses périodes et ce qu’on en dirait, sans toucher au réglage en cours', async () => {
@@ -528,6 +561,11 @@ describe('vacances scolaires', () => {
     });
     expect(await svc.holidays({ zone: 'A' })).toEqual({ holiday: null, zone: 'Zone A', holidays: null }); // API muette
     expect((await svc.holidays()).zone).toBe('Zone B');
+  });
+
+  it('aperçu un jour férié : les vacances du réglage seulement, pas le férié', async () => {
+    const { svc } = setup([], () => new Date(2026, 10, 11, 12, 0));
+    expect((await svc.holidays({ zone: 'C' })).holiday).toBeNull();
   });
 
   it('calendrier indisponible : comme sans vacances, l’écran ne casse pas', async () => {

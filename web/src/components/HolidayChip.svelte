@@ -4,13 +4,17 @@
 
   // Puce discrète des vacances scolaires (accueil, dashboards, agenda du téléphone) : « Vacances de Noël dans
   // 12 jours », « Dernier jour avant les vacances de Noël », « Vacances de Noël · reprise lundi 4 janvier ».
-  // Le texte vient de shared/school-holidays.ts ; pendant les vacances, la puce passe en couleur « soleil ».
+  // Jours fériés aussi : « Férié · 11 novembre », la veille « Demain férié · Ascension » (« Lundi férié · … » un
+  // vendredi). Le texte vient de shared/school-holidays.ts ; un jour sans école (vacances, férié), la puce passe en
+  // couleur « soleil ».
   type Props = { holiday: HolidayStatus; size?: 'small' | 'large' };
   let { holiday, size = 'large' }: Props = $props();
+  const off = $derived(holiday.kind === 'during' || holiday.kind === 'public-holiday');
+  const eve = $derived(holiday.kind === 'last-day' || holiday.kind === 'public-holiday-next');
 </script>
 
-<span class="chip {size}" class:during={holiday.kind === 'during'} class:last={holiday.kind === 'last-day'}>
-  <Icon name={holiday.kind === 'during' ? 'sun' : 'school'} size={size === 'large' ? 24 : 18} />
+<span class="chip {size}" class:during={off} class:last={eve}>
+  <Icon name={off ? 'sun' : 'school'} size={size === 'large' ? 24 : 18} />
   <span>{holidayText(holiday)}</span>
 </span>
 
