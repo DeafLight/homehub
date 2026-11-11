@@ -15,6 +15,7 @@
   import { loadPairing } from '../lib/phone.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { type PageRoute, detailPath, phonePath, phoneRecipePath, recipePath } from '../lib/route.ts';
+  import { createUndoable } from '../lib/undo.ts';
 
   const MENU_REFRESH_MS = 30_000;
 
@@ -22,7 +23,8 @@
   // recettes du carnet choisies pour la semaine, chacune pour un nombre de personnes et, si on veut, un jour ; à côté,
   // les courses qui en découlent (par rayon, avec ce qu'on a déjà), qui rejoignent la liste de courses. Semaines
   // précédentes consultables. Modifier : un parent (reconnu à la tablette, ou son téléphone). Placards et liens
-  // entre le stock et les ingrédients se règlent ici aussi.
+  // entre le stock et les ingrédients se règlent ici aussi. Retirer un repas (croix de la ligne ou ses réglages) :
+  // la ligne disparaît tout de suite, « Annuler » la rend pendant quelques secondes, puis le serveur la retire.
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
@@ -35,7 +37,27 @@
   const view = createResource(() => api.menu(week ?? undefined), MENU_REFRESH_MS);
   const recipes = createResource(() => api.recipes(), 5 * 60_000);
   const me = createResource(() => api.me(), 60_000);
+  let destroyed = false;
+
+  /** Retrait différé : la personne a été vérifiée au geste ; la requête part au bout du délai (ou au départ). */
+  let removing = $state<MenuViewEntry | null>(null);
+  const removal = createUndoable<MenuViewEntry>(
+    (entry) => void commitRemove(entry),
+    (pending) => (removing = pending),
+  );
+  async function commitRemove(entry: MenuViewEntry) {
+    try {
+      await api.removeMenuEntry(entry.id);
+    } catch (err) {
+      if (!destroyed) error = (err as Error).message;
+    } finally {
+      if (!destroyed) await view.refresh();
+    }
+  }
+
   onDestroy(() => {
+    removal.flush();
+    destroyed = true;
     view.destroy();
     recipes.destroy();
     me.destroy();
@@ -90,8 +112,14 @@
   }
 
   async function remove(entry: MenuViewEntry) {
-    if (await run(() => api.removeMenuEntry(entry.id))) dialog = null;
+    error = null;
+    if (!phone && !(await actor.allow(FAMILY_ID))) return;
+    dialog = null;
+    removal.start(entry);
   }
+
+  /** Recettes affichées : sans celle dont le retrait attend. */
+  const shown = $derived(view.data ? view.data.entries.filter((e) => e.id !== removing?.id) : []);
 
   const setPeople = (entry: MenuViewEntry, people: number) => run(() => api.updateMenuEntry(entry.id, { people }));
   const setHave = (line: PlanLine, have: boolean) => run(() => api.setMenuHave(view.data!.week, line.key, have));
@@ -139,10 +167,10 @@
           {#if editable}<button type="button" class="btn primary small" onclick={openAdd}><Icon name="plus" size={22} /> Recette</button>{/if}
         </div>
         <div class="scroll">
-          {#if data.entries.length === 0 && !editable}
+          {#if shown.length === 0 && !editable}
             <p class="muted">{data.editable ? 'Aucune recette au menu.' : 'Pas de menu cette semaine-là.'}</p>
           {:else}
-            <MenuDays groups={entriesByDay(data.week, data.entries, !phone)} {editable} {busy} onPeople={setPeople} onOpen={(entry) => (dialog = { kind: 'entry', entry })} />
+            <MenuDays groups={entriesByDay(data.week, shown, !phone)} {editable} {busy} onPeople={setPeople} onOpen={(entry) => (dialog = { kind: 'entry', entry })} onRemove={remove} />
           {/if}
         </div>
       </section>
@@ -176,6 +204,13 @@
     <p class="muted">Impossible de charger le menu : {view.error}</p>
   {/if}
 </div>
+
+{#if removing}
+  <div class="undo" role="status">
+    <span>« {removing.title} » retiré du menu</span>
+    <button type="button" class="btn small" onclick={() => removal.cancel()}><Icon name="undo" size={22} /> Annuler</button>
+  </div>
+{/if}
 
 {#if dialog && view.data}
   {@const data = view.data}
@@ -330,6 +365,35 @@
   .error {
     margin: 0;
     color: var(--danger-fg);
+  }
+
+  /* Bandeau « Annuler » du retrait, en bas au centre, au-dessus de la page. */
+  .undo {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: calc(100% - 32px);
+    box-sizing: border-box;
+    padding: 8px 8px 8px var(--space-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-small);
+    transform: translateX(-50%);
+  }
+
+  .undo span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .undo .btn {
+    flex-shrink: 0;
   }
 
   /* Téléphone : une colonne qui défile en entier, en-tête sur deux lignes. */

@@ -72,21 +72,21 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   de retour à l'accueil. Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
   ou qui a ajouté la recette ; retirer : un parent.
 - **Menu de la semaine** (`/menu` sur la tablette, depuis Recettes ou Listes ; `/m/menu` sur le téléphone, depuis les
-  onglets Courses et Recettes) : des recettes du carnet (notre version), chacune pour un nombre de personnes (par
-  défaut ses portions) et un jour, ou « dans la semaine » ; une recette peut revenir plusieurs fois. Semaines
-  suivantes préparées à l'avance (4 au plus), semaines passées en lecture (12 gardées). Modifier : un parent ; les
-  enfants le voient. **Courses du menu** : les ingrédients mis à l'échelle des personnes, regroupés par ingrédient
-  (unités converties : g / kg, ml / cl / l, c. à c. / c. à s., pièces ; des unités qui ne se comparent pas restent côte
-  à côte, « 2 + 100 g »), rangés par rayon, avec les recettes d'où ils viennent. Ils rejoignent la liste de courses,
-  marqués d'un livre : une ligne du menu suit le menu (mise à jour, retirée quand il n'y a plus rien à acheter), une
-  ligne cochée ou vidée compte comme achetée et n'est jamais touchée (seul le complément revient, sur une nouvelle
-  ligne), une ligne ajoutée à la main pour le même ingrédient l'emporte, et retirer une ligne du menu vaut « j'en ai
-  déjà » pour la semaine. **J'en ai déjà** : les placards (sel, poivre, huile, eau ; liste modifiable) ne sont jamais
-  demandés ; « J'en ai déjà » se coche par ingrédient et par semaine ; d'après le **stock**, un produit relié à un
-  ingrédient (deviné par les mots du nom et la contenance, confirmé une fois puis retenu par produit, « Changer »,
-  « Pas un ingrédient ») retire la ligne quand il y en a assez (« en stock (1 kg) »), ne demande que la différence
-  sinon, et le signale sans trancher quand les unités ne se comparent pas (« 1 oignon » contre « 1 kg »). Le stock
-  n'est jamais décompté quand on cuisine.
+  onglets Courses et Recettes) : des recettes du carnet (notre version), chacune pour un nombre de personnes (par défaut
+  ses portions) et un jour, ou « dans la semaine » ; une recette peut revenir plusieurs fois. Semaines suivantes
+  préparées à l'avance (4 au plus), semaines passées en lecture (12 gardées). Modifier : un parent ; les enfants le
+  voient. La croix d'une ligne retire le repas, « Annuler » le rend pendant 6 secondes. **Courses du menu** : les
+  ingrédients mis à l'échelle des personnes, regroupés par ingrédient (unités converties : g / kg, ml / cl / l, c. à c.
+  / c. à s., pièces ; des unités qui ne se comparent pas restent côte à côte, « 2 + 100 g »), rangés par rayon, avec les
+  recettes d'où ils viennent. Ils rejoignent la liste de courses, marqués d'un livre : une ligne du menu suit le menu
+  (mise à jour, retirée quand il n'y a plus rien à acheter), une ligne cochée ou vidée compte comme achetée et n'est
+  jamais touchée (seul le complément revient, sur une nouvelle ligne), une ligne ajoutée à la main pour le même
+  ingrédient l'emporte, et retirer une ligne du menu vaut « j'en ai déjà » pour la semaine. **J'en ai déjà** : les
+  placards (sel, poivre, huile, eau ; liste modifiable) ne sont jamais demandés ; « J'en ai déjà » se coche par
+  ingrédient et par semaine ; d'après le **stock**, un produit relié à un ingrédient (deviné par les mots du nom et la
+  contenance, confirmé une fois puis retenu par produit, « Changer », « Pas un ingrédient ») retire la ligne quand il y
+  en a assez (« en stock (1 kg) »), ne demande que la différence sinon, et le signale sans trancher quand les unités ne
+  se comparent pas (« 1 oignon » contre « 1 kg »). Le stock n'est jamais décompté quand on cuisine.
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).

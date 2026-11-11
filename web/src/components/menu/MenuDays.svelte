@@ -4,16 +4,18 @@
   import { type DayGroup, peopleLabel } from '../../lib/menu.ts';
   import Icon from '../Icon.svelte';
 
-  // Recettes du menu, jour par jour puis « dans la semaine » : le nombre de personnes se règle d'un geste ; toucher
-  // le titre ouvre ses réglages (jour, recette, retirer). `editable` faux : semaine passée ou lecture seule.
+  // Recettes du menu, jour par jour puis « dans la semaine » : le nombre de personnes se règle d'un geste, la croix
+  // retire le repas (annulable quelques secondes, voir Menu.svelte) ; toucher le titre ouvre ses réglages (jour,
+  // recette). `editable` faux : semaine passée ou lecture seule, ni réglage ni croix.
   type Props = {
     groups: DayGroup[];
     editable: boolean;
     busy: boolean;
     onPeople: (entry: MenuViewEntry, people: number) => void;
     onOpen: (entry: MenuViewEntry) => void;
+    onRemove: (entry: MenuViewEntry) => void;
   };
-  let { groups, editable, busy, onPeople, onOpen }: Props = $props();
+  let { groups, editable, busy, onPeople, onOpen, onRemove }: Props = $props();
 </script>
 
 <div class="days">
@@ -34,6 +36,9 @@
             </div>
           {:else}
             <span class="people">{peopleLabel(entry)}</span>
+          {/if}
+          {#if editable}
+            <button type="button" class="remove" aria-label="Retirer du menu" title="Retirer du menu" disabled={busy} onclick={() => onRemove(entry)}><Icon name="close" size={20} /></button>
           {/if}
         </div>
       {/each}
@@ -130,7 +135,25 @@
     color: var(--fg);
   }
 
-  .stepper button:disabled {
+  .stepper button:disabled,
+  .remove:disabled {
     opacity: 0.4;
+  }
+
+  /* Croix de retrait : discrète, au bout de la ligne, aussi grande au doigt que les boutons du nombre. */
+  .remove {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--fg-muted);
+  }
+
+  .entry.missing .remove {
+    margin-left: auto;
   }
 </style>
