@@ -12,7 +12,8 @@ export type FetchedPage = { url: string; contentType: string; body: Uint8Array }
 
 export type PageFetcher = (url: string, options?: { accept?: string; maxBytes?: number }) => Promise<FetchedPage>;
 
-export type PageErrorKind = 'invalid' | 'forbidden' | 'unreachable' | 'too-large' | 'not-found';
+/** `refused` : le site a répondu mais refuse la lecture par HomeHub (401, 403, 429, 451) ; on ne contourne pas. */
+export type PageErrorKind = 'invalid' | 'forbidden' | 'unreachable' | 'too-large' | 'not-found' | 'refused';
 
 /** Refus ou échec de lecture, avec un message pour l'écran. */
 export class PageError extends Error {
@@ -143,7 +144,8 @@ export function createPageFetcher({
         continue;
       }
       if (res.status === 404 || res.status === 410) throw new PageError('not-found', 'Page introuvable');
-      if (!res.ok) throw new PageError('unreachable', `Le site a refusé la lecture (HTTP ${res.status})`);
+      if ([401, 403, 429, 451].includes(res.status)) throw new PageError('refused', `Le site a refusé la lecture (HTTP ${res.status})`);
+      if (!res.ok) throw new PageError('unreachable', `Le site ne répond pas correctement (HTTP ${res.status})`);
       const body = await readCapped(res, maxBytes).catch((err: unknown) => {
         if (err instanceof PageError) throw err;
         throw new PageError('unreachable', signal.aborted ? 'Le site met trop de temps à répondre' : 'Lecture de la page interrompue');

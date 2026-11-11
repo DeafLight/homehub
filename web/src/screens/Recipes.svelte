@@ -11,7 +11,8 @@
   import { type PageRoute, recipePath } from '../lib/route.ts';
 
   // Carnet de recettes sur la tablette : recherche, filtre Cookeo, cartes ; importer un lien (le plus souvent, on
-  // partage depuis le téléphone) ou saisir une recette à la main. Importer demande quelqu'un de reconnu.
+  // partage depuis le téléphone), coller le texte d'une page ou envoyer une page enregistrée (site qui refuse la
+  // lecture), ou saisir une recette à la main. Importer demande quelqu'un de reconnu.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -33,6 +34,12 @@
   async function manual(draft: typeof handoff.draft) {
     if (!(await actor.allow(null))) return;
     handoff.draft = draft;
+    navigate(recipePath(null));
+  }
+
+  /** Aperçu d'un texte collé ou d'une page enregistrée : il s'ouvre dans l'édition d'une nouvelle recette. */
+  function preview(found: NonNullable<typeof handoff.preview>) {
+    handoff.preview = found;
     navigate(recipePath(null));
   }
 </script>
@@ -71,6 +78,9 @@
   <Modal label="Importer une recette" onClose={() => (importing = false)}>
     <ImportForm
       onImport={(url) => api.importRecipe(url)}
+      onText={(text, url, title) => api.importRecipeText(text, url, title)}
+      onPage={(page) => api.importSavedPage(page)}
+      onPreview={preview}
       onOpen={(recipe) => navigate(recipePath(recipe.id))}
       onManual={manual}
       onCancel={() => (importing = false)}

@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.49.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.50.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -164,7 +164,7 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 
 Le carnet de la famille : trois recettes importées d'un faux site de cuisine (photo, temps, portions, site d'origine,
 pastille Cookeo), une saisie à la main. Recherche sans accents, filtre Cookeo ; « Ajouter » (quelqu'un de reconnu)
-importe un lien ou ouvre la saisie.
+importe un lien, le texte collé d'une page ou une page enregistrée (`.mhtml`), ou ouvre la saisie.
 
 ![Recettes](images/tablette-recettes.png)
 
@@ -250,6 +250,15 @@ lien partagé peut aussi aller sur une liste.
 | Carnet | Fiche | Notre version | Lien partagé |
 |---|---|---|---|
 | ![Carnet](images/telephone-recettes.png) | ![Fiche](images/telephone-recette.png) | ![Notre version](images/telephone-recette-modifier.png) | ![Lien partagé](images/telephone-recette-partage.png) |
+
+Quand le site refuse la lecture par HomeHub, l'import le dit et propose de passer par le navigateur : **Coller le
+texte** de la page, ou envoyer la **page enregistrée** (`.mhtml`). Ici, le texte copié d'une page entière (menu, notes,
+publicité, « Vous aimerez aussi », commentaires) partagé vers HomeHub : l'aperçu dit ce qui a été compris (titre,
+4 personnes, temps, 8 ingrédients, 4 étapes, lien de la page) et tout se corrige avant « Enregistrer ».
+
+| Site qui refuse | Aperçu d'un texte collé |
+|---|---|
+| ![Site qui refuse la lecture](images/telephone-recette-refus.png) | ![Aperçu d'un texte collé](images/telephone-recette-texte.png) |
 
 ## Non capturés
 

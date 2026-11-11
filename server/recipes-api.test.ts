@@ -11,7 +11,8 @@ import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
-import { createRecipesApi, firstLink, NOT_YOURS } from './recipes-api.ts';
+import { createRecipesApi, createShareRoute, firstLink, NOT_YOURS, REFUSED_REASON } from './recipes-api.ts';
+import { createShareInbox } from './services/recipe-imports.ts';
 import { createRecipeImporter } from './services/recipes.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
@@ -64,14 +65,16 @@ async function setup() {
     fetchPage: async (url) => {
       fetched.push(url);
       if (url.includes('lent')) throw new PageError('unreachable', 'Le site met trop de temps à répondre');
+      if (url.includes('refus')) throw new PageError('refused', 'Le site a refusé la lecture (HTTP 403)');
       if (url.includes('192.168')) throw new PageError('forbidden', 'Adresse locale ou privée refusée');
       const page = WEB[url];
       if (!page) throw new PageError('not-found', 'Page introuvable');
       return page();
     },
   });
+  const inbox = createShareInbox();
   const api = createRouter();
-  api.route('/', createRecipesApi({ recipes, importer, household: createHousehold(config), access, clock: fixedClock }));
+  api.route('/', createRecipesApi({ recipes, importer, household: createHousehold(config), access, clock: fixedClock, inbox }));
   const phone = async (ownerId: string) => {
     const { code } = devices.createCode(ownerId);
     return (await devices.claim(code, `Téléphone de ${ownerId}`))!.token;
@@ -91,7 +94,10 @@ async function setup() {
       },
       connectedFrom(from),
     );
-  return { call, phone, tablet, fetched };
+  /** Envoi d'un fichier (multipart), comme le fait le front. */
+  const upload = (path: string, form: FormData, { from = OTHER, token }: CallOptions = {}) =>
+    api.request(path, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form }, connectedFrom(from));
+  return { call, phone, tablet, fetched, upload, inbox };
 }
 
 const importAs = async (call: Awaited<ReturnType<typeof setup>>['call'], options: CallOptions, url = PAGE) =>
@@ -277,6 +283,140 @@ describe('API des recettes : droits', () => {
     const { call, phone } = await setup();
     expect((await call('GET', '/recipes', { from: TABLET })).status).toBe(200);
     expect((await call('GET', '/recipes', { token: await phone('tom') })).status).toBe(200);
+  });
+});
+
+const pastedText = readFileSync(new URL('../shared/fixtures/recette-copiee-bruitee.txt', import.meta.url), 'utf8');
+const savedPage = readFileSync(new URL('./sources/fixtures/recettes/page-enregistree.mhtml', import.meta.url));
+const pageForm = (bytes: Uint8Array = savedPage, name = 'clafoutis.mhtml') => {
+  const form = new FormData();
+  form.set('page', new File([bytes as Uint8Array<ArrayBuffer>], name, { type: 'multipart/related' }));
+  return form;
+};
+type Preview = { preview: { token: string; content: Recipe['ours']; url: string | null; site: string; origin: string; photo: boolean } };
+
+describe('API des recettes : site qui refuse la lecture', () => {
+  it('le refus propose le texte copié ou la page enregistrée, sans rien contourner', async () => {
+    const { call, phone, fetched } = await setup();
+    const res = await importAs(call, { token: await phone('alex') }, 'https://refus.exemple.test/gratin');
+    expect(await res.json()).toEqual({
+      draft: { url: 'https://refus.exemple.test/gratin', title: null, site: 'refus.exemple.test' },
+      reason: REFUSED_REASON,
+      refused: true,
+    });
+    expect(fetched).toEqual(['https://refus.exemple.test/gratin']); // une seule tentative, honnête
+  });
+});
+
+describe('API des recettes : texte collé', () => {
+  it('donne un aperçu sans rien enregistrer ni lire sur le réseau, puis enregistre la version corrigée', async () => {
+    const { call, phone, fetched } = await setup();
+    const token = await phone('lea');
+    const res = await call('POST', '/recipes/import-text', { token, body: { text: pastedText } });
+    expect(res.status).toBe(200);
+    const { preview } = (await res.json()) as Preview;
+    expect(preview).toMatchObject({ url: 'https://petit-fourneau.example/recettes/gratin-courgettes-chevre', site: 'petit-fourneau.example', origin: 'text', photo: false });
+    expect(preview.content).toMatchObject({ title: 'Gratin de courgettes au chèvre', servings: 4, prepMinutes: 20, cookMinutes: 35 });
+    expect(fetched).toEqual([]);
+    expect((await (await call('GET', '/recipes')).json()).recipes).toEqual([]);
+
+    const corrected = { ...preview.content, title: 'Gratin de Léa' };
+    const saved = await call('POST', '/recipes', { token, body: { content: corrected, pending: preview.token } });
+    expect(saved.status).toBe(201);
+    const recipe = (await saved.json()) as Recipe;
+    expect(recipe.ours.title).toBe('Gratin de Léa');
+    expect(recipe.addedBy).toMatchObject({ ownerId: 'lea', via: 'phone' });
+    expect(recipe.source).toMatchObject({ url: preview.url, origin: 'text', site: 'petit-fourneau.example', imageUrl: null });
+    expect(recipe.source?.content?.title).toBe('Gratin de courgettes au chèvre'); // telle que lue
+
+    // L'aperçu ne sert qu'une fois ; la même page est ensuite reconnue au carnet.
+    expect((await call('POST', '/recipes', { token, body: { content: corrected, pending: preview.token } })).status).toBe(410);
+    expect(await (await call('POST', '/recipes/import-text', { token, body: { text: pastedText } })).json()).toMatchObject({ existing: true, recipe: { id: recipe.id } });
+  });
+
+  it('sans lien : « Texte collé », lien facultatif donné à part', async () => {
+    const { call, phone } = await setup();
+    const token = await phone('alex');
+    const text = 'Crêpes\nIngrédients\n250 g de farine\n4 œufs\nPréparation\nMélanger.';
+    const alone = (await (await call('POST', '/recipes/import-text', { token, body: { text } })).json()) as Preview;
+    expect(alone.preview).toMatchObject({ url: null, site: 'Texte collé' });
+    const linked = (await (await call('POST', '/recipes/import-text', { token, body: { text, url: 'https://www.marmiton.org/recettes/crepes' } })).json()) as Preview;
+    expect(linked.preview).toMatchObject({ url: 'https://www.marmiton.org/recettes/crepes', site: 'Marmiton' });
+    const saved = (await (await call('POST', '/recipes', { token, body: { content: alone.preview.content, pending: alone.preview.token } })).json()) as Recipe;
+    expect(saved.source).toMatchObject({ url: null, origin: 'text', site: 'Texte collé' });
+    const reread = await call('POST', `/recipes/${saved.id}/reread`, { token });
+    expect(reread.status).toBe(400);
+    // Le lien peut être donné à l'aperçu.
+    const again = (await (await call('POST', '/recipes/import-text', { token, body: { text } })).json()) as Preview;
+    const withLink = (await (await call('POST', '/recipes', { token, body: { content: again.preview.content, pending: again.preview.token, url: 'https://jow.fr/recipes/crepes-1' } })).json()) as Recipe;
+    expect(withLink.source).toMatchObject({ url: 'https://jow.fr/recipes/crepes-1', site: 'Jow', origin: 'text' });
+  });
+
+  it('un texte sans recette est refusé ; il faut quelqu’un d’identifié', async () => {
+    const { call, phone, tablet } = await setup();
+    expect((await call('POST', '/recipes/import-text', { token: await phone('tom'), body: { text: 'Acheter du pain' } })).status).toBe(422);
+    expect((await call('POST', '/recipes/import-text', { body: { text: pastedText } })).status).toBe(403);
+    const anonymous = await call('POST', '/recipes/import-text', { from: TABLET, body: { text: pastedText } });
+    expect(anonymous.status).toBe(403);
+    expect(await anonymous.json()).toMatchObject({ identify: true }); // la tablette demande qui est là
+    expect((await call('POST', '/recipes/import-text', { ...tablet('tom'), body: { text: pastedText } })).status).toBe(200);
+    expect((await call('POST', '/recipes/import-text', { token: await phone('tom'), body: { text: '' } })).status).toBe(400);
+  });
+});
+
+describe('API des recettes : page enregistrée', () => {
+  it('lit l’archive envoyée, avec la photo qu’elle contient, sans requête vers le site', async () => {
+    const { call, phone, fetched, upload } = await setup();
+    const token = await phone('sam');
+    const res = await upload('/recipes/import-page', pageForm(), { token });
+    expect(res.status).toBe(200);
+    const { preview } = (await res.json()) as Preview;
+    expect(preview).toMatchObject({ url: 'https://petit-fourneau.example/recettes/clafoutis-cerises', site: 'Le Petit Fourneau', origin: 'saved-page', photo: true });
+    expect(preview.content).toMatchObject({ title: 'Clafoutis aux cerises', servings: 6 });
+    expect(fetched).toEqual([]);
+
+    const recipe = (await (await call('POST', '/recipes', { token, body: { content: preview.content, pending: preview.token } })).json()) as Recipe;
+    expect(recipe).toMatchObject({ photo: true, source: { origin: 'saved-page', imageUrl: 'https://petit-fourneau.example/img/clafoutis.png' } });
+    const photo = await call('GET', `/recipes/${recipe.id}/photo`);
+    expect(photo.headers.get('content-type')).toBe('image/png');
+  });
+
+  it('page partagée : déposée par POST /partager, puis réclamée une seule fois par l’appli', async () => {
+    const { call, phone, inbox } = await setup();
+    const share = createShareRoute(inbox);
+    const form = pageForm();
+    form.set('title', 'Clafoutis aux cerises');
+    const res = await share.request('/partager', { method: 'POST', body: form });
+    expect(res.status).toBe(303);
+    const location = new URL(res.headers.get('location')!, 'http://homehub.test');
+    expect(location.pathname).toBe('/partager');
+    expect(location.searchParams.get('title')).toBe('Clafoutis aux cerises');
+    const shared = location.searchParams.get('fichier')!;
+
+    // Sans droit : refusé, et le fichier reste à réclamer.
+    expect((await call('POST', '/recipes/import-page', { body: { shared } })).status).toBe(403);
+    const token = await phone('lea');
+    expect((await call('POST', '/recipes/import-page', { token, body: { shared } })).status).toBe(200);
+    expect((await call('POST', '/recipes/import-page', { token, body: { shared } })).status).toBe(410);
+  });
+
+  it('un lien ou un texte partagé repart en GET comme avant', async () => {
+    const share = createShareRoute(createShareInbox());
+    const form = new FormData();
+    form.set('text', 'Regarde https://jow.fr/recipes/poulet-123');
+    const res = await share.request('/partager', { method: 'POST', body: form });
+    expect(res.headers.get('location')).toBe('/partager?text=Regarde+https%3A%2F%2Fjow.fr%2Frecipes%2Fpoulet-123');
+  });
+
+  it('refuse un fichier qui n’est pas une page, ou sans recette', async () => {
+    const { phone, upload } = await setup();
+    const token = await phone('alex');
+    const pdf = await upload('/recipes/import-page', pageForm(Uint8Array.from(Buffer.from('%PDF-1.7')), 'x.pdf'), { token });
+    expect(pdf.status).toBe(400);
+    expect((await pdf.json()).error).toMatch(/pas une page enregistrée/u);
+    const empty = Buffer.from('Content-Type: text/html\nContent-Location: https://exemple.test/vide\n\n<title>Vide</title><p>Rien ici.</p>');
+    expect((await upload('/recipes/import-page', pageForm(Uint8Array.from(empty)), { token })).status).toBe(422);
+    expect((await upload('/recipes/import-page', pageForm(), {})).status).toBe(403);
   });
 });
 

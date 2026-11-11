@@ -1,0 +1,46 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: https://petit-fourneau.example/recettes/clafoutis-cerises
+Subject: =?utf-8?Q?Clafoutis_aux_cerises_-_Le_Petit_Fourneau?=
+Date: Wed, 11 Nov 2026 10:00:00 -0000
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--inventee0123456789----"
+
+
+------MultipartBoundary--inventee0123456789----
+Content-Type: text/html
+Content-ID: <frame-0001@mhtml.blink>
+Content-Transfer-Encoding: quoted-printable
+Content-Location: https://petit-fourneau.example/recettes/clafoutis-cerises
+
+<!DOCTYPE html><!-- Page de recette inventée (tests) : enregistrée par le n=
+avigateur, encodée en quoted-printable. --><html lang=3D"fr"><head><meta ch=
+arset=3D"utf-8"><title>Clafoutis aux cerises - Le Petit Fourneau</title>
+<meta property=3D"og:site_name" content=3D"Le Petit Fourneau">
+<script type=3D"application/ld+json">{"@context":"https://schema.org","@typ=
+e":"Recipe","name":"Clafoutis aux cerises","image":"https://petit-fourneau.=
+example/img/clafoutis.png","recipeYield":"6 personnes","prepTime":"PT15M","=
+cookTime":"PT40M","recipeIngredient":["500 g de cerises","3 =C5=93ufs","100=
+ g de sucre","80 g de farine","25 cl de lait"],"recipeInstructions":[{"@typ=
+e":"HowToStep","text":"Pr=C3=A9chauffer le four =C3=A0 180 =C2=B0C."},{"@ty=
+pe":"HowToStep","text":"M=C3=A9langer les =C5=93ufs, le sucre, la farine pu=
+is le lait."},{"@type":"HowToStep","text":"Verser sur les cerises et cuire =
+40 minutes."}]}</script>
+<script>window.location.href=3D"https://pisteur.example/";</script>
+</head><body><h1>Clafoutis aux cerises</h1><img src=3D"https://petit-fourne=
+au.example/img/clafoutis.png"></body></html>
+------MultipartBoundary--inventee0123456789----
+Content-Type: text/css
+Content-Transfer-Encoding: quoted-printable
+Content-Location: https://petit-fourneau.example/style.css
+
+body { background: white; }
+------MultipartBoundary--inventee0123456789----
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-Location: https://petit-fourneau.example/img/clafoutis.png
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9
+awAAAABJRU5ErkJggg==
+------MultipartBoundary--inventee0123456789------

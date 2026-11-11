@@ -16,8 +16,8 @@ export type ImportRead =
 export type RecipeImporter = { read(url: string): Promise<ImportRead> };
 
 /** Formats de photo gardés (pas de SVG : il peut porter du script). */
-const PHOTO_TYPES = /^image\/(jpeg|png|webp|gif|avif)$/u;
-const PHOTO_MAX_BYTES = 4_000_000;
+export const PHOTO_TYPES = /^image\/(jpeg|png|webp|gif|avif)$/u;
+export const PHOTO_MAX_BYTES = 4_000_000;
 
 export function createRecipeImporter({ fetchPage }: { fetchPage: PageFetcher }): RecipeImporter {
   async function photoOf(url: string): Promise<Photo | null> {

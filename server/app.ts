@@ -14,7 +14,8 @@ import { createHousehold } from './household.ts';
 import { createRouter, fail } from './http.ts';
 import { createListsApi } from './lists-api.ts';
 import { createPinGate } from './pin-gate.ts';
-import { createRecipesApi } from './recipes-api.ts';
+import { createRecipesApi, createShareRoute } from './recipes-api.ts';
+import { createShareInbox } from './services/recipe-imports.ts';
 import { createRoutinesApi } from './routines-api.ts';
 import { createSchoolLifeApi } from './school-life-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
@@ -108,13 +109,16 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });
   api.route('/', createSchoolLifeApi({ schoolLife, access }));
-  api.route('/', createRecipesApi({ recipes: deps.recipes, importer: deps.recipeImporter, household, access, clock }));
+  const shareInbox = createShareInbox();
+  api.route('/', createRecipesApi({ recipes: deps.recipes, importer: deps.recipeImporter, household, access, clock, inbox: shareInbox }));
   api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 
   const app = createRouter();
   app.route('/api', api);
   // Avant le front : une route d'API inconnue ne doit pas renvoyer index.html.
   app.all('/api/*', () => fail(404, 'Route inconnue'));
+  // « Partager » vers l'appli (share_target en POST) : avant le front, qui ne sert que des GET.
+  app.route('/', createShareRoute(shareInbox));
 
   if (staticRoot) {
     // index.html jamais mis en cache : après un déploiement, le rechargement doit récupérer la nouvelle version.

@@ -55,7 +55,14 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Cookeo, ou tout site qui publie ses recettes au format schema.org) : HomeHub lit la page (titre, portions,
   ingrédients et quantités, étapes, photo, temps, mode Cookeo) et la range avec son origine ; des étapes absentes des
   données structurées sont lues dans la page (titres « Étape 1 », « Étape 2 »…) ; une page illisible propose la
-  saisie à la main, lien gardé. **Relire la page** reprend ce que la page donne de nouveau (des étapes manquées à
+  saisie à la main, lien gardé. Quand un site **refuse la lecture** par HomeHub (HTTP 403…), HomeHub ne contourne
+  pas le refus : il propose de passer par le navigateur. **Coller le texte** (« Tout sélectionner », « Copier » sur
+  la page, puis « Coller » dans l'import, ou partager le texte sélectionné vers HomeHub) : le menu, les publicités, les
+  commentaires et « Vous aimerez aussi » sont ignorés, le titre, les portions, les temps, les ingrédients et les étapes
+  sont repérés. **Page enregistrée** (Chrome : ⋮ → ⬇, puis partager le fichier `.mhtml` vers HomeHub, ou le choisir
+  dans l'import) : l'archive est lue sur le serveur comme une page, photo comprise, sans aucune requête vers le site.
+  Les deux donnent un **aperçu** à corriger avant d'enregistrer ; la source garde le lien s'il est connu et l'origine
+  (« texte collé », « page enregistrée »). **Relire la page** reprend ce que la page donne de nouveau (des étapes manquées à
   l'import) sans écraser ce que notre version a modifié. **Notre version** se modifie (portions par défaut, ingrédients, quantités,
   étapes, astuces) et c'est elle qui sert ; la source reste visible telle que lue. Chaque ingrédient est analysé
   (quantité, unité, nom ; « 2 à 3 », « ½ », « une pincée de », « facultatif ») : les quantités suivent les portions
@@ -80,7 +87,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches` (avec, en tête, la
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`
   (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
-  ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste). Un téléphone retiré depuis la tablette perd l'accès aussitôt.
+  ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste) ;
+  un texte copié d'une recette ou une page enregistrée (`.mhtml`), l'aperçu de l'import. Un téléphone retiré depuis la tablette perd l'accès aussitôt.
   La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
   et son système ; on le renomme en touchant son nom.
   Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code et avant de retirer un
@@ -312,6 +320,12 @@ User-Agent qui nomme HomeHub, seulement quand quelqu'un importe. Le serveur refu
 (et après chaque redirection), au-delà de 3 Mo ou de 10 s ; seuls `http` et `https` passent. La recette et sa photo
 sont ensuite copiées dans `recipes.json` et `recipes/` : le site n'est plus jamais relu. Le carnet est privé à la
 maison ; certains sites interdisent l'extraction systématique de leurs recettes, HomeHub ne lit que la page partagée.
+Un site qui refuse la lecture (401, 403, 429, 451) n'est pas relancé autrement (ni faux User-Agent, ni navigateur
+automatique) : le texte copié ou la page enregistrée viennent du navigateur de la personne. Une page enregistrée
+(25 Mo au plus) n'est que découpée et décodée, rien n'y est exécuté ni suivi. Partagée depuis Chrome, elle arrive par
+`POST /partager` sans le jeton du téléphone : elle attend au plus 10 minutes en mémoire (3 places, numéro tiré au
+hasard) que l'appli la réclame, droits vérifiés. Après la mise à jour, Android peut mettre un moment à proposer
+HomeHub pour les fichiers (le manifeste de l'appli installée est relu de temps en temps).
 
 Sans agenda configuré, l'agenda est d'exemple (`server/sources/sample.ts`) ; les tâches et les mots sont toujours
 réels.
@@ -397,7 +411,9 @@ server/
   sources/recipes.ts       carnet de recettes (recipes.json, photos dans recipes/), doublons par adresse
   sources/web-page.ts      lecture d'une page web sûre : adresses publiques seulement, redirections revérifiées, taille et délai bornés
   sources/recipe-page.ts   recette d'une page (schema.org Recipe en JSON-LD ou microdonnées), site d'origine
+  sources/mhtml.ts         page enregistrée (.mhtml) : parties MIME, quoted-printable, base64, document principal
   services/recipes.ts      import d'une recette (page, photo) et nettoyage d'une version modifiée
+  services/recipe-imports.ts  texte collé et page enregistrée : aperçus en attente, boîte des fichiers partagés
   recipes-api.ts           routes du carnet de recettes
   sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
   access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
@@ -407,6 +423,7 @@ shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
 shared/recipes.ts          recettes : types, limites, durées des étapes, portions, temps
+shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -474,7 +491,10 @@ web/src/
 | `GET /api/recipes` | `{ recipes }` : le carnet, du plus récent (titre, photo, portions, temps, Cookeo, site, auteur) |
 | `GET /api/recipes/:id`, `GET /api/recipes/:id/photo` | une recette (`ours` : notre version ; `source` : adresse, site, date, version lue) ; sa photo |
 | `POST /api/recipes/import` | `{ url }` (ou un texte partagé qui contient le lien) → `{ recipe, existing }` (201 si nouvelle ; `existing` : déjà au carnet) ou `{ draft, reason }` quand la page n'a pas de recette lisible ; 400 pour une adresse refusée. Quelqu'un de reconnu ou un téléphone relié, vérifié avant toute lecture |
-| `POST /api/recipes` | `{ content, url? }` : recette saisie à la main (avec le lien d'une page illisible) |
+| `POST /api/recipes/import-text` | `{ text, url?, title? }` : texte copié d'une page → `{ preview: { token, content, url, site, origin, photo } }`, ou `{ recipe, existing: true }` si la page est déjà au carnet ; 422 sans ingrédient ni étape. Mêmes droits que l'import ; rien n'est lu sur le réseau. (Après un refus du site, `POST /api/recipes/import` répond `{ draft, reason, refused: true }`.) |
+| `POST /api/recipes/import-page` | page enregistrée : fichier `.mhtml` (multipart, champ `page`) ou `{ shared }` (numéro reçu par `/partager`) → même réponse ; 400 si ce n'est pas une page enregistrée, 410 si le fichier partagé a expiré |
+| `POST /partager` | cible de « Partager » (formulaire multipart) : lien ou texte renvoyés en `GET /partager?…` ; une page enregistrée mise en attente → `/partager?fichier=<numéro>` |
+| `POST /api/recipes` | `{ content, url?, pending? }` : recette saisie à la main (avec le lien d'une page illisible), ou l'aperçu `pending` corrigé (sa source et sa photo sont reprises) |
 | `POST /api/recipes/:id/reread` | relit la page d'origine → `{ recipe, updated, kept }` : les parties (titre, portions, ingrédients, étapes, temps, appareil) que notre version n'avait pas modifiées sont reprises, les autres gardées ; un parent ou qui l'a ajoutée ; 422 si la page n'a plus de recette lisible |
 | `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent |
 | `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |

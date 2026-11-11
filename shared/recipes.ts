@@ -61,10 +61,18 @@ export type RecipeContent = {
   appliance: 'cookeo' | null;
 };
 
+/**
+ * D'où vient une recette importée : la page lue par le serveur (absent, les recettes d'avant la 0.50 aussi), un
+ * texte copié de la page, ou la page enregistrée par le navigateur (.mhtml), quand le site refuse la lecture.
+ */
+export type RecipeOrigin = 'text' | 'saved-page';
+
 export type RecipeSource = {
-  url: string;
-  /** Nom du site (« Marmiton », sinon l'hôte). */
+  /** Adresse de la page ; null : texte collé sans lien. */
+  url: string | null;
+  /** Nom du site (« Marmiton », sinon l'hôte ; « Texte collé » sans lien). */
   site: string;
+  origin?: RecipeOrigin;
   importedAt: string;
   /** Photo d'origine (adresse sur le site). */
   imageUrl: string | null;
@@ -104,6 +112,21 @@ export type RecipeSummary = Pick<Recipe, 'id' | 'photo' | 'addedBy' | 'addedAt'>
 export type RecipeDraft = { url: string; title: string | null; site: string | null };
 
 export type ImportResult = { recipe: Recipe; existing: boolean };
+
+/**
+ * Aperçu d'un import par texte collé ou page enregistrée : ce qui a été compris, à corriger avant d'enregistrer.
+ * `token` désigne ce que le serveur garde en attendant (la source telle que lue, la photo de l'archive).
+ */
+export type ImportPreview = {
+  preview: { token: string; content: RecipeContent; url: string | null; site: string; origin: RecipeOrigin; photo: boolean };
+};
+
+/** Mention de la source sous le titre : « Marmiton », « Texte collé », « Marmiton, page enregistrée ». */
+export function sourceLabel(source: Pick<RecipeSource, 'site' | 'origin' | 'url'>): string {
+  if (source.origin === 'text') return source.url ? `${source.site}, texte collé` : 'un texte collé';
+  if (source.origin === 'saved-page') return `${source.site}, page enregistrée`;
+  return source.site;
+}
 
 // --- Relecture de la source ---
 

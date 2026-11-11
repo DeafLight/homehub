@@ -2,6 +2,7 @@
 // Moulinex (Cookeo) et la plupart des sites de cuisine, en JSON-LD (au premier niveau, dans un tableau, dans un
 // `@graph`) ou, à défaut, en microdata. Rien de propre à un site : seulement des normalisations (portions,
 // unités, mode Cookeo dans les étapes), et les étapes lues sous des titres « Étape 1 »… quand le JSON-LD n'en a pas. Sans recette lisible : le titre de la page, pour préremplir la saisie à la main.
+import { STEP_TITLE } from '../../shared/recipe-text.ts';
 import { ingredientLines, isoMinutes, RECIPE_LIMITS, type RecipeContent, type RecipeStep, yieldOf } from '../../shared/recipes.ts';
 
 export type ReadRecipe =
@@ -210,7 +211,7 @@ export function pageSteps(html: string): RawStep[] {
   const steps: RawStep[] = [];
   let next = 1;
   for (const [i, heading] of headings.entries()) {
-    const title = /^(?:é|e)tape\s*(?:n°\s*)?(\d+)\s*(?:[.:)–-]\s*(.*))?$/iu.exec(oneLine(heading[2], 200));
+    const title = STEP_TITLE.exec(oneLine(heading[2], 200));
     if (!title) continue;
     if (Number(title[1]) !== next) {
       if (next > 1) break; // numérotation rompue : la suite n'est plus la recette

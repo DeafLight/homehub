@@ -48,6 +48,12 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       Premier essai (mycookeo.fr) : aucune étape, le JSON-LD n'en donnait pas ; corrigé en 0.49.2 (étapes lues sous
       les titres « Étape 1 »… de la page, « Relire la page » pour les recettes déjà importées). Reste : Marmiton,
       Jow, Moulinex et les quantités.
+- [x] Site qui refuse la lecture par HomeHub (HTTP 403, ex. un blog Cookeo) : pas de contournement (ni faux
+      User-Agent, ni navigateur automatique) ; on passe par le navigateur de la personne : texte copié de la page
+      (« Coller », ou partage du texte sélectionné) ou page enregistrée `.mhtml` (partage du fichier, ou choix dans
+      l'import), avec un aperçu à corriger avant d'enregistrer (0.50.0).
+- [ ] Piste future : lire une recette sur des **captures d'écran** (OCR), à mutualiser avec la lecture des tickets
+      de caisse (même moteur, même choix local ou modèle de vision, voir « Stock »).
 - [x] À étudier d'abord : pour chaque site visé, ce que la page d'une recette laisse lire (données structurées
       schema.org `Recipe` ?) et dans quelles conditions ; comment reconnaître un ingrédient (« 2 gros oignons
       émincés » → oignon, 2 pièces) pour l'agréger ; pour le drive, quelle enseigne a un panier accessible, et

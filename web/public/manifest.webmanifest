@@ -14,7 +14,18 @@
   ],
   "share_target": {
     "action": "/partager",
-    "method": "GET",
-    "params": { "title": "title", "text": "text", "url": "url" }
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "page",
+          "accept": ["multipart/related", "application/x-mimearchive", "message/rfc822", ".mhtml", ".mht"]
+        }
+      ]
+    }
   }
 }

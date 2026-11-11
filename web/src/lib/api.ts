@@ -49,10 +49,16 @@ import type {
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
-import type { ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
+import type { ImportPreview, ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
-/** Réponse d'un import : la recette (nouvelle ou déjà au carnet), ou de quoi la saisir à la main et pourquoi. */
-export type ImportResponse = ImportResult | { draft: RecipeDraft; reason: string };
+/**
+ * Réponse d'un import : la recette (nouvelle ou déjà au carnet), ou de quoi la saisir à la main et pourquoi.
+ * `refused` : le site refuse la lecture par HomeHub (proposer le texte copié ou la page enregistrée).
+ */
+export type ImportResponse = ImportResult | { draft: RecipeDraft; reason: string; refused?: boolean };
+
+/** Réponse d'un import par texte collé ou page enregistrée : la recette déjà au carnet, ou l'aperçu à corriger. */
+export type OfflineImportResponse = ImportResult | ImportPreview;
 
 export class ApiError extends Error {
   readonly status: number;
@@ -174,8 +180,15 @@ export type Api = {
   recipe(id: string): Promise<Recipe>;
   /** Lien partagé (ou texte qui en contient un) : la recette lue, ou de quoi la saisir à la main. */
   importRecipe(url: string): Promise<ImportResponse>;
-  /** Saisie à la main ; `url` : la page d'où elle vient, quand rien n'y était lisible. */
-  createRecipe(content: RecipeContent, url?: string | null): Promise<Recipe>;
+  /** Texte copié d'une page (site qui refuse la lecture) : l'aperçu de ce qui a été compris. */
+  importRecipeText(text: string, url?: string | null, title?: string | null): Promise<OfflineImportResponse>;
+  /** Page enregistrée (.mhtml) : le fichier, ou le numéro d'une page reçue par « Partager ». */
+  importSavedPage(page: File | { shared: string }): Promise<OfflineImportResponse>;
+  /**
+   * Saisie à la main ; `url` : la page d'où elle vient, quand rien n'y était lisible. `pending` : l'aperçu d'un
+   * import (texte collé, page enregistrée) que cette version corrige.
+   */
+  createRecipe(content: RecipeContent, url?: string | null, pending?: string | null): Promise<Recipe>;
   /** Notre version (un parent, ou qui a ajouté la recette). */
   saveRecipe(id: string, content: RecipeContent): Promise<Recipe>;
   /** Relire la page d'origine sans écraser notre version (un parent, ou qui a ajouté la recette). */
@@ -304,7 +317,14 @@ export function createApi(
     recipes: () => request('/recipes'),
     recipe: (id) => request(`/recipes/${encodeURIComponent(id)}`),
     importRecipe: (url) => send('POST', '/recipes/import', { url }),
-    createRecipe: (content, url) => send('POST', '/recipes', { content, url: url ?? null }),
+    importRecipeText: (text, url, title) => send('POST', '/recipes/import-text', { text, url: url || null, title: title || null }),
+    importSavedPage: (page) => {
+      if (!(page instanceof File)) return send('POST', '/recipes/import-page', page);
+      const form = new FormData();
+      form.set('page', page);
+      return request('/recipes/import-page', { method: 'POST', body: form });
+    },
+    createRecipe: (content, url, pending) => send('POST', '/recipes', { content, url: url ?? null, ...(pending && { pending }) }),
     saveRecipe: (id, content) => send('PUT', `/recipes/${encodeURIComponent(id)}`, { content }),
     rereadRecipe: (id) => send('POST', `/recipes/${encodeURIComponent(id)}/reread`),
     removeRecipe: (id) => send('DELETE', `/recipes/${encodeURIComponent(id)}`),

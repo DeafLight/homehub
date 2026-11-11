@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatMinutes, type Recipe, type RecipeContent } from '../../../../shared/recipes.ts';
+  import { formatMinutes, type Recipe, type RecipeContent, sourceLabel } from '../../../../shared/recipes.ts';
   import { durationText, groupBySection, servingsText, shownIngredients, shownSteps, type ShownStep } from '../../lib/recipes.ts';
   import Icon from '../Icon.svelte';
 
@@ -118,7 +118,7 @@
 
     <p class="origin muted">
       {#if recipe.source}
-        {showSource ? 'Telle que lue' : 'D’après'} {recipe.source.site}{#if importedOn}, le {importedOn}{/if}{#if addedBy}{` · ajoutée par ${addedBy}`}{/if}
+        {showSource ? 'Telle que lue :' : 'D’après'} {sourceLabel(recipe.source)}{#if importedOn}, le {importedOn}{/if}{#if addedBy}{` · ajoutée par ${addedBy}`}{/if}
       {:else}
         Saisie à la main{#if addedBy} par {addedBy}{/if}
       {/if}
@@ -136,10 +136,10 @@
           <Icon name="book" size={22} /> {showSource ? 'Notre version' : 'Voir la source'}
         </button>
       {/if}
-      {#if recipe.source && canEdit && onReread && (showSource || !recipe.source.content || incomplete)}
+      {#if recipe.source?.url && canEdit && onReread && (showSource || !recipe.source.content || incomplete)}
         <button type="button" class="btn" disabled={rereading} onclick={onReread}><Icon name="refresh" size={22} /> {rereading ? 'Lecture…' : 'Relire la page'}</button>
       {/if}
-      {#if recipe.source && (showSource || !recipe.source.content)}
+      {#if recipe.source?.url && (showSource || !recipe.source.content)}
         <a class="btn" href={recipe.source.url} target="_blank" rel="noopener noreferrer"><Icon name="link" size={22} /> Ouvrir la page</a>
       {/if}
       {#if canRemove && !showSource}

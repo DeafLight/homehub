@@ -7,12 +7,12 @@
   import RecipeView from '../components/recipes/RecipeView.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
-  import { canEditRecipe, emptyContent, handoff, rereadMessage, type ShownStep, timerLabel } from '../lib/recipes.ts';
+  import { canEditRecipe, emptyContent, handoff, previewSummary, rereadMessage, type ShownStep, timerLabel } from '../lib/recipes.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { detailPath, phonePath, phoneRecipePath, recipePath, type RecipeMode } from '../lib/route.ts';
 
-  // Une recette du carnet : sa fiche, son édition (notre version, ou une nouvelle recette saisie à la main), et sur la
-  // tablette le mode cuisine. La page garde les données et les appels ; l'affichage est dans components/recipes/.
+  // Une recette du carnet : sa fiche, son édition (notre version, une nouvelle recette saisie à la main, ou l'aperçu
+  // d'un texte collé ou d'une page enregistrée), et sur la tablette le mode cuisine. La page garde les données et les appels ; l'affichage est dans components/recipes/.
   // Sur la tablette, modifier demande quelqu'un de reconnu ; sur le téléphone, son profil agit. Le serveur décide.
   type Props = { id: string | null; mode: RecipeMode; phone?: boolean };
   let { id, mode, phone = false }: Props = $props();
@@ -25,9 +25,14 @@
   const recipe = createResource<Recipe | null>(async () => (id ? api.recipe(id) : null), 5 * 60_000);
   onDestroy(() => recipe.destroy());
 
-  // Saisie à la main après un import illisible : titre prérempli, lien gardé.
+  // Saisie à la main après un import illisible : titre prérempli, lien gardé. Ou aperçu d'un texte collé ou d'une
+  // page enregistrée : ce qui a été compris, à corriger avant d'enregistrer (le serveur garde la source en attendant).
   const draft = untrack(() => (id === null ? handoff.draft : null));
+  const preview = untrack(() => (id === null ? handoff.preview : null));
   handoff.draft = null;
+  handoff.preview = null;
+  /** Lien donné à l'aperçu d'un texte collé qui n'en contenait pas. */
+  let previewLink = $state('');
 
   let servings = $state<number | null>(untrack(() => (id ? (handoff.servings.get(id) ?? null) : null)));
   $effect(() => {
@@ -59,7 +64,11 @@
     saving = true;
     error = null;
     try {
-      const saved = id ? await api.saveRecipe(id, content) : await api.createRecipe(content, draft?.url ?? null);
+      const saved = id
+        ? await api.saveRecipe(id, content)
+        : preview
+          ? await api.createRecipe(content, preview.url ?? (/^https?:\/\//iu.test(previewLink.trim()) ? previewLink.trim() : null), preview.token)
+          : await api.createRecipe(content, draft?.url ?? null);
       handoff.servings.delete(saved.id);
       recipe.set(saved);
       navigate(pathOf(saved.id, 'view'));
@@ -100,7 +109,7 @@
     notice = (await timers.start(timerLabel(title, step.number), seconds)) ? null : 'Minuteur non lancé';
   }
 
-  const editInitial = $derived(id === null ? emptyContent(draft?.title ?? '') : (recipe.data?.ours ?? null));
+  const editInitial = $derived(id === null ? (preview?.content ?? emptyContent(draft?.title ?? '')) : (recipe.data?.ours ?? null));
 </script>
 
 <div class="recipe-page" class:phone class:cook={mode === 'cook'}>
@@ -110,7 +119,7 @@
     <header>
       {#if mode === 'edit'}
         <button type="button" class="btn" onclick={() => (id ? navigate(pathOf(id, 'view')) : carnet())}><Icon name="back" size={26} /> {id ? 'Fiche' : 'Recettes'}</button>
-        <h1>{id ? 'Notre version' : 'Nouvelle recette'}</h1>
+        <h1>{id ? 'Notre version' : preview ? 'Aperçu de l’import' : 'Nouvelle recette'}</h1>
       {:else}
         <button type="button" class="btn" onclick={carnet}><Icon name="back" size={26} /> Recettes</button>
         <h1>{recipe.data?.ours.title ?? ''}</h1>
@@ -121,7 +130,19 @@
     {#if info && mode !== 'edit'}<p class="info" role="status">{info}</p>{/if}
 
     {#if mode === 'edit' && editInitial}
-      {#if draft?.url}<p class="muted">Lien gardé : {draft.url}</p>{/if}
+      {#if preview}
+        <div class="preview" role="status">
+          <p>{previewSummary(preview)}</p>
+          {#if preview.url}
+            <p class="muted">D’après {preview.site} · {preview.url}</p>
+          {:else}
+            <label>
+              <span class="muted">Lien de la page (facultatif)</span>
+              <input type="url" inputmode="url" bind:value={previewLink} placeholder="https://…" />
+            </label>
+          {/if}
+        </div>
+      {:else if draft?.url}<p class="muted">Lien gardé : {draft.url}</p>{/if}
       {#key id}
         <RecipeEditor initial={editInitial} {phone} {saving} {error} onSave={save} onCancel={() => (id ? navigate(pathOf(id, 'view')) : carnet())} />
       {/key}
@@ -192,6 +213,38 @@
   .info {
     margin: 0;
     color: var(--fg-muted);
+  }
+
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .preview p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .preview label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .preview input {
+    min-height: 48px;
+    padding: 0 16px;
+    border: 2px solid var(--surface-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: max(16px, 1rem);
+    user-select: text;
   }
 
   .phone {

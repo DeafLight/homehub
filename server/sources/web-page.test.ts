@@ -130,7 +130,7 @@ describe('createPageFetcher', () => {
       'https://cuisine.exemple.test/refus': () => new Response('', { status: 403 }),
     });
     expect(await refusal(get('https://cuisine.exemple.test/absente'))).toBe('not-found');
-    expect(await refusal(get('https://cuisine.exemple.test/refus'))).toBe('unreachable');
+    expect(await refusal(get('https://cuisine.exemple.test/refus'))).toBe('refused');
     const slow = createPageFetcher({
       lookup,
       userAgent: 'HomeHub/test',

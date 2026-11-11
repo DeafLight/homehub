@@ -1,10 +1,12 @@
 // Logique du carnet côté front, sans DOM (testée) : recherche dans le carnet, lignes mises à l'échelle des portions
 // et rangées par groupe, étapes avec leurs minuteurs et leur mode Cookeo, édition de notre version (lignes ajoutées,
-// déplacées, portions par défaut qui entraînent les quantités), lien reçu par « Partager », droit de modifier,
-// compte rendu d'une relecture de la page.
+// déplacées, portions par défaut qui entraînent les quantités), lien, texte ou page enregistrée reçus par
+// « Partager », aperçu d'un import, droit de modifier, compte rendu d'une relecture de la page.
 import { fold, formatIngredient } from '../../../shared/ingredients.ts';
+import { looksLikeRecipeText } from '../../../shared/recipe-text.ts';
 import {
   cookeoMode,
+  type ImportPreview,
   type IngredientLine,
   ingredientLines,
   type Recipe,
@@ -203,7 +205,45 @@ export function sharedLink(params: URLSearchParams): string | null {
 }
 
 /**
- * Passage d'un écran à l'autre sans passer par l'adresse : le brouillon d'un import illisible (saisie à la main
- * préremplie), et les portions choisies sur une fiche (le mode cuisine les reprend). Oubliés au rechargement.
+ * Ce que « Partager » apporte côté recettes : une page enregistrée (déposée par le serveur, à réclamer), un texte
+ * qui ressemble à une recette (copié d'une page), ou un lien ; null : une simple note pour une liste.
  */
-export const handoff: { draft: RecipeDraft | null; servings: Map<string, number> } = { draft: null, servings: new Map() };
+export type SharedRecipe =
+  | { kind: 'file'; id: string; title: string | null }
+  | { kind: 'text'; text: string; link: string | null; title: string | null }
+  | { kind: 'link'; link: string }
+  | { kind: 'too-large' };
+
+export function sharedRecipe(params: URLSearchParams): SharedRecipe | null {
+  const title = params.get('title')?.trim() || null;
+  const id = params.get('fichier');
+  if (id) return { kind: 'file', id, title };
+  if (params.get('erreur') === 'trop-lourd') return { kind: 'too-large' };
+  const text = params.get('text') ?? '';
+  const link = sharedLink(params);
+  if (looksLikeRecipeText(text)) return { kind: 'text', text, link, title };
+  return link ? { kind: 'link', link } : null;
+}
+
+/** Compte rendu d'un aperçu : ce qui a été compris, d'où. */
+export function previewSummary(preview: ImportPreview['preview']): string {
+  const { content } = preview;
+  const from = preview.origin === 'text' ? 'le texte collé' : 'la page enregistrée';
+  const count = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+  const parts = [count(content.ingredients.length, 'ingrédient', 'ingrédients'), count(content.steps.length, 'étape', 'étapes')];
+  const servings = servingsText(content.servings, content.servingsUnit);
+  if (servings) parts.push(servings);
+  if (preview.photo) parts.push('photo');
+  return `Compris dans ${from} : ${parts.join(', ')}. Vérifie et corrige avant d’enregistrer.`;
+}
+
+/**
+ * Passage d'un écran à l'autre sans passer par l'adresse : le brouillon d'un import illisible (saisie à la main
+ * préremplie), l'aperçu d'un texte collé ou d'une page enregistrée (à corriger avant d'enregistrer), et les portions
+ * choisies sur une fiche (le mode cuisine les reprend). Oubliés au rechargement.
+ */
+export const handoff: { draft: RecipeDraft | null; preview: ImportPreview['preview'] | null; servings: Map<string, number> } = {
+  draft: null,
+  preview: null,
+  servings: new Map(),
+};

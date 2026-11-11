@@ -1,7 +1,7 @@
 // Tests des règles du carnet : lignes analysées, durées dans les étapes, mode Cookeo, temps ISO et portions,
 // relecture de la source.
 import { describe, expect, it } from 'vitest';
-import { cookeoMode, formatMinutes, ingredientLines, isoMinutes, mergeReread, type RecipeContent, refreshLine, scaleFactor, stepDurations, yieldOf } from './recipes.ts';
+import { cookeoMode, formatMinutes, ingredientLines, isoMinutes, mergeReread, type RecipeContent, refreshLine, scaleFactor, sourceLabel, stepDurations, yieldOf } from './recipes.ts';
 
 const ids = () => {
   let n = 0;
@@ -124,5 +124,14 @@ describe('mergeReread', () => {
   it('rien de nouveau : rien ne change', () => {
     const same = read({ steps });
     expect(mergeReread(same, same, read({ steps }))).toEqual({ ours: same, updated: [], kept: [] });
+  });
+});
+
+describe('sourceLabel', () => {
+  it('nomme la source selon son origine', () => {
+    expect(sourceLabel({ site: 'Marmiton', url: 'https://www.marmiton.org/r' })).toBe('Marmiton');
+    expect(sourceLabel({ site: 'Texte collé', url: null, origin: 'text' })).toBe('un texte collé');
+    expect(sourceLabel({ site: 'Jow', url: 'https://jow.fr/r', origin: 'text' })).toBe('Jow, texte collé');
+    expect(sourceLabel({ site: 'Le Petit Fourneau', url: 'https://petit-fourneau.example/r', origin: 'saved-page' })).toBe('Le Petit Fourneau, page enregistrée');
   });
 });

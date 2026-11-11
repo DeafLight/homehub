@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
-import { BLOG_URL, recipeUrl } from './docs-captures/fake-recipes.ts';
+import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -395,6 +395,14 @@ await shoot('telephone-recette-partage', `${BASE}/partager?text=${encodeURICompo
   after: `document.querySelector('form button[type=submit]')?.click()`,
   settle: 2000,
 });
+// Site qui refuse la lecture : le refus propose le texte copié ou la page enregistrée ; le texte partagé donne l'aperçu.
+await shoot('telephone-recette-refus', `${BASE}/partager?url=${encodeURIComponent(REFUSED_URL)}`, PHONE, {
+  init: asPhone('alex'),
+  wait: 4000,
+  after: `document.querySelector('form button[type=submit]')?.click()`,
+  settle: 2000,
+});
+await shoot('telephone-recette-texte', `${BASE}/partager?text=${encodeURIComponent(COPIED_TEXT)}`, PHONE, { init: asPhone('alex'), wait: 5000 });
 await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });

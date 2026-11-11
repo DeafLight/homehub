@@ -25,7 +25,7 @@
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
-  import { handoff, searchRecipes } from '../lib/recipes.ts';
+  import { handoff, searchRecipes, type SharedRecipe } from '../lib/recipes.ts';
   import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
@@ -39,10 +39,12 @@
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
   // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes et, pour un adulte
   // qui a un programme, le sport. Tout ce qui est coché ou ajouté l’est au nom de ce profil. `shared` : texte reçu par
-  // « Partager », qui ouvre directement l'ajout ; `sharedLink` : lien reçu, qui ouvre l'import de recette (l'ajout à
-  // une liste reste proposé). Règles : lib/phone-app.ts ; onglets : components/phone/.
-  type Props = { tab: PhoneTab; shared?: string; sharedLink?: string };
-  let { tab, shared, sharedLink }: Props = $props();
+  // « Partager », qui ouvre directement l'ajout ; `sharedRecipe` : lien, texte copié d'une page ou page enregistrée
+  // reçus, qui ouvrent l'import de recette (l'ajout à une liste reste proposé pour un lien). Règles : lib/phone-app.ts ;
+  // onglets : components/phone/.
+  type Props = { tab: PhoneTab; shared?: string; sharedRecipe?: SharedRecipe };
+  let { tab, shared, sharedRecipe }: Props = $props();
+  const sharedLink = untrack(() => (sharedRecipe?.kind === 'link' ? sharedRecipe.link : undefined));
 
   const { api, config, profiles, clock, navigate } = getAppContext();
   const pairing = loadPairing();
@@ -135,8 +137,13 @@
     writing = false;
     await notes.refresh();
   }
-  let adding = $state(untrack(() => shared !== undefined && sharedLink === undefined));
-  let importing = $state(untrack(() => sharedLink !== undefined));
+  let adding = $state(untrack(() => shared !== undefined && sharedRecipe === undefined));
+  let importing = $state(untrack(() => sharedRecipe !== undefined));
+
+  function previewRecipe(found: NonNullable<typeof handoff.preview>) {
+    handoff.preview = found;
+    navigate(phoneRecipePath(null));
+  }
   let recipeSearch = $state('');
 
   function manualRecipe(draft: typeof handoff.draft) {
@@ -146,7 +153,7 @@
 
   function cancelImport() {
     importing = false;
-    if (sharedLink !== undefined) navigate(phonePath('recipes'));
+    if (sharedRecipe !== undefined) navigate(phonePath('recipes'));
   }
 
   async function add(input: AddInput) {
@@ -293,8 +300,14 @@
       <BottomSheet label="Importer une recette" onClose={cancelImport}>
         <ImportForm
           link={sharedLink ?? ''}
-          note={sharedLink !== undefined ? 'Partagé depuis une autre appli' : undefined}
+          note={sharedRecipe !== undefined ? 'Partagé depuis une autre appli' : undefined}
+          sharedText={sharedRecipe?.kind === 'text' ? sharedRecipe : undefined}
+          sharedPage={sharedRecipe?.kind === 'file' ? sharedRecipe.id : undefined}
+          initialError={sharedRecipe?.kind === 'too-large' ? 'Page enregistrée trop lourde pour HomeHub : copie plutôt le texte de la recette' : undefined}
           onImport={(url) => api.importRecipe(url)}
+          onText={(text, url, title) => api.importRecipeText(text, url, title)}
+          onPage={(page) => api.importSavedPage(page)}
+          onPreview={previewRecipe}
           onOpen={(recipe) => navigate(phoneRecipePath(recipe.id))}
           onManual={manualRecipe}
           onCancel={cancelImport}

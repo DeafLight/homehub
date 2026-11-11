@@ -122,8 +122,58 @@ export const FAKE_RECIPE_SLUGS = RECIPES.map((r) => r.slug);
 /** Page d'un blog sans données de recette : l'import propose la saisie à la main. */
 export const BLOG_URL = `${BASE}/blog/souvenirs-de-cuisine`;
 
+/** Page dont le site refuse la lecture par HomeHub (HTTP 403) : l'import propose le texte copié ou la page enregistrée. */
+export const REFUSED_URL = `${BASE}/protege/gratin-courgettes-chevre`;
+
+/** Texte copié de cette page (« Tout sélectionner », « Copier ») : bruité comme une vraie page entière. */
+export const COPIED_TEXT = [
+  'Cuisine d’exemple',
+  'Menu',
+  'Rechercher',
+  'Accueil › Plats › Gratins',
+  'Gratin de courgettes au chèvre',
+  '4,6/5',
+  '(87 avis)',
+  'Facile',
+  'Un gratin tout doux pour les soirs de semaine, que les enfants réclament.',
+  'Préparation',
+  '20 min',
+  'Cuisson',
+  '35 min',
+  'Imprimer',
+  'Ingrédients',
+  '-',
+  '4',
+  'personnes',
+  '+',
+  '3 courgettes',
+  '2 oignons émincés',
+  '20 cl de crème fraîche',
+  '2',
+  'œufs',
+  '150 g de fromage de chèvre frais',
+  '50 g de gruyère râpé',
+  'Sel, poivre',
+  'Publicité',
+  'Préparation',
+  'Étape 1',
+  'Préchauffer le four à 200 °C.',
+  'Étape 2',
+  'Couper les courgettes en rondelles et les faire revenir 10 minutes avec les oignons.',
+  'Étape 3',
+  'Battre les œufs avec la crème, ajouter le chèvre émietté, saler, poivrer.',
+  'Étape 4',
+  'Verser sur les légumes, parsemer de gruyère et enfourner 35 minutes.',
+  'Vous aimerez aussi',
+  'Tarte fine aux poireaux',
+  '12 commentaires',
+  '© 2026 Cuisine d’exemple',
+  REFUSED_URL,
+].join('\n');
+
 /** Réponse du faux site pour une adresse de cuisine.exemple.test. */
 export function fakeRecipeSite(url: URL): Response {
+  if (url.pathname === new URL(REFUSED_URL).pathname) return new Response('Accès refusé', { status: 403 });
   const photoMatch = /^\/photos\/(.+)\.png$/u.exec(url.pathname);
   if (photoMatch) {
     const index = RECIPES.findIndex((r) => r.slug === photoMatch[1]);

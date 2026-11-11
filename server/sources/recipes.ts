@@ -42,7 +42,7 @@ export const contentSchema = z.object({
 });
 sameShape<z.infer<typeof contentSchema>, RecipeContent>(true);
 
-const sourceSchema = z.object({ url: z.string(), site: z.string(), importedAt: z.string(), imageUrl: z.string().nullable(), content: contentSchema.nullable() });
+const sourceSchema = z.object({ url: z.string().nullable(), site: z.string(), origin: z.enum(['text', 'saved-page']).optional(), importedAt: z.string(), imageUrl: z.string().nullable(), content: contentSchema.nullable() });
 sameShape<z.infer<typeof sourceSchema>, RecipeSource>(true);
 
 const recipeSchema = z.object({
@@ -132,7 +132,7 @@ export function createRecipeStore({ path, photosDir, clock }: { path: string; ph
 
     async findBySource(url) {
       const key = sourceKey(url);
-      const found = (await state.read()).recipes.find((r) => r.source && sourceKey(r.source.url) === key);
+      const found = (await state.read()).recipes.find((r) => r.source?.url && sourceKey(r.source.url) === key);
       return found ? publicRecipe(found) : null;
     },
 

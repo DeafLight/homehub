@@ -1,4 +1,5 @@
-// Tests de la logique du carnet côté front : recherche, lignes à l'échelle, étapes, édition, lien partagé, relecture.
+// Tests de la logique du carnet côté front : recherche, lignes à l'échelle, étapes, édition, partage (lien, texte, page
+// enregistrée), aperçu d'un import, relecture.
 import { describe, expect, it } from 'vitest';
 import { ingredientLines, type RecipeContent, type RecipeSummary } from '../../../shared/recipes.ts';
 import {
@@ -13,13 +14,17 @@ import {
   groupBySection,
   linesFromText,
   move,
+  previewSummary,
   searchRecipes,
   servingsText,
   sharedLink,
+  sharedRecipe,
   shownIngredients,
   shownSteps,
   timerLabel,
 } from './recipes.ts';
+
+const ingredientLinesFor = (text: string) => linesFromText(text);
 
 const ids = () => {
   let n = 0;
@@ -139,6 +144,37 @@ describe('sharedLink', () => {
     expect(sharedLink(new URLSearchParams({ url: 'https://jow.fr/recipes/a', text: 'x' }))).toBe('https://jow.fr/recipes/a');
     expect(sharedLink(new URLSearchParams({ text: 'Regarde https://www.marmiton.org/recettes/b.aspx !' }))).toBe('https://www.marmiton.org/recettes/b.aspx');
     expect(sharedLink(new URLSearchParams({ text: 'Lait demi-écrémé' }))).toBeNull();
+  });
+});
+
+describe('sharedRecipe', () => {
+  const recipeText = 'Crêpes\nIngrédients\n250 g de farine\n4 œufs\n50 cl de lait\nPréparation\nMélanger.';
+
+  it('page enregistrée déposée par le serveur, ou trop lourde', () => {
+    expect(sharedRecipe(new URLSearchParams({ fichier: 'abc', title: 'Crêpes' }))).toEqual({ kind: 'file', id: 'abc', title: 'Crêpes' });
+    expect(sharedRecipe(new URLSearchParams({ erreur: 'trop-lourd' }))).toEqual({ kind: 'too-large' });
+  });
+
+  it('texte copié qui ressemble à une recette, avec son lien s’il y en a un', () => {
+    expect(sharedRecipe(new URLSearchParams({ text: `${recipeText}\nhttps://exemple.test/crepes` }))).toMatchObject({ kind: 'text', link: 'https://exemple.test/crepes' });
+    expect(sharedRecipe(new URLSearchParams({ text: recipeText, title: 'Crêpes' }))).toEqual({ kind: 'text', text: recipeText, link: null, title: 'Crêpes' });
+  });
+
+  it('un lien seul, ou une note pour la liste', () => {
+    expect(sharedRecipe(new URLSearchParams({ text: 'Regarde https://jow.fr/recipes/a' }))).toEqual({ kind: 'link', link: 'https://jow.fr/recipes/a' });
+    expect(sharedRecipe(new URLSearchParams({ text: 'Lait demi-écrémé' }))).toBeNull();
+  });
+});
+
+describe('previewSummary', () => {
+  it('dit ce qui a été compris', () => {
+    const content = { ...emptyContent('Crêpes'), ingredients: ingredientLinesFor('250 g de farine\n4 œufs'), steps: [{ id: 's', text: 'Mélanger.', section: null }] };
+    expect(previewSummary({ token: 't', content, url: null, site: 'Texte collé', origin: 'text', photo: false })).toBe(
+      'Compris dans le texte collé : 2 ingrédients, 1 étape, 4 personnes. Vérifie et corrige avant d’enregistrer.',
+    );
+    expect(previewSummary({ token: 't', content: { ...content, servings: null }, url: null, site: 'x', origin: 'saved-page', photo: true })).toBe(
+      'Compris dans la page enregistrée : 2 ingrédients, 1 étape, photo. Vérifie et corrige avant d’enregistrer.',
+    );
   });
 });
 
