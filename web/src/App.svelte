@@ -11,6 +11,7 @@
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
   import Faces from './screens/Faces.svelte';
+  import Holidays from './screens/Holidays.svelte';
   import Routines from './screens/Routines.svelte';
   import Scan from './screens/Scan.svelte';
   import Sport from './screens/Sport.svelte';
@@ -72,6 +73,8 @@
   <Routines back={router.route.back} />
 {:else if router.route.name === 'transit'}
   <Transit back={router.route.back} />
+{:else if router.route.name === 'holidays'}
+  <Holidays back={router.route.back} />
 {:else if router.route.name === 'scan'}
   <Scan back={router.route.back} />
 {:else if router.route.name === 'stock'}

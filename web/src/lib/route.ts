@@ -1,11 +1,11 @@
 // Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine, NAS,
-// listes, stock, scanner, téléphones reliés, visages, routines, transports, sport et séance guidée). Sur les téléphones : l'appli (/m, /m/taches, /m/agenda,
+// listes, stock, scanner, téléphones reliés, visages, routines, transports, vacances scolaires, sport et séance guidée). Sur les téléphones : l'appli (/m, /m/taches, /m/agenda,
 // /m/mots, /m/sport), son scanner (/m/scanner), son stock (/m/stock), l'appairage (/appairer) et le partage (/partager).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
-export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones' | 'faces' | 'routines' | 'transit' | 'scan' | 'stock' | 'sport' | 'workout';
+export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones' | 'faces' | 'routines' | 'transit' | 'holidays' | 'scan' | 'stock' | 'sport' | 'workout';
 export type PhoneTab = 'shopping' | 'tasks' | 'agenda' | 'notes' | 'sport';
 export type Route =
   | PageRoute
@@ -17,7 +17,7 @@ export type Route =
   | { name: 'share' };
 
 export const HOME_PATH = '/';
-const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine', nas: '/nas', lists: '/listes', phones: '/telephones', faces: '/visages', routines: '/routines', transit: '/transports', scan: '/scanner', stock: '/stock', sport: '/sport', workout: '/seance' };
+const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine', nas: '/nas', lists: '/listes', phones: '/telephones', faces: '/visages', routines: '/routines', transit: '/transports', holidays: '/vacances', scan: '/scanner', stock: '/stock', sport: '/sport', workout: '/seance' };
 
 export const dashboardPath = (ownerId: string) => `/p/${encodeURIComponent(ownerId)}`;
 

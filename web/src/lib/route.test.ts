@@ -48,3 +48,10 @@ describe('sport de la tablette', () => {
     }
   });
 });
+
+describe('vacances scolaires', () => {
+  it('page de réglage ouverte depuis la roue dentée, avec la page d’où elle part', () => {
+    expect(parseRoute('/vacances')).toEqual({ name: 'holidays', back: { name: 'home' } });
+    expect(routePath({ name: 'holidays', back: { name: 'dashboard', ownerId: 'alex' } })).toBe('/vacances/p/alex');
+  });
+});

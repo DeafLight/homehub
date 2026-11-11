@@ -1,7 +1,8 @@
 // Vacances scolaires : calendrier officiel du ministère de l'Éducation nationale (jeu de données ouvert
 // « fr-en-calendrier-scolaire » sur data.education.gouv.fr, API Opendatasoft, sans clé), pour l'académie ou la zone
-// réglée dans homehub.yaml. Rechargé au plus une fois par jour ; le dernier calendrier reçu est gardé dans le dossier
-// d'état (school-holidays.json) : une panne de l'API, même au redémarrage, laisse les vacances affichées.
+// réglée par la page « Vacances scolaires » (sinon homehub.yaml). Rechargé au plus une fois par jour ; le dernier
+// calendrier reçu est gardé dans le dossier d'état (school-holidays.json) : une panne de l'API, même au redémarrage,
+// laisse les vacances affichées. Aperçu d'un autre réglage (avant d'enregistrer) : en mémoire seulement.
 import { z } from 'zod';
 import { localDay } from '../../shared/dates.ts';
 import { type SchoolHoliday, shiftDay, weekdayOf } from '../../shared/school-holidays.ts';
@@ -22,6 +23,10 @@ const RETRY_MS = 3_600_000;
 /** Périodes demandées : celles qui finissent au plus tôt 30 jours avant aujourd'hui. */
 const PAST_DAYS = 30;
 const STATUS_NAME = 'Vacances scolaires';
+/** Réglages gardés en mémoire pour l'aperçu de la page (un par académie ou zone essayée). */
+const MAX_PREVIEWS = 8;
+/** Aperçu en échec : nouvel essai possible au bout de 5 minutes. */
+const PREVIEW_RETRY_MS = 5 * 60_000;
 
 /**
  * Académies du jeu de données (champ `location`) et leur zone (champ `zones`). Caen et Rouen ont fusionné en
@@ -152,8 +157,13 @@ export function parseHolidays(records: unknown[]): SchoolHoliday[] {
 export type SchoolHolidaySource = {
   /** Périodes connues pour la configuration en cours ; null si les vacances ne sont pas configurées ou jamais reçues. */
   list(): Promise<SchoolHoliday[] | null>;
-  /** Zone du calendrier réglé (« Zone B », « Corse »…) ; null si les vacances ne sont pas configurées. */
-  zone(): string | null;
+  /** Zone du calendrier réglé, ou de `config` (« Zone B », « Corse »…) ; null si les vacances ne sont pas configurées. */
+  zone(config?: HolidaysConfig): string | null;
+  /**
+   * Périodes d'un autre réglage, pour l'aperçu de la page « Vacances scolaires » avant d'enregistrer : gardées en
+   * mémoire un jour (quelques réglages au plus), jamais dans le fichier d'état ; null si l'API ne répond pas.
+   */
+  preview(config: HolidaysConfig): Promise<SchoolHoliday[] | null>;
 };
 
 export type SchoolHolidaysDeps = {
@@ -186,6 +196,7 @@ export function createSchoolHolidaysSource({
 }: SchoolHolidaysDeps): SchoolHolidaySource {
   const file = createJsonFile<Saved | null>({ path, schema: savedSchema.nullable(), initial: () => null, pretty: true });
   let failedAt: { filter: string; at: number } | undefined;
+  const previews = new Map<string, { at: number; holidays: SchoolHoliday[] | null }>();
   let inFlight: Promise<void> | undefined;
 
   async function load(config: HolidaysConfig, filter: string): Promise<void> {
@@ -207,32 +218,57 @@ export function createSchoolHolidaysSource({
     }
   }
 
+  const filterOf = (config: HolidaysConfig) => {
+    const { field, value } = holidaysFilter(config);
+    return `${field}=${value}`;
+  };
+
+  async function list(): Promise<SchoolHoliday[] | null> {
+    const config = settings();
+    if (!config) return null;
+    const filter = filterOf(config);
+    const now = clock().getTime();
+    const saved = await file.read().catch((err) => {
+      logger.error(`${STATUS_NAME} : ${(err as Error).message}`);
+      return null;
+    });
+    const usable = saved?.filter === filter ? saved : null;
+    const fresh = usable && now - Date.parse(usable.fetchedAt) < REFRESH_MS;
+    const waiting = failedAt?.filter === filter && now - failedAt.at < RETRY_MS;
+    if (!fresh && !waiting) {
+      inFlight ??= load(config, filter).finally(() => (inFlight = undefined));
+      // Un calendrier déjà connu reste servi pendant le rechargement ; sinon on attend le premier.
+      if (!usable) await inFlight;
+    }
+    const latest = usable ?? (await file.read().catch(() => null));
+    return latest?.filter === filter ? latest.holidays : null;
+  }
+
+  async function preview(config: HolidaysConfig): Promise<SchoolHoliday[] | null> {
+    const current = settings();
+    const filter = filterOf(config);
+    if (current && filterOf(current) === filter) return list();
+    const now = clock().getTime();
+    const kept = previews.get(filter);
+    if (kept && now - kept.at < (kept.holidays ? REFRESH_MS : PREVIEW_RETRY_MS)) return kept.holidays;
+    let holidays: SchoolHoliday[] | null = null;
+    try {
+      const res = await fetchFn(buildHolidaysUrl(config, localDay(clock())), { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      holidays = parseHolidays(holidaysResponseSchema.parse(await res.json()));
+    } catch (err) {
+      logger.error(`${STATUS_NAME} (aperçu) : ${(err as Error).message}.`);
+    }
+    if (previews.size >= MAX_PREVIEWS) previews.delete(previews.keys().next().value!);
+    previews.set(filter, { at: now, holidays });
+    return holidays;
+  }
+
   return {
-    zone() {
-      const config = settings();
+    zone(config = settings()) {
       return config ? holidaysFilter(config).zone : null;
     },
-
-    async list() {
-      const config = settings();
-      if (!config) return null;
-      const { field, value } = holidaysFilter(config);
-      const filter = `${field}=${value}`;
-      const now = clock().getTime();
-      const saved = await file.read().catch((err) => {
-        logger.error(`${STATUS_NAME} : ${(err as Error).message}`);
-        return null;
-      });
-      const usable = saved?.filter === filter ? saved : null;
-      const fresh = usable && now - Date.parse(usable.fetchedAt) < REFRESH_MS;
-      const waiting = failedAt?.filter === filter && now - failedAt.at < RETRY_MS;
-      if (!fresh && !waiting) {
-        inFlight ??= load(config, filter).finally(() => (inFlight = undefined));
-        // Un calendrier déjà connu reste servi pendant le rechargement ; sinon on attend le premier.
-        if (!usable) await inFlight;
-      }
-      const latest = usable ?? (await file.read().catch(() => null));
-      return latest?.filter === filter ? latest.holidays : null;
-    },
+    list,
+    preview,
   };
 }

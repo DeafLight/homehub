@@ -9,6 +9,7 @@ import { createDashboardApi } from './dashboard-api.ts';
 import { createDevicesApi } from './devices-api.ts';
 import { createFacesApi } from './faces-api.ts';
 import { createFitnessApi } from './fitness-api.ts';
+import { createHolidaysApi } from './holidays-api.ts';
 import { createHousehold } from './household.ts';
 import { createRouter, fail } from './http.ts';
 import { createListsApi } from './lists-api.ts';
@@ -21,6 +22,7 @@ import type { DeviceStore } from './sources/devices.ts';
 import type { ActorSessions, FaceStore } from './sources/faces.ts';
 import type { FitnessStore } from './sources/fitness.ts';
 import type { GtfsSource } from './sources/gtfs.ts';
+import type { HolidaySettingsStore } from './sources/holiday-settings.ts';
 import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
 import type { ProductBase } from './sources/open-food-facts.ts';
@@ -53,6 +55,8 @@ export type AppDeps = {
   /** Page « Transports » ; absents (tests) : page indisponible. */
   transitSettings?: TransitSettingsStore;
   gtfs?: GtfsSource;
+  /** Page « Vacances scolaires » ; absent (tests) : page indisponible. */
+  holidaySettings?: HolidaySettingsStore;
   searchAddress?: (query: string, near?: { lat: number; lon: number }) => Promise<AddressMatch[]>;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
@@ -86,6 +90,7 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createDashboardApi({ ...deps, access }));
   api.route('/', createRoutinesApi({ plans: deps.plans, household, access }));
   api.route('/', createTransitApi({ ...deps, household, access }));
+  api.route('/', createHolidaysApi({ holidaySettings: deps.holidaySettings, access }));
   api.route('/', createTimersApi({ timers: deps.timers, access, clock }));
   api.route('/', createListsApi({ ...deps, household, access }));
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));

@@ -20,6 +20,7 @@ import { createSourceStatus } from './sources/source-status.ts';
 import { buildGtfsIndex, unzip } from './sources/gtfs.ts';
 import { createTimerStore } from './sources/timers.ts';
 import { createTransitSettingsStore } from './sources/transit-settings.ts';
+import { createHolidaySettingsStore } from './sources/holiday-settings.ts';
 import { connectedFrom, fakeSources, fixedClock, GTFS_FILES, NOW, silentLogger, testConfig, zip } from './testing.ts';
 
 function setup(staticRoot?: string, clock = fixedClock) {
@@ -56,6 +57,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
     stock: createStockStore({ path: join(dir, 'stock.json'), clock: fixedClock }),
     fitness: createFitnessStore({ path: join(dir, 'fitness.json'), clock: fixedClock }),
     transitSettings,
+    holidaySettings: createHolidaySettingsStore({ path: join(dir, 'holiday-settings.json'), clock: fixedClock, config }),
     gtfs: { index: async () => index },
     searchAddress,
     clock,
@@ -105,6 +107,34 @@ describe('API', () => {
     const saved = await (await app.request('/api/transit/settings', ...put(body))).json();
     expect(saved).toMatchObject({ saved: true, stops: [{ id: '1MAIR', label: 'Mairie' }] });
     expect(saved.commutes.lea.walkTo).toBe(3);
+  });
+
+  it('vacances scolaires : réglage lu par la tablette, modifié par un parent ; aperçu validé', async () => {
+    const { app, config, put, sessions } = setup();
+    const local = [undefined, connectedFrom('127.0.0.1')] as const;
+    const path = '/api/school/holidays/settings';
+    expect((await app.request(path, undefined, connectedFrom('192.168.1.50'))).status).toBe(403);
+    const initial = await (await app.request(path, ...local)).json();
+    expect(initial).toMatchObject({ choice: null, saved: false });
+    expect(initial.academies).toContainEqual({ name: 'Corse', zone: 'Corse' });
+
+    expect((await app.request(path, ...put({ choice: { zone: 'B' } }))).status).toBe(403); // Alex n'est pas parent
+    config.set(parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def', parent: true }, { id: 'lea', name: 'Léa', color: '#3fb8a8' }] }));
+    expect((await app.request(path, ...put({ choice: { zone: 'B' } }, { actor: null }))).status).toBe(403);
+    expect((await app.request(path, ...put({ choice: { zone: 'B' } }, { actor: sessions.open('lea', 10).token }))).status).toBe(403); // enfant
+    const refused = await app.request(path, ...put({ choice: { academie: 'Atlantide' } }));
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toMatch(/Réglages refusés : académie inconnue/);
+    expect((await app.request(path, ...put({ choice: { zone: 'D' } }))).status).toBe(400);
+    expect(await (await app.request(path, ...put({ choice: { academie: 'orleans-tours' } }))).json()).toMatchObject({ choice: { academie: 'Orléans-Tours' }, saved: true });
+    expect(await (await app.request(path, ...put({ choice: null }))).json()).toMatchObject({ choice: null, saved: true });
+
+    // Aperçu : tablette ou téléphone appairé, académie ou zone valide (service de test sans calendrier).
+    expect((await app.request('/api/school/holidays?zone=B', undefined, connectedFrom('192.168.1.50'))).status).toBe(403);
+    expect((await app.request('/api/school/holidays?zone=D', ...local)).status).toBe(400);
+    expect((await app.request('/api/school/holidays?academie=Atlantide', ...local)).status).toBe(400);
+    expect(await (await app.request('/api/school/holidays?academie=Nantes', ...local)).json()).toEqual({ holiday: null, zone: null, holidays: null });
+    expect((await app.request('/api/school/holidays', undefined, connectedFrom('192.168.1.50'))).status).toBe(200); // lecture ouverte
   });
 
   it('routines : lues par tous, modifiées par un parent seulement', async () => {

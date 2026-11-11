@@ -309,6 +309,20 @@ export type HolidaysData = {
   holidays: SchoolHoliday[] | null;
 };
 
+/** Calendrier choisi pour les vacances : une académie (nom officiel) ou une zone ; null : vacances désactivées. */
+export type HolidayChoice = { academie: string } | { zone: 'A' | 'B' | 'C' } | null;
+
+/** Une académie du calendrier officiel et sa zone (« Zone B », ou le nom du territoire : « Corse », « Réunion »…). */
+export type Academie = { name: string; zone: string };
+
+/** GET /api/school/holidays/settings (page « Vacances scolaires »). */
+export type HolidaySettings = {
+  choice: HolidayChoice;
+  /** false : la page n'a jamais été enregistrée, le choix vient de homehub.yaml. */
+  saved: boolean;
+  academies: Academie[];
+};
+
 export type DashboardData = {
   ownerId: string;
   nextEvent: CalendarEvent | null;

@@ -119,6 +119,8 @@ Reste :
       « reprise lundi 4 janvier » (accueil, dashboards, agenda du téléphone) ; pendant les vacances, ni trajet du matin,
       ni cours, ni devoirs pour ces jours-là, routines sans les étapes des jours d'école et aux heures du week-end
       (0.44).
+- [x] Vacances scolaires réglées depuis la tablette (roue dentée) : académie cherchée dans une liste regroupée par
+      zone, ou zone A, B ou C, ou aucune ; aperçu des prochaines vacances avant d'enregistrer (0.45).
 - [ ] Jours fériés (calendrier officiel) : comme un jour de vacances pour l'école (trajet, cours, routines).
 - [ ] Vie scolaire en lecture seule (ÉcoleDirecte, Pronote) : notes récentes, absences et retards, messages de
       l'établissement, sur le dashboard d'un parent.

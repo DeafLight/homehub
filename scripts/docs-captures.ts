@@ -301,6 +301,8 @@ for (const [name, path] of [
   ['tablette-nas', '/nas'],
 ] as const) await shoot(name, BASE + path, TABLET);
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
+// Réglage des vacances scolaires : académie de Nantes (celle du YAML fictif) et aperçu de ses prochaines vacances.
+await shoot('tablette-vacances-reglages', `${BASE}/vacances`, TABLET);
 // Sport de la tablette, Alex reconnu (pas de caméra sans fenêtre : la session ouverte par son visage fictif est
 // présentée avec chaque requête, comme le ferait la reconnaissance).
 const { token: faceToken } = (await (await fetch(`${BASE}/api/faces/identify`, {

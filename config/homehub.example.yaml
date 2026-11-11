@@ -118,6 +118,8 @@ ui:
 #     - { id: 1ANRO, label: Roseraie, lines: [A] }
 
 # Vacances scolaires (calendrier officiel, data.education.gouv.fr, sans clé). Sans cette section, rien n'est affiché.
+# Valeur par défaut seulement : dès que la page « Vacances scolaires » (roue dentée de la tablette) est enregistrée,
+# son choix (state/holiday-settings.json) prend le pas sur cette section.
 #   academie : l'académie (« Nantes », « Orléans-Tours », « Normandie »… ; Corse et outre-mer : « Corse », « Réunion »…)
 #   zone     : ou bien la zone, A, B ou C (pas les deux)
 # Puce « Vacances de Noël dans 12 jours » 3 semaines avant ; pendant les vacances, ni trajet du matin, ni cours, et

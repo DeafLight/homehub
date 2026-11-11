@@ -5,6 +5,8 @@ import type {
   RouteOption,
   StopChoice,
   TransitSettings,
+  HolidayChoice,
+  HolidaySettings,
   Homework,
   TransitData,
   DashboardData,
@@ -85,6 +87,11 @@ export type Api = {
   saveRoutines(settings: RoutineSettings): Promise<RoutineSettings>;
   /** Page « Transports » : réglages (les enregistrer : un parent), adresses, arrêts, lignes directes. */
   transitSettings(): Promise<TransitSettings>;
+  /** Réglage des vacances scolaires (page « Vacances scolaires ») ; l'enregistrer : un parent. */
+  holidaySettings(): Promise<HolidaySettings>;
+  saveHolidaySettings(choice: HolidayChoice): Promise<HolidaySettings>;
+  /** Vacances d'un réglage pas encore enregistré (aperçu). */
+  previewHolidays(choice: NonNullable<HolidayChoice>): Promise<HolidaysData>;
   saveTransitSettings(settings: Omit<TransitSettings, 'saved'>): Promise<TransitSettings>;
   searchAddresses(query: string): Promise<{ addresses: AddressMatch[] }>;
   searchStops(query: string): Promise<{ stops: StopChoice[] }>;
@@ -211,6 +218,10 @@ export function createApi(
     saveRoutines: (settings) => send('PUT', '/routines', settings),
     transitSettings: () => request('/transit/settings'),
     saveTransitSettings: (settings) => send('PUT', '/transit/settings', settings),
+    holidaySettings: () => request('/school/holidays/settings'),
+    saveHolidaySettings: (choice) => send('PUT', '/school/holidays/settings', { choice }),
+    previewHolidays: (choice) =>
+      request(`/school/holidays?${'academie' in choice ? `academie=${encodeURIComponent(choice.academie)}` : `zone=${choice.zone}`}`),
     searchAddresses: (query) => request(`/transit/addresses?q=${encodeURIComponent(query)}`),
     searchStops: (query) => request(`/transit/stops?q=${encodeURIComponent(query)}`),
     stopsNear: (p) => request(`/transit/stops?near=${p.lat},${p.lon}`),

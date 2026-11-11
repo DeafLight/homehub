@@ -452,11 +452,12 @@ describe('vacances scolaires', () => {
   const NOEL = { name: 'Vacances de Noël', start: '2026-12-19', end: '2027-01-04' };
   const PENDANT = { name: 'Vacances d’essai', start: '2026-10-31', end: '2026-11-09' };
   const holidaySource = (list: (typeof NOEL)[] | 'panne') => ({
-    zone: () => 'Zone B',
+    zone: (config?: { academie?: string; zone?: string }) => (config?.zone ? `Zone ${config.zone}` : 'Zone B'),
     list: async () => {
       if (list === 'panne') throw new Error('API en panne');
       return list;
     },
+    preview: async (config: { zone?: string }) => (config.zone === 'C' ? [PENDANT, NOEL] : null),
   });
   const course = (id: string, day: number) => ({
     id, subject: id, cancelled: false,
@@ -516,6 +517,17 @@ describe('vacances scolaires', () => {
     expect(data?.routine?.items.map((i) => i.label)).toEqual(['Pyjama']);
     expect(data?.homework?.map((h) => h.id)).toEqual(['svt']); // après la reprise seulement
     expect(await svc.setRoutineDone('lea', 'evening-1', true, by)).toBeNull(); // Devoirs : pas pendant les vacances
+  });
+
+  it('aperçu d’un autre réglage : ses périodes et ce qu’on en dirait, sans toucher au réglage en cours', async () => {
+    const { svc } = setup([TOUSSAINT, NOEL]);
+    expect(await svc.holidays({ zone: 'C' })).toEqual({
+      holiday: { kind: 'during', name: 'Vacances d’essai', end: '2026-11-09' },
+      zone: 'Zone C',
+      holidays: [PENDANT, NOEL],
+    });
+    expect(await svc.holidays({ zone: 'A' })).toEqual({ holiday: null, zone: 'Zone A', holidays: null }); // API muette
+    expect((await svc.holidays()).zone).toBe('Zone B');
   });
 
   it('calendrier indisponible : comme sans vacances, l’écran ne casse pas', async () => {

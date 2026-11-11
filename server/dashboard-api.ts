@@ -8,7 +8,9 @@ import type { ConfigStore } from './config-store.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import type { NasService } from './services/nas.ts';
+import { holidayChoiceSchema } from './sources/holiday-settings.ts';
 import type { Clock } from './sources/types.ts';
+import { settingsRefused } from './settings.ts';
 
 export type DashboardApiDeps = {
   config: ConfigStore;
@@ -46,8 +48,19 @@ export function createDashboardApi({ config, service, nas, access, clock, versio
   /** Prochains passages Irigo aux arrêts suivis (accueil, veille). */
   api.get('/transit', async (c) => c.json(await service.transit()));
 
-  /** Vacances scolaires : ce qu'on en dit aujourd'hui, la zone et les périodes à venir (rien de personnel). */
-  api.get('/school/holidays', async (c) => c.json(await service.holidays()));
+  /**
+   * Vacances scolaires : ce qu'on en dit aujourd'hui, la zone et les périodes à venir (rien de personnel). Avec
+   * `?academie=` ou `?zone=` : aperçu d'un autre réglage (page « Vacances scolaires »), réservé à la tablette et aux
+   * téléphones appairés, puisqu'il interroge le calendrier officiel.
+   */
+  api.get('/school/holidays', async (c) => {
+    const { academie, zone } = c.req.query();
+    if (academie === undefined && zone === undefined) return c.json(await service.holidays());
+    await access.trusted(c);
+    const choice = holidayChoiceSchema.safeParse(academie !== undefined ? { academie } : { zone });
+    if (!choice.success) return fail(400, settingsRefused(choice.error));
+    return c.json(await service.holidays(choice.data ?? undefined));
+  });
 
   api.get('/dashboard/:ownerId',async (c) => c.json((await service.dashboard(c.req.param('ownerId'))) ?? fail(404, 'Profil inconnu')));
 

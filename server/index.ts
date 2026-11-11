@@ -27,6 +27,7 @@ import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
 import { createSampleAgenda } from './sources/sample.ts';
+import { createHolidaySettingsStore } from './sources/holiday-settings.ts';
 import { createSchoolHolidaysSource } from './sources/school-holidays.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { searchAddress } from './sources/geocode.ts';
@@ -143,8 +144,11 @@ await transitSettings.load();
 const gtfs = createGtfsSource({ path: join(stateDir, 'irigo-gtfs.zip'), clock, logger: console, status: sourceStatus });
 // Lu en arrière-plan dès le démarrage : la page « Transports » et le trajet du matin en ont besoin.
 void gtfs.index();
+// Réglage de la page « Vacances scolaires », sinon section `holidays` du YAML.
+const holidaySettings = createHolidaySettingsStore({ path: join(stateDir, 'holiday-settings.json'), clock, config });
+await holidaySettings.load();
 const holidays = createSchoolHolidaysSource({
-  settings: () => config.current().holidays,
+  settings: holidaySettings.settings,
   path: join(stateDir, 'school-holidays.json'),
   clock,
   logger: console,
@@ -157,7 +161,7 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, productBase, transitSettings, gtfs, searchAddress, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

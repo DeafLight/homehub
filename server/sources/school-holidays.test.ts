@@ -1,6 +1,6 @@
 // Tests des vacances scolaires : lecture du calendrier officiel (fixture au format réel de l'API), requête, cache d'un
 // jour gardé sur le disque, calendrier précédent conservé en cas de panne.
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +18,7 @@ import { createSourceStatus } from './source-status.ts';
 
 /** Académie de Nantes, juillet 2026 → été 2028 (réponse réelle de l'API, export JSON). */
 const FIXTURE: unknown[] = JSON.parse(readFileSync(new URL('./fixtures/calendrier-scolaire.json', import.meta.url), 'utf8'));
+const readFileOrNull = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null);
 const record = (description: string, population: string, start: string, end: string, annee = '2026-2027') => ({
   description, population, start_date: start, end_date: end, location: 'Guadeloupe', zones: 'Guadeloupe', annee_scolaire: annee,
 });
@@ -183,5 +184,22 @@ describe('calendrier scolaire : cache', () => {
     const other = setup({ zone: 'A' }, nantes.file);
     other.fail(true);
     expect(await other.source.list()).toBeNull();
+  });
+
+  it('aperçu d’un autre réglage : en mémoire seulement, une requête par jour, le réglage en cours passe par le cache', async () => {
+    const t = setup();
+    expect(await t.source.preview({ zone: 'A' })).toHaveLength(13);
+    expect(t.calls[0]).toContain(encodeURIComponent('zones="Zone A"').replace(/%20/g, '+'));
+    await t.source.preview({ zone: 'A' });
+    expect(t.calls).toHaveLength(1);
+    expect(t.source.zone({ academie: 'Corse' })).toBe('Corse');
+    expect(readFileOrNull(t.file)).toBeNull(); // l'aperçu n'écrit rien
+    expect(await t.source.preview({ academie: 'nantes' })).toHaveLength(13); // réglage en cours : list()
+    expect(readFileOrNull(t.file)).toContain('location=Nantes');
+    t.fail(true);
+    expect(await t.source.preview({ zone: 'C' })).toBeNull();
+    expect(t.logger.errors.at(-1)).toMatch(/aperçu/);
+    await t.source.preview({ zone: 'C' });
+    expect(t.calls).toHaveLength(3); // échec gardé 5 minutes
   });
 });

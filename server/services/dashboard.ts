@@ -20,6 +20,7 @@ import { localDay } from '../../shared/dates.ts';
 import { type HolidayStatus, type SchoolHoliday, holidayStatus, isHolidayDay } from '../../shared/school-holidays.ts';
 import type { HolidaysData } from '../../shared/types.ts';
 import type { SchoolHolidaySource } from '../sources/school-holidays.ts';
+import type { HolidaysConfig } from '../config.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { createHousehold } from '../household.ts';
 import type { GtfsSource } from '../sources/gtfs.ts';
@@ -54,8 +55,11 @@ export type DashboardService = {
   homework(ownerId: string): Promise<Homework[] | null>;
   /** Prochains passages aux arrêts suivis (accueil, veille). */
   transit(): Promise<TransitData>;
-  /** Vacances scolaires : ce qu'on en dit aujourd'hui et les périodes à venir. */
-  holidays(): Promise<HolidaysData>;
+  /**
+   * Vacances scolaires : ce qu'on en dit aujourd'hui et les périodes à venir. `preview` : celles d'un autre réglage
+   * (aperçu de la page « Vacances scolaires » avant d'enregistrer).
+   */
+  holidays(preview?: HolidaysConfig): Promise<HolidaysData>;
   /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
   setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
 };
@@ -223,7 +227,13 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       return { weather: currentWeather, profiles, familyHighlight: family?.nextEvent ?? null, holiday: holiday.status };
     },
 
-    async holidays() {
+    async holidays(preview) {
+      if (preview) {
+        const source = deps.holidays;
+        const list = source ? await accessory(logger, 'Vacances scolaires indisponibles', () => source.preview(preview), null) : null;
+        const today = localDay(clock());
+        return { holiday: holidayStatus(list, today), zone: source?.zone(preview) ?? null, holidays: list && list.filter((h) => (h.end ?? h.start) >= today) };
+      }
       const { holidays, today, status } = await holidayToday();
       const configured = deps.holidays?.zone() ?? null;
       return {
