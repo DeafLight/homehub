@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
+import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
@@ -230,6 +230,27 @@ await call(A, 'POST', '/recipes', {
   },
 });
 
+// Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont une sans jour ; deux produits du placard
+// reliés aux ingrédients (lentilles en stock en quantité suffisante, carottes au kilo contre des carottes à la pièce :
+// à vérifier), les coquillettes encore à relier ; les œufs cochés « j'en ai déjà ». « Lait » et « Pâtes » sont déjà
+// sur la liste, écrits à la main : ils l'emportent sur les lignes du menu.
+type Summary = { id: string; title: string };
+const carnet = ((await call(A, 'GET', '/recipes')) as { recipes: Summary[] }).recipes;
+const recipeId = (start: string) => carnet.find((r) => r.title.startsWith(start))!.id;
+const WEEK = '2026-11-02';
+for (const [start, people, day] of [
+  ['Mijoté', 4, '2026-11-05'],
+  ['Riz sauté', 4, '2026-11-06'],
+  ['Galettes', 24, '2026-11-08'],
+  ['Pâtes au thon', 4, null],
+] as const) await call(A, 'POST', '/menu/entries', { week: WEEK, recipeId: recipeId(start), people, day });
+for (const code of Object.values(DOCS_FOOD)) await call(A, 'GET', `/stock/scan/${code}`);
+await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.lentilles, count: 1, price: 2.1 });
+await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.carottes, count: 1, price: 1.6 });
+await call(A, 'PUT', `/menu/links/${DOCS_FOOD.lentilles}`, { link: { key: 'lentille-verte', name: 'lentille verte', per: { quantity: 500, unit: 'g' } } });
+await call(A, 'PUT', `/menu/links/${DOCS_FOOD.carottes}`, { link: { key: 'carotte', name: 'carotte', per: { quantity: 1, unit: 'kg' } } });
+await call(A, 'PUT', '/menu/have', { week: WEEK, key: 'oeuf', have: true });
+
 // DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
 if (process.env.DOCS_SERVE) {
   await call(A, 'DELETE', `/timers/${timer.id}`);
@@ -383,6 +404,18 @@ await shoot('tablette-scanner', `${BASE}/scanner`, TABLET, {
 await shoot('tablette-recettes', `${BASE}/recettes`, TABLET);
 await shoot('tablette-recette', `${BASE}/recette/${galettes.id}`, TABLET);
 await shoot('tablette-recette-cuisine', `${BASE}/recette/${lentilles.id}/cuisine`, TABLET, { after: click('Suivante') });
+// Menu de la semaine : recettes par jour et courses du menu (tablette, téléphone), ajout d'une recette (personnes et
+// jour), et les produits du stock à relier aux ingrédients.
+await shoot('tablette-menu', `${BASE}/menu`, TABLET);
+await shoot('telephone-menu', `${BASE}/m/menu`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-menu-ajout', `${BASE}/m/menu`, PHONE, {
+  init: asPhone('alex'),
+  after: `${click('Recette')}; setTimeout(() => [...document.querySelectorAll('[role=dialog] button')].find((b) => b.textContent.includes('Galettes'))?.click(), 300)`,
+});
+await shoot('telephone-menu-stock', `${BASE}/m/menu`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('à relier'))?.click()`,
+});
 await shoot('telephone-recettes', `${BASE}/m/recettes`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-recette', `${BASE}/m/recette/${lentilles.id}`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-recette-modifier', `${BASE}/m/recette/${galettes.id}/modifier`, PHONE, {

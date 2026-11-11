@@ -47,8 +47,9 @@
     {#if readOnly}
       <span class="muted readonly">Lecture seule sur cet appareil</span>
     {/if}
-    <!-- Stock de la maison : ce qu'on a déjà, avant d'ajouter aux courses. -->
-    <button type="button" class="btn stock-link" onclick={() => navigate(detailPath('stock', router.route))}><Icon name="box" size={24} /> Stock</button>
+    <!-- Menu de la semaine (ses courses arrivent ici) et stock de la maison : ce qu'on a déjà. -->
+    <button type="button" class="btn stock-link" onclick={() => navigate(detailPath('menu', router.route))}><Icon name="calendar" size={24} /> Menu</button>
+    <button type="button" class="btn" onclick={() => navigate(detailPath('stock', router.route))}><Icon name="box" size={24} /> Stock</button>
   </header>
 
   {#if lists.actionError}<p class="error">{lists.actionError}</p>{/if}

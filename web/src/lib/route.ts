@@ -1,14 +1,14 @@
 // Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine, NAS,
 // listes, stock, scanner, téléphones reliés, visages, routines, transports, vacances scolaires, sport et séance guidée,
-// recettes). Une recette : /recette/<id>, /recette/<id>/modifier, /recette/<id>/cuisine (retour : le carnet), et
+// recettes, menu de la semaine). Une recette : /recette/<id>, /recette/<id>/modifier, /recette/<id>/cuisine (retour : le carnet), et
 // /recette/nouvelle. Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots, /m/sport, /m/recettes), son
-// scanner (/m/scanner), son stock (/m/stock), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
+// scanner (/m/scanner), son stock (/m/stock), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
 // /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
-export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones' | 'faces' | 'routines' | 'transit' | 'holidays' | 'scan' | 'stock' | 'sport' | 'workout' | 'recipes';
+export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones' | 'faces' | 'routines' | 'transit' | 'holidays' | 'scan' | 'stock' | 'sport' | 'workout' | 'recipes' | 'menu';
 export type PhoneTab = 'shopping' | 'tasks' | 'agenda' | 'notes' | 'sport' | 'recipes';
 /** Recette ouverte : la fiche, son édition, ou le mode cuisine (tablette). `id` null : nouvelle recette (édition). */
 export type RecipeMode = 'view' | 'edit' | 'cook';
@@ -19,12 +19,13 @@ export type Route =
   | { name: 'pair' }
   | { name: 'phonescan' }
   | { name: 'phonestock' }
+  | { name: 'phonemenu' }
   | { name: 'recipe'; id: string | null; mode: RecipeMode }
   | { name: 'phonerecipe'; id: string | null; mode: Exclude<RecipeMode, 'cook'> }
   | { name: 'share' };
 
 export const HOME_PATH = '/';
-const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine', nas: '/nas', lists: '/listes', phones: '/telephones', faces: '/visages', routines: '/routines', transit: '/transports', holidays: '/vacances', scan: '/scanner', stock: '/stock', sport: '/sport', workout: '/seance', recipes: '/recettes' };
+const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '/semaine', nas: '/nas', lists: '/listes', phones: '/telephones', faces: '/visages', routines: '/routines', transit: '/transports', holidays: '/vacances', scan: '/scanner', stock: '/stock', sport: '/sport', workout: '/seance', recipes: '/recettes', menu: '/menu' };
 
 export const dashboardPath = (ownerId: string) => `/p/${encodeURIComponent(ownerId)}`;
 
@@ -34,6 +35,7 @@ export const PAIR_PATH = '/appairer';
 export const SHARE_PATH = '/partager';
 export const PHONE_SCAN_PATH = '/m/scanner';
 export const PHONE_STOCK_PATH = '/m/stock';
+export const PHONE_MENU_PATH = '/m/menu';
 const NEW_RECIPE = 'nouvelle';
 const RECIPE_SUFFIX: Record<RecipeMode, string> = { view: '', edit: '/modifier', cook: '/cuisine' };
 
@@ -59,6 +61,7 @@ const TRAITS: Partial<Record<Route['name'], RouteTraits>> = {
   share: { phone: true },
   phonescan: { phone: true },
   phonestock: { phone: true },
+  phonemenu: { phone: true },
   phonerecipe: { phone: true },
   recipe: { awake: true },
   scan: { holdsActor: true },
@@ -93,6 +96,7 @@ export function routePath(route: Route): string {
   if (route.name === 'share') return SHARE_PATH;
   if (route.name === 'phonescan') return PHONE_SCAN_PATH;
   if (route.name === 'phonestock') return PHONE_STOCK_PATH;
+  if (route.name === 'phonemenu') return PHONE_MENU_PATH;
   if (route.name === 'recipe') return recipePath(route.id, route.mode);
   if (route.name === 'phonerecipe') return phoneRecipePath(route.id, route.mode);
   const prefix = DETAIL_PREFIXES[route.name];
@@ -125,6 +129,7 @@ export function parseRoute(pathname: string): Route {
   if (path === SHARE_PATH) return { name: 'share' };
   if (path === PHONE_SCAN_PATH) return { name: 'phonescan' };
   if (path === PHONE_STOCK_PATH) return { name: 'phonestock' };
+  if (path === PHONE_MENU_PATH) return { name: 'phonemenu' };
   const recipe = /^(\/m)?\/recette\/([^/]+)(?:\/(modifier|cuisine))?$/u.exec(path);
   if (recipe) {
     const [, phone, rawId, suffix] = recipe;

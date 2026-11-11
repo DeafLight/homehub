@@ -512,9 +512,27 @@ export type ShoppingItem = {
   addedAt: string;
   doneBy?: Author;
   doneAt?: string;
+  /** Ligne venue du menu de la semaine : recalculée quand le menu change, tant qu'elle n'est pas cochée. */
+  menu?: ShoppingMenuMark;
 };
 
-export type Repeat = { every: number; unit: 'day' | 'week' };
+/**
+ * Ce qu'une ligne du menu représente : un ingrédient (clé normalisée) pour une semaine (lundi), la quantité à
+ * acheter par grandeur (voir shared/quantities.ts) et les recettes d'où il vient.
+ */
+export type ShoppingMenuMark = {
+  week: string;
+  key: string;
+  /** Grandeur → quantité dans son unité de base (g, ml, c. à c., ou l'unité elle-même). */
+  quantities: Partial<Record<string, number>>;
+  /** Sans quantité (« persil ») : à acheter quand même. */
+  toTaste: boolean;
+  aisle: string | null;
+  /** Titres des recettes (« Mijoté de lentilles ×2 »). */
+  sources: string[];
+};
+
+export type Repeat ={ every: number; unit: 'day' | 'week' };
 
 /** Tâche de la famille, pour un membre ou pour FAMILY_ID. */
 export type ListTask = {

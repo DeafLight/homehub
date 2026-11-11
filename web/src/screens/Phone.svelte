@@ -26,7 +26,7 @@
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
   import { handoff, searchRecipes, type SharedRecipe } from '../lib/recipes.ts';
-  import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
+  import { PHONE_MENU_PATH, PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
@@ -209,6 +209,7 @@
         {/if}
         <PhoneAgenda weeks={agenda.data} loadError={agenda.error} holiday={holidays.data?.holiday ?? null} meId={me.id} now={clock.now} {profileOf} />
       {:else if tab === 'recipes'}
+        <button type="button" class="stock-link" onclick={() => navigate(PHONE_MENU_PATH)}><Icon name="calendar" size={24} /> Menu de la semaine</button>
         {#if recipes.data}
           {#if recipes.data.recipes.length === 0}
             <p class="muted">Le carnet est vide. Sur une recette (Marmiton, Jow, Cookeo…), touche <strong>Partager</strong> puis <strong>HomeHub</strong>, ou le bouton +.</p>
@@ -227,9 +228,10 @@
         {/if}
       {:else if lists.data}
         {#if tab === 'shopping'}
-          <button type="button" class="stock-link" onclick={() => navigate(PHONE_STOCK_PATH)}>
-            <Icon name="box" size={24} /> Ce qu’il reste à la maison
-          </button>
+          <div class="links">
+            <button type="button" class="stock-link" onclick={() => navigate(PHONE_MENU_PATH)}><Icon name="calendar" size={24} /> Menu</button>
+            <button type="button" class="stock-link" onclick={() => navigate(PHONE_STOCK_PATH)}><Icon name="box" size={24} /> Ce qu’il reste</button>
+          </div>
           <ShoppingPanel
             items={lists.data.shopping}
             frequent={lists.data.frequent}
@@ -378,6 +380,12 @@
   .error {
     margin: 0 0 12px;
     color: var(--danger-fg);
+  }
+
+  .links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   .stock-link {

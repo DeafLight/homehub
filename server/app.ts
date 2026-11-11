@@ -13,6 +13,9 @@ import { createHolidaysApi } from './holidays-api.ts';
 import { createHousehold } from './household.ts';
 import { createRouter, fail } from './http.ts';
 import { createListsApi } from './lists-api.ts';
+import { createMenuApi } from './menu-api.ts';
+import { createMenuService } from './services/menu.ts';
+import type { MenuStore } from './sources/menus.ts';
 import { createPinGate } from './pin-gate.ts';
 import { createRecipesApi, createShareRoute } from './recipes-api.ts';
 import { createShareInbox } from './services/recipe-imports.ts';
@@ -59,6 +62,7 @@ export type AppDeps = {
   stock: StockStore;
   fitness: FitnessStore;
   recipes: RecipeStore;
+  menus: MenuStore;
   /** Lecture des pages de recettes ; absente (tests) : l'import propose la saisie à la main. */
   recipeImporter?: RecipeImporter;
   /** Base de produits (Open Food Facts…) ; absente (tests) : tout code inconnu se saisit à la main. */
@@ -97,13 +101,22 @@ export function createApp(deps: AppDeps): Hono {
     clock,
   });
 
+  const menu = createMenuService({ menus: deps.menus, recipes: deps.recipes, stock: deps.stock, lists: deps.lists, clock });
+
   const api = createRouter();
+  // Le stock ou une recette a changé (scan, notre version modifiée, recette retirée) : la liste suit le menu.
+  api.use('*', async (c, next) => {
+    await next();
+    if (c.req.method === 'GET' || c.res.status >= 400 || !/^\/api\/(stock|recipes)(\/|$)/u.test(c.req.path)) return;
+    await menu.sync({ ownerId: null, via: 'tablet' }).catch((err: unknown) => console.error('Synchronisation du menu :', err));
+  });
   api.route('/', createDashboardApi({ ...deps, access }));
   api.route('/', createRoutinesApi({ plans: deps.plans, household, access }));
   api.route('/', createTransitApi({ ...deps, household, access }));
   api.route('/', createHolidaysApi({ holidaySettings: deps.holidaySettings, access }));
   api.route('/', createTimersApi({ timers: deps.timers, access, clock }));
-  api.route('/', createListsApi({ ...deps, household, access }));
+  api.route('/', createListsApi({ ...deps, household, access, menu }));
+  api.route('/', createMenuApi({ menus: deps.menus, service: menu, recipes: deps.recipes, access, clock }));
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));

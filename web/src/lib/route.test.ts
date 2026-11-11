@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_STOCK_PATH, allowsScreensaver, holdsActor, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
+import { PHONE_MENU_PATH, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
 
 describe('stock du téléphone', () => {
   it('a sa propre adresse, aller et retour', () => {
@@ -10,6 +10,17 @@ describe('stock du téléphone', () => {
   it('compte comme une page du téléphone, à la différence du stock de la tablette', () => {
     expect(isPhoneRoute(parseRoute('/m/stock'))).toBe(true);
     expect(isPhoneRoute(parseRoute('/stock'))).toBe(false);
+  });
+});
+
+describe('menu de la semaine', () => {
+  it('a sa page sur la tablette (avec son retour) et sur le téléphone', () => {
+    expect(parseRoute('/menu')).toEqual({ name: 'menu', back: { name: 'home' } });
+    expect(parseRoute('/menu/p/alex')).toEqual({ name: 'menu', back: { name: 'dashboard', ownerId: 'alex' } });
+    expect(parseRoute(PHONE_MENU_PATH)).toEqual({ name: 'phonemenu' });
+    expect(routePath({ name: 'phonemenu' })).toBe('/m/menu');
+    expect(isPhoneRoute(parseRoute('/m/menu'))).toBe(true);
+    expect(returnsHomeWhenIdle(parseRoute('/menu'))).toBe(true);
   });
 });
 

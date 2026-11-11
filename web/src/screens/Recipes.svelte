@@ -8,15 +8,15 @@
   import { getAppContext } from '../lib/context.ts';
   import { handoff, searchRecipes } from '../lib/recipes.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { type PageRoute, recipePath } from '../lib/route.ts';
+  import { type PageRoute, detailPath, recipePath } from '../lib/route.ts';
 
   // Carnet de recettes sur la tablette : recherche, filtre Cookeo, cartes ; importer un lien (le plus souvent, on
   // partage depuis le téléphone), coller le texte d'une page ou envoyer une page enregistrée (site qui refuse la
-  // lecture), ou saisir une recette à la main. Importer demande quelqu'un de reconnu.
+  // lecture), ou saisir une recette à la main. Importer demande quelqu'un de reconnu. « Menu » : le menu de la semaine.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
-  const { api, actor, navigate } = getAppContext();
+  const { api, actor, navigate, router } = getAppContext();
   const list = createResource(() => api.recipes(), 60_000);
   onDestroy(() => list.destroy());
 
@@ -52,6 +52,7 @@
     {#if hasCookeo}
       <button type="button" class="btn" class:on={cookeo} aria-pressed={cookeo} onclick={() => (cookeo = !cookeo)}>Cookeo</button>
     {/if}
+    <button type="button" class="btn" onclick={() => navigate(detailPath('menu', router.route))}><Icon name="calendar" size={24} /> Menu</button>
     <button type="button" class="btn primary" onclick={openImport}><Icon name="plus" size={24} /> Ajouter</button>
   </header>
 

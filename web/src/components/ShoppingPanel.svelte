@@ -2,9 +2,11 @@
   import type { ShoppingItem } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
   import { revert } from '../lib/checkbox.ts';
+  import { byAisle, itemAisle } from '../lib/menu.ts';
 
-  // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter puis « dans le panier » jusqu'à
-  // ce qu'on le vide. Tailles réglables par le parent (--list-font, --list-row) : tablette ou téléphone.
+  // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter (rangés par rayon) puis « dans le
+  // panier » jusqu'à ce qu'on le vide. Les lignes du menu de la semaine portent le livre et leurs recettes ; elles
+  // suivent le menu tant qu'elles ne sont pas cochées. Tailles réglables par le parent (--list-font, --list-row).
   type Props = {
     items: ShoppingItem[];
     frequent: string[];
@@ -17,6 +19,7 @@
   let { items, frequent, readOnly = false, onAdd, onToggle, onRemove, onClear }: Props = $props();
 
   const toBuy = $derived(items.filter((i) => !i.done));
+  const aisles = $derived(byAisle(toBuy, itemAisle));
   const basket = $derived(items.filter((i) => i.done));
 
   let label = $state('');
@@ -54,13 +57,16 @@
     </div>
   {/if}
 
-  <ul class="items">
-    {#each toBuy as item (item.id)}
-      {@render row(item)}
-    {:else}
-      <li class="empty">Rien à acheter.</li>
-    {/each}
-  </ul>
+  {#each aisles as group (group.aisle)}
+    {#if aisles.length > 1}<h3 class="aisle">{group.aisle}</h3>{/if}
+    <ul class="items">
+      {#each group.items as item (item.id)}
+        {@render row(item)}
+      {/each}
+    </ul>
+  {:else}
+    <p class="empty">Rien à acheter.</p>
+  {/each}
 
   {#if basket.length > 0}
     <div class="basket-head">
@@ -79,7 +85,13 @@
   <li>
     <label class:done={item.done}>
       <input type="checkbox" checked={item.done} disabled={readOnly} onchange={(e) => onToggle(item, revert(e.currentTarget, item.done))} />
-      <span class="label">{item.label}</span>
+      <span class="label">
+        {item.label}
+        {#if item.menu}
+          <span class="menu" title="Menu de la semaine"><Icon name="book" size={18} /></span>
+          <span class="sources">{item.menu.sources.join(', ')}</span>
+        {/if}
+      </span>
     </label>
     {#if !readOnly}
       <button type="button" class="remove" aria-label="Retirer {item.label}" onclick={() => onRemove(item)}>
@@ -188,6 +200,26 @@
     overflow-wrap: anywhere;
   }
 
+  .menu {
+    display: inline-flex;
+    vertical-align: -2px;
+    margin-left: 4px;
+    color: var(--rain-soft);
+  }
+
+  .sources {
+    display: block;
+    font-size: 0.8em;
+    color: var(--fg-muted);
+  }
+
+  .aisle {
+    margin: 4px 0 -8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
   label.done {
     color: var(--fg-muted);
     text-decoration: line-through;
@@ -218,6 +250,7 @@
   }
 
   .empty {
+    margin: 0;
     min-height: var(--list-row, 58px);
     font-size: var(--list-font, 1.3rem);
     color: var(--fg-muted);

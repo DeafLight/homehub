@@ -71,11 +71,28 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   (« 15 minutes », « 1 h 30 »). **Mode cuisine** (tablette) : une étape à la fois en grand, l'écran reste allumé, pas
   de retour à l'accueil. Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
   ou qui a ajouté la recette ; retirer : un parent.
+- **Menu de la semaine** (`/menu` sur la tablette, depuis Recettes ou Listes ; `/m/menu` sur le téléphone, depuis les
+  onglets Courses et Recettes) : des recettes du carnet (notre version), chacune pour un nombre de personnes (par
+  défaut ses portions) et un jour, ou « dans la semaine » ; une recette peut revenir plusieurs fois. Semaines
+  suivantes préparées à l'avance (4 au plus), semaines passées en lecture (12 gardées). Modifier : un parent ; les
+  enfants le voient. **Courses du menu** : les ingrédients mis à l'échelle des personnes, regroupés par ingrédient
+  (unités converties : g / kg, ml / cl / l, c. à c. / c. à s., pièces ; des unités qui ne se comparent pas restent côte
+  à côte, « 2 + 100 g »), rangés par rayon, avec les recettes d'où ils viennent. Ils rejoignent la liste de courses,
+  marqués d'un livre : une ligne du menu suit le menu (mise à jour, retirée quand il n'y a plus rien à acheter), une
+  ligne cochée ou vidée compte comme achetée et n'est jamais touchée (seul le complément revient, sur une nouvelle
+  ligne), une ligne ajoutée à la main pour le même ingrédient l'emporte, et retirer une ligne du menu vaut « j'en ai
+  déjà » pour la semaine. **J'en ai déjà** : les placards (sel, poivre, huile, eau ; liste modifiable) ne sont jamais
+  demandés ; « J'en ai déjà » se coche par ingrédient et par semaine ; d'après le **stock**, un produit relié à un
+  ingrédient (deviné par les mots du nom et la contenance, confirmé une fois puis retenu par produit, « Changer »,
+  « Pas un ingrédient ») retire la ligne quand il y en a assez (« en stock (1 kg) »), ne demande que la différence
+  sinon, et le signale sans trancher quand les unités ne se comparent pas (« 1 oignon » contre « 1 kg »). Le stock
+  n'est jamais décompté quand on cuisine.
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
   points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
 - **Listes** (`/listes`) : courses et tâches de la famille, ouvertes depuis « Mes tâches » ou « Liste de courses ».
-  Courses : saisie rapide, articles fréquents en un geste, articles cochés « dans le panier » jusqu'à « Vider ».
+  Courses : saisie rapide, articles fréquents en un geste, articles cochés « dans le panier » jusqu'à « Vider » ;
+  à acheter rangé par rayon, les lignes du menu de la semaine marquées avec leurs recettes.
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
   personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
@@ -86,7 +103,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches` (avec, en tête, la
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`
-  (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
+  (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`, `/m/menu`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste) ;
   un texte copié d'une recette ou une page enregistrée (`.mhtml`), l'aperçu de l'import. Un téléphone retiré depuis la tablette perd l'accès aussitôt.
   La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
@@ -368,7 +385,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), menus de la semaine, « j'en ai déjà », placards et produits reliés aux ingrédients (`menus.json`), réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -415,6 +432,9 @@ server/
   services/recipes.ts      import d'une recette (page, photo) et nettoyage d'une version modifiée
   services/recipe-imports.ts  texte collé et page enregistrée : aperçus en attente, boîte des fichiers partagés
   recipes-api.ts           routes du carnet de recettes
+  sources/menus.ts         menus de la semaine (menus.json) : recettes et personnes, « j'en ai déjà », placards, produits reliés
+  services/menu.ts         courses du menu : besoins, déductions (placards, stock…), synchronisation avec la liste de courses
+  menu-api.ts              routes du menu de la semaine
   sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
   access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
   lists-api.ts             routes des listes, de l'appairage et des téléphones
@@ -423,6 +443,9 @@ shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
 shared/recipes.ts          recettes : types, limites, durées des étapes, portions, temps
+shared/quantities.ts       quantités par dimension (masse, volume, cuillères, pièces) : somme, différence, affichage, contenance d'un paquet
+shared/menu.ts             menu de la semaine : semaines, besoins agrégés, déductions, règle de synchronisation des courses
+shared/stock-link.ts       produit du stock → ingrédient deviné (mots du nom, rayon, contenance)
 shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
@@ -497,6 +520,11 @@ web/src/
 | `POST /api/recipes` | `{ content, url?, pending? }` : recette saisie à la main (avec le lien d'une page illisible), ou l'aperçu `pending` corrigé (sa source et sa photo sont reprises) |
 | `POST /api/recipes/:id/reread` | relit la page d'origine → `{ recipe, updated, kept }` : les parties (titre, portions, ingrédients, étapes, temps, appareil) que notre version n'avait pas modifiées sont reprises, les autres gardées ; un parent ou qui l'a ajoutée ; 422 si la page n'a plus de recette lisible |
 | `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent |
+| `GET /api/menu?week=<lundi>` | menu d'une semaine (par défaut la semaine en cours) : `{ week, current, editable, entries, plan, pantry, stock, ingredients }` ; `plan` : chaque ingrédient, ce qu'il faut, ce qui en est déduit et pourquoi (`buy`, `pantry`, `have`, `manual`, `bought`, `stock`) |
+| `POST /api/menu/entries`, `PUT`/`DELETE …/entries/:id` | `{ week, recipeId, people, day }` ; modification `{ people, day }` ; un parent ; semaines passées ou trop lointaines refusées ; la liste de courses suit |
+| `PUT /api/menu/have` | `{ week, key, have }` : « j'en ai déjà » pour un ingrédient, cette semaine ; un parent |
+| `PUT /api/menu/pantry` | `{ names }` : les placards, jamais demandés ; un parent |
+| `PUT /api/menu/links/:code`, `DELETE …/links/:code` | `{ link }` : produit du stock relié à un ingrédient (`{ key, name, per }`, `null` : pas un ingrédient) ; retrait : redevient une proposition ; un parent |
 | `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |
 | `POST /api/fitness/sessions`, `DELETE /api/fitness/sessions/:id` | séance terminée `{ session, rpe, stopped, note, exercises: [{ family, rating, pain, reps, note }] }`, ou retirée |
 | `PUT /api/fitness/weeks/:lundi` | `{ cardio, waist }` de la semaine |

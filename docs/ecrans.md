@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.50.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.51.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -87,9 +87,20 @@ Conditions actuelles en grand (seule carte sans étiquette), vent, humidité, so
 
 ### Listes
 
-Courses et tâches de la famille ; tâches en retard en rouge, tâches qui reviennent.
+Courses et tâches de la famille ; tâches en retard en rouge, tâches qui reviennent. Les courses à acheter sont rangées
+par rayon ; une ligne du menu de la semaine porte un livre et ses recettes d'origine.
 
 ![Listes](images/tablette-listes.png)
+
+### Menu de la semaine
+
+Depuis Recettes ou Listes. À gauche les recettes de la semaine, jour par jour puis « dans la semaine », le nombre de
+personnes se règle d'un geste ; à droite les **courses du menu**, rangées par rayon : quantités mises à l'échelle et
+regroupées entre recettes, recettes d'origine sous chaque ligne. Ce qui n'est pas à acheter est dit : placards (sel,
+huile…), « j'en ai déjà » coché, « en stock (500 g) » d'après un produit relié, ou seulement la différence. Le bouton
+« … à relier » ouvre les produits du stock à relier aux ingrédients.
+
+![Menu de la semaine](images/tablette-menu.png)
 
 ### Stock
 
@@ -259,6 +270,16 @@ publicité, « Vous aimerez aussi », commentaires) partagé vers HomeHub : l'ap
 | Site qui refuse | Aperçu d'un texte collé |
 |---|---|
 | ![Site qui refuse la lecture](images/telephone-recette-refus.png) | ![Aperçu d'un texte collé](images/telephone-recette-texte.png) |
+
+### Menu du téléphone
+
+Depuis les onglets Courses et Recettes : le menu en une colonne, puis ses courses. Un parent ajoute une recette (nombre
+de personnes, jour) ou la règle ; un enfant le voit sans le modifier. « Stock » propose de relier un produit à un
+ingrédient : deviné d'après le nom et la contenance, confirmé une fois, puis retenu.
+
+| Menu | Ajouter une recette | Stock et ingrédients |
+|---|---|---|
+| ![Menu](images/telephone-menu.png) | ![Ajouter une recette](images/telephone-menu-ajout.png) | ![Stock et ingrédients](images/telephone-menu-stock.png) |
 
 ## Non capturés
 

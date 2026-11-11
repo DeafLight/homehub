@@ -21,6 +21,7 @@
   import Transit from './screens/Transit.svelte';
   import Home from './screens/Home.svelte';
   import Lists from './screens/Lists.svelte';
+  import Menu from './screens/Menu.svelte';
   import Nas from './screens/Nas.svelte';
   import Pair from './screens/Pair.svelte';
   import Phone from './screens/Phone.svelte';
@@ -88,6 +89,10 @@
   <Workout back={router.route.back} />
 {:else if router.route.name === 'recipes'}
   <Recipes back={router.route.back} />
+{:else if router.route.name === 'menu'}
+  <Menu back={router.route.back} />
+{:else if router.route.name === 'phonemenu'}
+  <Menu back={null} />
 {:else if router.route.name === 'recipe'}
   {#key router.route.id}
     <Recipe id={router.route.id} mode={router.route.mode} />

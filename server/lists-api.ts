@@ -1,6 +1,7 @@
 // Routes des listes (courses, tâches) et des mots. Lecture ouverte comme le reste de l'API ; écriture : téléphones
 // appairés (pour leur profil) et tablette (pour la personne reconnue), un parent partout (famille comprise), un enfant
-// sur son profil seulement.
+// sur son profil seulement. Les lignes du menu de la semaine arrivent d'elles-mêmes sur la liste de courses
+// (services/menu.ts) ; en retirer une à la main vaut « j'en ai déjà » pour sa semaine.
 import { z } from 'zod';
 import { FAMILY_ID } from '../shared/types.ts';
 import type { Access } from './access.ts';
@@ -8,12 +9,15 @@ import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { LABEL_MAX, type ListsStore } from './sources/lists.ts';
 import { NOTE_MAX, type NotesStore } from './sources/notes.ts';
+import type { MenuService } from './services/menu.ts';
 
 export type ListsApiDeps = {
   household: Household;
   lists: ListsStore;
   notes: NotesStore;
   access: Access;
+  /** Menu de la semaine : la liste suit le menu (absent : liste seule). */
+  menu?: MenuService;
 };
 
 const label = z.string().trim().min(1).max(LABEL_MAX);
@@ -31,13 +35,17 @@ const taskSchema = z.object({
 /** `from` : profil ouvert sur la tablette (sur un téléphone, son profil, quoi qu'il annonce). */
 const noteSchema = z.object({ to: z.string(), from: z.string().nullish(), text: z.string().trim().min(1).max(NOTE_MAX) });
 
-export function createListsApi({ household, lists, notes, access }: ListsApiDeps) {
+export function createListsApi({ household, lists, notes, access, menu }: ListsApiDeps) {
   const api = createRouter();
 
   /** Profil d'une tâche des listes ; tâche inconnue : 404. */
   const taskOwner = async (id: string) => (await lists.lists()).tasks.find((t) => t.id === id)?.ownerId ?? fail(404, 'Tâche inconnue');
 
-  api.get('/lists', async (c) => c.json(await lists.lists()));
+  api.get('/lists', async (c) => {
+    // Nouvelle semaine : les lignes du menu de la semaine passée laissent la place à celles de la nouvelle.
+    await menu?.refreshIfNewWeek();
+    return c.json(await lists.lists());
+  });
 
   api.post('/lists/shopping', async (c) => {
     const input = await readBody(c, shoppingSchema, 'Corps attendu : { "label": "…" }');
@@ -52,8 +60,11 @@ export function createListsApi({ household, lists, notes, access }: ListsApiDeps
   });
 
   api.delete('/lists/shopping/:id', async (c) => {
-    await access.writer(c, FAMILY_ID);
-    return (await lists.removeShopping(c.req.param('id'))) ? c.body(null, 204) : fail(404, 'Article inconnu');
+    const author = await access.writer(c, FAMILY_ID);
+    const removed = (await lists.removeShopping(c.req.param('id'))) ?? fail(404, 'Article inconnu');
+    // Une ligne du menu retirée à la main ne revient pas : « j'en ai déjà » pour sa semaine.
+    await menu?.lineRemoved(removed, author);
+    return c.body(null, 204);
   });
 
   api.post('/lists/shopping/clear', async (c) => {

@@ -49,6 +49,7 @@ import type {
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
+import type { MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
 import type { ImportPreview, ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
 /**
@@ -197,6 +198,18 @@ export type Api = {
   removeRecipe(id: string): Promise<void>;
   /** Adresse de la photo gardée (pour une balise img). */
   recipePhotoUrl(id: string): string;
+  /** Menu d'une semaine (son lundi ; absent : la semaine en cours), avec ses courses calculées. */
+  menu(week?: string): Promise<MenuView>;
+  /** Modifier le menu, les coches, les placards, les liens du stock : un parent. */
+  addMenuEntry(week: string, recipeId: string, people?: number, day?: string | null): Promise<MenuEntry>;
+  updateMenuEntry(id: string, change: { people?: number; day?: string | null }): Promise<MenuEntry>;
+  removeMenuEntry(id: string): Promise<void>;
+  setMenuHave(week: string, key: string, have: boolean): Promise<void>;
+  setPantry(names: string[]): Promise<{ names: string[] }>;
+  /** Relier un produit du stock à un ingrédient, ou `null` : « pas un ingrédient ». */
+  setStockLink(code: string, link: StockLink | null): Promise<void>;
+  /** Oublier la décision : le produit est de nouveau proposé. */
+  forgetStockLink(code: string): Promise<void>;
 };
 
 export type Credentials = { token?: string | null; kioskKey?: string | null; actor?: string | null };
@@ -328,6 +341,14 @@ export function createApi(
     saveRecipe: (id, content) => send('PUT', `/recipes/${encodeURIComponent(id)}`, { content }),
     rereadRecipe: (id) => send('POST', `/recipes/${encodeURIComponent(id)}/reread`),
     removeRecipe: (id) => send('DELETE', `/recipes/${encodeURIComponent(id)}`),
+    menu: (week) => request(week ? `/menu?week=${week}` : '/menu'),
+    addMenuEntry: (week, recipeId, people, day = null) => send('POST', '/menu/entries', { week, recipeId, people, day }),
+    updateMenuEntry: (id, change) => send('PUT', `/menu/entries/${encodeURIComponent(id)}`, change),
+    removeMenuEntry: (id) => send('DELETE', `/menu/entries/${encodeURIComponent(id)}`),
+    setMenuHave: (week, key, have) => send('PUT', '/menu/have', { week, key, have }),
+    setPantry: (names) => send('PUT', '/menu/pantry', { names }),
+    setStockLink: (code, link) => send('PUT', `/menu/links/${encodeURIComponent(code)}`, { link }),
+    forgetStockLink: (code) => send('DELETE', `/menu/links/${encodeURIComponent(code)}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };
 }

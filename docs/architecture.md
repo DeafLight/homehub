@@ -68,10 +68,11 @@ flowchart TB
     stockS["services/stock.ts<br/>scan, entrées, sorties, courses"]
     nasS["services/nas.ts<br/>page NAS"]
     recipesS["services/recipes.ts<br/>import d'une recette, notre version"]
+    menuS["services/menu.ts<br/>courses du menu, synchronisées avec la liste"]
   end
   subgraph sources["Sources (server/sources/)"]
     distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock),<br/>web-page + recipe-page (sans cache : copie dans recipes)"]
-    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness, recipes"]
+    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness, recipes, menus"]
     cache["refreshing-cache.ts<br/>rafraîchit, garde la dernière valeur"]
     status["source-status.ts<br/>dernier succès ou erreur"]
   end
@@ -252,6 +253,7 @@ classDiagram
 | `timers.json` | minuteurs en cours |
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
+| `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », placards, produits du stock reliés aux ingrédients |
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
 | `faces.json` | empreintes de visage (aucune image) |
@@ -287,6 +289,16 @@ ajoutée ; retirer : un parent. La lecture d'une page (`sources/web-page.ts`) n'
 adresse publique (vérifiée après résolution DNS, et de nouveau à chaque redirection, quatre au plus), 3 Mo et 10 s au
 plus ; `recipes.allowedHosts` autorise nommément un site de la maison. Limite connue : un nom qui change d'adresse
 entre la vérification et la connexion (rebinding DNS) n'est pas couvert.
+
+Le **menu de la semaine** : tout le monde le lit, seul un parent le modifie (recettes, « j'en ai déjà », placards,
+produits reliés), sur la tablette (parent reconnu) ou depuis son téléphone. Ses courses rejoignent `lists.json` par
+une règle de synchronisation (`shared/menu.ts`) appliquée après chaque changement du menu, du stock ou du carnet, et
+au premier affichage d'une nouvelle semaine : une ligne ouverte marquée `menu` suit le calcul (mise à jour ou
+retirée) ; une ligne cochée, ou vidée (gardée dans `cleared` pour sa semaine), compte comme achetée et n'est jamais
+touchée, seul le complément revient sur une nouvelle ligne ; une ligne ajoutée à la main pour le même ingrédient
+l'emporte ; retirer une ligne du menu vaut « j'en ai déjà » pour sa semaine. Ce qu'il faut est déduit dans cet ordre :
+placards, « j'en ai déjà », ligne à la main, déjà acheté, puis stock (partagé entre les semaines, la plus proche
+d'abord). Le stock n'est jamais décompté quand on cuisine.
 
 **Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
 si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe

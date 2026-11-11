@@ -31,12 +31,17 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [x] Notre version : chaque recette importée se personnalise (portions par défaut, ingrédients, quantités, étapes,
       astuces) ; c'est elle qui sert ensuite, la source restant consultable.
 - [ ] Notes et commentaires de chaque membre sur une recette ; un commentaire peut être résolu.
-- [ ] Menu de la semaine : choisir des recettes et le nombre de personnes pour chacune.
-- [ ] Liste de courses **agrégée et cohérente** : quantités mises à l'échelle des portions, même ingrédient
+- [x] Menu de la semaine (0.51.0) : choisir des recettes et le nombre de personnes pour chacune.
+- [x] Liste de courses **agrégée et cohérente** (0.51.0) : quantités mises à l'échelle des portions, même ingrédient
       regroupé entre recettes (unités converties : g / kg, cl / l, cuillères, « 1 oignon »), rangée par rayon ;
       « j'en ai déjà » pour les placards (sel, huile…), d'après le stock (voir « Stock de la maison ») ; on voit de
       quelles recettes vient chaque ligne. Elle rejoint la liste de courses actuelle, avec les produits hors recettes
       (lessive…).
+- [ ] Suites du menu : catégories Open Food Facts pour deviner un produit relié (seuls le nom, le rayon choisi et la
+      contenance servent) ; « brique de crème fraîche » rangée en Autres (unité « brique » à reconnaître) ; capture
+      d'une semaine passée.
+- [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (jamais d'office aujourd'hui :
+      à proposer, ingrédient par ingrédient, et annulable).
 - [ ] Secondaire, si possible : envoyer la liste au panier d'un drive (enseigne à définir, type Hyper U) depuis la
       tablette ; ce que le drive n'a pas reste dans la liste classique. HomeHub remplit le panier ; la commande et
       le paiement se valident chez l'enseigne.
@@ -91,10 +96,10 @@ Reste :
 - [ ] Vérifier sur la tablette et un téléphone : lecture en continu, bip (son autorisé par Fully Kiosk ?), « Retire le
       produit » au bon moment, distance de lecture des petits codes (EAN-8), étiquette imprimée bien lue.
 - [x] Inventaire consultable depuis le téléphone (page Stock de la PWA, `/m/stock`, 0.35.0 ; sans date ni auteur, 0.35.1).
-- [ ] « J'en ai déjà » des recettes, d'après le stock.
+- [x] « J'en ai déjà » des recettes, d'après le stock (menu de la semaine, 0.51.0).
 - [ ] Plus tard, en option : renvoyer une correction à Open Food Facts avec le compte de l'utilisateur, seulement à
       sa demande.
-- [ ] À étudier : relier un produit scanné à un ingrédient de recette (« Lardons fumés
+- [x] Relier un produit scanné à un ingrédient de recette (0.51.0, deviné puis confirmé une fois) (« Lardons fumés
       Herta 2×75 g » → lardons, 150 g).
 
 ### Prix (suite du stock)

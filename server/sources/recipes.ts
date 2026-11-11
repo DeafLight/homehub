@@ -70,6 +70,8 @@ export type RecipeStore = {
   /** Le carnet, des plus récentes aux plus anciennes. */
   list(): Promise<RecipeSummary[]>;
   get(id: string): Promise<Recipe | null>;
+  /** Toutes les recettes, en entier (menu de la semaine, ingrédients connus). */
+  all(): Promise<Recipe[]>;
   /** Recette déjà importée depuis cette page (adresse sans fragment ni paramètres de suivi). */
   findBySource(url: string): Promise<Recipe | null>;
   add(recipe: NewRecipe, by: Author): Promise<Recipe>;
@@ -123,6 +125,10 @@ export function createRecipeStore({ path, photosDir, clock }: { path: string; ph
     async list() {
       const { recipes } = await state.read();
       return [...recipes].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).map(summary);
+    },
+
+    async all() {
+      return (await state.read()).recipes.map(publicRecipe);
     },
 
     async get(id) {

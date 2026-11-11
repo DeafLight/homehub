@@ -4,9 +4,10 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { localDay } from '../../shared/dates.ts';
-import type { Author, Lists, ListTask, NewTask, Repeat, ShoppingItem, Task } from '../../shared/types.ts';
+import { type SyncOps, weekOf } from '../../shared/menu.ts';
+import type { Author, Lists, ListTask, NewTask, Repeat, ShoppingItem, ShoppingMenuMark, Task } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
-import { authorSchema } from './schemas.ts';
+import { authorSchema, sameShape } from './schemas.ts';
 import type { Clock, TaskSource } from './types.ts';
 
 /** Une tâche faite reste affichée jusqu'à la fin du jour ; elle est oubliée au bout de ce délai. */
@@ -15,6 +16,15 @@ const FREQUENT_LIMIT = 8;
 export const LABEL_MAX = 120;
 
 const repeatSchema = z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['day', 'week']) });
+const menuMarkSchema = z.object({
+  week: z.string(),
+  key: z.string(),
+  quantities: z.partialRecord(z.string(), z.number()),
+  toTaste: z.boolean(),
+  aisle: z.string().nullable(),
+  sources: z.array(z.string()),
+});
+sameShape<z.infer<typeof menuMarkSchema>, ShoppingMenuMark>(true);
 
 const fileSchema = z.object({
   version: z.literal(1),
@@ -27,8 +37,11 @@ const fileSchema = z.object({
       addedAt: z.string(),
       doneBy: authorSchema.optional(),
       doneAt: z.string().optional(),
+      menu: menuMarkSchema.optional(),
     }),
   ),
+  /** Lignes du menu vidées du panier : achetées pour leur semaine (elles ne reviennent pas sur la liste). */
+  cleared: z.array(menuMarkSchema).default([]),
   tasks: z.array(
     z.object({
       id: z.string(),
@@ -57,9 +70,18 @@ export type ListsStore = {
   lists(): Promise<Lists>;
   addShopping(label: string, by: Author): Promise<ShoppingItem>;
   setShoppingDone(id: string, done: boolean, by: Author): Promise<ShoppingItem | null>;
-  removeShopping(id: string): Promise<boolean>;
-  /** Retire les articles cochés (« Vider le panier »). */
+  /** L'article retiré, ou null s'il n'existait pas. */
+  removeShopping(id: string): Promise<ShoppingItem | null>;
+  /** Retire les articles cochés (« Vider le panier ») ; les lignes du menu restent comptées comme achetées. */
   clearShopping(): Promise<void>;
+  /**
+   * Fait suivre le menu à la liste : `plan` reçoit les articles et les lignes du menu déjà vidées du panier, et
+   * renvoie ce qu'il faut changer (shared/menu.ts, syncOps), appliqué dans la même écriture. Renvoie le nombre de
+   * changements.
+   */
+  /** Lignes du menu vidées du panier, encore comptées comme achetées pour leur semaine. */
+  cleared(): Promise<ShoppingMenuMark[]>;
+  syncMenu(plan: (shopping: readonly ShoppingItem[], cleared: readonly ShoppingMenuMark[]) => SyncOps, by: Author): Promise<number>;
   addTask(task: NewTask, by: Author): Promise<ListTask>;
   setTaskDone(id: string, done: boolean, by: Author): Promise<ListTask | null>;
   removeTask(id: string): Promise<boolean>;
@@ -95,10 +117,13 @@ export function createListsStore({ path, clock }: { path: string; clock: Clock }
   const state = createJsonFile<ListsFile>({
     path,
     schema: fileSchema,
-    initial: () => ({ version: 1, shopping: [], tasks: [], history: {} }),
+    initial: () => ({ version: 1, shopping: [], cleared: [], tasks: [], history: {} }),
     beforeSave(draft) {
       const limit = clock().getTime() - DONE_TASKS_KEPT_DAYS * 86_400_000;
       draft.tasks = draft.tasks.filter((t) => !t.done || !t.doneAt || new Date(t.doneAt).getTime() > limit);
+      // Achats d'une semaine passée : plus rien à décompter.
+      const week = weekOf(clock());
+      draft.cleared = draft.cleared.filter((m) => m.week >= week);
     },
   });
 
@@ -145,15 +170,42 @@ export function createListsStore({ path, clock }: { path: string; clock: Clock }
 
     removeShopping(id) {
       return change((file) => {
-        const before = file.shopping.length;
+        const item = file.shopping.find((s) => s.id === id) ?? null;
         file.shopping = file.shopping.filter((s) => s.id !== id);
-        return file.shopping.length < before;
+        if (item?.done && item.menu) file.cleared.push(item.menu);
+        return item;
       });
     },
 
     clearShopping() {
       return change((file) => {
+        for (const item of file.shopping) if (item.done && item.menu) file.cleared.push(item.menu);
         file.shopping = file.shopping.filter((s) => !s.done);
+      });
+    },
+
+    async cleared() {
+      const week = weekOf(clock());
+      return (await state.read()).cleared.filter((m) => m.week >= week);
+    },
+
+    async syncMenu(plan, by) {
+      // Rien à écrire quand la liste suit déjà le menu (cas le plus courant).
+      const current = await state.read();
+      const preview = plan(current.shopping, current.cleared);
+      if (preview.add.length + preview.update.length + preview.remove.length === 0) return 0;
+      return change((file, now) => {
+        const ops = plan(file.shopping, file.cleared);
+        const removed = new Set(ops.remove);
+        file.shopping = file.shopping.filter((s) => !removed.has(s.id));
+        for (const { id, label, menu } of ops.update) {
+          const item = file.shopping.find((s) => s.id === id);
+          if (item) Object.assign(item, { label, menu });
+        }
+        for (const { label, menu } of ops.add) {
+          file.shopping.push({ id: randomUUID(), label, done: false, addedBy: by, addedAt: now.toISOString(), menu });
+        }
+        return ops.add.length + ops.update.length + ops.remove.length;
       });
     },
 
