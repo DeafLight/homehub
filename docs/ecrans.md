@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.45.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.45.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (en décembre pour les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -118,7 +118,8 @@ Lieux de la famille, trajet de chacun, arrêts de l'accueil. Ici, avant le premi
 ### Vacances scolaires (réglages)
 
 Calendrier de l'académie (liste regroupée par zone, filtrée par la saisie), d'une zone entière, ou aucun ; à droite,
-l'aperçu des prochaines vacances avant d'enregistrer. Ici, l'académie de Nantes, venue du fichier de configuration.
+l'aperçu des prochaines vacances avant d'enregistrer. Ici, l'académie de Nantes, venue du fichier de configuration ;
+sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 
 ![Vacances scolaires](images/tablette-vacances-reglages.png)
 

@@ -1,5 +1,5 @@
 // Page « Vacances scolaires » : logique testable de la recherche d'académie (saisie sans accents ni majuscules,
-// résultats regroupés par zone, Corse et outre-mer à part) et du libellé du choix.
+// résultats regroupés par zone, Corse et outre-mer à part), du mode affiché et du libellé du choix.
 import type { Academie, HolidayChoice } from '../../../shared/types.ts';
 
 export const ZONES = ['A', 'B', 'C'] as const;
@@ -47,3 +47,12 @@ export function choiceLabel(choice: HolidayChoice, academies: readonly Academie[
 
 /** Deux choix identiques (pour savoir s'il y a quelque chose à enregistrer). */
 export const sameChoice = (a: HolidayChoice, b: HolidayChoice) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Mode de la page : par académie, par zone, ou aucune vacance affichée. */
+export type HolidayMode = 'academie' | 'zone' | 'none';
+
+/**
+ * Mode qui correspond à un choix, et donc mode affiché à l'ouverture et après « Annuler » : sans choix (rien
+ * enregistré et pas de section `holidays` dans la config), c'est « Aucune », puisque rien ne s'affiche.
+ */
+export const modeOf = (choice: HolidayChoice): HolidayMode => (!choice ? 'none' : 'zone' in choice ? 'zone' : 'academie');

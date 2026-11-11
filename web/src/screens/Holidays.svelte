@@ -7,7 +7,7 @@
   import Icon from '../components/Icon.svelte';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
-  import { choiceLabel, groupAcademies, sameChoice, ZONES, type Zone } from '../lib/holiday-settings.ts';
+  import { choiceLabel, groupAcademies, type HolidayMode, modeOf, sameChoice, ZONES, type Zone } from '../lib/holiday-settings.ts';
   import type { PageRoute } from '../lib/route.ts';
 
   // Réglage des vacances scolaires, ouvert depuis la roue dentée : le calendrier officiel d'une académie (liste
@@ -18,18 +18,15 @@
 
   const { api, actor } = getAppContext();
 
-  type Mode = 'academie' | 'zone' | 'none';
-
   let settings = $state<HolidaySettings | null>(null);
   let draft = $state<HolidayChoice>(null);
-  let mode = $state<Mode>('academie');
+  let mode = $state<HolidayMode>('academie');
   let query = $state('');
   let loadError = $state<string | null>(null);
   let message = $state<{ text: string; ok?: boolean } | null>(null);
   let saving = $state(false);
   let preview = $state<HolidaysData | 'loading' | 'error' | null>(null);
 
-  const modeOf = (choice: HolidayChoice): Mode => (!choice ? 'none' : 'zone' in choice ? 'zone' : 'academie');
   const academies = $derived(settings?.academies ?? []);
   const groups = $derived(groupAcademies(academies, query));
   const dirty = $derived(settings !== null && !sameChoice(draft, settings.choice));
@@ -42,7 +39,7 @@
     try {
       settings = await api.holidaySettings();
       draft = settings.choice;
-      mode = draft ? modeOf(draft) : 'academie';
+      mode = modeOf(draft);
       // L'académie enregistrée peut être loin dans la liste : on la montre.
       await tick();
       document.querySelector('.holidays-page .option.on')?.scrollIntoView({ block: 'center' });
@@ -70,7 +67,7 @@
     message = null;
   }
 
-  function setMode(next: Mode) {
+  function setMode(next: HolidayMode) {
     mode = next;
     message = null;
     if (next === 'none') pick(null);
@@ -84,7 +81,7 @@
   function cancel() {
     if (!settings) return;
     draft = settings.choice;
-    mode = draft ? modeOf(draft) : 'academie';
+    mode = modeOf(draft);
     message = null;
   }
 
@@ -106,7 +103,7 @@
     }
   }
 
-  const MODES: { id: Mode; label: string }[] = [
+  const MODES: { id: HolidayMode; label: string }[] = [
     { id: 'academie', label: 'Par académie' },
     { id: 'zone', label: 'Par zone' },
     { id: 'none', label: 'Aucune' },

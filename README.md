@@ -146,7 +146,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Page « Vacances scolaires »** (roue dentée de la tablette ; un parent enregistre) : « Par académie » (liste
   regroupée par zone, Corse et outre-mer à part, filtrée par la saisie sans accents ni majuscules), « Par zone »
   (A, B ou C) ou « Aucune ». Avant d'enregistrer, un aperçu montre les prochaines vacances du choix. Enregistré dans
-  `HOMEHUB_STATE_DIR/holiday-settings.json`, qui prend le pas sur la section `holidays` du YAML.
+  `HOMEHUB_STATE_DIR/holiday-settings.json`, qui prend le pas sur la section `holidays` du YAML ; sans rien
+  d'enregistré ni de section `holidays`, la page s'ouvre sur « Aucune ».
 - **Page « Transports »** (roue dentée de la tablette ; un parent enregistre) : les lieux de la famille (maison,
   école, club…), situés par leur adresse ; le trajet de chacun, avec les lignes directes entre les deux lieux trouvées
   dans les horaires Irigo (marche estimée aux deux bouts, modifiable) ; les arrêts de l'accueil (par nom ou près d'un

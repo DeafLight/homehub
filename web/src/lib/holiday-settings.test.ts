@@ -1,6 +1,6 @@
-// Tests de la recherche d'académie et du libellé du choix (page « Vacances scolaires »).
+// Tests de la recherche d'académie, du mode affiché et du libellé du choix (page « Vacances scolaires »).
 import { describe, expect, it } from 'vitest';
-import { choiceLabel, comparable, groupAcademies, OVERSEAS_GROUP, sameChoice } from './holiday-settings.ts';
+import { choiceLabel, comparable, groupAcademies, modeOf, OVERSEAS_GROUP, sameChoice } from './holiday-settings.ts';
 
 const ACADEMIES = [
   { name: 'Nantes', zone: 'Zone B' },
@@ -46,5 +46,16 @@ describe('libellé du choix', () => {
     expect(sameChoice({ zone: 'A' }, { zone: 'A' })).toBe(true);
     expect(sameChoice({ zone: 'A' }, { academie: 'Nantes' })).toBe(false);
     expect(sameChoice(null, null)).toBe(true);
+  });
+});
+
+describe('mode affiché', () => {
+  it('sans choix (rien enregistré, pas de section holidays) : « Aucune », pas « Par académie »', () => {
+    expect(modeOf(null)).toBe('none');
+  });
+
+  it('académie ou zone : le mode du choix', () => {
+    expect(modeOf({ academie: 'Nantes' })).toBe('academie');
+    expect(modeOf({ zone: 'B' })).toBe('zone');
   });
 });
