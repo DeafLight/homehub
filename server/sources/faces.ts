@@ -7,6 +7,7 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { FaceCounts, FaceScore, FaceThresholds, FaceVerdict } from '../../shared/types.ts';
+import { looksUniform, similarity } from '../../shared/faces.ts';
 import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
 
@@ -27,7 +28,7 @@ type FacesFile = z.infer<typeof fileSchema>;
 
 export type FaceStore = {
   enrolled(): Promise<string[]>;
-  /** Nombre d'empreintes enregistrées et apprises, par personne. */
+  /** Nombre d'empreintes enregistrées et apprises, par personne ; `uniform` : enregistrées anormalement semblables. */
   counts(): Promise<FaceCounts>;
   /** Ajoute des empreintes à celles de `ownerId` (gardées : les MAX_SAMPLES plus récentes). */
   enroll(ownerId: string, embeddings: number[][]): Promise<void>;
@@ -40,6 +41,8 @@ export type FaceStore = {
 };
 
 export type FaceRules = FaceThresholds;
+
+export { similarity };
 
 /** Juge une analyse de la tablette ; `scores` : ceux des membres actuels, du plus au moins ressemblant. */
 export function judge(reading: { real: number; live: number }, scores: FaceScore[], rules: FaceRules): FaceVerdict {
@@ -69,20 +72,6 @@ export function worthLearning(verdict: FaceVerdict, rules: FaceRules): boolean {
   );
 }
 
-/**
- * Ressemblance de deux empreintes, de 0 à 1 : celle de la bibliothèque de la tablette (Human, `similarity`),
- * distance euclidienne ramenée à une échelle où 0,5 et plus désigne d'ordinaire la même personne.
- */
-export function similarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0;
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
-  const distance = Math.round(100 * 25 * sum) / 100;
-  if (distance === 0) return 1;
-  const normalized = (1 - Math.sqrt(distance) / 100 - 0.2) / (0.8 - 0.2);
-  return Math.round(100 * Math.max(Math.min(normalized, 1), 0)) / 100;
-}
-
 export function createFaceStore({ path }: { path: string }): FaceStore {
   const state = createJsonFile<FacesFile>({ path, schema: fileSchema, initial: () => ({ version: 1, faces: {}, learned: {} }) });
   const load = () => state.read();
@@ -98,7 +87,7 @@ export function createFaceStore({ path }: { path: string }): FaceStore {
       return Object.fromEntries(
         Object.entries(file.faces).map(([ownerId, samples]) => [
           ownerId,
-          { enrolled: samples.length, learned: file.learned[ownerId]?.length ?? 0 },
+          { enrolled: samples.length, learned: file.learned[ownerId]?.length ?? 0, uniform: looksUniform(samples) },
         ]),
       );
     },

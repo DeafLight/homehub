@@ -3,7 +3,7 @@
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { FAMILY_ID, type PublicConfig } from '../shared/types.ts';
+import { FACE_BACKENDS, FAMILY_ID, type PublicConfig } from '../shared/types.ts';
 import { findAcademie } from './sources/school-holidays.ts';
 
 /** Agendas iCal : noms de variables d'environnement (app.env) qui contiennent les adresses secrètes. */
@@ -95,7 +95,9 @@ export const configSchema = z.object({
    * tablette : `minConfidence`, confiance minimale pour voir un visage (plus bas : de plus loin, plus de fausses
    * détections) ; `minSize`, largeur minimale du visage (part de l'image, 0 : aucune) pour tenter de le reconnaître
    * (plus petit, il réveille seulement la tablette). `learnMinutes` : au plus une empreinte apprise par personne et
-   * par période, lors d'une reconnaissance sûre (0 : jamais).
+   * par période, lors d'une reconnaissance sûre (0 : jamais). `backend` : comment la tablette calcule les empreintes
+   * (`webgl` : carte graphique ; `webgl-safe` : carte graphique sans les optimisations de TensorFlow.js qui faussent
+   * les calculs sur certaines tablettes ; `cpu` : sans carte graphique, plus lent mais toujours juste).
    */
   faces: z
     .object({
@@ -107,6 +109,7 @@ export const configSchema = z.object({
       minConfidence: z.number().min(0.1).max(0.95).default(0.5),
       minSize: z.number().min(0).max(0.6).default(0),
       learnMinutes: z.number().int().min(0).max(10_080).default(30),
+      backend: z.enum(FACE_BACKENDS).default('webgl'),
     })
     .default({
       threshold: 0.55,
@@ -117,6 +120,7 @@ export const configSchema = z.object({
       minConfidence: 0.5,
       minSize: 0,
       learnMinutes: 30,
+      backend: 'webgl',
     }),
   /**
    * Bus et tram Irigo (temps réel SIRI, open data d'Angers Loire Métropole) : prochains passages aux arrêts listés,
@@ -205,7 +209,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     members: config.members.map(({ id, name, color, parent, fitness }) => ({ id, name, color, parent, ...(fitness && { fitness }) })),
     family: { name: config.family.name },
     ui: config.ui,
-    faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize },
+    faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     revision,
   };
 }

@@ -150,6 +150,9 @@ Reste :
       de confiance (`trustedProxies`) ; base de produits (`scan`, `recheck`) réservée à la tablette et aux téléphones.
 - [x] Refonte (0.42.0, revue de code §8, §10, §12 à §14) : minuteur de séance testé, verrou d'écran qui ne fuit
       plus, cinq écrans découpés (logique testée dans `web/src/lib/`), types d'API partagés, tests des sources.
+- [x] Visages (0.49.1) : une tablette qui calcule la même empreinte pour tous les visages (WebView qui fausse le calcul
+      par la carte graphique) ne peut plus abîmer les profils : prises anormalement uniformes refusées, profils déjà
+      touchés signalés ; calcul des empreintes réglable (`faces.backend` : `webgl`, `webgl-safe`, `cpu`).
 
 ## Transports (après le design)
 

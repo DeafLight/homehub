@@ -12,7 +12,7 @@ import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
-import { createPinStore } from './sources/pins.ts';
+import { createPinStore, PARENT_PIN_ID } from './sources/pins.ts';
 import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createFitnessStore } from './sources/fitness.ts';
 import { createRecipeStore } from './sources/recipes.ts';
@@ -81,7 +81,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
       },
       connectedFrom(address),
     ] as const;
-  return { app, config, put, sessions };
+  return { app, config, put, sessions, pins, faces };
 }
 
 describe('API', () => {
@@ -109,6 +109,23 @@ describe('API', () => {
     const saved = await (await app.request('/api/transit/settings', ...put(body))).json();
     expect(saved).toMatchObject({ saved: true, stops: [{ id: '1MAIR', label: 'Mairie' }] });
     expect(saved.commutes.lea.walkTo).toBe(3);
+  });
+
+  it('visages : une série de prises anormalement uniforme est refusée, une série variée enregistrée', async () => {
+    const { app, put, pins, faces } = setup();
+    await pins.set(PARENT_PIN_ID, '2468');
+    const take = (seed: number, noise: number) => Array.from({ length: 64 }, (_, i) => Math.sin(seed * 31 + i) * noise);
+    // Tablette qui calcule mal : dix prises presque identiques.
+    const uniform = Array.from({ length: 10 }, (_, k) => take(1, 1).map((v, i) => v + Math.sin(k * 7 + i) * 0.01));
+    const refused = await app.request('/api/faces/alex', ...put({ embeddings: uniform, pin: '2468' }, { method: 'POST' }));
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toContain('Empreintes anormales');
+    expect(await faces.enrolled()).toEqual([]);
+    // Vrai visage qui bouge : des prises qui varient.
+    const varied = Array.from({ length: 10 }, (_, k) => take(1, 1).map((v, i) => v + Math.sin(k * 7 + i * 3) * 0.6));
+    expect((await app.request('/api/faces/alex', ...put({ embeddings: varied, pin: '2468' }, { method: 'POST' }))).status).toBe(204);
+    const overview = await (await app.request('/api/faces', undefined, connectedFrom('127.0.0.1'))).json();
+    expect(overview.samples.alex).toEqual({ enrolled: 10, learned: 0, uniform: false });
   });
 
   it('vacances scolaires : réglage lu par la tablette, modifié par un parent ; aperçu validé', async () => {

@@ -43,7 +43,7 @@
           const stop = await startCamera(el);
           if (stopped) return stop();
           stopCamera = stop;
-          await prepareFaces();
+          await prepareFaces(config.faces.backend);
           actor.setCamera('on');
           while (!stopped) {
             const reading = await readFace(el, config.faces.minConfidence);

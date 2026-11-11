@@ -269,7 +269,7 @@ describe('API des listes', () => {
     expect((await enroll('tom', -1, '9753')).status).toBe(204);
     expect(await (await call('GET', '/faces', { key: KEY })).json()).toEqual({
       enrolled: ['alex', 'tom'],
-      samples: { alex: { enrolled: 1, learned: 0 }, tom: { enrolled: 1, learned: 0 } },
+      samples: { alex: { enrolled: 1, learned: 0, uniform: false }, tom: { enrolled: 1, learned: 0, uniform: false } },
     });
 
     const found = await identify(0.98);

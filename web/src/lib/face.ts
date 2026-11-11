@@ -1,7 +1,10 @@
 // Reconnaissance faciale sur la tablette (bibliothèque Human, chargée seulement au premier usage) : de l'image de la
 // caméra, on ne tire qu'une empreinte numérique du visage et deux scores contre une photo ou un écran. L'image ne
-// quitte pas la tablette ; c'est le serveur qui compare l'empreinte aux visages enregistrés.
+// quitte pas la tablette ; c'est le serveur qui compare l'empreinte aux visages enregistrés. Le calcul passe par la
+// carte graphique (WebGL), ou sans elle si `faces.backend` le demande : sur certaines tablettes, une mise à jour
+// d'Android System WebView fausse ce calcul sans erreur (même empreinte pour tous les visages).
 import type { Human } from '@vladmandic/human';
+import type { FaceBackend } from '../../../shared/types.ts';
 
 export type FaceReading = {
   embedding: number[];
@@ -18,13 +21,30 @@ export type FaceReading = {
 /** Confiance minimale du détecteur, par défaut (`faces.minConfidence` de homehub.yaml). */
 export const DEFAULT_MIN_CONFIDENCE = 0.5;
 
-let human: Promise<Human> | null = null;
+/**
+ * Moteur de calcul de la bibliothèque pour `faces.backend` : `webgl-safe` garde la carte graphique sans les noyaux
+ * « empaquetés » ni les optimisations que Human active (WEBGL_USE_SHAPES_UNIFORMS, WEBGL_EXP_CONV), suspects connus
+ * de résultats faux sur certaines puces graphiques Android ; `cpu` se passe de la carte graphique.
+ */
+export function engineFor(backend: FaceBackend): { backend: 'webgl' | 'cpu'; flags: Record<string, boolean> } {
+  if (backend === 'cpu') return { backend: 'cpu', flags: {} };
+  if (backend === 'webgl-safe') {
+    return { backend: 'webgl', flags: { WEBGL_PACK: false, WEBGL_USE_SHAPES_UNIFORMS: false, WEBGL_EXP_CONV: false } };
+  }
+  return { backend: 'webgl', flags: {} };
+}
 
-function load(): Promise<Human> {
+let human: Promise<Human> | null = null;
+/** Moteur de la bibliothèque chargée (un autre demandé : elle est rechargée). */
+let loadedFor: FaceBackend = 'webgl';
+
+function load(backend: FaceBackend = loadedFor): Promise<Human> {
+  if (backend !== loadedFor) human = null;
+  loadedFor = backend;
   human ??= import('@vladmandic/human').then(async ({ default: HumanClass }) => {
     const instance = new HumanClass({
       modelBasePath: '/models/',
-      backend: 'webgl',
+      ...engineFor(backend),
       // Chaque image est analysée de nouveau : sans cela, les empreintes d'un enregistrement seraient identiques.
       cacheSensitivity: 0,
       filter: { enabled: false },
@@ -53,8 +73,8 @@ function load(): Promise<Human> {
   return human;
 }
 
-/** Prépare la bibliothèque et ses modèles (quelques secondes la première fois). */
-export const prepareFaces = () => load().then(() => undefined);
+/** Prépare la bibliothèque et ses modèles (quelques secondes la première fois), avec le moteur `faces.backend`. */
+export const prepareFaces = (backend: FaceBackend) => load(backend).then(() => undefined);
 
 /**
  * Visage vu par la caméra, ou null s'il n'y en a pas (`minConfidence` : confiance minimale du détecteur). Trop flou ou

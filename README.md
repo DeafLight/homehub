@@ -104,8 +104,12 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   personne toutes les 30 min, `faces.learnMinutes` ; 10 gardées, en plus des 20 enregistrées au plus) : la
   reconnaissance suit les changements de coiffure, de lunettes ou de lumière. Le **diagnostic** (page Visages) montre
   en direct la confiance de détection, la taille du visage, les scores « photo » et « écran », la ressemblance avec
-  chaque personne et le verdict, avec les seuils en vigueur, puis un bilan des dernières analyses et une piste de
-  réglage. Limites : la tablette
+  chaque personne et le verdict, avec les seuils en vigueur et le moteur de calcul, puis un bilan des dernières analyses
+  et une piste de réglage. Des prises presque identiques entre elles (tablette qui donne la même empreinte à tous les
+  visages, vu après une mise à jour d'Android System WebView) ne sont pas enregistrées, et un profil déjà touché est
+  signalé « prises anormales » : l'effacer et le refaire une fois le calcul réparé. Le calcul passe par la carte
+  graphique (`faces.backend: webgl`) ; `webgl-safe` la garde sans les optimisations de TensorFlow.js qui faussent les
+  résultats sur certaines tablettes, `cpu` s'en passe (plus lent, toujours juste). Limites : la tablette
   est de confiance (sa clé suffit à se faire passer pour elle) ; les contrôles « photo » et « écran » réduisent, sans
   l'exclure, la ruse d'une photo ; la caméra reste allumée tant que l'écran l'est (éteinte sur la page Visages, et
   quand la page est masquée). Fully Kiosk : activer *Web Content Settings › Enable Webcam Access* et autoriser la
@@ -449,11 +453,11 @@ web/src/
 | `POST /api/pairing/claim` | `{ code, name, system? }` → `{ token, device }` (410 si le code a expiré ou a servi) |
 | `GET /api/devices`, `DELETE /api/devices/:id` | téléphones reliés (tablette seulement) ; retrait : personne reconnue qui peut écrire sur ce profil, et `{ pin }`, PIN du propriétaire ou code parent s'il en existe un |
 | `PATCH /api/devices/:id` | `{ name }` : renomme un téléphone (tablette, personne reconnue qui peut écrire sur ce profil) |
-| `GET /api/faces` | `{ enrolled, samples }` : profils dont le visage est enregistré, et nombre d'empreintes enregistrées et apprises (tablette seulement) |
+| `GET /api/faces` | `{ enrolled, samples }` : profils dont le visage est enregistré, nombre d'empreintes enregistrées et apprises, et `uniform` si les enregistrées sont anormalement semblables (tablette seulement) |
 | `POST /api/faces/identify` | `{ embedding, real, live }` → `{ ownerId, token }` (même session prolongée pour la même personne ; 401 : non reconnu ; tablette seulement) |
 | `POST /api/faces/diagnose` | `{ embedding, real, live }` → `{ verdict, scores, rules }` : verdict détaillé, sans session ni apprentissage (tablette seulement) |
 | `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
-| `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire |
+| `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire ; prises anormalement uniformes refusées (422) |
 | `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité, contenants, réglage par défaut |
 | `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` (tablette ou téléphone relié) |
 | `PUT /api/stock/products/:code` | `{ name, brand, quantity, category }` : produit inconnu décrit, ou corrigé (notre version l'emporte) |

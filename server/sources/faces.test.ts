@@ -25,7 +25,11 @@ describe('visages', () => {
       { ownerId: 'alex', score: 1 },
       { ownerId: 'tom', score: 0 },
     ]);
-    expect(await reread.counts()).toEqual({ alex: { enrolled: MAX_SAMPLES, learned: 0 }, tom: { enrolled: 1, learned: 0 } });
+    // Les prises d'Alex sont toutes identiques : signalées comme anormales.
+    expect(await reread.counts()).toEqual({
+      alex: { enrolled: MAX_SAMPLES, learned: 0, uniform: true },
+      tom: { enrolled: 1, learned: 0, uniform: false },
+    });
     expect(await reread.remove('tom')).toBe(true);
     expect(await reread.remove('tom')).toBe(false);
     expect(await createFaceStore({ path: `${path}.absent` }).scores(face(1))).toEqual([]);
@@ -40,10 +44,10 @@ describe('visages', () => {
     for (let i = 0; i < MAX_LEARNED + 3; i++) await store.learn('alex', face(-0.2));
     const reread = createFaceStore({ path });
     expect(await reread.scores(face(-0.2))).toEqual([{ ownerId: 'alex', score: 1 }]);
-    expect(await reread.counts()).toEqual({ alex: { enrolled: 1, learned: MAX_LEARNED } });
+    expect(await reread.counts()).toEqual({ alex: { enrolled: 1, learned: MAX_LEARNED, uniform: false } });
     await reread.remove('alex');
     await reread.enroll('alex', [face(1)]);
-    expect(await reread.counts()).toEqual({ alex: { enrolled: 1, learned: 0 } });
+    expect(await reread.counts()).toEqual({ alex: { enrolled: 1, learned: 0, uniform: false } });
   });
 
   it('verdict : photo, écran, seuil, marge ; apprentissage seulement sur une reconnaissance sûre et nouvelle', () => {

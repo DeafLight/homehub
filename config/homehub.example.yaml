@@ -90,6 +90,10 @@ trustedProxies: []
 #                    plus petit, il réveille seulement la tablette
 #   learnMinutes   : au plus une empreinte apprise par personne et par période, lors d'une reconnaissance sûre
 #                    (0 : jamais)
+#   backend        : calcul des empreintes sur la tablette : webgl (carte graphique), webgl-safe (carte graphique
+#                    sans les optimisations qui faussent le calcul sur certaines tablettes Android), cpu (sans carte
+#                    graphique, plus lent mais toujours juste). À changer si la page Visages signale des prises
+#                    anormales ou si le diagnostic donne la même ressemblance à tout le monde.
 # faces:
 #   threshold: 0.55
 #   margin: 0.05
@@ -99,6 +103,7 @@ trustedProxies: []
 #   minConfidence: 0.5
 #   minSize: 0
 #   learnMinutes: 30
+#   backend: webgl
 
 ui:
   # Retour automatique à l'écran d'accueil après ce délai sans contact (secondes).

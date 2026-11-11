@@ -16,7 +16,9 @@
   let { onClose }: Props = $props();
 
   const { api, config, profiles } = getAppContext();
-  const { minConfidence, minSize } = config.faces;
+  const { minConfidence, minSize, backend } = config.faces;
+  /** Moteur de calcul des empreintes (`faces.backend`). */
+  const BACKENDS = { webgl: 'carte graphique', 'webgl-safe': 'carte graphique, mode sûr', cpu: 'processeur' } as const;
 
   /** Résultat d'une analyse : verdict du serveur, ou ce que la tablette a vu avant de le demander. */
   type Outcome = 'nobody' | 'blurry' | 'far' | FaceDiagnosis['verdict']['result'];
@@ -45,7 +47,7 @@
         const stop = await startCamera(el);
         if (stopped) return stop();
         stopCamera = stop;
-        await prepareFaces();
+        await prepareFaces(config.faces.backend);
         while (!stopped) {
           const current = await readFace(el, minConfidence);
           if (stopped) return;
@@ -162,6 +164,8 @@
     <section>
       <h3>Détection</h3>
       <dl>
+        <dt>Calcul</dt>
+        <dd>{BACKENDS[backend]} <small>faces.backend {backend}</small></dd>
         <dt>Confiance</dt>
         <dd class:bad={reading !== null && reading.confidence < minConfidence}>{reading ? num(reading.confidence) : '–'} <small>min {num(minConfidence)}</small></dd>
         <dt>Taille du visage</dt>

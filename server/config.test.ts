@@ -11,6 +11,15 @@ describe('parseConfig', () => {
     expect(config.ui.idleTimeoutSeconds).toBe(180);
     expect(config.ui.screensaverMinutes).toBe(5);
     expect(config.trustedProxies).toEqual([]); // aucun proxy cru par défaut
+    expect(config.faces.backend).toBe('webgl');
+  });
+
+  it('calcul des empreintes : choisi dans homehub.yaml, transmis à la tablette', () => {
+    const config = parseConfig({ members: [alex], faces: { backend: 'webgl-safe' } });
+    expect(config.faces.threshold).toBe(0.55); // les autres réglages gardent leur valeur par défaut
+    expect(toPublicConfig(config, 'r').faces).toEqual({ minConfidence: 0.5, minSize: 0, backend: 'webgl-safe' });
+    expect(parseConfig({ members: [alex], faces: { backend: 'cpu' } }).faces.backend).toBe('cpu');
+    expect(() => parseConfig({ members: [alex], faces: { backend: 'gpu' } })).toThrow();
   });
 
   it('accepte des proxys de confiance en adresses ou en plages CIDR', () => {

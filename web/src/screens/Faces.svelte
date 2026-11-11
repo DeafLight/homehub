@@ -4,6 +4,7 @@
   import BackButton from '../components/BackButton.svelte';
   import FaceDiagnostic from '../components/FaceDiagnostic.svelte';
   import PinPad from '../components/PinPad.svelte';
+  import { looksUniform, UNIFORM_MESSAGE } from '../../../shared/faces.ts';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
   import { cameraError, prepareFaces, readFace, startCamera } from '../lib/face.ts';
@@ -14,7 +15,9 @@
   // Visages de la famille, ouverts depuis la roue dentée (tablette seulement) : chacun se place devant la caméra, à sa
   // place habituelle, le temps de quelques prises (guidées : ni trop loin, ni trop près), puis un parent valide avec le
   // code parent (scripts/set-pin.ts --parent). Seules les empreintes des visages sont gardées, sur le serveur ; aucune
-  // photo. Le diagnostic montre en direct pourquoi un visage est reconnu ou non, pour régler les seuils.
+  // photo. Le diagnostic montre en direct pourquoi un visage est reconnu ou non, pour régler les seuils. Des prises
+  // presque identiques (tablette qui calcule mal les empreintes) ne sont pas enregistrées, et un profil déjà touché
+  // est signalé, à effacer et refaire.
   const SAMPLES = 10;
   const PAUSE_MS = 400;
   /** Largeur du visage acceptée, en part de l'image : en dehors, on guide (« approche-toi », « recule un peu »). */
@@ -47,6 +50,8 @@
   let video = $state<HTMLVideoElement>();
 
   const ready = $derived(samples.length >= SAMPLES);
+  /** Prises terminées mais anormalement uniformes : refusées avant même le code parent (le serveur les refuse aussi). */
+  const uniform = $derived(ready && looksUniform(samples));
 
   $effect(() => {
     if (!video || !capturing) return;
@@ -59,7 +64,7 @@
         if (stopped) return stop();
         stopCamera = stop;
         message = 'Préparation…';
-        await prepareFaces();
+        await prepareFaces(config.faces.backend);
         while (!stopped && samples.length < SAMPLES) {
           const reading = await readFace(el, config.faces.minConfidence);
           if (stopped) return;
@@ -123,6 +128,17 @@
     {#if me.data}<p class="muted">Réservé à la tablette.</p>{/if}
   {:else if diagnosing}
     <FaceDiagnostic onClose={() => (diagnosing = false)} />
+  {:else if capturing && uniform}
+    {@const profile = capturing}
+    <div class="capture">
+      <h2>{profile.name}</h2>
+      <p class="status error" role="alert">{UNIFORM_MESSAGE}</p>
+      <p class="muted">Ces prises ne sont pas enregistrées.</p>
+      <div class="actions">
+        <button type="button" class="primary" onclick={() => start(profile)}>Recommencer</button>
+        <button type="button" class="secondary" onclick={close}>Annuler</button>
+      </div>
+    </div>
   {:else if capturing && ready}
     {@const profile = capturing}
     <PinPad
@@ -172,6 +188,7 @@
           <div class="who">
             <span class="name">{profile.name}</span>
             <span class="muted">{isParent(profile.id) ? 'Parent' : 'Enfant'} · {enrolled ? `visage enregistré${samplesText(count)}` : 'pas encore de visage'}</span>
+            {#if count?.uniform}<span class="warn">Prises anormales : efface et refais ce visage</span>{/if}
           </div>
           <button type="button" class="primary" onclick={() => start(profile)}>{enrolled ? 'Compléter' : 'Enregistrer'}</button>
           {#if enrolled}
@@ -315,6 +332,16 @@
 
   .error {
     color: var(--danger-fg);
+  }
+
+  .warn {
+    color: var(--warn);
+    font-weight: 600;
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
   }
 
   button {

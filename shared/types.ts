@@ -16,13 +16,17 @@ export type Member = {
   fitness?: boolean;
 };
 
+/** Calcul des empreintes sur la tablette (`faces.backend` de homehub.yaml, voir server/config.ts). */
+export const FACE_BACKENDS = ['webgl', 'webgl-safe', 'cpu'] as const;
+export type FaceBackend = (typeof FACE_BACKENDS)[number];
+
 /** Configuration visible par le front (aucun secret). */
 export type PublicConfig = {
   members: Member[];
   family: { name: string };
   ui: { idleTimeoutSeconds: number; screensaverMinutes: number };
   /** Détection des visages sur la tablette (voir `faces` dans homehub.yaml). */
-  faces: { minConfidence: number; minSize: number };
+  faces: { minConfidence: number; minSize: number; backend: FaceBackend };
   /** Empreinte de la configuration : change à chaque modification du fichier. */
   revision: string;
 };
@@ -707,8 +711,11 @@ export type FaceDiagnosis = { scores: FaceScore[]; verdict: FaceVerdict; rules: 
  */
 export type FaceSession = { ownerId: string; token: string; expiresAt?: string };
 
-/** Empreintes enregistrées et apprises, par personne. */
-export type FaceCounts = Record<string, { enrolled: number; learned: number }>;
+/**
+ * Empreintes enregistrées et apprises, par personne ; `uniform` : enregistrées anormalement semblables (tablette qui
+ * calculait mal les empreintes, voir shared/faces.ts) : à effacer et refaire.
+ */
+export type FaceCounts = Record<string, { enrolled: number; learned: number; uniform: boolean }>;
 
 /** Visages connus de la tablette (GET /api/faces). */
 export type FacesOverview = { enrolled: string[]; samples: FaceCounts };

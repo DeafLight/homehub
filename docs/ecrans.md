@@ -251,6 +251,7 @@ lien partagé peut aussi aller sur une liste.
 
 ## Non capturés
 
-- **Visages** : demande la caméra de la tablette.
+- **Visages** : demande la caméra de la tablette. Un profil aux prises anormalement semblables y est signalé
+  « prises anormales » (à effacer et refaire) ; le diagnostic indique le moteur de calcul (`faces.backend`).
 - **Veille**, **minuteur qui sonne**, **sélecteur de durée**, **QR code d'appairage** : écrans passagers, à ajouter
   si besoin.

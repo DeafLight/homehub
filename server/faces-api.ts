@@ -1,6 +1,8 @@
 // Visages : enregistrés depuis la tablette avec le code parent (personne n'est encore reconnu au premier
-// enregistrement), puis reconnus pour savoir qui écrit sur la tablette. Tablette seule.
+// enregistrement), puis reconnus pour savoir qui écrit sur la tablette. Tablette seule. Une série de prises
+// anormalement uniforme (tablette qui calcule mal les empreintes) est refusée.
 import { z } from 'zod';
+import { looksUniform, UNIFORM_MESSAGE } from '../shared/faces.ts';
 import { type Access, ACTOR_HEADER } from './access.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
@@ -58,6 +60,8 @@ export function createFacesApi({ household, faces, recognition, sessions, pins, 
     if (!household.isMember(ownerId)) return fail(400, 'Profil inconnu');
     const input = await readBody(c, enrollSchema, 'Empreintes de visage attendues');
     await pins.parent(input.pin);
+    // Prises presque identiques : la tablette calcule mal, elles casseraient la reconnaissance de tout le monde.
+    if (looksUniform(input.embeddings)) return fail(422, UNIFORM_MESSAGE);
     await faces.enroll(ownerId, input.embeddings);
     return c.body(null, 204);
   });
