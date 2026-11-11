@@ -214,7 +214,10 @@ await call(A, 'POST', '/recipes/import', { url: `Regarde ça : ${recipeUrl('riz-
 await call(A, 'PUT', `/recipes/${galettes.id}`, {
   content: {
     ...galettes.ours,
-    ingredients: galettes.ours.ingredients.map((l) => (l.text.startsWith('Beurre') ? { ...l, text: 'Beurre demi-sel pour la poêle', name: 'beurre demi-sel', manual: true } : l)),
+    ingredients: [
+      ...galettes.ours.ingredients.map((l) => (l.text.startsWith('Beurre') ? { ...l, text: 'Beurre demi-sel pour la poêle', name: 'beurre demi-sel', manual: true } : l)),
+      { text: '50 g de gruyère râpé' },
+    ],
     tips: 'La pâte est meilleure préparée la veille. Garniture du dimanche : jambon, emmental et un œuf au plat.',
   },
 });
@@ -224,16 +227,17 @@ await call(A, 'POST', '/recipes', {
   content: {
     title: 'Pâtes au thon de Sam',
     servings: 4,
-    ingredients: ['400 g de pâtes', '1 boîte de thon au naturel', '1 brique de crème fraîche', '1 citron', 'Persil'].map((text) => ({ text })),
+    ingredients: ['400 g de pâtes', '1 boîte de thon au naturel', '1 brique de crème fraîche', '1 citron', '60 g de gruyère râpé', 'Persil'].map((text) => ({ text })),
     steps: ['Cuire les pâtes 10 minutes.', 'Mélanger le thon émietté, la crème et le jus du citron, ajouter aux pâtes égouttées.', 'Parsemer de persil.'].map((text) => ({ text })),
     tips: 'Les enfants les préfèrent sans persil.',
   },
 });
 
-// Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont une sans jour ; deux produits du placard
+// Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont une sans jour ; trois produits du placard
 // reliés aux ingrédients (lentilles en stock en quantité suffisante, carottes au kilo contre des carottes à la pièce :
-// à vérifier), les coquillettes encore à relier ; les œufs cochés « j'en ai déjà ». « Lait » et « Pâtes » sont déjà
-// sur la liste, écrits à la main : ils l'emportent sur les lignes du menu.
+// à vérifier, et un seul paquet de gruyère râpé, qui s'utilise en plusieurs fois, pour les galettes et les pâtes :
+// « à vérifier au placard », 160 g arrondis à un paquet de 200 g), les coquillettes encore à relier ; les œufs cochés
+// « j'en ai déjà ». « Lait » et « Pâtes » sont déjà sur la liste, écrits à la main : ils l'emportent sur les lignes du menu.
 type Summary = { id: string; title: string };
 const carnet = ((await call(A, 'GET', '/recipes')) as { recipes: Summary[] }).recipes;
 const recipeId = (start: string) => carnet.find((r) => r.title.startsWith(start))!.id;
@@ -245,8 +249,11 @@ for (const [start, people, day] of [
   ['Pâtes au thon', 4, null],
 ] as const) await call(A, 'POST', '/menu/entries', { week: WEEK, recipeId: recipeId(start), people, day });
 for (const code of Object.values(DOCS_FOOD)) await call(A, 'GET', `/stock/scan/${code}`);
-await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.lentilles, count: 1, price: 2.1 });
+await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.lentilles, count: 2, price: 2.1 });
 await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.carottes, count: 1, price: 1.6 });
+await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.gruyere, count: 1, price: 2.4 });
+await call(A, 'PUT', `/menu/links/${DOCS_FOOD.gruyere}`, { link: { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' } } });
+
 await call(A, 'PUT', `/menu/links/${DOCS_FOOD.lentilles}`, { link: { key: 'lentille-verte', name: 'lentille verte', per: { quantity: 500, unit: 'g' } } });
 await call(A, 'PUT', `/menu/links/${DOCS_FOOD.carottes}`, { link: { key: 'carotte', name: 'carotte', per: { quantity: 1, unit: 'kg' } } });
 await call(A, 'PUT', '/menu/have', { week: WEEK, key: 'oeuf', have: true });
@@ -408,13 +415,19 @@ await shoot('tablette-recette-cuisine', `${BASE}/recette/${lentilles.id}/cuisine
 // jour), et les produits du stock à relier aux ingrédients.
 await shoot('tablette-menu', `${BASE}/menu`, TABLET);
 await shoot('telephone-menu', `${BASE}/m/menu`, PHONE, { init: asPhone('alex') });
+// Gruyère « à vérifier au placard » (un paquet peut-être entamé), vu par Léa : lecture seule, sans les boutons.
+await shoot('telephone-menu-placard', `${BASE}/m/menu`, PHONE, {
+  init: asPhone('lea'),
+  after: `document.querySelector('.check')?.scrollIntoView({ block: 'start' })`,
+});
 await shoot('telephone-menu-ajout', `${BASE}/m/menu`, PHONE, {
   init: asPhone('alex'),
   after: `${click('Recette')}; setTimeout(() => [...document.querySelectorAll('[role=dialog] button')].find((b) => b.textContent.includes('Galettes'))?.click(), 300)`,
 });
 await shoot('telephone-menu-stock', `${BASE}/m/menu`, PHONE, {
   init: asPhone('alex'),
-  after: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('à relier'))?.click()`,
+  // Ouvre « Stock et ingrédients » et descend aux produits déjà reliés (gruyère : « s'utilise en plusieurs fois »).
+  after: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('à relier'))?.click(); setTimeout(() => [...document.querySelectorAll('[role=dialog] h3')].find((h) => h.textContent.includes('Déjà reliés'))?.scrollIntoView({ block: 'start' }), 400)`,
 });
 await shoot('telephone-recettes', `${BASE}/m/recettes`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-recette', `${BASE}/m/recette/${lentilles.id}`, PHONE, { init: asPhone('alex') });
@@ -437,6 +450,11 @@ await shoot('telephone-recette-refus', `${BASE}/partager?url=${encodeURIComponen
 });
 await shoot('telephone-recette-texte', `${BASE}/partager?text=${encodeURIComponent(COPIED_TEXT)}`, PHONE, { init: asPhone('alex'), wait: 5000 });
 await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
+// La liste de courses, descendue à la ligne du gruyère : arrondi au paquet, « à vérifier : paquet peut-être entamé ».
+await shoot('telephone-courses-verifier', `${BASE}/m`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('.shopping li')].find((l) => l.textContent.includes('Gruyère'))?.scrollIntoView({ block: 'center' })`,
+});
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });

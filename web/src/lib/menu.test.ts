@@ -30,6 +30,8 @@ const line = (over: Partial<PlanLine>): PlanLine => ({
   buyToTaste: false,
   stock: null,
   bought: null,
+  check: null,
+  packs: null,
   ...over,
 });
 
@@ -83,14 +85,29 @@ describe('courses du menu', () => {
     expect(lineAmount(line({}))).toBe('60 cl');
     expect(lineSources(line({}))).toBe('Mijoté ×2, Galettes');
     expect(lineStatus(line({}))).toBeNull();
-    expect(lineStatus(line({ status: 'stock', stock: { quantities: { volume: 600 }, products: ['2 × Lait demi-écrémé'], enough: true } }))).toBe('En stock (2 × Lait demi-écrémé)');
-    expect(lineStatus(line({ buy: { volume: 100 }, stock: { quantities: { volume: 500 }, products: ['Lait'], enough: false } }))).toBe('En stock : 50 cl (Lait)');
-    expect(lineStatus(line({ stock: { quantities: {}, products: ['Lait'], enough: null } }))).toBe('En stock, à vérifier (Lait)');
+    expect(lineStatus(line({ status: 'stock', stock: { quantities: { volume: 600 }, products: ['2 × Lait demi-écrémé'], enough: true, opened: [] } }))).toBe('En stock (2 × Lait demi-écrémé)');
+    expect(lineStatus(line({ buy: { volume: 100 }, stock: { quantities: { volume: 500 }, products: ['Lait'], enough: false, opened: [] } }))).toBe('En stock : 50 cl (Lait)');
+    expect(lineStatus(line({ stock: { quantities: {}, products: ['Lait'], enough: null, opened: [] } }))).toBe('En stock, à vérifier (Lait)');
+    expect(lineStatus(line({ stock: { quantities: {}, products: ['Lait'], enough: false, opened: [] } }))).toBe('En stock, pas assez (Lait)');
     expect(lineStatus(line({ status: 'have', buy: {} }))).toBe('J’en ai déjà');
     expect(lineAmount(line({ status: 'have', buy: {} }))).toBe('60 cl');
   });
 
+  it('paquet peut-être entamé et arrondi au paquet', () => {
+    const opened = { quantities: {}, products: ['Gruyère râpé'], enough: false, opened: ['Gruyère râpé'] };
+    const ask = line({ key: 'gruyere', buy: { masse: 160 }, stock: opened, check: 'ask', packs: { count: 1, per: { quantity: 200, unit: 'g' } } });
+    expect(lineStatus(ask)).toBe('Paquet peut-être entamé (Gruyère râpé)');
+    expect(lineAmount(ask)).toBe('160 g (1 × 200 g)');
+    expect(lineStatus(line({ stock: opened, check: 'needed' }))).toBe('Vérifié : il en faut');
+    expect(lineStatus(line({ status: 'stock', stock: { ...opened, enough: true }, check: 'enough' }))).toBe('Assez au placard (Gruyère râpé)');
+    const groups = planGroups([ask, line({ key: 'lait' }), line({ key: 'oeuf', status: 'have' }), line({ key: 'beurre', check: 'needed' })]);
+    expect(groups.toCheck.map((l) => l.key)).toEqual(['gruyere']);
+    expect(groups.toBuy.flatMap((g) => g.items.map((l) => l.key))).toEqual(['lait', 'beurre']);
+    expect(groups.covered.map((l) => l.key)).toEqual(['oeuf']);
+  });
+
   it('placards saisis en une ligne', () => {
+
     expect(parsePantry('sel, Poivre ; huile\nsel,  ')).toEqual(['sel', 'Poivre', 'huile']);
   });
 });

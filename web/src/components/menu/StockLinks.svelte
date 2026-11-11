@@ -7,6 +7,8 @@
   // Relier les produits du stock aux ingrédients des recettes : la correspondance devinée (mots du nom, contenance)
   // se confirme une fois, puis elle est retenue par produit ; « Changer » choisit un autre ingrédient ou une autre
   // contenance, « Pas un ingrédient » ne le propose plus. Ce qui est relié et en stock est retiré des courses.
+  // « S'utilise en plusieurs fois » (deviné tant qu'on n'y a pas touché) : un paquet est peut-être entamé, il n'est
+  // pas compté sûr et l'ingrédient peut passer « À vérifier au placard ».
   type Props = {
     products: MenuStockProduct[];
     ingredients: { key: string; name: string }[];
@@ -22,12 +24,16 @@
   let name = $state('');
   let quantity = $state<number | null>(null);
   let unit = $state<Unit>('g');
+  let partial = $state(false);
+  let partialTouched = $state(false);
 
   function edit(product: MenuStockProduct) {
     editing = product.code;
     name = product.link?.name ?? '';
     quantity = product.link?.per?.quantity ?? null;
     unit = product.link?.per?.unit ?? 'g';
+    partial = product.partial;
+    partialTouched = false;
   }
 
   function save(product: MenuStockProduct) {
@@ -35,18 +41,25 @@
     if (!chosen) return;
     const known = ingredients.find((i) => i.name.toLowerCase() === chosen.toLowerCase());
     const key = known?.key ?? ingredientKey(chosen);
-    onLink(product, { key, name: known?.name ?? chosen, per: quantity && quantity > 0 ? { quantity, unit } : null });
+    // Tant qu'on n'y a pas touché, « plusieurs fois » reste deviné (absent du lien).
+    const explicit = partialTouched || product.link?.partial !== undefined;
+    onLink(product, { key, name: known?.name ?? chosen, per: quantity && quantity > 0 ? { quantity, unit } : null, ...(explicit && { partial }) });
     editing = null;
   }
 
   const describe = (link: StockLink) => `${link.name}${link.per ? `, ${formatAmount(link.per)} par paquet` : ', contenance inconnue'}`;
+  /** Basculer « s'utilise en plusieurs fois » d'un produit relié (la valeur devient choisie, plus devinée). */
+  const togglePartial = (product: MenuStockProduct) => product.link && onLink(product, { ...product.link, partial: !product.partial });
   const proposals = $derived(products.filter((p) => !p.decided));
   const decided = $derived(products.filter((p) => p.decided));
 </script>
 
 <div class="links">
   <h2>Stock et ingrédients</h2>
-  <p class="muted">Un produit relié et en stock est retiré des courses du menu, ou sa quantité en est déduite.</p>
+  <p class="muted">
+    Un produit relié et en stock est retiré des courses du menu, ou sa quantité en est déduite. S’il s’utilise en
+    plusieurs fois, un paquet est peut-être entamé : l’ingrédient peut être à vérifier au placard.
+  </p>
 
   {#snippet row(product: MenuStockProduct)}
     <li>
@@ -63,6 +76,10 @@
               {#each PACKAGE_UNITS as option (option.unit)}<option value={option.unit}>{option.label}</option>{/each}
             </select>
           </div>
+          <label class="partial">
+            <input type="checkbox" bind:checked={partial} onchange={() => (partialTouched = true)} />
+            S’utilise en plusieurs fois
+          </label>
           <div class="actions">
             <button type="button" class="btn small" onclick={() => (editing = null)}>Annuler</button>
             <button type="submit" class="btn small primary" disabled={busy || !name.trim()}>Relier</button>
@@ -72,6 +89,18 @@
         <p class="link">
           {#if product.link}→ {describe(product.link)}{:else}Pas un ingrédient{/if}
         </p>
+        {#if product.link?.per}
+          {#if product.decided && editable}
+            <label class="partial">
+              <input type="checkbox" checked={product.partial} disabled={busy} onchange={() => togglePartial(product)} />
+              <span>S’utilise en plusieurs fois{#if product.partialGuessed}{' '}<span class="muted">(deviné)</span>{/if}</span>
+            </label>
+          {:else}
+            <p class="muted">
+              {product.partial ? 'S’utilise en plusieurs fois' : 'S’utilise en une fois'}{#if product.partialGuessed}{' '}(deviné){/if}
+            </p>
+          {/if}
+        {/if}
         {#if editable}
           <div class="actions">
             {#if !product.decided && product.link}
@@ -154,6 +183,25 @@
   .link {
     margin: 0;
     color: var(--fg-soft);
+  }
+
+  li > .muted {
+    margin: 0;
+  }
+
+  .partial {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    color: var(--fg-soft);
+  }
+
+  .partial input {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    accent-color: var(--ok);
   }
 
   .editor {

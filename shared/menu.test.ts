@@ -1,5 +1,6 @@
 // Tests du menu de la semaine : semaines, agrégation des recettes à l'échelle, ce qu'on a déjà (placards, coche,
-// ligne à la main, déjà acheté, stock) et la synchronisation avec la liste de courses, cas limites compris.
+// ligne à la main, déjà acheté, stock, paquet peut-être entamé à vérifier au placard), l'arrondi au paquet et la
+// synchronisation avec la liste de courses, cas limites compris.
 import { describe, expect, it } from 'vitest';
 import {
   addWeeks,
@@ -9,16 +10,21 @@ import {
   type HaveState,
   inPantry,
   isWeek,
+  largestNeeds,
   manualKeys,
   type MenuEntry,
   type MenuRecipe,
+  packSizes,
+  packsFor,
   planNeeds,
+  type StockLink,
   stockPool,
   syncOps,
   weekDays,
   weekOf,
 } from './menu.ts';
 import { ingredientLines } from './recipes.ts';
+import { guessPartial } from './stock-link.ts';
 import type { ShoppingMenuMark } from './types.ts';
 
 const ids = () => {
@@ -33,6 +39,8 @@ const RECIPES: Record<string, MenuRecipe> = {
   mijote: recipe('Mijoté', 4, ['300 g de lentilles', '3 carottes', '1 oignon', '1 c. à s. d’huile d’olive', 'Sel, poivre']),
   pates: recipe('Pâtes au thon', 4, ['400 g de pâtes', '100 g d’oignons', '20 cl de lait', 'Persil']),
   galettes: recipe('Galettes', 12, ['250 g de farine de sarrasin', '2 à 3 œufs', '50 cl de lait']),
+  gratin: recipe('Gratin', 4, ['80 g de gruyère râpé', '2 courgettes']),
+  croque: recipe('Croque', 4, ['100 g de gruyère râpé', '8 tranches de pain de mie']),
 };
 const recipeOf = (id: string) => RECIPES[id] ?? null;
 let n = 0;
@@ -51,6 +59,8 @@ const state = (over: Partial<HaveState> = {}): HaveState => ({
   manual: new Set(),
   bought: new Map(),
   stock: new Map(),
+  checks: new Map(),
+  packs: new Map(),
   ...over,
 });
 const W = '2026-11-09';
@@ -163,7 +173,106 @@ describe('planNeeds', () => {
   });
 });
 
+describe('paquet peut-être entamé', () => {
+  const GRUYERE: StockLink = { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' } };
+  /** Gratin (80 g) et croque (100 g) : 180 g de gruyère pour la semaine. */
+  const week = (people = 4) => aggregateNeeds([entry('gratin', people), entry('croque', people)], recipeOf);
+  const gruyere = (count: number, partial = true, link: StockLink = GRUYERE) => stockPool([{ name: 'Gruyère râpé', count, link, partial }]);
+  const packs = packSizes([GRUYERE]);
+  const planOf = (over: Partial<HaveState>, people = 4) => planNeeds(week(people), state({ packs, ...over })).find((l) => l.key === 'gruyere')!;
+
+  it('devine qu’un produit s’utilise en plusieurs fois d’après le plus grand besoin d’une recette', () => {
+    const largest = largestNeeds(Object.values(RECIPES));
+    expect(largest.get('gruyere')).toEqual({ masse: 100 });
+    expect(largest.get('lait')).toEqual({ volume: 500 });
+    expect(guessPartial({ quantity: 200, unit: 'g' }, largest.get('gruyere'))).toBe(true);
+    expect(guessPartial({ quantity: 100, unit: 'g' }, largest.get('gruyere'))).toBe(false);
+    expect(guessPartial({ quantity: 1, unit: 'kg' }, largest.get('gruyere'))).toBe(true);
+    // Rien à comparer : pas de contenance, pas de recette, unité qui ne se compare pas (boîte contre grammes).
+    expect(guessPartial(null, largest.get('gruyere'))).toBe(false);
+    expect(guessPartial({ quantity: 200, unit: 'g' }, undefined)).toBe(false);
+    expect(guessPartial({ quantity: 1, unit: 'boite' }, largest.get('gruyere'))).toBe(false);
+  });
+
+  it('les paquets sûrs suffisent : la ligne disparaît comme avant', () => {
+    expect(planOf({ stock: gruyere(2) })).toMatchObject({ status: 'stock', check: null, stock: { enough: true } });
+  });
+
+  it('un seul paquet, peut-être entamé : à vérifier, et en attendant dans les courses', () => {
+    const line = planOf({ stock: gruyere(1) });
+    expect(line).toMatchObject({ status: 'buy', check: 'ask', buy: { masse: 180 }, packs: { count: 1, per: { quantity: 200, unit: 'g' } } });
+    expect(line.stock).toMatchObject({ enough: false, opened: ['Gruyère râpé'] });
+    const [wanted] = desiredLines([line], W);
+    expect(wanted.label).toBe('Gruyère · 180 g (1 × 200 g)');
+    expect(wanted.menu).toMatchObject({ key: 'gruyere', check: true, packs: { count: 1 } });
+  });
+
+  it('« J’en ai assez » retire la ligne, « Il en faut » la garde sans le signal ; la décision se change', () => {
+    const enough = planOf({ stock: gruyere(1), checks: new Map([['gruyere', 'enough']]) });
+    expect(enough).toMatchObject({ status: 'stock', check: 'enough', stock: { enough: true } });
+    expect(desiredLines([enough], W)).toEqual([]);
+    const needed = planOf({ stock: gruyere(1), checks: new Map([['gruyere', 'needed']]) });
+    expect(needed).toMatchObject({ status: 'buy', check: 'needed', buy: { masse: 180 } });
+    expect(desiredLines([needed], W)[0].menu.check).toBeUndefined();
+  });
+
+  it('même un paquet plein ne suffit pas : la différence sur les paquets sûrs, rien à vérifier', () => {
+    // 360 g pour la semaine, un paquet de 200 g : on achète tout (aucun paquet sûr).
+    expect(planOf({ stock: gruyere(1) }, 8)).toMatchObject({ status: 'buy', check: null, buy: { masse: 360 }, stock: { enough: false }, packs: { count: 2 } });
+    // Deux paquets : 200 g sûrs, les 160 g qui manquent tiendraient dans le paquet entamé.
+    expect(planOf({ stock: gruyere(2) }, 8)).toMatchObject({ status: 'buy', check: 'ask', buy: { masse: 160 }, stock: { quantities: { masse: 200 } } });
+    // Trois paquets : 400 g sûrs, assez.
+    expect(planOf({ stock: gruyere(3) }, 8)).toMatchObject({ status: 'stock', check: null });
+  });
+
+  it('aucun paquet : à acheter, arrondi au paquet du produit relié', () => {
+    expect(planOf({ stock: gruyere(0) })).toMatchObject({ status: 'buy', check: null, stock: null, packs: { count: 1 } });
+  });
+
+  it('un produit utilisé en une fois compte en entier', () => {
+    expect(planOf({ stock: gruyere(1, false) })).toMatchObject({ status: 'stock', check: null });
+  });
+
+  it('unités qui ne se comparent pas : à vérifier comme avant, ni décision ni paquets', () => {
+    const piece: StockLink = { ...GRUYERE, per: { quantity: 1, unit: 'piece' } };
+    const line = planNeeds(week(), state({ stock: gruyere(1, true, piece), packs: packSizes([piece]) })).find((l) => l.key === 'gruyere')!;
+    expect(line).toMatchObject({ status: 'buy', check: null, buy: { masse: 180 }, stock: { enough: null }, packs: null });
+  });
+
+  it('plusieurs semaines se partagent le stock : un paquet déclaré suffisant ne couvre plus la suivante', () => {
+    const one = aggregateNeeds([entry('croque', 4)], recipeOf);
+    const shared = state({ stock: gruyere(1), checks: new Map([['gruyere', 'enough']]), packs });
+    const gruyereOf = (lines: ReturnType<typeof planNeeds>) => lines.find((l) => l.key === 'gruyere')!;
+    expect(gruyereOf(planNeeds(week(), shared))).toMatchObject({ status: 'stock', check: 'enough' });
+    // Semaine suivante, sans décision : 180 g du paquet ont servi, les 20 g restants ne comblent pas 100 g.
+    expect(planNeeds(one, { ...shared, checks: new Map() })[0]).toMatchObject({ status: 'buy', check: null, buy: { masse: 100 } });
+    // Sans décision la première semaine, le paquet reste à vérifier la semaine suivante.
+    const undecided = state({ stock: gruyere(1), packs });
+    expect(planNeeds(one, undecided)[0].check).toBe('ask');
+    expect(planNeeds(one, undecided)[0].check).toBe('ask');
+  });
+
+  it('ligne cochée ou ajoutée à la main : elles passent avant la vérification', () => {
+    const bought = new Map([['gruyere', { quantities: { masse: 100 }, toTaste: false }]]);
+    expect(planOf({ stock: gruyere(1), bought })).toMatchObject({ status: 'buy', check: 'ask', buy: { masse: 80 } });
+    const all = new Map([['gruyere', { quantities: { masse: 200 }, toTaste: false }]]);
+    expect(planOf({ stock: gruyere(1), bought: all })).toMatchObject({ status: 'bought', check: null });
+    expect(planOf({ stock: gruyere(1), manual: new Set(['gruyere']) })).toMatchObject({ status: 'manual', check: null });
+  });
+
+  it('arrondi au paquet : une seule grandeur, la première contenance qui se compare', () => {
+    expect(packsFor({ masse: 250 }, [{ quantity: 200, unit: 'g' }])).toEqual({ count: 2, per: { quantity: 200, unit: 'g' } });
+    expect(packsFor({ masse: 400 }, [{ quantity: 200, unit: 'g' }])?.count).toBe(2);
+    expect(packsFor({ volume: 700 }, [{ quantity: 6, unit: 'piece' }, { quantity: 1, unit: 'l' }])).toEqual({ count: 1, per: { quantity: 1, unit: 'l' } });
+    expect(packsFor({ piece: 1, masse: 100 }, [{ quantity: 200, unit: 'g' }])).toBeNull();
+    expect(packsFor({ masse: 100 }, [])).toBeNull();
+    expect(packsFor({}, [{ quantity: 200, unit: 'g' }])).toBeNull();
+    expect(packSizes([GRUYERE, { ...GRUYERE }, null, { key: 'lait', name: 'lait', per: null }])).toEqual(new Map([['gruyere', [{ quantity: 200, unit: 'g' }]]]));
+  });
+});
+
 describe('liste de courses', () => {
+
   const mark = (key: string, quantities: ShoppingMenuMark['quantities'], week = W): ShoppingMenuMark => ({ week, key, quantities, toTaste: false, aisle: null, sources: ['Mijoté'] });
   const plan = () => planNeeds(aggregateNeeds([entry('mijote', 4)], recipeOf), state({ pantry: ['sel', 'poivre', 'huile'] }));
 

@@ -1,6 +1,7 @@
 // Tests de l'API du menu de la semaine : droits (un parent seulement, téléphone ou reconnu à la tablette), semaines
 // modifiables, et la liste de courses qui suit le menu : lignes ajoutées, recalculées, retirées, jamais celles
-// écrites à la main ni celles cochées ; placards, « j'en ai déjà », stock relié, ligne retirée à la main.
+// écrites à la main ni celles cochées ; placards, « j'en ai déjà », stock relié, ligne retirée à la main ; paquet
+// peut-être entamé « à vérifier au placard » (décisions d'un parent seulement) et arrondi au paquet.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,6 +32,7 @@ const OTHER = '192.168.1.20';
 const WEEK = '2026-11-02';
 const LAIT = '3000000000014';
 const LESSIVE = '3000000000052';
+const GRUYERE = '3000000000106';
 
 type CallOptions = { from?: string; token?: string; actor?: string; body?: unknown };
 
@@ -63,6 +65,7 @@ async function setup() {
     recipes.add({ ours: normalizeContent(contentInputSchema.parse({ title, servings, ingredients: lines.map((text) => ({ text })), steps: [] })), source: null }, by);
   const mijote = await addRecipe('Mijoté', 4, ['300 g de lentilles', '3 carottes', '1 oignon', '1 c. à s. d’huile d’olive', 'Sel, poivre', '50 cl de lait']);
   const pates = await addRecipe('Pâtes au thon', 4, ['400 g de pâtes', '100 g d’oignons', 'Persil']);
+  const gratin = await addRecipe('Gratin', 4, ['150 g de gruyère râpé', '2 courgettes']);
 
   const phone = async (ownerId: string) => {
     const { code } = devices.createCode(ownerId);
@@ -85,7 +88,7 @@ async function setup() {
   const labels = async () => (await shopping()).map((s) => s.label);
   const add = (recipeId: string, people?: number, day: string | null = null) =>
     call('POST', '/menu/entries', { token: alex, body: { week: WEEK, recipeId, people, day } });
-  return { call, phone, tablet, alex, view, shopping, labels, add, mijote, pates, lists, stock, recipes, by };
+  return { call, phone, tablet, alex, view, shopping, labels, add, mijote, pates, gratin, lists, stock, recipes, by };
 }
 
 describe('API du menu : droits', () => {
@@ -217,7 +220,10 @@ describe('API du menu : liste de courses', () => {
     await stock.add(LESSIVE, 1, null, by);
     await add(mijote.id, 4);
     const before = await view();
-    expect(before.stock).toEqual([{ code: LAIT, name: 'Lait demi-écrémé', quantity: '1 L', count: 2, link: { key: 'lait', name: 'lait', per: { quantity: 1, unit: 'l' } }, decided: false }]);
+    // 1 l par brique, 50 cl au plus dans une recette : deviné « s'utilise en plusieurs fois ».
+    expect(before.stock).toEqual([
+      { code: LAIT, name: 'Lait demi-écrémé', quantity: '1 L', count: 2, link: { key: 'lait', name: 'lait', per: { quantity: 1, unit: 'l' } }, decided: false, partial: true, partialGuessed: true },
+    ]);
     // Proposition pas encore confirmée : rien n'est retiré.
     expect(await labels()).toContain('Lait · 50 cl');
     await call('PUT', `/menu/links/${LAIT}`, { token: alex, body: { link: before.stock[0].link } });
@@ -232,3 +238,63 @@ describe('API du menu : liste de courses', () => {
     expect((await view()).stock).toMatchObject([{ code: LAIT, link: null, decided: true }]);
   });
 });
+
+describe('API du menu : paquet peut-être entamé', () => {
+  async function withGruyere() {
+    const ctx = await setup();
+    await ctx.stock.saveManual(GRUYERE, { name: 'Gruyère râpé', brand: null, quantity: '200 g', category: null });
+    await ctx.stock.add(GRUYERE, 1, null, ctx.by);
+    // Lien enregistré sans « plusieurs fois » (comme avant 0.52) : la valeur devinée s'applique.
+    await ctx.call('PUT', `/menu/links/${GRUYERE}`, { token: ctx.alex, body: { link: { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' } } } });
+    await ctx.add(ctx.gratin.id, 4);
+    const gruyere = async () => (await ctx.view()).plan.find((l) => l.key === 'gruyere')!;
+    const line = async () => (await ctx.shopping()).find((s) => s.menu?.key === 'gruyere');
+    const decide = (decision: string | null, options: CallOptions = { token: ctx.alex }) => ctx.call('PUT', '/menu/check', { ...options, body: { week: WEEK, key: 'gruyere', decision } });
+    return { ...ctx, gruyere, line, decide };
+  }
+
+  it('un seul paquet entamé peut-être : à vérifier, dans les courses en attendant, arrondi au paquet', async () => {
+    const { view, gruyere, line } = await withGruyere();
+    expect((await view()).stock.find((p) => p.code === GRUYERE)).toMatchObject({ partial: true, partialGuessed: true, decided: true });
+    expect(await gruyere()).toMatchObject({ status: 'buy', check: 'ask', buy: { masse: 150 }, packs: { count: 1 } });
+    expect(await line()).toMatchObject({ label: 'Gruyère · 150 g (1 × 200 g)', done: false, menu: { check: true, packs: { count: 1, per: { quantity: 200, unit: 'g' } } } });
+  });
+
+  it('« J’en ai assez », « Il en faut », puis oublier la décision', async () => {
+    const { decide, gruyere, line } = await withGruyere();
+    expect((await decide('enough')).status).toBe(204);
+    expect(await gruyere()).toMatchObject({ status: 'stock', check: 'enough' });
+    expect(await line()).toBeUndefined();
+    await decide('needed');
+    expect(await gruyere()).toMatchObject({ status: 'buy', check: 'needed' });
+    const needed = await line();
+    expect(needed?.label).toBe('Gruyère · 150 g (1 × 200 g)');
+    expect(needed?.menu?.check).toBeUndefined();
+    await decide(null);
+    expect((await line())?.menu?.check).toBe(true);
+  });
+
+  it('décider : un parent seulement, et pas pour une semaine passée', async () => {
+    const { call, phone, tablet, alex, decide, gruyere } = await withGruyere();
+    const lea = await decide('enough', { token: await phone('lea') });
+    expect(lea.status).toBe(403);
+    expect(((await lea.json()) as { error: string }).error).toBe(PARENTS_ONLY);
+    expect((await decide('enough', tablet('lea'))).status).toBe(403);
+    expect((await decide('enough', { from: TABLET })).status).toBe(403);
+    expect((await decide('enough', {})).status).toBe(403);
+    expect((await decide('enough', tablet('alex'))).status).toBe(204);
+    const past = await call('PUT', '/menu/check', { token: alex, body: { week: '2026-10-26', key: 'gruyere', decision: 'enough' } });
+    expect(past.status).toBe(400);
+    expect((await call('PUT', '/menu/check', { token: alex, body: { week: WEEK, key: 'gruyere', decision: 'peut-être' } })).status).toBe(400);
+    expect((await gruyere()).check).toBe('enough');
+  });
+
+  it('« s’utilise en une fois » choisi à la main : le paquet compte en entier', async () => {
+    const { call, alex, view, gruyere, line } = await withGruyere();
+    await call('PUT', `/menu/links/${GRUYERE}`, { token: alex, body: { link: { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' }, partial: false } } });
+    expect((await view()).stock.find((p) => p.code === GRUYERE)).toMatchObject({ partial: false, partialGuessed: false });
+    expect(await gruyere()).toMatchObject({ status: 'stock', check: null });
+    expect(await line()).toBeUndefined();
+  });
+});
+

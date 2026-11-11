@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import { addWeeks, type MenuStockProduct, type MenuViewEntry, type PlanLine, type StockLink } from '../../../shared/menu.ts';
+  import { addWeeks, type CheckDecision, type MenuStockProduct, type MenuViewEntry, type PlanLine, type StockLink } from '../../../shared/menu.ts';
   import { FAMILY_ID } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
@@ -23,7 +23,8 @@
   // recettes du carnet choisies pour la semaine, chacune pour un nombre de personnes et, si on veut, un jour ; à côté,
   // les courses qui en découlent (par rayon, avec ce qu'on a déjà), qui rejoignent la liste de courses. Semaines
   // précédentes consultables. Modifier : un parent (reconnu à la tablette, ou son téléphone). Placards et liens
-  // entre le stock et les ingrédients se règlent ici aussi. Retirer un repas (croix de la ligne ou ses réglages) :
+  // entre le stock et les ingrédients (dont « s'utilise en plusieurs fois ») se règlent ici aussi ; « À vérifier au
+  // placard » se décide dans les courses du menu. Retirer un repas (croix de la ligne ou ses réglages) :
   // la ligne disparaît tout de suite, « Annuler » la rend pendant quelques secondes, puis le serveur la retire.
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
@@ -123,6 +124,7 @@
 
   const setPeople = (entry: MenuViewEntry, people: number) => run(() => api.updateMenuEntry(entry.id, { people }));
   const setHave = (line: PlanLine, have: boolean) => run(() => api.setMenuHave(view.data!.week, line.key, have));
+  const setCheck = (line: PlanLine, decision: CheckDecision | null) => run(() => api.setMenuCheck(view.data!.week, line.key, decision));
   const link = (product: MenuStockProduct, value: StockLink | null) => run(() => api.setStockLink(product.code, value));
   const forget = (product: MenuStockProduct) => run(() => api.forgetStockLink(product.code));
   async function savePantry(names: string[]) {
@@ -192,6 +194,7 @@
             empty={data.editable ? 'Ajoute des recettes : leurs ingrédients s’additionnent ici, puis rejoignent la liste de courses.' : 'Rien à acheter.'}
             {busy}
             onHave={setHave}
+            onCheck={setCheck}
           />
         </div>
         <p class="pantry muted">

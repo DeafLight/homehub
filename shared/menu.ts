@@ -13,11 +13,27 @@
 // - Une ligne ajoutée à la main n'est jamais touchée ; si elle porte le même ingrédient (« Oignons »), elle
 //   l'emporte : pas de ligne du menu en double.
 // - Retirer à la main une ligne du menu vaut « j'en ai déjà » pour la semaine (géré par le serveur).
+//
+// Stock relié et paquet peut-être entamé (stockPool, planNeeds) : le stock sait qu'un paquet est entré et pas encore
+// sorti, pas combien il en reste. Un produit qui s'utilise en plusieurs fois (gruyère, farine, beurre : lien
+// `partial`, deviné quand un paquet couvre plus que le plus grand besoin d'une recette du carnet) a peut-être un
+// paquet entamé : seuls (nombre − 1) paquets sont sûrs. Un produit utilisé en une fois (boîte, brique) compte en entier.
+// - Les paquets sûrs suffisent : la ligne disparaît (« En stock »).
+// - Sinon, si le paquet entamé, s'il était plein, comblerait le manque : « À vérifier au placard ». Sans décision,
+//   la ligne reste dans les courses (en cas de doute, on achète), marquée à vérifier. « J'en ai assez » la retire
+//   pour la semaine ; « Il en faut » la garde, sans le signal. Décision par semaine et par ingrédient.
+// - Si même un paquet plein ne suffit pas : on achète la différence calculée sur les paquets sûrs.
+// Un paquet jeté sans avoir été scanné est rattrapé par la même vérification. Le stock n'est jamais décompté quand on
+// cuisine : il est consommé seulement dans le calcul, semaine après semaine (ce qui couvre l'une ne couvre plus l'autre).
+//
+// Arrondi au paquet (packsFor) : quand un produit est relié à l'ingrédient et que les unités se comparent, la ligne
+// dit combien de paquets acheter (« 250 g (2 × 200 g) »).
 import { localDay } from './dates.ts';
 import { guessAisle, ingredientKey, parseIngredient } from './ingredients.ts';
 import {
   addQuantities,
   type Amount,
+  formatAmount,
   formatQuantities,
   isEmpty,
   type Quantities,
@@ -148,16 +164,46 @@ export function aggregateNeeds(entries: readonly MenuEntry[], recipeOf: (id: str
   return [...needs.values()];
 }
 
+/**
+ * Plus grand besoin d'une recette du carnet pour chaque ingrédient, recette telle qu'écrite (un ingrédient cité deux
+ * fois dans la même recette s'additionne), grandeur par grandeur. Sert à deviner si un paquet s'utilise en plusieurs fois.
+ */
+export function largestNeeds(recipes: Iterable<Pick<MenuRecipe, 'ingredients'>>): Map<string, Quantities> {
+  const largest = new Map<string, Quantities>();
+  for (const recipe of recipes) {
+    const own = new Map<string, Quantities>();
+    for (const line of recipe.ingredients) {
+      const amount = line.quantityMax ?? line.quantity;
+      if (!line.key || amount === null || line.unit === null) continue;
+      own.set(line.key, addQuantities(own.get(line.key) ?? {}, quantitiesOf(amount, line.unit)));
+    }
+    for (const [key, quantities] of own) {
+      const best: Quantities = { ...largest.get(key) };
+      for (const [dimension, value] of Object.entries(quantities)) best[dimension] = Math.max(best[dimension] ?? 0, value ?? 0);
+      largest.set(key, best);
+    }
+  }
+  return largest;
+}
+
 // --- Ce qu'on a déjà ---
 
 export type Bought = { quantities: Quantities; toTaste: boolean };
 
 /**
- * Stock relié aux ingrédients, par clé : la quantité totale (paquets × contenance), et les produits qui la font.
- * `unknown` : un produit relié sans contenance connue (on sait qu'il y en a, pas combien). Consommé semaine après
- * semaine : ce qui couvre cette semaine ne couvre plus la suivante.
+ * Stock relié aux ingrédients, par clé : la quantité sûre (paquets × contenance, sans le paquet peut-être entamé
+ * d'un produit qui s'utilise en plusieurs fois), ce que ce paquet apporterait s'il était plein (`opened`, et les
+ * produits concernés), et les produits qui la font. `unknown` : un produit relié sans contenance connue (on sait qu'il
+ * y en a, pas combien). Consommé semaine après semaine : ce qui couvre cette semaine ne couvre plus la suivante.
  */
-export type StockPool = Map<string, { quantities: Quantities; unknown: boolean; products: string[] }>;
+export type StockPool = Map<string, { quantities: Quantities; opened: Quantities; unknown: boolean; products: string[]; openedProducts: string[] }>;
+
+/** Décision sur un ingrédient « à vérifier au placard », pour une semaine : assez à la maison, ou il en faut. */
+export type CheckDecision = 'enough' | 'needed';
+export const CHECK_DECISIONS = ['enough', 'needed'] as const satisfies readonly CheckDecision[];
+
+/** Paquets à acheter d'un produit relié : « 2 × 200 g ». */
+export type Packs = { count: number; per: Amount };
 
 export type HaveState = {
   /** Clés des placards toujours ignorés. */
@@ -169,12 +215,25 @@ export type HaveState = {
   /** Déjà acheté pour cette semaine (lignes du menu cochées, ou vidées du panier). */
   bought: ReadonlyMap<string, Bought>;
   stock: StockPool;
+  /** Décisions « à vérifier au placard » de cette semaine, par clé. */
+  checks: ReadonlyMap<string, CheckDecision>;
+  /** Contenances des produits reliés à chaque clé (en stock ou non), pour l'arrondi au paquet. */
+  packs: ReadonlyMap<string, readonly Amount[]>;
 };
 
 export type PlanStatus = 'buy' | 'pantry' | 'have' | 'manual' | 'bought' | 'stock';
 
-/** Stock trouvé pour une ligne : `enough` false, il en manque ; null, on ne peut pas comparer (à vérifier). */
-export type StockNote = { quantities: Quantities; products: string[]; enough: boolean | null };
+/**
+ * Stock trouvé pour une ligne : `quantities`, ce que les paquets sûrs couvrent ; `enough` false, il en manque ; null,
+ * on ne peut pas comparer (à vérifier). `opened` : produits dont le paquet peut-être entamé comblerait le manque.
+ */
+export type StockNote = { quantities: Quantities; products: string[]; enough: boolean | null; opened: string[] };
+
+/**
+ * À vérifier au placard : `ask`, pas encore de décision (la ligne reste dans les courses, marquée) ; `enough`, « J'en
+ * ai assez » (rien à acheter) ; `needed`, « Il en faut » (dans les courses, sans le signal). null : rien à vérifier.
+ */
+export type CheckState = 'ask' | CheckDecision;
 
 export type PlanLine = Need & {
   /** « buy » : il reste à acheter `buy` ; sinon la raison pour laquelle il n'y a rien à acheter. */
@@ -184,6 +243,9 @@ export type PlanLine = Need & {
   buyToTaste: boolean;
   stock: StockNote | null;
   bought: Bought | null;
+  check: CheckState | null;
+  /** Paquets à acheter (ligne « buy » seulement, produit relié et unités qui se comparent). */
+  packs: Packs | null;
 };
 
 /** Ce qui reste à acheter pour chaque ingrédient d'une semaine (le stock du `state` est consommé au passage). */
@@ -196,6 +258,8 @@ export function planNeeds(needs: readonly Need[], state: HaveState): PlanLine[] 
       buyToTaste: false,
       stock: null,
       bought: null,
+      check: null,
+      packs: null,
       ...extra,
     });
     if (inPantry(need.key, state.pantry)) return line('pantry');
@@ -212,28 +276,72 @@ export function planNeeds(needs: readonly Need[], state: HaveState): PlanLine[] 
     }
 
     let stock: StockNote | null = null;
+    let check: CheckState | null = null;
     const pool = state.stock.get(need.key);
-    if (pool && (pool.unknown || !isEmpty(pool.quantities))) {
-      const { rest: left, uncertain } = subtractQuantities(rest, pool.quantities);
-      const used = subtractQuantities(rest, left).rest;
+    if (pool && (pool.unknown || !isEmpty(pool.quantities) || !isEmpty(pool.opened))) {
+      // D'abord les paquets sûrs.
+      const sure = subtractQuantities(rest, pool.quantities);
+      const used = subtractQuantities(rest, sure.rest).rest;
       pool.quantities = subtractQuantities(pool.quantities, used).rest;
-      const enough = isEmpty(left) ? true : uncertain || (pool.unknown && isEmpty(used)) ? null : false;
-      stock = { quantities: used, products: pool.products, enough };
-      rest = left;
+      let uncertain = sure.uncertain;
+      if (!isEmpty(sure.rest) && !isEmpty(pool.opened)) {
+        // Puis le paquet peut-être entamé, compté plein : s'il comblerait le manque, à vérifier au placard.
+        const opened = subtractQuantities(sure.rest, pool.opened);
+        if (isEmpty(opened.rest)) {
+          check = state.checks.get(need.key) ?? 'ask';
+          // « J'en ai assez » : ce paquet sert cette semaine, il ne couvre plus la suivante.
+          if (check === 'enough') pool.opened = subtractQuantities(pool.opened, sure.rest).rest;
+        } else uncertain ||= opened.uncertain;
+      }
+      const enough = isEmpty(sure.rest) || check === 'enough' ? true : check === null && (uncertain || (pool.unknown && isEmpty(used))) ? null : false;
+      stock = { quantities: used, products: pool.products, enough, opened: check ? pool.openedProducts : [] };
+      rest = sure.rest;
       toTaste = false;
-      if (enough === true) return line('stock', { stock, bought });
+      if (enough === true) return line('stock', { stock, bought, check });
     }
     if (isEmpty(rest) && !toTaste) return line(bought ? 'bought' : 'stock', { stock, bought });
-    return line('buy', { buy: rest, buyToTaste: isEmpty(rest), stock, bought });
+    return line('buy', { buy: rest, buyToTaste: isEmpty(rest), stock, bought, check, packs: packsFor(rest, state.packs.get(need.key)) });
   });
 }
 
 // --- Liste de courses ---
 
-/** Libellé d'une ligne de courses : « Oignon · 2 + 100 g », « Persil ». */
-export function shoppingLabel(name: string, buy: Quantities): string {
+/**
+ * Paquets à acheter pour couvrir `buy`, d'après les contenances des produits reliés : le premier dont l'unité se
+ * compare. null : plusieurs grandeurs à la fois (« 1 + 100 g »), rien à comparer, ou rien à acheter.
+ */
+export function packsFor(buy: Quantities, sizes: readonly Amount[] = []): Packs | null {
+  const entries = Object.entries(buy).filter((e): e is [string, number] => (e[1] ?? 0) > 1e-9);
+  if (entries.length !== 1) return null;
+  const [dimension, value] = entries[0];
+  for (const per of sizes) {
+    const size = quantitiesOf(per.quantity, per.unit)[dimension];
+    if (size) return { count: Math.max(1, Math.ceil(value / size - 1e-9)), per };
+  }
+  return null;
+}
+
+/** « 2 × 200 g ». */
+export const formatPacks = (packs: Packs) => `${packs.count} × ${formatAmount(packs.per)}`;
+
+/** Contenances des produits reliés, par clé, sans doublon (dans l'ordre des liens). */
+export function packSizes(links: Iterable<StockLink | null>): Map<string, Amount[]> {
+  const sizes = new Map<string, Amount[]>();
+  for (const link of links) {
+    const per = link?.per;
+    if (!link || !per) continue;
+    const list = sizes.get(link.key) ?? [];
+    if (!list.some((a) => a.quantity === per.quantity && a.unit === per.unit)) list.push(per);
+    sizes.set(link.key, list);
+  }
+  return sizes;
+}
+
+/** Libellé d'une ligne de courses : « Oignon · 2 + 100 g », « Gruyère · 250 g (2 × 200 g) », « Persil ». */
+export function shoppingLabel(name: string, buy: Quantities, packs: Packs | null = null): string {
   const amount = formatQuantities(buy);
-  return amount ? `${name} · ${amount}` : name;
+  if (!amount) return name;
+  return packs ? `${name} · ${amount} (${formatPacks(packs)})` : `${name} · ${amount}`;
 }
 
 /** « Mijoté de lentilles ×2 ». */
@@ -246,8 +354,17 @@ export function desiredLines(plan: readonly PlanLine[], week: string): DesiredLi
   return plan
     .filter((l) => l.status === 'buy')
     .map((l) => ({
-      label: shoppingLabel(l.optional ? `${l.name} (facultatif)` : l.name, l.buy),
-      menu: { week, key: l.key, quantities: l.buy, toTaste: l.buyToTaste, aisle: l.aisle, sources: l.sources.map(sourceLabel) },
+      label: shoppingLabel(l.optional ? `${l.name} (facultatif)` : l.name, l.buy, l.packs),
+      menu: {
+        week,
+        key: l.key,
+        quantities: l.buy,
+        toTaste: l.buyToTaste,
+        aisle: l.aisle,
+        sources: l.sources.map(sourceLabel),
+        ...(l.check === 'ask' && { check: true }),
+        ...(l.packs && { packs: l.packs }),
+      },
     }));
 }
 
@@ -304,16 +421,26 @@ export function syncOps(items: readonly ShoppingLike[], desired: readonly Desire
 
 // --- Stock relié ---
 
-/** Produit du stock relié à un ingrédient : la clé, son nom, et ce qu'un paquet en contient (null : inconnu). */
-export type StockLink = { key: string; name: string; per: Amount | null };
+/**
+ * Produit du stock relié à un ingrédient : la clé, son nom, ce qu'un paquet en contient (null : inconnu), et s'il
+ * s'utilise en plusieurs fois (`partial` ; absent : deviné, voir guessPartial dans shared/stock-link.ts).
+ */
+export type StockLink = { key: string; name: string; per: Amount | null; partial?: boolean };
 
-/** Stock relié, par clé, à partir des produits en stock et de leurs liens. */
-export function stockPool(items: readonly { name: string; count: number; link: StockLink | null }[]): StockPool {
+/**
+ * Stock relié, par clé, à partir des produits en stock et de leurs liens. `partial` : le produit s'utilise en
+ * plusieurs fois (valeur du lien ou devinée) ; un de ses paquets est peut-être entamé, il n'est pas compté sûr.
+ */
+export function stockPool(items: readonly { name: string; count: number; link: StockLink | null; partial?: boolean }[]): StockPool {
   const pool: StockPool = new Map();
-  for (const { name, count, link } of items) {
+  for (const { name, count, link, partial = false } of items) {
     if (!link || count <= 0) continue;
-    const entry = pool.get(link.key) ?? { quantities: {}, unknown: false, products: [] };
-    if (link.per) entry.quantities = addQuantities(entry.quantities, quantitiesOf(link.per.quantity * count, link.per.unit));
+    const entry = pool.get(link.key) ?? { quantities: {}, opened: {}, unknown: false, products: [], openedProducts: [] };
+    if (link.per && partial) {
+      entry.quantities = addQuantities(entry.quantities, quantitiesOf(link.per.quantity * (count - 1), link.per.unit));
+      entry.opened = addQuantities(entry.opened, quantitiesOf(link.per.quantity, link.per.unit));
+      entry.openedProducts.push(name);
+    } else if (link.per) entry.quantities = addQuantities(entry.quantities, quantitiesOf(link.per.quantity * count, link.per.unit));
     else entry.unknown = true;
     entry.products.push(count > 1 ? `${count} × ${name}` : name);
     pool.set(link.key, entry);
@@ -337,7 +464,11 @@ export type MenuStockProduct = {
   link: StockLink | null;
   /** Décision prise (lien confirmé ou « pas un ingrédient ») ; false : `link` est une proposition. */
   decided: boolean;
+  /** S'utilise en plusieurs fois : valeur du lien, ou devinée quand `partialGuessed`. */
+  partial: boolean;
+  partialGuessed: boolean;
 };
+
 
 export type MenuView = {
   week: string;

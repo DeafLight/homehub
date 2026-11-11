@@ -6,7 +6,7 @@
 
   // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter (rangés par rayon) puis « dans le
   // panier » jusqu'à ce qu'on le vide. Les lignes du menu de la semaine portent le livre et leurs recettes ; elles
-  // suivent le menu tant qu'elles ne sont pas cochées. Tailles réglables par le parent (--list-font, --list-row).
+  // suivent le menu tant qu'elles ne sont pas cochées ; celles « à vérifier » (paquet peut-être entamé) le disent. Tailles réglables par le parent (--list-font, --list-row).
   type Props = {
     items: ShoppingItem[];
     frequent: string[];
@@ -90,6 +90,7 @@
         {#if item.menu}
           <span class="menu" title="Menu de la semaine"><Icon name="book" size={18} /></span>
           <span class="sources">{item.menu.sources.join(', ')}</span>
+          {#if item.menu.check && !item.done}<span class="check">À vérifier : paquet peut-être entamé</span>{/if}
         {/if}
       </span>
     </label>
@@ -211,6 +212,16 @@
     display: block;
     font-size: 0.8em;
     color: var(--fg-muted);
+  }
+
+  .check {
+    display: inline-block;
+    margin-top: 2px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--warn-bg);
+    color: var(--sun);
+    font-size: 0.75em;
   }
 
   .aisle {

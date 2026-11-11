@@ -49,7 +49,7 @@ import type {
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
-import type { MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
+import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
 import type { ImportPreview, ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
 /**
@@ -205,6 +205,8 @@ export type Api = {
   updateMenuEntry(id: string, change: { people?: number; day?: string | null }): Promise<MenuEntry>;
   removeMenuEntry(id: string): Promise<void>;
   setMenuHave(week: string, key: string, have: boolean): Promise<void>;
+  /** « À vérifier au placard » : « J'en ai assez », « Il en faut », ou oublier la décision (`null`). */
+  setMenuCheck(week: string, key: string, decision: CheckDecision | null): Promise<void>;
   setPantry(names: string[]): Promise<{ names: string[] }>;
   /** Relier un produit du stock à un ingrédient, ou `null` : « pas un ingrédient ». */
   setStockLink(code: string, link: StockLink | null): Promise<void>;
@@ -346,6 +348,7 @@ export function createApi(
     updateMenuEntry: (id, change) => send('PUT', `/menu/entries/${encodeURIComponent(id)}`, change),
     removeMenuEntry: (id) => send('DELETE', `/menu/entries/${encodeURIComponent(id)}`),
     setMenuHave: (week, key, have) => send('PUT', '/menu/have', { week, key, have }),
+    setMenuCheck: (week, key, decision) => send('PUT', '/menu/check', { week, key, decision }),
     setPantry: (names) => send('PUT', '/menu/pantry', { names }),
     setStockLink: (code, link) => send('PUT', `/menu/links/${encodeURIComponent(code)}`, { link }),
     forgetStockLink: (code) => send('DELETE', `/menu/links/${encodeURIComponent(code)}`),

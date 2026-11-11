@@ -1,9 +1,10 @@
 // Affichage du menu de la semaine (tablette et téléphone) : semaines et jours en toutes lettres, recettes rangées
-// par jour, courses rangées par rayon avec ce qu'on a déjà, et la liste de courses rangée par rayon elle aussi. Les
-// calculs (agrégation, stock) sont faits par le serveur avec shared/menu.ts ; ici, seulement la présentation.
-import { labelKey, type MenuViewEntry, type PlanLine, sourceLabel, weekDays } from '../../../shared/menu.ts';
+// par jour, courses rangées par rayon avec ce qu'on a déjà (et ce qui est à vérifier au placard), et la liste de
+// courses rangée par rayon elle aussi. Les calculs (agrégation, stock, paquet peut-être entamé, arrondi au paquet)
+// sont faits par le serveur avec shared/menu.ts ; ici, seulement la présentation.
+import { formatPacks, labelKey, type MenuViewEntry, type PlanLine, sourceLabel, weekDays } from '../../../shared/menu.ts';
 import { guessAisle, type Unit } from '../../../shared/ingredients.ts';
-import { formatQuantities } from '../../../shared/quantities.ts';
+import { formatQuantities, isEmpty } from '../../../shared/quantities.ts';
 import type { ShoppingItem } from '../../../shared/types.ts';
 import { parseDay } from './lists.ts';
 
@@ -68,19 +69,29 @@ export function byAisle<T>(items: readonly T[], aisleOf: (item: T) => string | n
 /** Rayon d'un article de la liste : celui du menu, sinon deviné d'après son libellé (« Yaourts nature » → Crèmerie). */
 export const itemAisle = (item: Pick<ShoppingItem, 'label' | 'menu'>) => item.menu?.aisle ?? guessAisle(labelKey(item.label));
 
-/** Courses du menu : ce qu'il reste à acheter, par rayon, puis ce qu'on a déjà (ou qui est sur la liste à la main). */
-export function planGroups(plan: readonly PlanLine[]): { toBuy: AisleGroup<PlanLine>[]; covered: PlanLine[] } {
+/**
+ * Courses du menu : ce qui est à vérifier au placard (encore dans les courses tant qu'on n'a pas décidé), ce qu'il
+ * reste à acheter, par rayon, puis ce qu'on a déjà (ou qui est sur la liste à la main).
+ */
+export function planGroups(plan: readonly PlanLine[]): { toCheck: PlanLine[]; toBuy: AisleGroup<PlanLine>[]; covered: PlanLine[] } {
+  const toCheck = (l: PlanLine) => l.status === 'buy' && l.check === 'ask';
   return {
-    toBuy: byAisle(plan.filter((l) => l.status === 'buy'), (l) => l.aisle),
+    toCheck: plan.filter(toCheck),
+    toBuy: byAisle(plan.filter((l) => l.status === 'buy' && !toCheck(l)), (l) => l.aisle),
     covered: plan.filter((l) => l.status !== 'buy'),
   };
 }
 
 const products = (names: string[]) => names.join(', ');
 
-/** Quantité d'une ligne : ce qu'il reste à acheter (« 100 g »), ou ce qu'il faut en tout (« 600 g »). */
+/**
+ * Quantité d'une ligne : ce qu'il reste à acheter (« 100 g », « 250 g (2 × 200 g) » quand un produit est relié), ou
+ * ce qu'il faut en tout (« 600 g »).
+ */
 export function lineAmount(line: PlanLine): string {
-  return formatQuantities(line.status === 'buy' ? line.buy : line.quantities);
+  if (line.status !== 'buy') return formatQuantities(line.quantities);
+  const amount = formatQuantities(line.buy);
+  return line.packs && amount ? `${amount} (${formatPacks(line.packs)})` : amount;
 }
 
 /** Ce qu'on a déjà pour une ligne, en clair ; null : rien. */
@@ -95,12 +106,17 @@ export function lineStatus(line: PlanLine): string | null {
     case 'bought':
       return 'Acheté';
     case 'stock':
+      if (line.check === 'enough') return `Assez au placard (${products(line.stock?.opened ?? [])})`;
       return `En stock (${products(line.stock?.products ?? [])})`;
     case 'buy': {
+      if (line.check === 'ask') return `Paquet peut-être entamé (${products(line.stock?.opened ?? [])})`;
+      if (line.check === 'needed') return 'Vérifié : il en faut';
       if (!line.stock) return line.bought ? `Déjà acheté : ${formatQuantities(line.bought.quantities)}` : null;
       if (line.stock.enough === null) return `En stock, à vérifier (${products(line.stock.products)})`;
+      if (isEmpty(line.stock.quantities)) return `En stock, pas assez (${products(line.stock.products)})`;
       return `En stock : ${formatQuantities(line.stock.quantities)} (${products(line.stock.products)})`;
     }
+
   }
 }
 

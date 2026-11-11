@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.51.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.52.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -98,8 +98,10 @@ Depuis Recettes ou Listes. À gauche les recettes de la semaine, jour par jour p
 personnes se règle d'un geste et la croix retire le repas (« Annuler » quelques secondes) ; à droite les **courses du
 menu**, rangées par rayon : quantités mises à l'échelle et regroupées entre recettes, recettes d'origine sous chaque
 ligne. Ce qui n'est pas à acheter est dit : placards (sel, huile…), « j'en ai déjà » coché, « en stock (500 g) » d'après
-un produit relié, ou seulement la différence. Le bouton « … à relier » ouvre les produits du stock à relier aux
-ingrédients.
+un produit relié, ou seulement la différence. En tête, **« À vérifier au placard »** : un seul paquet de gruyère râpé,
+qui s'utilise en plusieurs fois, est peut-être entamé ; tant qu'un parent n'a pas répondu « J'en ai assez » ou « Il en
+faut », le gruyère reste dans les courses, arrondi au paquet (« 160 g (1 × 200 g) »). Le bouton « … à relier » ouvre
+les produits du stock à relier aux ingrédients.
 
 ![Menu de la semaine](images/tablette-menu.png)
 
@@ -276,12 +278,17 @@ publicité, « Vous aimerez aussi », commentaires) partagé vers HomeHub : l'ap
 
 Depuis les onglets Courses et Recettes : le menu en une colonne, puis ses courses. Un parent ajoute une recette (nombre
 de personnes, jour), la règle ou la retire d'un geste (croix, « Annuler » quelques secondes) ; un enfant le voit sans le
-modifier. « Stock » propose de relier un produit à un ingrédient : deviné d'après le nom et la contenance, confirmé une
-fois, puis retenu.
+modifier : « À vérifier au placard » s'affiche, sans les boutons. « Stock » propose de relier un produit à un
+ingrédient : deviné d'après le nom et la contenance, confirmé une fois, puis retenu ; « S'utilise en plusieurs fois »
+est deviné (« deviné ») et se change d'une case. Sur la liste de courses, la ligne du gruyère dit « À vérifier : paquet
+peut-être entamé ».
+
 
 | Menu | Ajouter une recette | Stock et ingrédients |
 |---|---|---|
 | ![Menu](images/telephone-menu.png) | ![Ajouter une recette](images/telephone-menu-ajout.png) | ![Stock et ingrédients](images/telephone-menu-stock.png) |
+
+<img src="images/telephone-menu-placard.png" width="260" alt="À vérifier au placard, vu par un enfant"> <img src="images/telephone-courses-verifier.png" width="260" alt="Liste de courses : gruyère à vérifier, arrondi au paquet">
 
 ## Non capturés
 

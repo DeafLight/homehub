@@ -141,7 +141,7 @@ export const DOCS_PRODUCTS = {
 } as const;
 export const DOCS_UNKNOWN = '3000000000076';
 /** Produits du placard reliés aux ingrédients des recettes (menu de la semaine). */
-export const DOCS_FOOD = { lentilles: '3000000000083', carottes: '3000000000090' } as const;
+export const DOCS_FOOD = { lentilles: '3000000000083', carottes: '3000000000090', gruyere: '3000000000106' } as const;
 const PRODUCT_BASES: Record<string, Record<string, Record<string, string>>> = {
   'world.openfoodfacts.org': {
     [DOCS_PRODUCTS.lait]: { product_name_fr: 'Lait demi-écrémé', brands: 'Laiterie du Val', quantity: '1 L' },
@@ -150,6 +150,7 @@ const PRODUCT_BASES: Record<string, Record<string, Record<string, string>>> = {
     [DOCS_PRODUCTS.riz]: { product_name_fr: 'Riz basmati', brands: 'Moulin d’Anjou', quantity: '1 kg' },
     [DOCS_FOOD.lentilles]: { product_name_fr: 'Lentilles vertes', brands: 'Moulin d’Anjou', quantity: '500 g' },
     [DOCS_FOOD.carottes]: { product_name_fr: 'Carottes des sables', brands: 'Maraîchers du Val', quantity: '1 kg' },
+    [DOCS_FOOD.gruyere]: { product_name_fr: 'Gruyère râpé', brands: 'Fromagerie du Val', quantity: '200 g' },
   },
   'world.openbeautyfacts.org': {
     [DOCS_PRODUCTS.shampooing]: { product_name_fr: 'Shampooing doux', brands: 'Bain de Loire', quantity: '250 ml' },

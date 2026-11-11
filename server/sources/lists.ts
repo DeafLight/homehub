@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { localDay } from '../../shared/dates.ts';
+import { UNITS } from '../../shared/ingredients.ts';
 import { type SyncOps, weekOf } from '../../shared/menu.ts';
 import type { Author, Lists, ListTask, NewTask, Repeat, ShoppingItem, ShoppingMenuMark, Task } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
@@ -23,6 +24,8 @@ const menuMarkSchema = z.object({
   toTaste: z.boolean(),
   aisle: z.string().nullable(),
   sources: z.array(z.string()),
+  check: z.boolean().optional(),
+  packs: z.object({ count: z.number().int().min(1), per: z.object({ quantity: z.number().positive(), unit: z.enum(UNITS) }) }).optional(),
 });
 sameShape<z.infer<typeof menuMarkSchema>, ShoppingMenuMark>(true);
 

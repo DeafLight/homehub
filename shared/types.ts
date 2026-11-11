@@ -1,5 +1,6 @@
 // Contrat de l'API, partagé entre le serveur et le front.
 // Types et constantes uniquement, sans dépendance : il est importé des deux côtés.
+import type { Unit } from './ingredients.ts';
 import type { HolidayStatus, SchoolHoliday } from './school-holidays.ts';
 
 /** Identifiant réservé au dashboard commun de la famille. */
@@ -530,6 +531,10 @@ export type ShoppingMenuMark = {
   aisle: string | null;
   /** Titres des recettes (« Mijoté de lentilles ×2 »). */
   sources: string[];
+  /** À vérifier au placard : un paquet peut-être entamé comblerait le manque (en cas de doute, on achète). */
+  check?: boolean;
+  /** Paquets à acheter, d'après le produit relié à l'ingrédient (« 2 × 200 g »). */
+  packs?: { count: number; per: { quantity: number; unit: Unit } };
 };
 
 export type Repeat ={ every: number; unit: 'day' | 'week' };

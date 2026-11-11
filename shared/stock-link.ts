@@ -1,10 +1,10 @@
 // Correspondance devinée entre un produit du stock et un ingrédient de recette, à confirmer une fois (puis retenue par
 // produit) : « Lardons fumés · 2 x 75 g » → lardon, 150 g par paquet ; « Lait demi-écrémé · 1 L » → lait, 1 l.
 // D'après les mots du nom (au singulier, sans accents), le rayon choisi (l'entretien et l'hygiène ne se mangent pas)
-// et la contenance écrite sur le paquet. Aucun service externe.
+// et la contenance écrite sur le paquet. Aucun service externe. Devine aussi si le produit s'utilise en plusieurs fois.
 import { fold, guessAisle, ingredientKey, singular } from './ingredients.ts';
 import type { StockLink } from './menu.ts';
-import { parsePackage } from './quantities.ts';
+import { type Amount, parsePackage, type Quantities, quantitiesOf } from './quantities.ts';
 import type { ProductInfo } from './types.ts';
 
 export type KnownIngredient = { key: string; name: string };
@@ -49,4 +49,17 @@ export function guessStockLink(product: Pick<ProductInfo, 'name' | 'quantity' | 
     best = { key: first, name: singular(word.toLowerCase()) };
   }
   return { key: best.key, name: best.name, per: parsePackage(product.quantity) };
+}
+
+/**
+ * Un produit s'utilise-t-il en plusieurs fois (gruyère, farine, beurre) ? Deviné : un paquet couvre plus que le plus
+ * grand besoin d'une recette du carnet pour cet ingrédient (`largest`, voir largestNeeds dans shared/menu.ts). Sans
+ * contenance connue, sans recette qui en donne la quantité, ou dans une unité qui ne se compare pas (une boîte de thon
+ * de 140 g contre « 1 boîte ») : non, le paquet compte en entier.
+ */
+export function guessPartial(per: Amount | null, largest: Quantities | undefined): boolean {
+  if (!per || !largest) return false;
+  const [dimension, size] = Object.entries(quantitiesOf(per.quantity, per.unit))[0] ?? [];
+  const need = dimension ? largest[dimension] : undefined;
+  return need !== undefined && size !== undefined && size > need + 1e-9;
 }

@@ -1,10 +1,11 @@
 // Routes du menu de la semaine. Lecture ouverte comme le reste de l'API (le menu est familial, rien de personnel).
-// Modifier le menu (recettes, personnes, jour), les coches « j'en ai déjà », les placards et les liens entre le stock
-// et les ingrédients : un parent (son téléphone, ou reconnu à la tablette), comme la liste de courses que ces
-// changements recalculent. Chaque modification est suivie de la synchronisation de la liste (services/menu.ts).
+// Modifier le menu (recettes, personnes, jour), les coches « j'en ai déjà », les décisions « à vérifier au placard »,
+// les placards et les liens entre le stock et les ingrédients : un parent (son téléphone, ou reconnu à la tablette),
+// comme la liste de courses que ces changements recalculent. Chaque modification est suivie de la synchronisation de
+// la liste (services/menu.ts).
 import { z } from 'zod';
 import { UNITS } from '../shared/ingredients.ts';
-import { isWeek, MENU_LIMITS, type MenuView, weekDays, weekOf } from '../shared/menu.ts';
+import { CHECK_DECISIONS, isWeek, MENU_LIMITS, type MenuView, weekDays, weekOf } from '../shared/menu.ts';
 import type { Access } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { editableWeek, type MenuService } from './services/menu.ts';
@@ -22,6 +23,7 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'jour AAAA-MM-JJ').nullable
 const addSchema = z.object({ week, recipeId: z.string().min(1).max(100), people: people.optional(), day: day.default(null) });
 const updateSchema = z.object({ people: people.optional(), day: day.optional() });
 const haveSchema = z.object({ week, key: z.string().trim().min(1).max(MENU_LIMITS.name), have: z.boolean() });
+const checkSchema = z.object({ week, key: z.string().trim().min(1).max(MENU_LIMITS.name), decision: z.enum(CHECK_DECISIONS).nullable() });
 const pantrySchema = z.object({ names: z.array(z.string().trim().min(1).max(MENU_LIMITS.name)).max(MENU_LIMITS.pantry) });
 const linkSchema = z.object({
   link: z
@@ -29,6 +31,7 @@ const linkSchema = z.object({
       key: z.string().trim().min(1).max(MENU_LIMITS.name),
       name: z.string().trim().min(1).max(MENU_LIMITS.name),
       per: z.object({ quantity: z.number().positive().max(100_000), unit: z.enum(UNITS) }).nullable(),
+      partial: z.boolean().optional(),
     })
     .nullable(),
 });
@@ -101,7 +104,18 @@ export function createMenuApi({ menus, service, recipes, access, clock }: MenuAp
     return c.body(null, 204);
   });
 
+  /** « À vérifier au placard » : « J'en ai assez » (`enough`), « Il en faut » (`needed`), ou oublier (`null`). */
+  api.put('/menu/check', async (c) => {
+    const input = await readBody(c, checkSchema, z.prettifyError);
+    const author = await parent(c);
+    checkWeek(input.week);
+    await menus.setCheck(input.week, input.key, input.decision);
+    await service.sync(author);
+    return c.body(null, 204);
+  });
+
   api.put('/menu/pantry', async (c) => {
+
     const { names } = await readBody(c, pantrySchema, z.prettifyError);
     const author = await parent(c);
     const saved = await menus.setPantry(names);

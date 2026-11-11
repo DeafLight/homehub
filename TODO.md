@@ -38,10 +38,16 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       « j'en ai déjà » pour les placards (sel, huile…), d'après le stock (voir « Stock de la maison ») ; on voit de
       quelles recettes vient chaque ligne. Elle rejoint la liste de courses actuelle, avec les produits hors recettes
       (lessive…).
+- [x] Menu et stock mieux rapprochés (0.52.0) : un produit qui s'utilise en plusieurs fois (deviné, réglable) a
+      peut-être un paquet entamé ; « À vérifier au placard » (« J'en ai assez » / « Il en faut »), la ligne reste
+      dans les courses sans décision ; arrondi au paquet (« 250 g (2 × 200 g) »).
+- [ ] Suite du menu : **frais à acheter plus tard dans la semaine** : crèmerie, boucherie, fruits et légumes d'un
+      repas prévu tard dans la semaine, à acheter plus tard d'après le jour du repas (pas dans 0.52.0).
 - [ ] Suites du menu : catégories Open Food Facts pour deviner un produit relié (seuls le nom, le rayon choisi et la
       contenance servent) ; « brique de crème fraîche » rangée en Autres (unité « brique » à reconnaître) ; capture
       d'une semaine passée.
-- [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (jamais d'office aujourd'hui :
+- [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (toujours jamais d'office en 0.52 :
+
       à proposer, ingrédient par ingrédient, et annulable).
 - [ ] Secondaire, si possible : envoyer la liste au panier d'un drive (enseigne à définir, type Hyper U) depuis la
       tablette ; ce que le drive n'a pas reste dans la liste classique. HomeHub remplit le panier ; la commande et

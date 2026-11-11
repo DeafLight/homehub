@@ -1,11 +1,12 @@
 // Menu de la semaine (menus.json dans le dossier d'état) : les recettes de chaque semaine (lundi), les coches
-// « j'en ai déjà » de chaque semaine, les placards toujours ignorés, et les liens entre produits du stock et
-// ingrédients, confirmés une fois puis retenus par produit. Les semaines passées restent lisibles quelques mois
-// (MENU_LIMITS.weeksKept), puis sont oubliées avec leurs coches.
+// « j'en ai déjà » de chaque semaine, les décisions « à vérifier au placard » (j'en ai assez / il en faut) de chaque
+// semaine, les placards toujours ignorés, et les liens entre produits du stock et ingrédients, confirmés une fois puis
+// retenus par produit (avec « s'utilise en plusieurs fois », absent : deviné). Les semaines passées restent lisibles
+// quelques mois (MENU_LIMITS.weeksKept), puis sont oubliées avec leurs coches et leurs décisions.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { UNITS } from '../../shared/ingredients.ts';
-import { addWeeks, DEFAULT_PANTRY, MENU_LIMITS, type MenuEntry, type StockLink, weekOf } from '../../shared/menu.ts';
+import { addWeeks, CHECK_DECISIONS, type CheckDecision, DEFAULT_PANTRY, MENU_LIMITS, type MenuEntry, type StockLink, weekOf } from '../../shared/menu.ts';
 import type { Author } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema, sameShape } from './schemas.ts';
@@ -26,6 +27,8 @@ const linkSchema = z.object({
   key: z.string(),
   name: z.string(),
   per: z.object({ quantity: z.number().positive(), unit: z.enum(UNITS) }).nullable(),
+  /** S'utilise en plusieurs fois ; absent (liens d'avant 0.52) : deviné. */
+  partial: z.boolean().optional(),
 });
 sameShape<z.infer<typeof linkSchema>, StockLink>(true);
 
@@ -33,6 +36,8 @@ const fileSchema = z.object({
   version: z.literal(1),
   weeks: z.record(z.string(), z.array(entrySchema)),
   have: z.record(z.string(), z.array(z.string())),
+  /** Semaine → clé → décision « à vérifier au placard ». */
+  checks: z.record(z.string(), z.record(z.string(), z.enum(CHECK_DECISIONS))).default({}),
   /** Noms des placards ; null : jamais réglés (DEFAULT_PANTRY). */
   pantry: z.array(z.string()).nullable(),
   /** Code-barres → ingrédient, ou null : « pas un ingrédient » (plus proposé). */
@@ -43,6 +48,7 @@ type MenusFile = z.infer<typeof fileSchema>;
 export type MenuData = {
   weeks: Record<string, MenuEntry[]>;
   have: Record<string, string[]>;
+  checks: Record<string, Record<string, CheckDecision>>;
   pantry: string[];
   links: Record<string, StockLink | null>;
 };
@@ -58,6 +64,8 @@ export type MenuStore = {
   /** Semaine d'une entrée, ou null. */
   weekOfEntry(id: string): Promise<string | null>;
   setHave(week: string, key: string, have: boolean): Promise<void>;
+  /** Décision « à vérifier au placard » ; null : l'oublier (de nouveau à vérifier). */
+  setCheck(week: string, key: string, decision: CheckDecision | null): Promise<void>;
   setPantry(names: string[]): Promise<string[]>;
   /** Lien d'un produit (null : pas un ingrédient) ; `undefined` : oublier la décision (de nouveau proposé). */
   setLink(code: string, link: StockLink | null | undefined): Promise<void>;
@@ -67,12 +75,13 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
   const state = createJsonFile<MenusFile>({
     path,
     schema: fileSchema,
-    initial: () => ({ version: 1, weeks: {}, have: {}, pantry: null, links: {} }),
+    initial: () => ({ version: 1, weeks: {}, have: {}, checks: {}, pantry: null, links: {} }),
     beforeSave(draft) {
       const oldest = addWeeks(weekOf(clock()), -MENU_LIMITS.weeksKept);
       for (const record of [draft.weeks, draft.have]) {
         for (const week of Object.keys(record)) if (week < oldest || record[week].length === 0) delete record[week];
       }
+      for (const week of Object.keys(draft.checks)) if (week < oldest || Object.keys(draft.checks[week]).length === 0) delete draft.checks[week];
     },
   });
 
@@ -87,7 +96,7 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
   return {
     async data() {
       const file = await state.read();
-      return { weeks: file.weeks, have: file.have, pantry: file.pantry ?? DEFAULT_PANTRY, links: file.links };
+      return { weeks: file.weeks, have: file.have, checks: file.checks, pantry: file.pantry ?? DEFAULT_PANTRY, links: file.links };
     },
 
     addEntry(week, entry, by) {
@@ -133,7 +142,16 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
       });
     },
 
+    setCheck(week, key, decision) {
+      return state.update((file) => {
+        const decisions = (file.checks[week] ??= {});
+        if (decision) decisions[key] = decision;
+        else delete decisions[key];
+      });
+    },
+
     setPantry(names) {
+
       return state.update((file) => {
         file.pantry = [...new Set(names)];
         return file.pantry;

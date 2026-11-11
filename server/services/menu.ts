@@ -1,7 +1,8 @@
 // Menu de la semaine côté serveur : la vue d'une semaine (recettes, courses calculées, stock à relier) et la
 // synchronisation de la liste de courses. Les règles sont dans shared/menu.ts ; ici, on rassemble les magasins
 // (menu, carnet, stock, listes). La synchronisation tourne après chaque changement qui la concerne (menu, placards,
-// coches, liens, stock, recettes), et au premier passage d'une nouvelle semaine.
+// coches, liens, stock, recettes), et au premier passage d'une nouvelle semaine. « S'utilise en plusieurs fois » est
+// la valeur du lien, ou devinée d'après les recettes du carnet quand le lien ne la donne pas.
 import {
   addWeeks,
   aggregateNeeds,
@@ -9,19 +10,23 @@ import {
   type DesiredLine,
   desiredLines,
   labelKey,
+  largestNeeds,
   manualKeys,
   type MenuRecipe,
   type MenuStockProduct,
   type MenuView,
+  packSizes,
   planNeeds,
   type PlanLine,
+  type StockLink,
   stockPool,
   type StockPool,
   syncOps,
   weekOf,
 } from '../../shared/menu.ts';
 import type { Recipe } from '../../shared/recipes.ts';
-import { guessStockLink, type KnownIngredient } from '../../shared/stock-link.ts';
+import type { Quantities } from '../../shared/quantities.ts';
+import { guessPartial, guessStockLink, type KnownIngredient } from '../../shared/stock-link.ts';
 import type { Author, ShoppingItem, ShoppingMenuMark, StockData } from '../../shared/types.ts';
 import type { ListsStore } from '../sources/lists.ts';
 import type { MenuData, MenuStore } from '../sources/menus.ts';
@@ -63,8 +68,19 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     return (id: string): MenuRecipe | null => byId.get(id)?.ours ?? null;
   };
 
-  const poolOf = ({ menu, stock: data }: Snapshot): StockPool =>
-    stockPool(data.items.map((i) => ({ name: i.product.current.name, count: i.quantity, link: menu.links[i.product.code] ?? null })));
+  const largestOf = (snap: Snapshot) => largestNeeds(snap.recipes.map((r) => r.ours));
+  /** « S'utilise en plusieurs fois » : la valeur du lien, sinon devinée. */
+  const partialOf = (link: StockLink | null, largest: ReadonlyMap<string, Quantities>) => (link ? (link.partial ?? guessPartial(link.per, largest.get(link.key))) : false);
+
+  function poolOf(snap: Snapshot): StockPool {
+    const largest = largestOf(snap);
+    return stockPool(
+      snap.stock.items.map((i) => {
+        const link = snap.menu.links[i.product.code] ?? null;
+        return { name: i.product.current.name, count: i.quantity, link, partial: partialOf(link, largest) };
+      }),
+    );
+  }
 
   /** Semaines dont les courses comptent : la semaine en cours et celles à venir qui ont un menu, dans l'ordre. */
   const activeWeeks = ({ menu, current }: Snapshot) =>
@@ -78,10 +94,12 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     const recipeOf = recipeLookup(snap.recipes);
     const pantry = snap.menu.pantry.map(labelKey);
     const manual = manualKeys(shopping);
+    const packs = packSizes(Object.values(snap.menu.links));
     const result = new Map<string, PlanLine[]>();
     for (const week of activeWeeks(snap)) {
       const needs = aggregateNeeds(snap.menu.weeks[week], recipeOf);
-      result.set(week, planNeeds(needs, { pantry, have: new Set(snap.menu.have[week] ?? []), manual, bought: boughtFor(shopping, cleared, week), stock: pool }));
+      const checks = new Map(Object.entries(snap.menu.checks[week] ?? {}));
+      result.set(week, planNeeds(needs, { pantry, have: new Set(snap.menu.have[week] ?? []), manual, bought: boughtFor(shopping, cleared, week), stock: pool, checks, packs }));
     }
     return result;
   }
@@ -99,13 +117,15 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
   /** Produits du stock à relier : ceux qui ressemblent à un ingrédient, ou déjà décidés ; la semaine d'abord. */
   function stockProducts(snap: Snapshot, weekKeys: ReadonlySet<string>): MenuStockProduct[] {
     const known = knownIngredients(snap.recipes);
+    const largest = largestOf(snap);
     const products: MenuStockProduct[] = [];
     for (const item of snap.stock.items) {
       const { code, current } = item.product;
       const decided = code in snap.menu.links;
       const link = decided ? snap.menu.links[code] : guessStockLink(current, known);
       if (!decided && (!link || item.quantity === 0)) continue;
-      products.push({ code, name: current.name, quantity: current.quantity, count: item.quantity, link, decided });
+      const partialGuessed = link?.partial === undefined;
+      products.push({ code, name: current.name, quantity: current.quantity, count: item.quantity, link, decided, partial: partialOf(link, largest), partialGuessed });
     }
     const rank = (p: MenuStockProduct) => (!p.decided && p.link && weekKeys.has(p.link.key) ? 0 : !p.decided ? 1 : 2);
     return products.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr'));
@@ -126,7 +146,16 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
       } else {
         // Semaine passée : les ingrédients tels quels, sans ce qu'on avait (le stock a changé depuis).
         const needs = aggregateNeeds(entries, recipeLookup(snap.recipes));
-        plan = planNeeds(needs, { pantry: snap.menu.pantry.map(labelKey), have: new Set(snap.menu.have[week] ?? []), manual: new Set(), bought: new Map(), stock: new Map() });
+        plan = planNeeds(needs, {
+          pantry: snap.menu.pantry.map(labelKey),
+          have: new Set(snap.menu.have[week] ?? []),
+          manual: new Set(),
+          bought: new Map(),
+          stock: new Map(),
+          checks: new Map(),
+          packs: new Map(),
+        });
+
       }
       return {
         week,

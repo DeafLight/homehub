@@ -253,7 +253,8 @@ classDiagram
 | `timers.json` | minuteurs en cours |
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
-| `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », placards, produits du stock reliés aux ingrédients |
+| `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
+
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
 | `faces.json` | empreintes de visage (aucune image) |
@@ -299,6 +300,30 @@ touchée, seul le complément revient sur une nouvelle ligne ; une ligne ajouté
 l'emporte ; retirer une ligne du menu vaut « j'en ai déjà » pour sa semaine. Ce qu'il faut est déduit dans cet ordre :
 placards, « j'en ai déjà », ligne à la main, déjà acheté, puis stock (partagé entre les semaines, la plus proche
 d'abord). Le stock n'est jamais décompté quand on cuisine.
+
+Le stock sait qu'un paquet est entré et pas encore sorti, pas combien il en reste. D'où la règle du **paquet
+peut-être entamé** : un produit relié qui s'utilise en plusieurs fois (attribut `partial` du lien ; absent, valeur
+devinée : un paquet couvre plus que le plus grand besoin d'une recette du carnet pour cet ingrédient) n'a que
+(nombre − 1) paquets sûrs, le dernier pouvant être entamé ; un produit utilisé en une fois compte en entier.
+
+```mermaid
+flowchart TD
+  besoin["Besoin de la semaine<br/>(après placards, coche, main, acheté)"] --> surs{"Paquets sûrs<br/>suffisent ?"}
+  surs -- oui --> stock["En stock : rien à acheter"]
+  surs -- non --> entame{"Le paquet entamé,<br/>plein, comblerait<br/>le manque ?"}
+  entame -- non --> diff["Acheter la différence<br/>sur les paquets sûrs"]
+  entame -- oui --> decision{"Décision d'un parent<br/>(semaine, ingrédient)"}
+  decision -- "J'en ai assez" --> assez["Rien à acheter<br/>(le paquet sert cette semaine)"]
+  decision -- "Il en faut" --> achat["Dans les courses"]
+  decision -- "pas encore" --> doute["Dans les courses,<br/>marqué « à vérifier »"]
+```
+
+Les décisions sont rangées par semaine et par ingrédient dans `menus.json` (`checks`) ; seul un parent les prend
+(`PUT /api/menu/check`, `access.parent`). Une décision ne compte que si la vérification a lieu d'être : si le stock
+change et que les paquets sûrs suffisent, ou qu'un paquet plein ne suffirait plus, elle est ignorée. Un paquet jeté
+sans être scanné est rattrapé par la même vérification. Quand un produit est relié à l'ingrédient et que les unités se
+comparent, la ligne porte les paquets à acheter (`packs`, « 250 g (2 × 200 g) »), sur la marque `menu` de la liste de
+courses comme dans le menu.
 
 **Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
 si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe
