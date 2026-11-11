@@ -75,6 +75,8 @@ export type RecipeStore = {
   add(recipe: NewRecipe, by: Author): Promise<Recipe>;
   /** Remplace notre version ; null si la recette n'existe pas. */
   update(id: string, ours: RecipeContent, by: Author): Promise<Recipe | null>;
+  /** Relecture de la page : nouvelle source, notre version fusionnée, photo ajoutée s'il n'y en avait pas ; null si la recette n'existe pas. */
+  reread(id: string, update: { source: RecipeSource; ours: RecipeContent; photo?: Photo | null }, by: Author): Promise<Recipe | null>;
   remove(id: string): Promise<boolean>;
   photo(id: string): Promise<Photo | null>;
 };
@@ -159,6 +161,28 @@ export function createRecipeStore({ path, photosDir, clock }: { path: string; ph
           const recipe = draft.recipes.find((r) => r.id === id);
           if (!recipe) return null;
           Object.assign(recipe, { ours, updatedBy: by, updatedAt: clock().toISOString() });
+          return recipe;
+        },
+        (result) => result !== null,
+      );
+      return updated ? publicRecipe(updated) : null;
+    },
+
+    async reread(id, { source, ours, photo }, by) {
+      const before = (await state.read()).recipes.find((r) => r.id === id);
+      if (!before) return null;
+      const addPhoto = Boolean(photo && !before.photo);
+      if (addPhoto && photo) {
+        await mkdir(photosDir, { recursive: true });
+        await writeFile(photoPath(id), photo.body, { mode: 0o600 });
+      }
+      const updated = await state.update(
+        (draft) => {
+          const recipe = draft.recipes.find((r) => r.id === id);
+          if (!recipe) return null;
+          const changed = JSON.stringify(recipe.ours) !== JSON.stringify(ours);
+          Object.assign(recipe, { source, ours }, changed && { updatedBy: by, updatedAt: clock().toISOString() });
+          if (addPhoto && photo) Object.assign(recipe, { photo: true, photoType: photo.type });
           return recipe;
         },
         (result) => result !== null,

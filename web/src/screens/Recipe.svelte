@@ -7,7 +7,7 @@
   import RecipeView from '../components/recipes/RecipeView.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
-  import { canEditRecipe, emptyContent, handoff, type ShownStep, timerLabel } from '../lib/recipes.ts';
+  import { canEditRecipe, emptyContent, handoff, rereadMessage, type ShownStep, timerLabel } from '../lib/recipes.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { detailPath, phonePath, phoneRecipePath, recipePath, type RecipeMode } from '../lib/route.ts';
 
@@ -40,6 +40,9 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
   let notice = $state<string | null>(null);
+  /** Compte rendu de la dernière relecture de la page. */
+  let info = $state<string | null>(null);
+  let rereading = $state(false);
 
   const carnet = () => navigate(phone ? phonePath('recipes') : detailPath('recipes', { name: 'home' }));
   const pathOf = (target: string | null, next: RecipeMode) => (phone ? phoneRecipePath(target, next === 'cook' ? 'view' : next) : recipePath(target, next));
@@ -64,6 +67,21 @@
       error = (err as Error).message;
     } finally {
       saving = false;
+    }
+  }
+
+  async function reread() {
+    if (!id || !(await allowed())) return;
+    rereading = true;
+    notice = info = null;
+    try {
+      const result = await api.rereadRecipe(id);
+      recipe.set(result.recipe);
+      info = rereadMessage(result.updated, result.kept);
+    } catch (err) {
+      notice = (err as Error).message;
+    } finally {
+      rereading = false;
     }
   }
 
@@ -100,6 +118,7 @@
     </header>
 
     {#if notice}<p class="error">{notice}</p>{/if}
+    {#if info && mode !== 'edit'}<p class="info" role="status">{info}</p>{/if}
 
     {#if mode === 'edit' && editInitial}
       {#if draft?.url}<p class="muted">Lien gardé : {draft.url}</p>{/if}
@@ -118,6 +137,8 @@
         addedBy={nameOf(data.addedBy.ownerId)}
         onEdit={edit}
         onRemove={remove}
+        onReread={reread}
+        {rereading}
         onCook={phone ? undefined : () => navigate(pathOf(data.id, 'cook'))}
         onTimer={phone ? undefined : startTimer}
       />
@@ -166,6 +187,11 @@
   .error {
     margin: 0;
     color: var(--danger-fg);
+  }
+
+  .info {
+    margin: 0;
+    color: var(--fg-muted);
   }
 
   .phone {

@@ -1,8 +1,9 @@
 // Routes du carnet de recettes. Lecture ouverte comme le reste de l'API (le carnet est familial, rien de personnel).
 // Importer ou saisir une recette : tout membre identifié (téléphone appairé, ou personne reconnue à la tablette),
-// enfants compris. Modifier notre version : un parent, ou celui qui a ajouté la recette. Retirer : un parent.
+// enfants compris. Modifier notre version, ou relire la page d'origine (sans écraser ce que notre version a modifié) :
+// un parent, ou celui qui a ajouté la recette. Retirer : un parent.
 import { z } from 'zod';
-import type { ImportResult, Recipe, RecipeDraft } from '../shared/recipes.ts';
+import { type ImportResult, mergeReread, type Recipe, type RecipeDraft, type RereadResult } from '../shared/recipes.ts';
 import type { Access } from './access.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
@@ -87,13 +88,39 @@ export function createRecipesApi({ recipes, importer, household, access, clock }
     return c.json(await recipes.add({ ours, source }, author), 201);
   });
 
-  api.put('/recipes/:id', async (c) => {
-    const input = await readBody(c, updateSchema, z.prettifyError);
-    const recipe = await recipeOf(c.req.param('id'));
+  /** Qui modifie : un parent, ou qui a ajouté la recette. */
+  async function editor(c: Parameters<Access['writer']>[0], recipe: Recipe) {
     const author = await access.writer(c, null);
     const parent = household.member(author.ownerId ?? '')?.parent === true;
     if (!parent && recipe.addedBy.ownerId !== author.ownerId) return fail(403, NOT_YOURS);
+    return author;
+  }
+
+  api.put('/recipes/:id', async (c) => {
+    const input = await readBody(c, updateSchema, z.prettifyError);
+    const recipe = await recipeOf(c.req.param('id'));
+    const author = await editor(c, recipe);
     return c.json((await recipes.update(recipe.id, normalizeContent(input.content), author)) ?? fail(404, 'Recette inconnue'));
+  });
+
+  /** « Relire la source » : la page est relue, les parties que notre version n'a pas modifiées en sont reprises. */
+  api.post('/recipes/:id/reread', async (c) => {
+    const recipe = await recipeOf(c.req.param('id'));
+    const author = await editor(c, recipe);
+    if (!recipe.source) return fail(400, 'Recette saisie à la main, sans page à relire');
+    if (!importer) return fail(503, 'Lecture des pages indisponible');
+    let read;
+    try {
+      read = await importer.read(recipe.source.url);
+    } catch (err) {
+      if (!(err instanceof PageError)) throw err;
+      return fail(err.kind === 'invalid' || err.kind === 'forbidden' ? 400 : 502, err.message);
+    }
+    if (!read.found) return fail(422, 'Aucune recette lisible sur cette page');
+    const { ours, updated, kept } = mergeReread(recipe.ours, recipe.source.content, read.content);
+    const source = { url: recipe.source.url, site: read.site, importedAt: clock().toISOString(), imageUrl: read.imageUrl, content: read.content };
+    const saved = (await recipes.reread(recipe.id, { source, ours, photo: read.photo }, author)) ?? fail(404, 'Recette inconnue');
+    return c.json({ recipe: saved, updated, kept } satisfies RereadResult);
   });
 
   api.delete('/recipes/:id', async (c) => {

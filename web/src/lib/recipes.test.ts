@@ -1,10 +1,11 @@
-// Tests de la logique du carnet côté front : recherche, lignes à l'échelle, étapes, édition et lien partagé.
+// Tests de la logique du carnet côté front : recherche, lignes à l'échelle, étapes, édition, lien partagé, relecture.
 import { describe, expect, it } from 'vitest';
 import { ingredientLines, type RecipeContent, type RecipeSummary } from '../../../shared/recipes.ts';
 import {
   canEditRecipe,
   changeServings,
   contentProblem,
+  rereadMessage,
   correctLine,
   durationText,
   editLineText,
@@ -138,5 +139,13 @@ describe('sharedLink', () => {
     expect(sharedLink(new URLSearchParams({ url: 'https://jow.fr/recipes/a', text: 'x' }))).toBe('https://jow.fr/recipes/a');
     expect(sharedLink(new URLSearchParams({ text: 'Regarde https://www.marmiton.org/recettes/b.aspx !' }))).toBe('https://www.marmiton.org/recettes/b.aspx');
     expect(sharedLink(new URLSearchParams({ text: 'Lait demi-écrémé' }))).toBeNull();
+  });
+});
+
+describe('rereadMessage', () => {
+  it('dit ce qui a été repris et ce que notre version a gardé', () => {
+    expect(rereadMessage(['étapes'], [])).toBe('Repris de la page : étapes.');
+    expect(rereadMessage(['ingrédients', 'étapes', 'temps'], ['titre'])).toBe('Repris de la page : ingrédients, étapes et temps. Notre version gardée pour : titre.');
+    expect(rereadMessage([], [])).toBe('Rien de nouveau sur la page.');
   });
 });

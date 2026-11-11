@@ -49,7 +49,7 @@ import type {
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
-import type { ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary } from '../../../shared/recipes.ts';
+import type { ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
 /** Réponse d'un import : la recette (nouvelle ou déjà au carnet), ou de quoi la saisir à la main et pourquoi. */
 export type ImportResponse = ImportResult | { draft: RecipeDraft; reason: string };
@@ -178,6 +178,8 @@ export type Api = {
   createRecipe(content: RecipeContent, url?: string | null): Promise<Recipe>;
   /** Notre version (un parent, ou qui a ajouté la recette). */
   saveRecipe(id: string, content: RecipeContent): Promise<Recipe>;
+  /** Relire la page d'origine sans écraser notre version (un parent, ou qui a ajouté la recette). */
+  rereadRecipe(id: string): Promise<RereadResult>;
   /** Retirer du carnet : un parent. */
   removeRecipe(id: string): Promise<void>;
   /** Adresse de la photo gardée (pour une balise img). */
@@ -304,6 +306,7 @@ export function createApi(
     importRecipe: (url) => send('POST', '/recipes/import', { url }),
     createRecipe: (content, url) => send('POST', '/recipes', { content, url: url ?? null }),
     saveRecipe: (id, content) => send('PUT', `/recipes/${encodeURIComponent(id)}`, { content }),
+    rereadRecipe: (id) => send('POST', `/recipes/${encodeURIComponent(id)}/reread`),
     removeRecipe: (id) => send('DELETE', `/recipes/${encodeURIComponent(id)}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };

@@ -62,6 +62,40 @@ describe('readRecipePage', () => {
     expect(content.ingredients[0]).toMatchObject({ quantity: 300, unit: 'g', name: 'lentille verte' });
   });
 
+  it('étapes absentes du JSON-LD : lues dans la page, sous les titres « Étape 1 », « Étape 2 »…', () => {
+    const result = read('etapes-html.html');
+    if (!result.found) throw new Error('recette attendue');
+    const { content } = result;
+    expect(content).toMatchObject({ title: 'Pot-au-feu express au Cookeo', servings: 4, totalMinutes: 50, appliance: 'cookeo' });
+    expect(content.ingredients).toHaveLength(5);
+    // Retours à la ligne du source ignorés, <br> gardés ; rien après la dernière étape (publicité, livre, suggestions).
+    expect(content.steps.map((s) => [s.section, s.text])).toEqual([
+      [null, 'Lancer le mode « Dorer ».\n=> Le préchauffage démarre.'],
+      [null, 'Couper la viande en gros cubes.\nÉplucher les carottes et les tailler en tronçons.'],
+      [null, "Faire revenir la viande 5 minutes, puis ajouter les légumes, l'eau, le sel et le poivre."],
+      [null, 'cuisson\nLancer le mode "Cuisson sous pression"\nTemps de cuisson : 35 minutes'],
+    ]);
+  });
+
+  it('les étapes du JSON-LD l’emportent sur celles écrites dans la page', () => {
+    const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Tarte","recipeIngredient":["1 pâte"],"recipeInstructions":"Cuire 25 min."}</script>
+      <h3>Étape 1</h3><p>Autre texte</p>`;
+    const result = readRecipePage(html, 'https://exemple.test/tarte', ids());
+    if (!result.found) throw new Error('recette attendue');
+    expect(result.content.steps.map((s) => s.text)).toEqual(['Cuire 25 min.']);
+  });
+
+  it('étapes de la page : numéros qui se suivent depuis 1, sans balise de fermeture facultative qui déborde', () => {
+    const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Riz","recipeIngredient":["200 g de riz"]}</script>
+      <section><h2>Étape 3</h2><p>Hors série</p></section>
+      <section><h4>Etape 1.</h4><ul><li>Rincer le riz<li>L'égoutter</ul></section>
+      <section><h4>ÉTAPE 2</h4><p>Cuire 12 min.<p>Servir.</section><footer>Pied de page</footer>
+      <h4>Étape 4</h4><p>Trou dans la suite</p>`;
+    const result = readRecipePage(html, 'https://exemple.test/riz', ids());
+    if (!result.found) throw new Error('recette attendue');
+    expect(result.content.steps.map((s) => s.text)).toEqual(["Rincer le riz\nL'égoutter", 'Cuire 12 min.\nServir.']);
+  });
+
   it('microdata, à défaut de JSON-LD', () => {
     const result = read('microdata.html');
     if (!result.found) throw new Error('recette attendue');
@@ -99,6 +133,7 @@ describe('outils', () => {
   it('siteName', () => {
     expect(siteName('https://www.marmiton.org/recettes/x')).toBe('Marmiton');
     expect(siteName('https://m.750g.com/x')).toBe('750g');
+    expect(siteName('https://mycookeo.fr/recette-cookeo/x.html')).toBe('MyCookeo');
     expect(siteName('https://www.blog.exemple.test/x')).toBe('blog.exemple.test');
   });
 

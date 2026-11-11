@@ -105,6 +105,53 @@ export type RecipeDraft = { url: string; title: string | null; site: string | nu
 
 export type ImportResult = { recipe: Recipe; existing: boolean };
 
+// --- Relecture de la source ---
+
+/** Parties d'une recette que la relecture peut reprendre (nos astuces n'existent pas dans la source). */
+export const REREAD_PARTS = {
+  titre: ['title'],
+  portions: ['servings', 'servingsUnit'],
+  ingrédients: ['ingredients'],
+  étapes: ['steps'],
+  temps: ['prepMinutes', 'cookMinutes', 'totalMinutes'],
+  appareil: ['appliance'],
+} as const satisfies Record<string, readonly (keyof RecipeContent)[]>;
+export type RereadPart = keyof typeof REREAD_PARTS;
+
+/** Résultat d'une relecture : la recette, les parties reprises de la page, celles de notre version gardées malgré la page. */
+export type RereadResult = { recipe: Recipe; updated: RereadPart[]; kept: RereadPart[] };
+
+/** Une partie, comparable d'une lecture à l'autre : sans les identifiants des lignes et des étapes, tirés à chaque lecture. */
+const partOf = (content: RecipeContent | null, part: RereadPart) =>
+  content ? JSON.stringify(REREAD_PARTS[part].map((key) => content[key]), (name, value) => (name === 'id' ? undefined : value)) : null;
+const emptyPart = (content: RecipeContent, part: RereadPart) =>
+  REREAD_PARTS[part].every((key) => {
+    const value = content[key];
+    return value === null || value === '' || (Array.isArray(value) && value.length === 0);
+  });
+
+/**
+ * Relecture de la source sans écraser notre version : une partie que nous n'avons pas touchée (identique à la
+ * lecture précédente, ou vide, comme des étapes que la page n'avait pas données) prend la nouvelle lecture ; une
+ * partie modifiée chez nous est gardée. `previous` : la lecture précédente (null pour une saisie à la main).
+ */
+export function mergeReread(ours: RecipeContent, previous: RecipeContent | null, fresh: RecipeContent): Omit<RereadResult, 'recipe'> & { ours: RecipeContent } {
+  const merged: RecipeContent = structuredClone(ours);
+  const updated: RereadPart[] = [];
+  const kept: RereadPart[] = [];
+  for (const part of Object.keys(REREAD_PARTS) as RereadPart[]) {
+    if (partOf(ours, part) === partOf(fresh, part)) continue;
+    const untouched = partOf(ours, part) === partOf(previous, part) || emptyPart(ours, part);
+    if (!untouched) {
+      kept.push(part);
+      continue;
+    }
+    for (const key of REREAD_PARTS[part]) Object.assign(merged, { [key]: structuredClone(fresh[key]) });
+    updated.push(part);
+  }
+  return { ours: merged, updated, kept };
+}
+
 // --- Lignes ---
 
 /** Lignes analysées d'un texte d'ingrédient (« sel, poivre » en donne deux), avec des identifiants à partir de `nextId`. */

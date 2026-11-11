@@ -1,6 +1,7 @@
 // Logique du carnet côté front, sans DOM (testée) : recherche dans le carnet, lignes mises à l'échelle des portions
 // et rangées par groupe, étapes avec leurs minuteurs et leur mode Cookeo, édition de notre version (lignes ajoutées,
-// déplacées, portions par défaut qui entraînent les quantités), lien reçu par « Partager », droit de modifier.
+// déplacées, portions par défaut qui entraînent les quantités), lien reçu par « Partager », droit de modifier,
+// compte rendu d'une relecture de la page.
 import { fold, formatIngredient } from '../../../shared/ingredients.ts';
 import {
   cookeoMode,
@@ -10,6 +11,7 @@ import {
   type RecipeContent,
   type RecipeDraft,
   type RecipeStep,
+  type RereadPart,
   type RecipeSummary,
   refreshLine,
   scaleFactor,
@@ -106,6 +108,13 @@ export const durationText = (seconds: number) => (seconds < 60 ? `${seconds} s` 
 /** Peut modifier notre version : un parent, ou qui a ajouté la recette (le serveur décide de toute façon). */
 export const canEditRecipe = (member: Pick<Member, 'id' | 'parent'> | undefined, recipe: Pick<Recipe, 'addedBy'>) =>
   member !== undefined && (member.parent || recipe.addedBy.ownerId === member.id);
+
+/** Compte rendu d'une relecture de la page : ce qui a été repris, ce que notre version a gardé. */
+export function rereadMessage(updated: readonly RereadPart[], kept: readonly RereadPart[]): string {
+  const list = (parts: readonly RereadPart[]) => parts.join(', ').replace(/, ([^,]*)$/u, ' et $1');
+  const head = updated.length ? `Repris de la page : ${list(updated)}.` : 'Rien de nouveau sur la page.';
+  return kept.length ? `${head} Notre version gardée pour : ${list(kept)}.` : head;
+}
 
 // --- Édition de notre version ---
 

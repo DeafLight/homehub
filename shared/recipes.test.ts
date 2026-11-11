@@ -1,6 +1,7 @@
-// Tests des règles du carnet : lignes analysées, durées dans les étapes, mode Cookeo, temps ISO et portions.
+// Tests des règles du carnet : lignes analysées, durées dans les étapes, mode Cookeo, temps ISO et portions,
+// relecture de la source.
 import { describe, expect, it } from 'vitest';
-import { cookeoMode, formatMinutes, ingredientLines, isoMinutes, refreshLine, scaleFactor, stepDurations, yieldOf } from './recipes.ts';
+import { cookeoMode, formatMinutes, ingredientLines, isoMinutes, mergeReread, type RecipeContent, refreshLine, scaleFactor, stepDurations, yieldOf } from './recipes.ts';
 
 const ids = () => {
   let n = 0;
@@ -91,5 +92,37 @@ describe('temps et portions', () => {
     expect(formatMinutes(120)).toBe('2 h');
     expect(scaleFactor(4, 6)).toBe(1.5);
     expect(scaleFactor(null, 6)).toBe(1);
+  });
+});
+
+describe('mergeReread', () => {
+  const read = (over: Partial<RecipeContent> = {}): RecipeContent => ({
+    title: 'Pot-au-feu', servings: 4, servingsUnit: null, ingredients: ingredientLines('4 carottes', null, ids()), steps: [],
+    tips: '', prepMinutes: null, cookMinutes: null, totalMinutes: 50, appliance: 'cookeo', ...over,
+  });
+  const steps = [{ id: 's1', text: 'Lancer le mode dorer.', section: null }];
+
+  it('les parties non touchées prennent la nouvelle lecture ; nos modifications et nos astuces restent', () => {
+    const previous = read();
+    const ours = { ...read(), title: 'Pot-au-feu de Sam', tips: 'Avec des navets.' };
+    const fresh = read({ steps, totalMinutes: 55, title: 'Pot-au-feu express' });
+    const result = mergeReread(ours, previous, fresh);
+    expect(result.updated).toEqual(['étapes', 'temps']);
+    expect(result.kept).toEqual(['titre']);
+    expect(result.ours).toMatchObject({ title: 'Pot-au-feu de Sam', tips: 'Avec des navets.', steps, totalMinutes: 55 });
+    expect(result.ours.ingredients).toEqual(ours.ingredients);
+  });
+
+  it('saisie à la main (pas de lecture précédente) : seules les parties vides sont remplies', () => {
+    const ours = read({ title: 'Notre pot-au-feu', totalMinutes: null });
+    const result = mergeReread(ours, null, read({ steps }));
+    expect(result.updated).toEqual(['étapes', 'temps']);
+    expect(result.kept).toEqual(['titre']);
+    expect(result.ours.title).toBe('Notre pot-au-feu');
+  });
+
+  it('rien de nouveau : rien ne change', () => {
+    const same = read({ steps });
+    expect(mergeReread(same, same, read({ steps }))).toEqual({ ours: same, updated: [], kept: [] });
   });
 });

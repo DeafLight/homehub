@@ -53,8 +53,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Recettes** (`/recettes` sur la tablette, par le bouton de l'accueil ou du bandeau des profils ; onglet Recettes
   du téléphone, `/m/recettes`) : le carnet de la famille. On partage une recette depuis son téléphone (Marmiton, Jow,
   Cookeo, ou tout site qui publie ses recettes au format schema.org) : HomeHub lit la page (titre, portions,
-  ingrédients et quantités, étapes, photo, temps, mode Cookeo) et la range avec son origine ; une page illisible
-  propose la saisie à la main, lien gardé. **Notre version** se modifie (portions par défaut, ingrédients, quantités,
+  ingrédients et quantités, étapes, photo, temps, mode Cookeo) et la range avec son origine ; des étapes absentes des
+  données structurées sont lues dans la page (titres « Étape 1 », « Étape 2 »…) ; une page illisible propose la
+  saisie à la main, lien gardé. **Relire la page** reprend ce que la page donne de nouveau (des étapes manquées à
+  l'import) sans écraser ce que notre version a modifié. **Notre version** se modifie (portions par défaut, ingrédients, quantités,
   étapes, astuces) et c'est elle qui sert ; la source reste visible telle que lue. Chaque ingrédient est analysé
   (quantité, unité, nom ; « 2 à 3 », « ½ », « une pincée de », « facultatif ») : les quantités suivent les portions
   choisies, la ligne d'origine est toujours gardée, et une correction à la main (**Ajuster**) l'emporte. Fiche : photo,
@@ -473,6 +475,7 @@ web/src/
 | `GET /api/recipes/:id`, `GET /api/recipes/:id/photo` | une recette (`ours` : notre version ; `source` : adresse, site, date, version lue) ; sa photo |
 | `POST /api/recipes/import` | `{ url }` (ou un texte partagé qui contient le lien) → `{ recipe, existing }` (201 si nouvelle ; `existing` : déjà au carnet) ou `{ draft, reason }` quand la page n'a pas de recette lisible ; 400 pour une adresse refusée. Quelqu'un de reconnu ou un téléphone relié, vérifié avant toute lecture |
 | `POST /api/recipes` | `{ content, url? }` : recette saisie à la main (avec le lien d'une page illisible) |
+| `POST /api/recipes/:id/reread` | relit la page d'origine → `{ recipe, updated, kept }` : les parties (titre, portions, ingrédients, étapes, temps, appareil) que notre version n'avait pas modifiées sont reprises, les autres gardées ; un parent ou qui l'a ajoutée ; 422 si la page n'a plus de recette lisible |
 | `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent |
 | `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |
 | `POST /api/fitness/sessions`, `DELETE /api/fitness/sessions/:id` | séance terminée `{ session, rpe, stopped, note, exercises: [{ family, rating, pain, reps, note }] }`, ou retirée |

@@ -1,7 +1,7 @@
 // Lecteur générique d'une page de recette : les données structurées schema.org `Recipe` que publient Marmiton, Jow,
 // Moulinex (Cookeo) et la plupart des sites de cuisine, en JSON-LD (au premier niveau, dans un tableau, dans un
 // `@graph`) ou, à défaut, en microdata. Rien de propre à un site : seulement des normalisations (portions,
-// unités, mode Cookeo dans les étapes). Sans recette lisible : le titre de la page, pour préremplir la saisie à la main.
+// unités, mode Cookeo dans les étapes), et les étapes lues sous des titres « Étape 1 »… quand le JSON-LD n'en a pas. Sans recette lisible : le titre de la page, pour préremplir la saisie à la main.
 import { ingredientLines, isoMinutes, RECIPE_LIMITS, type RecipeContent, type RecipeStep, yieldOf } from '../../shared/recipes.ts';
 
 export type ReadRecipe =
@@ -48,6 +48,7 @@ const KNOWN_SITES: Record<string, string> = {
   'jow.fr': 'Jow',
   'moulinex.fr': 'Moulinex',
   'cookeo.fr': 'Cookeo',
+  'mycookeo.fr': 'MyCookeo',
   '750g.com': '750g',
   'cuisineaz.com': 'CuisineAZ',
   'cuisineactuelle.fr': 'Cuisine Actuelle',
@@ -179,6 +180,53 @@ function stepsOf(value: unknown, section: string | null = null, depth = 0): RawS
   return clean ? [{ text: clean, section }] : [];
 }
 
+// --- Étapes écrites seulement dans la page ---
+
+// Balises sans contenu, et balises dont la fermeture est facultative (<li>, <p>… souvent laissées ouvertes) : ni les
+// unes ni les autres ne comptent dans la profondeur.
+const UNCOUNTED_TAGS = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr|li|p|dt|dd|option|tr|td|th)$/iu;
+
+/** Début d'un fragment jusqu'à la sortie de l'élément qui le contient (une fermeture de trop). */
+function withinParent(fragment: string): string {
+  let depth = 0;
+  for (const match of fragment.matchAll(/<(\/?)([a-z][\w-]*)\b[^>]*?(\/?)>/giu)) {
+    const [, closing, tag, selfClosing] = match;
+    if (UNCOUNTED_TAGS.test(tag)) continue;
+    if (closing) {
+      if (--depth < 0) return fragment.slice(0, match.index);
+    } else if (!selfClosing) depth++;
+  }
+  return fragment;
+}
+
+/**
+ * Étapes que la page n'écrit que pour l'œil (des blogs ne donnent dans le JSON-LD que titre et ingrédients) : des
+ * titres « Étape 1 », « Étape 2 »… numérotés à la suite depuis 1, chacun suivi de son texte jusqu'au titre suivant
+ * ou à la sortie du bloc qui le contient. Un titre « Étape 2 : cuisson » garde « cuisson » en tête de l'étape.
+ */
+export function pageSteps(html: string): RawStep[] {
+  const body = html.replace(/<(script|style|noscript|template)\b[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->/giu, ' ');
+  const headings = [...body.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1\s*>/giu)];
+  const steps: RawStep[] = [];
+  let next = 1;
+  for (const [i, heading] of headings.entries()) {
+    const title = /^(?:é|e)tape\s*(?:n°\s*)?(\d+)\s*(?:[.:)–-]\s*(.*))?$/iu.exec(oneLine(heading[2], 200));
+    if (!title) continue;
+    if (Number(title[1]) !== next) {
+      if (next > 1) break; // numérotation rompue : la suite n'est plus la recette
+      continue;
+    }
+    next++;
+    const start = (heading.index ?? 0) + heading[0].length;
+    const fragment = withinParent(body.slice(start, headings[i + 1]?.index ?? body.length))
+      .replace(/\s+/gu, ' ') // les retours à la ligne du source ne sont que des espaces
+      .replace(/<(p|li|tr)\b[^>]*>/giu, '<br>'); // paragraphes et puces laissés ouverts
+    const text = [title[2]?.trim(), htmlText(fragment)].filter(Boolean).join('\n');
+    if (text) steps.push({ text, section: null });
+  }
+  return steps;
+}
+
 function ingredientTexts(value: unknown): string[] {
   return [value]
     .flat()
@@ -190,13 +238,17 @@ function ingredientTexts(value: unknown): string[] {
 const textOf = (value: unknown) => [value].flat().filter((v) => typeof v === 'string').join(' ');
 
 /** Contenu d'un nœud `Recipe`, dans la forme du carnet. */
-export function recipeContent(node: Json, { pageTitle = '', nextId }: { pageTitle?: string; nextId: () => string }): RecipeContent {
+export function recipeContent(
+  node: Json,
+  { pageTitle = '', nextId, html = '' }: { pageTitle?: string; nextId: () => string; /** La page, pour les étapes que le JSON-LD ne donne pas. */ html?: string },
+): RecipeContent {
   const title = oneLine(node.name, RECIPE_LIMITS.title) || oneLine(node.headline, RECIPE_LIMITS.title) || pageTitle || 'Recette';
   const { servings, unit } = yieldOf(node.recipeYield ?? node.yield);
   const ingredients = ingredientTexts(node.recipeIngredient ?? node.ingredients)
     .slice(0, RECIPE_LIMITS.ingredients)
     .flatMap((text) => ingredientLines(text, null, nextId));
-  const steps: RecipeStep[] = stepsOf(node.recipeInstructions)
+  const readSteps = stepsOf(node.recipeInstructions);
+  const steps: RecipeStep[] = (readSteps.length > 0 ? readSteps : pageSteps(html))
     .slice(0, RECIPE_LIMITS.steps)
     .map((s) => ({ id: nextId(), text: s.text.slice(0, RECIPE_LIMITS.step), section: s.section }));
   const prepMinutes = isoMinutes(node.prepTime);
@@ -214,7 +266,7 @@ export function readRecipePage(html: string, url: string, nextId: () => string):
   const pageTitle = oneLine(metaContent(html, 'og:title') ?? /<title\b[^>]*>([\s\S]*?)<\/title>/iu.exec(html)?.[1] ?? '', RECIPE_LIMITS.title);
   const node = jsonLdRecipe(html) ?? microdataRecipe(html);
   if (!node) return { found: false, title: pageTitle || null, site };
-  const content = recipeContent(node, { pageTitle, nextId });
+  const content = recipeContent(node, { pageTitle, nextId, html });
   if (content.ingredients.length === 0 && content.steps.length === 0) return { found: false, title: content.title, site };
   return { found: true, content, imageUrl: imageOf(node.image, url) ?? imageOf(metaContent(html, 'og:image'), url), site };
 }

@@ -5,7 +5,9 @@
 
   // Fiche d'une recette : notre version (portions ajustables, quantités recalculées, étapes avec leurs minuteurs et
   // leur mode Cookeo, nos astuces), et la source telle que lue, consultable à côté. Sur la tablette, deux colonnes
-  // et le mode cuisine ; sur le téléphone, une colonne. Affichage seul : les actions remontent par les rappels.
+  // et le mode cuisine ; sur le téléphone, une colonne. « Relire la page » (vue source, ou fiche sans étapes ou sans
+  // ingrédients) reprend ce que la page donne de nouveau sans écraser notre version. Affichage seul : les actions
+  // remontent par les rappels.
   type Props = {
     recipe: Recipe;
     /** Portions affichées (gardées par la page : le mode cuisine les reprend). */
@@ -17,11 +19,14 @@
     addedBy: string | null;
     onEdit: () => void;
     onRemove: () => void;
+    /** Relire la page d'origine (les parties que notre version n'a pas modifiées en sont reprises). */
+    onReread?: () => void;
+    rereading?: boolean;
     onCook?: () => void;
     /** Lancer un minuteur depuis une étape (tablette). */
     onTimer?: (seconds: number, step: ShownStep) => void;
   };
-  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onCook, onTimer }: Props = $props();
+  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onTimer }: Props = $props();
 
   let showSource = $state(false);
   let confirmRemove = $state(false);
@@ -37,7 +42,9 @@
       content.totalMinutes ? `Total ${formatMinutes(content.totalMinutes)}` : null,
     ].filter(Boolean),
   );
-  const importedOn = $derived(recipe.source ? new Date(recipe.source.importedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null);
+  /** Notre version sans étapes ou sans ingrédients : « Relire la page » se propose aussi sur la fiche. */
+  const incomplete = $derived(recipe.ours.steps.length === 0 || recipe.ours.ingredients.length === 0);
+  const importedOn =$derived(recipe.source ? new Date(recipe.source.importedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null);
 </script>
 
 <div class="view" class:phone>
@@ -128,6 +135,9 @@
         <button type="button" class="btn" aria-pressed={showSource} onclick={() => (showSource = !showSource)}>
           <Icon name="book" size={22} /> {showSource ? 'Notre version' : 'Voir la source'}
         </button>
+      {/if}
+      {#if recipe.source && canEdit && onReread && (showSource || !recipe.source.content || incomplete)}
+        <button type="button" class="btn" disabled={rereading} onclick={onReread}><Icon name="refresh" size={22} /> {rereading ? 'Lecture…' : 'Relire la page'}</button>
       {/if}
       {#if recipe.source && (showSource || !recipe.source.content)}
         <a class="btn" href={recipe.source.url} target="_blank" rel="noopener noreferrer"><Icon name="link" size={22} /> Ouvrir la page</a>

@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.49.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.49.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -170,7 +170,9 @@ importe un lien ou ouvre la saisie.
 
 Fiche des galettes, importées par Léa : notre version, avec son astuce et une ligne corrigée à la main (le beurre,
 plus bas). Portions ± (les quantités suivent), étapes numérotées, minuteur en un geste pour chaque durée trouvée dans
-le texte ; « Voir la source » montre la recette telle que lue.
+le texte ; « Voir la source » montre la recette telle que lue, et là « Relire la page » reprend ce que la page donne de
+nouveau (des étapes manquées à l'import) sans écraser notre version ; la fiche le propose aussi quand il lui manque
+ses étapes ou ses ingrédients.
 
 ![Fiche d'une recette](images/tablette-recette.png)
 

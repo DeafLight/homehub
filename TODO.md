@@ -45,6 +45,9 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       l'extraction, n'importer que ce qu'on partage soi-même (c'est le cas) et ne rien republier.
 - [ ] Vérifier en conditions réelles : partager depuis Marmiton, Jow et Moulinex sur un vrai téléphone ; lecture
       des quantités sur une dizaine de recettes (corriger les règles de `shared/ingredients.ts` au besoin).
+      Premier essai (mycookeo.fr) : aucune étape, le JSON-LD n'en donnait pas ; corrigé en 0.49.2 (étapes lues sous
+      les titres « Étape 1 »… de la page, « Relire la page » pour les recettes déjà importées). Reste : Marmiton,
+      Jow, Moulinex et les quantités.
 - [x] À étudier d'abord : pour chaque site visé, ce que la page d'une recette laisse lire (données structurées
       schema.org `Recipe` ?) et dans quelles conditions ; comment reconnaître un ingrédient (« 2 gros oignons
       émincés » → oignon, 2 pièces) pour l'agréger ; pour le drive, quelle enseigne a un panier accessible, et

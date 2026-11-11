@@ -1,10 +1,11 @@
 // Tests de l'API du carnet : import d'un lien (page inventée, sans réseau), doublons, saisie à la main en secours,
-// photo, et droits : qui importe (tout membre identifié), qui modifie (un parent ou l'auteur), qui retire (un parent).
+// photo, relecture de la source, et droits : qui importe (tout membre identifié), qui modifie ou relit (un parent ou
+// l'auteur), qui retire (un parent).
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { Recipe } from '../shared/recipes.ts';
+import type { Recipe, RereadResult } from '../shared/recipes.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
@@ -23,6 +24,10 @@ const OTHER = '192.168.1.20';
 const PAGE = 'https://cuisine.exemple.test/galettes';
 const html = readFileSync(new URL('./sources/fixtures/recettes/graphe.html', import.meta.url));
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+const POT = 'https://cuisine.exemple.test/pot-au-feu';
+const potAuFeu = readFileSync(new URL('./sources/fixtures/recettes/etapes-html.html', import.meta.url), 'utf8');
+/** La page du pot-au-feu telle que le serveur la lit (sans étapes lisibles tant que `potSteps` est faux). */
+let potSteps = false;
 
 type CallOptions = { from?: string; token?: string; actor?: string; body?: unknown };
 
@@ -32,6 +37,8 @@ const WEB: Record<string, () => FetchedPage> = {
   'https://cuisine.exemple.test/court': () => ({ url: PAGE, contentType: 'text/html', body: html }),
   'https://cuisine.exemple.test/photos/galettes.jpg': () => ({ url: '', contentType: 'image/png', body: PNG }),
   'https://cuisine.exemple.test/blog': () => ({ url: 'https://cuisine.exemple.test/blog', contentType: 'text/html', body: Buffer.from('<title>Mon blog</title>') }),
+  [POT]: () => ({ url: POT, contentType: 'text/html', body: Buffer.from(potSteps ? potAuFeu : potAuFeu.replaceAll('Étape', 'Temps')) }),
+  'https://cuisine.exemple.test/images/pot_au_feu.jpg': () => ({ url: '', contentType: 'image/png', body: PNG }),
   'https://cuisine.exemple.test/fichier.pdf': () => ({ url: '', contentType: 'application/pdf', body: new Uint8Array() }),
 };
 
@@ -201,6 +208,48 @@ describe('API des recettes : saisie à la main et notre version', () => {
     const { call, phone } = await setup();
     const res = await call('POST', '/recipes', { token: await phone('alex'), body: { content: { ...content, title: ' ' } } });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('API des recettes : relire la source', () => {
+  it('reprend les étapes que la première lecture n’avait pas, sans toucher à ce que notre version a modifié', async () => {
+    const { call, phone } = await setup();
+    const token = await phone('lea');
+    potSteps = false;
+    const { recipe } = (await (await importAs(call, { token }, POT)).json()) as { recipe: Recipe };
+    expect(recipe.ours.steps).toEqual([]);
+    const ours = { ...recipe.ours, title: 'Pot-au-feu de Léa', tips: 'Avec des navets.' };
+    await call('PUT', `/recipes/${recipe.id}`, { token, body: { content: ours } });
+
+    potSteps = true;
+    const res = await call('POST', `/recipes/${recipe.id}/reread`, { token });
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as RereadResult;
+    expect(result.updated).toEqual(['étapes']);
+    expect(result.kept).toEqual(['titre']);
+    expect(result.recipe.ours).toMatchObject({ title: 'Pot-au-feu de Léa', tips: 'Avec des navets.' });
+    expect(result.recipe.ours.steps).toHaveLength(4);
+    expect(result.recipe.source?.content?.steps).toHaveLength(4);
+    expect(result.recipe.source?.content?.title).toBe('Pot-au-feu express au Cookeo');
+
+    // Relire encore : rien de nouveau.
+    expect(await (await call('POST', `/recipes/${recipe.id}/reread`, { token })).json()).toMatchObject({ updated: [], kept: ['titre'] });
+  });
+
+  it('droits et cas sans page : un autre enfant, une saisie à la main, une page devenue illisible', async () => {
+    const { call, phone, tablet } = await setup();
+    const lea = await phone('lea');
+    const { recipe } = (await (await importAs(call, { token: lea })).json()) as { recipe: Recipe };
+    expect((await call('POST', `/recipes/${recipe.id}/reread`, tablet('tom'))).status).toBe(403);
+    expect((await call('POST', `/recipes/${recipe.id}/reread`, tablet('sam'))).status).toBe(200);
+
+    const manual = (await (await call('POST', '/recipes', { token: lea, body: { content: { title: 'Gâteau', servings: null, ingredients: [], steps: [] } } })).json()) as Recipe;
+    expect((await call('POST', `/recipes/${manual.id}/reread`, { token: lea })).status).toBe(400);
+
+    const blog = (await (await call('POST', '/recipes', { token: lea, body: { content: { title: 'Blog', servings: null, ingredients: [], steps: [] }, url: 'https://cuisine.exemple.test/blog' } })).json()) as Recipe;
+    const unreadable = await call('POST', `/recipes/${blog.id}/reread`, { token: lea });
+    expect(unreadable.status).toBe(422);
+    expect((await unreadable.json()).error).toBe('Aucune recette lisible sur cette page');
   });
 });
 
