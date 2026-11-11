@@ -5,6 +5,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
   import DetailLink from '../components/DetailLink.svelte';
+  import HolidayChip from '../components/HolidayChip.svelte';
   import FocusDashboard from '../components/FocusDashboard.svelte';
   import CommuteCard from '../components/widgets/CommuteCard.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
@@ -107,7 +108,11 @@
       <header>
         <h1>{profile.isFamily ? profile.name : `${greeting(clock.now)} ${profile.name} !`}</h1>
         <span class="header-side">
-          <span class="muted">{formatLongDate(clock.now)}</span>
+          {#if dashboard.data?.holiday}
+            <HolidayChip holiday={dashboard.data.holiday} />
+          {:else}
+            <span class="muted">{formatLongDate(clock.now)}</span>
+          {/if}
           {#if dashboard.data?.weather}
             {@const weather = dashboard.data.weather}
             <DetailLink to="weather" label="Météo détaillée" variant="pill" chevronSize={24}>

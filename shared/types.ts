@@ -1,5 +1,6 @@
 // Contrat de l'API, partagé entre le serveur et le front.
 // Types et constantes uniquement, sans dépendance : il est importé des deux côtés.
+import type { HolidayStatus, SchoolHoliday } from './school-holidays.ts';
 
 /** Identifiant réservé au dashboard commun de la famille. */
 export const FAMILY_ID = 'famille';
@@ -296,6 +297,16 @@ export type HomeData = {
   weather: Weather | null;
   profiles: ProfileSummary[];
   familyHighlight: CalendarEvent | null;
+  /** Vacances scolaires à annoncer aujourd'hui (proches, dernier jour, en cours) ; null sinon ou non configurées. */
+  holiday: HolidayStatus | null;
+};
+
+/** GET /api/school/holidays : ce qu'on dit aujourd'hui et les périodes à venir (null : vacances non configurées). */
+export type HolidaysData = {
+  holiday: HolidayStatus | null;
+  /** Zone du calendrier (« Zone B », « Corse »…). */
+  zone: string | null;
+  holidays: SchoolHoliday[] | null;
 };
 
 export type DashboardData = {
@@ -316,6 +327,8 @@ export type DashboardData = {
   commute: Commute | null;
   /** Routine du moment (matin ou soir), null en dehors de ses heures ou sans routine. */
   routine: Routine | null;
+  /** Comme sur l'accueil. Pendant les vacances, ni trajet du matin, ni cours, ni étapes de routine des jours d'école. */
+  holiday: HolidayStatus | null;
 };
 
 /** Minuteur de la maison, visible sur la tablette (et en veille). */

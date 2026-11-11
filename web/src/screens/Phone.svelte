@@ -59,6 +59,8 @@
     }
   }, ME_REFRESH_MS);
   const agenda = createResource(() => Promise.all([api.week(0), api.week(1)]), AGENDA_REFRESH_MS);
+  // Vacances scolaires, en tête de l'agenda (même rythme) ; une panne la masque seulement.
+  const holidays = createResource(() => api.holidays(), AGENDA_REFRESH_MS);
   const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
   const routine = createResource(async () => (pairing ? (await api.routine(pairing.ownerId)).routine : null), ROUTINE_REFRESH_MS);
   // Devoirs (Pronote ou ÉcoleDirecte), en lecture seule ; le serveur les garde en cache, rafraîchis plus rarement.
@@ -72,6 +74,7 @@
     homework.destroy();
     lists.destroy();
     agenda.destroy();
+    holidays.destroy();
     notes.destroy();
     check.destroy();
   });
@@ -166,7 +169,7 @@
           onSee={seeNote}
         />
       {:else if tab === 'agenda'}
-        <PhoneAgenda weeks={agenda.data} loadError={agenda.error} meId={me.id} now={clock.now} {profileOf} />
+        <PhoneAgenda weeks={agenda.data} loadError={agenda.error} holiday={holidays.data?.holiday ?? null} meId={me.id} now={clock.now} {profileOf} />
       {:else if tab === 'sport'}
         {#if member?.fitness}
           <SportPanel {api} now={clock.now} onScrollTop={() => scroller?.scrollTo({ top: 0 })} />

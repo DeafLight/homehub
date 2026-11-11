@@ -46,7 +46,10 @@ export function createDashboardApi({ config, service, nas, access, clock, versio
   /** Prochains passages Irigo aux arrêts suivis (accueil, veille). */
   api.get('/transit', async (c) => c.json(await service.transit()));
 
-  api.get('/dashboard/:ownerId', async (c) => c.json((await service.dashboard(c.req.param('ownerId'))) ?? fail(404, 'Profil inconnu')));
+  /** Vacances scolaires : ce qu'on en dit aujourd'hui, la zone et les périodes à venir (rien de personnel). */
+  api.get('/school/holidays', async (c) => c.json(await service.holidays()));
+
+  api.get('/dashboard/:ownerId',async (c) => c.json((await service.dashboard(c.req.param('ownerId'))) ?? fail(404, 'Profil inconnu')));
 
   api.put('/dashboard/:ownerId/tasks/:taskId', async (c) => {
     const { done } = await readBody(c, doneSchema, DONE_EXPECTED);

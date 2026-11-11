@@ -4,6 +4,7 @@
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
   import DetailLink from '../components/DetailLink.svelte';
+  import HolidayChip from '../components/HolidayChip.svelte';
   import SettingsMenu from '../components/SettingsMenu.svelte';
   import TransitBoard from '../components/widgets/TransitBoard.svelte';
   import { getAppContext } from '../lib/context.ts';
@@ -37,6 +38,9 @@
     <div class="clock">
       <div class="time">{formatTime(clock.now)}</div>
       <div class="date">{formatLongDate(clock.now)}</div>
+      {#if home.data?.holiday}
+        <HolidayChip holiday={home.data.holiday} />
+      {/if}
       <!-- Version du front réellement chargé sur la tablette : permet de vérifier qu'un déploiement est arrivé.
            Elle ouvre la page du NAS qui héberge HomeHub. -->
       <DetailLink to="nas" label="État du NAS" chevronSize={18}>

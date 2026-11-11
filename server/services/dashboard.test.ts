@@ -445,3 +445,87 @@ describe('routines', () => {
     expect((await svc.dashboard('lea'))?.routine).toBeNull(); // 18 h : plus l'heure du soir
   });
 });
+
+describe('vacances scolaires', () => {
+  // NOW : lundi 2 novembre 2026, 18:00 (jour de la reprise après la Toussaint).
+  const TOUSSAINT = { name: 'Vacances de la Toussaint', start: '2026-10-17', end: '2026-11-02' };
+  const NOEL = { name: 'Vacances de Noël', start: '2026-12-19', end: '2027-01-04' };
+  const PENDANT = { name: 'Vacances d’essai', start: '2026-10-31', end: '2026-11-09' };
+  const holidaySource = (list: (typeof NOEL)[] | 'panne') => ({
+    zone: () => 'Zone B',
+    list: async () => {
+      if (list === 'panne') throw new Error('API en panne');
+      return list;
+    },
+  });
+  const course = (id: string, day: number) => ({
+    id, subject: id, cancelled: false,
+    start: new Date(2026, 10, day, 9).toISOString(), end: new Date(2026, 10, day, 10).toISOString(),
+  });
+  const transit = { departures: async () => ({ name: 'Mairie', departures: [] }), alerts: async () => [] };
+  const by = { ownerId: 'lea', via: 'tablet' as const };
+
+  function setup(list: (typeof NOEL)[] | 'panne') {
+    const store = createConfigStore(parseConfig({
+      members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', from: '17:30', to: '18:30' } }],
+    }));
+    const dir = mkdtempSync(join(tmpdir(), 'homehub-vacances-'));
+    const routines = createRoutineStore({ path: join(dir, 'routines.json'), clock: fixedClock });
+    const plans = createRoutinePlanStore({ path: join(dir, 'plans.json'), clock: fixedClock, config: store });
+    const svc = createDashboardService({
+      config: store,
+      sources: fakeSources({
+        courses: { lea: [course('maths', 2), course('anglais', 3)] },
+        homework: { lea: [{ id: 'fr', subject: 'fr', due: '2026-11-03', text: '', done: false }, { id: 'svt', subject: 'svt', due: '2026-11-10', text: '', done: false }] },
+      }),
+      clock: fixedClock,
+      logger: silentLogger(),
+      routines,
+      plans,
+      transit,
+      holidays: holidaySource(list),
+    });
+    return { svc, plans };
+  }
+
+  it('jour de la reprise : rien à dire, journée d’école ordinaire ; périodes à venir dans l’API', async () => {
+    const { svc } = setup([TOUSSAINT, NOEL]);
+    expect((await svc.home()).holiday).toBeNull();
+    const data = await svc.dashboard('lea');
+    expect(data?.holiday).toBeNull();
+    expect(data?.commute).not.toBeNull();
+    expect(data?.school?.today.map((c) => c.id)).toEqual(['maths']);
+    expect(await svc.holidays()).toEqual({ holiday: null, zone: 'Zone B', holidays: [TOUSSAINT, NOEL] });
+  });
+
+  it('pendant les vacances : annoncées, ni bus, ni cours, ni étapes des jours d’école', async () => {
+    const { svc, plans } = setup([PENDANT, NOEL]);
+    const during = { kind: 'during', name: 'Vacances d’essai', end: '2026-11-09' };
+    expect((await svc.home()).holiday).toEqual(during);
+    await plans.save({
+      members: { lea: { morning: [], evening: [
+        { id: 'p', label: 'Pyjama', days: null },
+        { id: 'd', label: 'Devoirs', days: [1, 2, 4] },
+      ] } },
+      windows: { morning: { from: '05:00', to: '11:00' }, evening: { from: '17:00', to: '23:00' } },
+    }, by);
+    const data = await svc.dashboard('lea');
+    expect(data?.holiday).toEqual(during);
+    expect(data?.commute).toBeNull();
+    expect(data?.school).toEqual({ today: [], tomorrow: [] });
+    expect(data?.routine?.items.map((i) => i.label)).toEqual(['Pyjama']);
+    expect(data?.homework?.map((h) => h.id)).toEqual(['svt']); // après la reprise seulement
+    expect(await svc.setRoutineDone('lea', 'evening-1', true, by)).toBeNull(); // Devoirs : pas pendant les vacances
+  });
+
+  it('calendrier indisponible : comme sans vacances, l’écran ne casse pas', async () => {
+    const { svc } = setup('panne');
+    expect((await svc.home()).holiday).toBeNull();
+    expect((await svc.dashboard('lea'))?.commute).not.toBeNull();
+  });
+
+  it('non configurées : null partout', async () => {
+    expect(await service.holidays()).toEqual({ holiday: null, zone: null, holidays: null });
+    expect((await service.home()).holiday).toBeNull();
+  });
+});

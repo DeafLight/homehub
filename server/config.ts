@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import { FAMILY_ID, type PublicConfig } from '../shared/types.ts';
+import { findAcademie } from './sources/school-holidays.ts';
 
 /** Agendas iCal : noms de variables d'environnement (app.env) qui contiennent les adresses secrètes. */
 const calendarsSchema = z
@@ -130,6 +131,21 @@ export const configSchema = z.object({
       refreshSeconds: z.number().int().min(30).max(600).default(60),
     })
     .default({ stops: [], refreshSeconds: 60 }),
+  /**
+   * Vacances scolaires (calendrier officiel) : `academie` (« Nantes ») ou `zone` (A, B ou C), l'un ou l'autre. La
+   * Corse et l'outre-mer se règlent par l'académie. Absent : rien n'est affiché, les jours d'école restent les mêmes.
+   */
+  holidays: z
+    .object({
+      academie: z
+        .string()
+        .trim()
+        .refine((a) => findAcademie(a) !== undefined, 'académie inconnue (ex. « Nantes », « Orléans-Tours », « Corse », « Réunion »)')
+        .optional(),
+      zone: z.enum(['A', 'B', 'C']).optional(),
+    })
+    .refine((h) => (h.academie === undefined) !== (h.zone === undefined), { message: 'donner `academie` ou `zone`, pas les deux' })
+    .optional(),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({
@@ -142,6 +158,7 @@ export const configSchema = z.object({
 });
 
 export type WeatherConfig = NonNullable<AppConfig['weather']>;
+export type HolidaysConfig = NonNullable<AppConfig['holidays']>;
 
 /** Noms des agendas d'un profil (membre ou FAMILY_ID). */
 export function calendarsOf(config: AppConfig, ownerId: string): string[] {

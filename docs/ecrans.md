@@ -1,7 +1,8 @@
 # Écrans
 
-Captures de HomeHub 0.43.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
-faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, horloge arrêtée le jeudi 5 novembre 2026 à 07:35. La météo est réelle,
+Captures de HomeHub 0.44.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, calendrier
+scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (en décembre pour les vacances). La météo est réelle,
 celle du jour de la capture.
 
 Tablette : 1280 × 800 (Fully Kiosk). Téléphone : 390 × 844 (PWA).
@@ -28,6 +29,24 @@ Bandeau du trajet du matin, frise du jour avec la bascule « Aujourd'hui | Demai
 moment en grand (ici la routine du matin) et le reste en tuiles : devoirs, tâches, mots, prochain rendez-vous.
 
 ![Dashboard de Léa](images/tablette-dashboard.png)
+
+### Vacances scolaires
+
+Trois semaines avant les vacances, une puce dans l'en-tête des dashboards (et sous l'horloge de l'accueil) les
+annonce ; ici le lundi 7 décembre :
+
+![Vacances de Noël dans 12 jours](images/tablette-vacances-bientot.png)
+
+Pendant les vacances (lundi 21 décembre), la puce passe au soleil et donne le jour de la reprise. Sur le dashboard de
+Léa : plus de bandeau du bus ni de cours, et la routine du matin sans « Cartable » (étape des jours d'école).
+
+![Accueil pendant les vacances](images/tablette-vacances.png)
+
+![Dashboard de Léa pendant les vacances](images/tablette-vacances-dashboard.png)
+
+Sur le téléphone, la même puce en tête de l'agenda :
+
+<img src="images/telephone-agenda-vacances.png" alt="Agenda du téléphone pendant les vacances" width="260">
 
 ### Dashboard de la famille
 

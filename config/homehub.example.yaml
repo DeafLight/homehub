@@ -117,6 +117,14 @@ ui:
 #   stops:
 #     - { id: 1ANRO, label: Roseraie, lines: [A] }
 
+# Vacances scolaires (calendrier officiel, data.education.gouv.fr, sans clé). Sans cette section, rien n'est affiché.
+#   academie : l'académie (« Nantes », « Orléans-Tours », « Normandie »… ; Corse et outre-mer : « Corse », « Réunion »…)
+#   zone     : ou bien la zone, A, B ou C (pas les deux)
+# Puce « Vacances de Noël dans 12 jours » 3 semaines avant ; pendant les vacances, ni trajet du matin, ni cours, et
+# les routines laissent de côté les étapes des jours d'école (prévues du lundi au vendredi seulement, par exemple).
+holidays:
+  academie: Nantes
+
 # Météo (Open-Meteo, modèles Météo-France). Sans cette section, le bloc météo est masqué.
 #   label          : nom du lieu affiché
 #   latitude/longitude : coordonnées en degrés décimaux ; deux décimales (~1 km) suffisent

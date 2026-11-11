@@ -28,6 +28,8 @@ family:
 ui:
   idleTimeoutSeconds: 3600
   screensaverMinutes: 0
+holidays:
+  academie: Nantes
 weather:
   label: Angers
   latitude: 47.47

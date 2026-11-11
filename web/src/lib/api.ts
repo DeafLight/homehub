@@ -11,6 +11,7 @@ import type {
   Device,
   Health,
   HomeData,
+  HolidaysData,
   Lists,
   ListTask,
   Me,
@@ -76,6 +77,8 @@ export type Api = {
   homework(ownerId: string): Promise<{ homework: Homework[] | null }>;
   /** Prochains passages Irigo aux arrêts suivis. */
   transit(): Promise<TransitData>;
+  /** Vacances scolaires : ce qu'on en dit aujourd'hui, périodes à venir. */
+  holidays(): Promise<HolidaysData>;
   timers(): Promise<Timer[]>;
   /** Réglages des routines (page « Routines ») ; les enregistrer : un parent. */
   routines(): Promise<RoutineSettings>;
@@ -201,6 +204,7 @@ export function createApi(
     routine: (ownerId) => request(`${ownerPath(ownerId)}/routine`),
     homework: (ownerId) => request(`${ownerPath(ownerId)}/homework`),
     transit: () => request('/transit'),
+    holidays: () => request('/school/holidays'),
     setRoutineDone: (ownerId, itemId, done) => send('PUT', `${ownerPath(ownerId)}/routine/${encodeURIComponent(itemId)}`, { done }),
     timers: () => request('/timers'),
     routines: () => request('/routines'),

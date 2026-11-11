@@ -35,6 +35,19 @@ describe('routines', () => {
     expect(stepsOn(steps, new Date(2026, 10, 4)).map((s) => s.label)).toEqual(['Dents', 'Piscine']); // mercredi
   });
 
+  it('vacances scolaires : étapes des jours d’école de côté, heures du week-end', () => {
+    const steps = [
+      { label: 'Dents', days: null },
+      { label: 'Cartable', days: [1, 2, 3, 4, 5] },
+      { label: 'Ménage', days: [1, 6] },
+    ];
+    expect(stepsOn(steps, new Date(2026, 11, 21), true).map((s) => s.label)).toEqual(['Dents', 'Ménage']); // lundi de vacances
+    expect(stepsOn(steps, new Date(2026, 11, 22), true).map((s) => s.label)).toEqual(['Dents']); // mardi
+    const weekend = { ...windows, weekend: { morning: { from: '08:00', to: '12:00' } } };
+    expect(currentPeriod(new Date(2026, 11, 21, 7, 0), weekend, true)).toBeNull();
+    expect(currentPeriod(new Date(2026, 11, 21, 11, 30), weekend, true)).toBe('morning');
+  });
+
   it('coche et décoche par jour ; relu depuis le fichier', async () => {
     const path = join(mkdtempSync(join(tmpdir(), 'homehub-routines-')), 'routines.json');
     const store = createRoutineStore({ path, clock: fixedClock });

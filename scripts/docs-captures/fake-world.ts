@@ -1,9 +1,14 @@
 // Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte, faux temps réel Irigo,
-// fausses bases de produits (Open Food Facts et ses sœurs).
+// fausses bases de produits (Open Food Facts et ses sœurs), calendrier scolaire d'exemple.
 // Aucune connexion réelle à l'école ni à Irigo ; la météo (Open-Meteo) et les horaires GTFS restent les vrais.
+import { readFileSync } from 'node:fs';
 
 /** Jeudi 5 novembre 2026, 07:35 (heure locale) : cours du jour, routine du matin, bandeau du bus. */
 export const DOCS_NOW = new Date(2026, 10, 5, 7, 35, 0).getTime();
+/** Lundi 7 décembre 2026, 07:35 : « Vacances de Noël dans 12 jours ». */
+export const DOCS_BEFORE_HOLIDAYS = new Date(2026, 11, 7, 7, 35, 0).getTime();
+/** Lundi 21 décembre 2026, 10:00 : vacances de Noël, reprise lundi 4 janvier. */
+export const DOCS_HOLIDAYS = new Date(2026, 11, 21, 10, 0, 0).getTime();
 
 /** Décale l'horloge du processus : `new Date()` et `Date.now()` partent de DOCS_NOW, puis avancent normalement. */
 export function installFakeClock(target = DOCS_NOW): void {
@@ -125,7 +130,17 @@ function fakeProductBase(url: URL): Response {
     : new Response(JSON.stringify({ status: 0 }), { status: 404 });
 }
 
-/** Remplace ÉcoleDirecte, le temps réel Irigo et les bases de produits par des réponses d'exemple ; le reste passe au vrai `fetch`. */
+/**
+ * Calendrier scolaire d'exemple (académie de Nantes, zone B, comme Angers), au format de l'export JSON de
+ * data.education.gouv.fr : la fixture des tests, sans appel au vrai service.
+ */
+function fakeSchoolCalendar(): Response {
+  return new Response(readFileSync(new URL('../../server/sources/fixtures/calendrier-scolaire.json', import.meta.url), 'utf8'), {
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+/** Remplace ÉcoleDirecte, le temps réel Irigo, les bases de produits et le calendrier scolaire par des réponses d'exemple ; le reste passe au vrai `fetch`. */
 export function installFakeSources(): void {
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -133,6 +148,7 @@ export function installFakeSources(): void {
     if (url.hostname === 'api.ecoledirecte.com') return fakeEcoleDirecte(url);
     if (url.hostname === 'ara-api.enroute.mobi') return fakeSiri();
     if (url.hostname in PRODUCT_BASES) return fakeProductBase(url);
+    if (url.hostname === 'data.education.gouv.fr') return fakeSchoolCalendar();
     return realFetch(input, init);
   }) as typeof fetch;
   process.env.ECOLEDIRECTE_IDENTIFIANT = 'docs';

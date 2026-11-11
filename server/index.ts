@@ -27,6 +27,7 @@ import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
 import { createPinStore } from './sources/pins.ts';
 import { createFileStateStore, createPawnoteClient, createPronoteSource } from './sources/pronote.ts';
 import { createSampleAgenda } from './sources/sample.ts';
+import { createSchoolHolidaysSource } from './sources/school-holidays.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { searchAddress } from './sources/geocode.ts';
 import { createGtfsSource } from './sources/gtfs.ts';
@@ -142,7 +143,14 @@ await transitSettings.load();
 const gtfs = createGtfsSource({ path: join(stateDir, 'irigo-gtfs.zip'), clock, logger: console, status: sourceStatus });
 // Lu en arrière-plan dès le démarrage : la page « Transports » et le trajet du matin en ont besoin.
 void gtfs.index();
-const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit, transitSettings, gtfs });
+const holidays = createSchoolHolidaysSource({
+  settings: () => config.current().holidays,
+  path: join(stateDir, 'school-holidays.json'),
+  clock,
+  logger: console,
+  status: sourceStatus,
+});
+const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit, transitSettings, gtfs, holidays });
 const nas = createNasService({
   nasStatus: createNasStatusSource({ path: nasStatusPath, logger: console }),
   sourceStatus,

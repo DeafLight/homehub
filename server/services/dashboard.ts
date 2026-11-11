@@ -17,6 +17,9 @@ import {
   type WeekData,
 } from '../../shared/types.ts';
 import { localDay } from '../../shared/dates.ts';
+import { type HolidayStatus, type SchoolHoliday, holidayStatus, isHolidayDay } from '../../shared/school-holidays.ts';
+import type { HolidaysData } from '../../shared/types.ts';
+import type { SchoolHolidaySource } from '../sources/school-holidays.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { createHousehold } from '../household.ts';
 import type { GtfsSource } from '../sources/gtfs.ts';
@@ -51,6 +54,8 @@ export type DashboardService = {
   homework(ownerId: string): Promise<Homework[] | null>;
   /** Prochains passages aux arrêts suivis (accueil, veille). */
   transit(): Promise<TransitData>;
+  /** Vacances scolaires : ce qu'on en dit aujourd'hui et les périodes à venir. */
+  holidays(): Promise<HolidaysData>;
   /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
   setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
 };
@@ -71,6 +76,8 @@ export type DashboardServiceDeps = {
   transitSettings?: Pick<TransitSettingsStore, 'homeStops' | 'commuteFor'>;
   /** Horaires théoriques, pour un trajet calé sur l'emploi du temps ; absent : pas de tel trajet. */
   gtfs?: GtfsSource;
+  /** Vacances scolaires ; absent (tests) : jamais de vacances. */
+  holidays?: SchoolHolidaySource;
 };
 
 export function createDashboardService(deps: DashboardServiceDeps): DashboardService {
@@ -88,10 +95,30 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
 
   // Météo, emploi du temps, devoirs : accessoires, une panne masque le bloc au lieu de faire échouer l'écran.
   const weather = () => accessory(logger, 'Météo indisponible', () => sources.weather.current(), null);
-  const coursesIn = (ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null> =>
-    accessory(logger, 'Emploi du temps indisponible', () => sources.school.coursesFor(ownerId, range), null);
-  const homeworkOf = (ownerId: string): Promise<Homework[] | null> =>
-    accessory(logger, 'Devoirs indisponibles', async () => (await sources.school.homeworkFor?.(ownerId)) ?? null, null);
+  // Vacances scolaires : une panne vaut « pas de vacances connues » (la source garde déjà le dernier calendrier).
+  const holidayList = (): Promise<SchoolHoliday[]> =>
+    accessory(logger, 'Vacances scolaires indisponibles', async () => (await deps.holidays?.list()) ?? [], []);
+  const holidayToday = async (): Promise<{ holidays: SchoolHoliday[]; today: string; off: boolean; status: HolidayStatus | null }> => {
+    const holidays = await holidayList();
+    const today = localDay(clock());
+    return { holidays, today, off: isHolidayDay(holidays, today), status: holidayStatus(holidays, today) };
+  };
+  /** Cours de l'intervalle, sans ceux qui tomberaient pendant les vacances scolaires. */
+  const coursesIn = async (ownerId: string, range: TimeRange): Promise<SchoolCourse[] | null> => {
+    const [courses, holidays] = await Promise.all([
+      accessory(logger, 'Emploi du temps indisponible', () => sources.school.coursesFor(ownerId, range), null),
+      holidayList(),
+    ]);
+    return courses && courses.filter((c) => !isHolidayDay(holidays, localDay(new Date(c.start))));
+  };
+  /** Devoirs à faire, sans ceux pour un jour de vacances scolaires (rien à rendre ces jours-là). */
+  const homeworkOf = async (ownerId: string): Promise<Homework[] | null> => {
+    const [list, holidays] = await Promise.all([
+      accessory(logger, 'Devoirs indisponibles', async () => (await sources.school.homeworkFor?.(ownerId)) ?? null, null),
+      holidayList(),
+    ]);
+    return list && list.filter((h) => !isHolidayDay(holidays, h.due));
+  };
 
   const board = createTransitBoard({
     transit,
@@ -145,16 +172,18 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
   async function routineOf(ownerId: string): Promise<Routine | null> {
     const now = clock();
     if (!routines || !plans) return null;
-    const period = currentPeriod(now, plans.current().windows);
+    const holidays = await holidayList();
+    const today = localDay(now);
+    const off = isHolidayDay(holidays, today);
+    const period = currentPeriod(now, plans.current().windows, off);
     if (!period) return null;
     const all = stepsOf(ownerId, period).map((step, i) => ({ ...step, itemId: `${period}-${i}` }));
-    const steps = stepsOn(all, now);
+    const steps = stepsOn(all, now, off);
     if (steps.length === 0) return null;
-    const today = localDay(now);
     const keyOf = (stepId: string) => stepKey(ownerId, period, stepId);
     const [done, streak] = await Promise.all([
       routines.doneOn(today),
-      routines.streak((date) => stepsOn(all, date).map((s) => keyOf(s.id)), today),
+      routines.streak((date) => stepsOn(all, date, isHolidayDay(holidays, localDay(date))).map((s) => keyOf(s.id)), today),
     ]);
     return {
       period,
@@ -189,16 +218,26 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     hasOwner,
 
     async home() {
-      const [currentWeather, profiles] = await Promise.all([weather(), Promise.all(ownerIds().map(summary))]);
+      const [currentWeather, profiles, holiday] = await Promise.all([weather(), Promise.all(ownerIds().map(summary)), holidayToday()]);
       const family = profiles.find((p) => p.ownerId === FAMILY_ID);
-      return { weather: currentWeather, profiles, familyHighlight: family?.nextEvent ?? null };
+      return { weather: currentWeather, profiles, familyHighlight: family?.nextEvent ?? null, holiday: holiday.status };
+    },
+
+    async holidays() {
+      const { holidays, today, status } = await holidayToday();
+      const configured = deps.holidays?.zone() ?? null;
+      return {
+        holiday: status,
+        zone: configured,
+        holidays: configured ? holidays.filter((h) => (h.end ?? h.start) >= today) : null,
+      };
     },
 
     weatherForecast: () => accessory(logger, 'Météo indisponible', () => sources.weather.forecast(), null),
 
     async dashboard(ownerId) {
       if (!hasOwner(ownerId)) return null;
-      const [events, tasks, notes, currentWeather, school, routine, homework, commute] = await Promise.all([
+      const [events, tasks, notes, currentWeather, school, routine, homework, commute, holiday] = await Promise.all([
         sources.agenda.eventsFor(ownerId, upcomingRange()),
         sources.tasks.tasksFor(ownerId),
         sources.notes.unseenFor(ownerId),
@@ -207,6 +246,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
         routineOf(ownerId),
         homeworkOf(ownerId),
         board.commute(ownerId),
+        holidayToday(),
       ]);
       const [nextEvent = null, ...rest] = events;
       return {
@@ -219,8 +259,10 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
         weather: currentWeather,
         school,
         homework,
-        commute,
+        // Pas d'école : pas de bus à prendre.
+        commute: holiday.off ? null : commute,
         routine,
+        holiday: holiday.status,
       };
     },
 
@@ -256,7 +298,8 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       const period = match[1] as RoutinePeriod;
       const step = stepsOf(ownerId, period)[Number(match[2])];
       const now = clock();
-      if (!step || stepsOn([step], now).length === 0) return null; // pas prévue aujourd'hui
+      const off = isHolidayDay(await holidayList(), localDay(now));
+      if (!step || stepsOn([step], now, off).length === 0) return null; // pas prévue aujourd'hui
       await routines.setDone(localDay(now), stepKey(ownerId, period, step.id), done, by);
       return { id: itemId, label: step.label, done };
     },

@@ -32,6 +32,7 @@ flowchart LR
     irigo["Irigo : SIRI (Ara),<br/>GTFS-RT, GTFS"]
     ign["Géoplateforme IGN<br/>(adresses)"]
     off["Open Food Facts,<br/>Beauty, Products<br/>(produits)"]
+    edu["data.education.gouv.fr<br/>(vacances scolaires)"]
   end
   tablette -- HTTPS --> npm
   tel -- HTTPS --> npm
@@ -40,7 +41,7 @@ flowchart LR
   api --- yaml
   api --- etat
   cron --> releve --> api
-  api --> meteo & ical & ecole & irigo & ign & off
+  api --> meteo & ical & ecole & irigo & ign & off & edu
 ```
 
 ## Couches du serveur
@@ -67,7 +68,7 @@ flowchart TB
     nasS["services/nas.ts<br/>page NAS"]
   end
   subgraph sources["Sources (server/sources/)"]
-    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode,<br/>open-food-facts (sans cache : copie dans stock)"]
+    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock)"]
     locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness"]
     cache["refreshing-cache.ts<br/>rafraîchit, garde la dernière valeur"]
     status["source-status.ts<br/>dernier succès ou erreur"]

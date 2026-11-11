@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
-import { DOCS_NOW, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
+import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
@@ -99,7 +99,7 @@ writeFileSync(join(work, 'nas-status.json'), JSON.stringify(nas));
 const children: ChildProcess[] = [];
 /** Arrête Chrome et le serveur, attend qu'ils aient lâché leurs fichiers, puis efface le dossier de travail. */
 async function cleanup(): Promise<void> {
-  await Promise.all(children.map((c) => (c.exitCode !== null ? null : new Promise((r) => {
+  await Promise.all(children.map((c) => (c.exitCode !== null || c.signalCode !== null ? null : new Promise((r) => {
     c.once('exit', r);
     c.kill();
   }))));
@@ -114,27 +114,37 @@ process.on('exit', () => {
   for (const c of children) if (c.exitCode === null) c.kill();
 });
 
-// --- Serveur.
-const server = spawn(process.execPath, [join(HERE, 'server.ts')], {
-  cwd: ROOT,
-  env: {
-    ...process.env,
-    PORT: String(PORT),
-    HOMEHUB_CONFIG: join(HERE, 'homehub.yaml'),
-    HOMEHUB_STATE_DIR: state,
-    HOMEHUB_NAS_STATUS: join(work, 'nas-status.json'),
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-children.push(server);
-let serverLog = '';
-server.stdout?.on('data', (d) => (serverLog += d));
-server.stderr?.on('data', (d) => (serverLog += d));
-for (let i = 0; ; i++) {
-  if (await fetch(`${BASE}/api/health`).then((r) => r.ok, () => false)) break;
-  if (i > 60) throw new Error(`le serveur ne répond pas :\n${serverLog}`);
-  await sleep(500);
+// --- Serveur : lancé à DOCS_NOW ; relancé plus loin à d'autres instants (vacances scolaires), même dossier d'état.
+let server: ChildProcess | undefined;
+async function startServer(now = DOCS_NOW): Promise<void> {
+  if (server && server.exitCode === null && server.signalCode === null) await new Promise((r) => {
+    server!.once('exit', r);
+    server!.kill();
+  });
+  const child = spawn(process.execPath, [join(HERE, 'server.ts')], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      HOMEHUB_CONFIG: join(HERE, 'homehub.yaml'),
+      HOMEHUB_STATE_DIR: state,
+      HOMEHUB_NAS_STATUS: join(work, 'nas-status.json'),
+      DOCS_NOW: String(now),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  server = child;
+  children.push(child);
+  let serverLog = '';
+  child.stdout?.on('data', (d) => (serverLog += d));
+  child.stderr?.on('data', (d) => (serverLog += d));
+  for (let i = 0; ; i++) {
+    if (await fetch(`${BASE}/api/health`).then((r) => r.ok, () => false)) break;
+    if (i > 60) throw new Error(`le serveur ne répond pas :\n${serverLog}`);
+    await sleep(500);
+  }
 }
+await startServer();
 
 // --- Données d'exemple, écrites par les téléphones (un parent écrit partout, Léa sur son profil).
 async function call(token: string, method: string, path: string, body?: unknown): Promise<unknown> {
@@ -155,7 +165,8 @@ await call(A, 'PUT', '/routines', {
   members: {
     alex: { morning: [], evening: [] },
     sam: { morning: [], evening: [] },
-    lea: { morning: steps('lm', ['S’habiller', 'Petit-déjeuner', 'Dents', 'Cartable']), evening: steps('le', ['Douche', 'Pyjama', 'Devoirs']) },
+    // « Cartable » : jours d'école seulement (du lundi au vendredi), mis de côté pendant les vacances.
+    lea: { morning: [...steps('lm', ['S’habiller', 'Petit-déjeuner', 'Dents']), { id: 'lm3', label: 'Cartable', days: [1, 2, 3, 4, 5] }], evening: steps('le', ['Douche', 'Pyjama', 'Devoirs']) },
     tom: { morning: steps('tm', ['S’habiller', 'Petit-déjeuner', 'Dents']), evening: steps('te', ['Bain', 'Pyjama', 'Histoire']) },
   },
 });
@@ -240,8 +251,10 @@ const send = (method: string, params: object = {}, sessionId?: string): Promise<
 type Metrics = { width: number; height: number; deviceScaleFactor: number; mobile: boolean };
 const TABLET: Metrics = { width: 1280, height: 800, deviceScaleFactor: 1.5, mobile: false };
 const PHONE: Metrics = { width: 390, height: 844, deviceScaleFactor: 2, mobile: true };
-const fakeClock = `(() => {
-  const offset = ${DOCS_NOW} - Date.now(); const R = Date;
+/** Instant de départ de l'horloge du navigateur : celui du serveur en cours. */
+let browserNow = DOCS_NOW;
+const fakeClock = () => `(() => {
+  const offset = ${browserNow} - Date.now(); const R = Date;
   class F extends R { constructor(...a) { a.length ? super(...a) : super(R.now() + offset); } static now() { return R.now() + offset; } }
   globalThis.Date = F; })();`;
 const asPhone = (ownerId: keyof typeof TOKENS) =>
@@ -255,7 +268,7 @@ async function shoot(name: string, url: string, metrics: Metrics, { init = '', a
   await send('Page.enable', {}, sessionId);
   await send('Emulation.setDeviceMetricsOverride', metrics, sessionId);
   await send('Emulation.setTimezoneOverride', { timezoneId: 'Europe/Paris' }, sessionId);
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: fakeClock + init }, sessionId);
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: fakeClock() + init }, sessionId);
   const loaded = new Promise<void>((r) => listeners.push((m) => m.sessionId === sessionId && m.method === 'Page.loadEventFired' && r()));
   await send('Page.navigate', { url }, sessionId);
   await loaded;
@@ -357,7 +370,26 @@ const fakeDetector = `globalThis.BarcodeDetector = class {
 };`;
 await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeDetector, camera: true, wait: 4000 });
 
-// --- Planche du design : variables de web/src/app.css, profils de la configuration fictive.
+// --- Vacances scolaires (calendrier d'exemple, zone B) : serveur et navigateur relancés à d'autres dates, même état.
+// Lundi 7 décembre : la puce annonce les vacances de Noël ; lundi 21 décembre : vacances, plus de bus ni de cours,
+// routine sans « Cartable » (jours d'école), agenda du téléphone.
+if (!only || only.test('vacances')) {
+  for (const [now, captures] of [
+    [DOCS_BEFORE_HOLIDAYS, [['tablette-vacances-bientot', '/p/lea', TABLET, '']]],
+    [DOCS_HOLIDAYS, [
+      ['tablette-vacances', '/', TABLET, ''],
+      ['tablette-vacances-dashboard', '/p/lea', TABLET, ''],
+      ['telephone-agenda-vacances', '/m/agenda', PHONE, asPhone('lea')],
+    ]],
+  ] as const) {
+    browserNow = now;
+    await startServer(now);
+    for (const [name, path, metrics, init] of captures) await shoot(name, BASE + path, metrics, { init });
+  }
+  browserNow = DOCS_NOW;
+}
+
+// --- Planche du design :variables de web/src/app.css, profils de la configuration fictive.
 const appCss = readFileSync(join(ROOT, 'web', 'src', 'app.css'), 'utf8');
 const rootBlock = /:root\s*\{[\s\S]*?\n\}/.exec(appCss)?.[0] ?? '';
 const members = (parse(readFileSync(join(HERE, 'homehub.yaml'), 'utf8')) as { members: { name: string; color: string }[] }).members

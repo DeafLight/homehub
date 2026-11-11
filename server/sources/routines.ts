@@ -20,9 +20,15 @@ type RoutinesFile = z.infer<typeof fileSchema>;
 
 const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
 
-/** Étapes prévues le jour de `date` (celles sans jours précisés : tous les jours). */
-export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: Date) =>
-  steps.filter((s) => !s.days || s.days.includes(date.getDay()));
+/** Étape des jours d'école : prévue certains jours de semaine seulement, jamais le week-end (« Cartable », « Devoirs »). */
+const schoolDaysOnly = (days: number[]) => days.every((d) => d >= 1 && d <= 5);
+
+/**
+ * Étapes prévues le jour de `date` (celles sans jours précisés : tous les jours). Un jour de vacances scolaires
+ * (`holiday`), les étapes des jours d'école sont mises de côté.
+ */
+export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: Date, holiday = false) =>
+  steps.filter((s) => !s.days || (s.days.includes(date.getDay()) && !(holiday && schoolDaysOnly(s.days))));
 
 /**
  * Clé d'une étape : son identifiant stable plutôt que son rang, pour qu'une étape ajoutée ne décale pas les autres
@@ -30,11 +36,14 @@ export const stepsOn = <T extends { days: number[] | null }>(steps: T[], date: D
  */
 export const stepKey = (ownerId: string, period: RoutinePeriod, stepId: string) => `${ownerId}|${period}|${stepId}`;
 
-/** Routine affichée à cette heure-ci, d'après les plages réglées (heure locale ; le week-end, les siennes). */
-export function currentPeriod(now: Date, windows: RoutineWindows): RoutinePeriod | null {
+/**
+ * Routine affichée à cette heure-ci, d'après les plages réglées (heure locale ; le week-end, les siennes, et de même
+ * pendant les vacances scolaires : `holiday`).
+ */
+export function currentPeriod(now: Date, windows: RoutineWindows, holiday = false): RoutinePeriod | null {
   const time = localTime(now);
   for (const period of ['morning', 'evening'] as const) {
-    const range = (isWeekend(now) && windows.weekend?.[period]) || windows[period];
+    const range = ((isWeekend(now) || holiday) && windows.weekend?.[period]) || windows[period];
     if (range.from <= time && time < range.to) return period;
   }
   return null;

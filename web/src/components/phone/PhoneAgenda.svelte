@@ -3,19 +3,27 @@
   import { agendaDays } from '../../lib/agenda.ts';
   import { capitalize, formatDay } from '../../lib/format.ts';
   import type { Profile } from '../../lib/profiles.ts';
+  import type { HolidayStatus } from '../../../../shared/school-holidays.ts';
   import Avatar from '../Avatar.svelte';
+  import HolidayChip from '../HolidayChip.svelte';
 
   // Onglet Agenda du téléphone : les 7 prochains jours, ce qui concerne ce profil ou toute la famille.
   type Props = {
     /** Cette semaine et la suivante ; null tant qu'elles ne sont pas chargées. */
     weeks: WeekData[] | null;
     loadError: string | null;
+    /** Vacances scolaires à annoncer, en tête de l'agenda. */
+    holiday: HolidayStatus | null;
     meId: string;
     now: Date;
     profileOf: (id: string) => Profile | undefined;
   };
-  let { weeks, loadError, meId, now, profileOf }: Props = $props();
+  let { weeks, loadError, holiday, meId, now, profileOf }: Props = $props();
 </script>
+
+{#if holiday}
+  <div class="holiday"><HolidayChip {holiday} size="small" /></div>
+{/if}
 
 {#if weeks}
   {#each agendaDays(weeks, new Set([meId, FAMILY_ID]), now) as day (day.date.getTime())}
@@ -40,6 +48,10 @@
 {/if}
 
 <style>
+  .holiday {
+    margin-top: 12px;
+  }
+
   .muted {
     color: var(--fg-muted);
   }
