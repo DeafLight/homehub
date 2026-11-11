@@ -49,7 +49,7 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (toujours jamais d'office en 0.52 :
 
       à proposer, ingrédient par ingrédient, et annulable).
-- [ ] Drive : remplir le panier d'une enseigne depuis la liste de courses (voir « Drive » ci-dessous).
+- [ ] Drive : remplir le panier d'une enseigne depuis la liste de courses (étude faite, voir « Drive » ci-dessous).
 - [ ] Suites du carnet : modifier les groupes d'ingrédients et d'étapes (« Pour la pâte ») dans notre version ;
       photo à changer ou à prendre ; doublons par titre (même recette sur deux sites) ; Jow : ses CGU interdisent
       l'extraction, n'importer que ce qu'on partage soi-même (c'est le cas) et ne rien republier.
@@ -68,47 +68,48 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       schema.org `Recipe` ?) et dans quelles conditions ; comment reconnaître un ingrédient (« 2 gros oignons
       émincés » → oignon, 2 pièces) pour l'agréger ; pour le drive, quelle enseigne a un panier accessible, et
       comment associer un ingrédient à un produit (et retenir le choix). Fait pour les sites et les ingrédients
-      (clé normalisée, rayon deviné, prêts pour la liste agrégée) ; reste le drive.
+      (clé normalisée, rayon deviné, prêts pour la liste agrégée) ; drive étudié à part (`docs/etude-drive.md`).
 
 ### Drive (remplir le panier d'une enseigne)
 
 But : depuis la liste de courses (menu et produits hors recettes), retrouver chaque article chez **une enseigne
-choisie** et remplir son panier. Le plus important est le panier ; le créneau et le paiement peuvent se finir dans
-l'appli de l'enseigne.
+choisie** et remplir son panier. Le plus important est le panier ; le créneau et le paiement se finissent dans
+l'appli de l'enseigne. Étude faite : `docs/etude-drive.md` (Courses U en priorité, Leclerc, Carrefour ; Intermarché
+et Auchan vus rapidement).
 
-Jusqu'où on peut aller :
+Jusqu'où on peut aller (conclusions de l'étude) :
 
 | Étape | Faisable ? |
 |---|---|
-| Chercher les produits, remplir le panier | Oui en principe, mais sans API publique : à étudier par enseigne |
-| Voir les créneaux, en réserver un | Peut-être, par le même chemin que le panier ; secondaire |
-| Payer | **Non** : HomeHub ne touche jamais aux données de carte (3-D Secure de la banque de toute façon) ; on valide chez l'enseigne |
+| Chercher les produits, remplir le panier | Aucune API ni import ouvert à un tiers. Liste à cocher avec liens vers les fiches (toutes enseignes), puis extension dans le navigateur de la personne (Courses U d'abord) |
+| Voir les créneaux, en réserver un | **Non** : pas de voie officielle, parcours connecté juste avant le paiement ; on le fait dans l'appli |
+| Payer | **Non** : HomeHub ne touche jamais aux données de carte ; on valide chez l'enseigne |
 
-- [ ] **À étudier d'abord**, pour 2 ou 3 enseignes de la région (Leclerc, Hyper U / Courses U, Carrefour,
-      Intermarché, Auchan…) :
-      - s'il existe une voie officielle : API partenaire, import d'une liste, lien « ajouter au panier » (comme les
-        partenariats des applis de recettes), programme d'affiliation ;
-      - sinon, ce que fait leur site dans le navigateur (recherche, fiche produit avec EAN, ajout au panier,
-        créneaux) et ce qu'en disent les CGU et le robots.txt ;
-      - les protections anti-robots en place. **Pas de contournement** : ni faux navigateur, ni robot sur le NAS
-        qui se ferait passer pour une personne, comme pour les recettes ;
-      - en déduire le chemin retenu, par ordre de préférence : voie officielle, puis **le navigateur de la
-        personne**, connectée à son compte (extension ou favori « Remplir le panier » qui lit la liste de HomeHub
-        et ajoute les produits depuis sa propre session), puis rien (liste à cocher pendant qu'on remplit le panier
-        à la main dans l'appli).
-- [ ] Choisir l'enseigne dans les réglages (une seule au départ, magasin de retrait).
-- [ ] Ingrédient ou article → **produit de l'enseigne** : proposition devinée (nom, rayon, contenance, EAN quand le
-      produit est déjà au stock), choisie une fois puis **retenue** (« lardons » → tel paquet chez cette enseigne) ;
-      plusieurs choix possibles (préféré, de secours).
-- [ ] Quantité en **paquets** : 350 g de lardons → 2 paquets de 200 g (même arrondi au paquet que le stock).
+- [x] **Étude** (12/11/2026) : voies officielles (aucune ouverte ; Jow et Mealz ont des contrats ; Carrefour a son
+      appli dans ChatGPT), pages publiques (fiche Courses U : JSON-LD `Product` avec identifiant et EAN, pas de prix
+      sans magasin), CGU et `robots.txt` (Leclerc autorise l'extraction non substantielle à usage personnel ;
+      Courses U et Carrefour interdisent l'extraction des bases), anti-robots (Cloudflare chez Courses U, DataDome
+      chez Leclerc et Carrefour, défi 403 chez Intermarché). **Pas de contournement**, rien depuis le NAS.
+- [ ] Drive 1 : choisir l'enseigne (Courses U) et le magasin de retrait dans les réglages ; ingrédient ou article →
+      **produit de l'enseigne** en partageant ou collant le lien de sa fiche (identifiant de l'URL, fiche lue une fois
+      à la demande ou saisie ; EAN repris du stock), choisi une fois puis **retenu** (« lardons » → tel paquet chez
+      cette enseigne) ; produit de secours possible, jamais pris d'office.
+- [ ] Drive 2 : quantité en **paquets** (350 g de lardons → 2 paquets de 200 g, même arrondi au paquet que le stock
+      de la 0.52 ; grandeurs incompatibles demandées une fois) ; mode « Remplir le panier » : liste dans l'ordre des
+      rayons, liens vers les fiches, cases à cocher pendant qu'on remplit le panier dans l'appli ; récapitulatif (ce
+      qui part, prix estimé, ce qui reste à acheter ailleurs) ; lignes marquées dans la liste.
+- [ ] Drive 3 : extension « Remplir le panier » (Chrome / Firefox sur ordinateur, puis Firefox Android ; pas Safari
+      iOS au départ) : appairée comme un appareil ou panier copié depuis HomeHub, ajoute les produits depuis la
+      session de la personne, à rythme humain, de préférence en cliquant le bouton « Ajouter » de la page ; **s'arrête
+      au premier captcha ou refus** ; recherche dans la page pour choisir un produit ; renvoie prix et EAN vers
+      l'historique des prix (voir « Prix »). Courses U seulement, essai réel avant d'étendre.
 - [ ] Article introuvable ou en rupture : il reste dans la liste classique, signalé ; produit de remplacement
       proposé, jamais choisi d'office.
-- [ ] Récapitulatif avant envoi : ce qui part au panier, prix estimé si l'enseigne le donne, ce qui reste à
-      acheter ailleurs ; les lignes envoyées sont marquées dans la liste.
-- [ ] Puis, si le chemin retenu le permet : créneaux affichés (et réservés ?) ; prix et EAN du panier repris dans
-      l'historique des prix (voir « Prix »).
-- [ ] Compte de l'enseigne : jamais de mot de passe stocké par HomeHub si le chemin passe par le navigateur de la
-      personne ; sinon, à décider avec l'utilisateur (jeton de session chiffré, révocable).
+- [ ] Plus tard, si besoin : autres enseignes (un adaptateur chacune ; Leclerc incertain à cause de DataDome),
+      « Copier la liste pour l'assistant Carrefour » (appli Carrefour dans ChatGPT), prochain créneau affiché par
+      l'extension, sans réserver.
+- [ ] Compte de l'enseigne : jamais de mot de passe ni de jeton de session stocké par HomeHub (le chemin retenu passe
+      par le navigateur de la personne).
 
 ## Stock de la maison (sujet à part, utile aux recettes et au-delà)
 
