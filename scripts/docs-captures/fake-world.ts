@@ -1,4 +1,5 @@
-// Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte, faux temps réel Irigo,
+// Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte (emploi du temps, devoirs,
+// notes, absences et retards, messagerie du compte Famille), faux temps réel Irigo,
 // fausses bases de produits (Open Food Facts et ses sœurs), calendrier scolaire d'exemple.
 // Aucune connexion réelle à l'école ni à Irigo ; la météo (Open-Meteo) et les horaires GTFS restent les vrais.
 import { readFileSync } from 'node:fs';
@@ -47,6 +48,31 @@ const homework = (): Record<string, unknown[]> => ({
   [day(5)]: [{ id: 5, matiere: 'SCIENCES VIE & TERRE', interrogation: true, aFaire: { idDevoir: 105, contenu: b64('Contrôle sur la digestion'), effectue: false } }],
 });
 
+/** Notes de Léa, au format du carnet de notes ÉcoleDirecte (matières en capitales sans accents, comme le vrai). */
+const grades = () => [
+  { id: 201, devoir: 'Contrôle fractions', libelleMatiere: 'MATHEMATIQUES', date: day(-2), valeur: '15,5', noteSur: '20', coef: '2', moyenneClasse: '12,4' },
+  { id: 202, devoir: 'Dictée', libelleMatiere: 'FRANCAIS', date: day(-6), valeur: '8', noteSur: '10', coef: '1', moyenneClasse: '6,5' },
+  { id: 203, devoir: 'Irregular verbs', libelleMatiere: 'ANGLAIS LV1', date: day(-9), valeur: '17', noteSur: '20', coef: '1' },
+  { id: 204, devoir: 'La digestion', libelleMatiere: 'SCIENCES VIE & TERRE', date: day(-13), valeur: 'Abs', noteSur: '20', coef: '1' },
+  { id: 205, devoir: 'Charlemagne', libelleMatiere: 'HISTOIRE-GEOGRAPHIE', date: day(-20), valeur: '13', noteSur: '20', coef: '1', moyenneClasse: '11,8' },
+];
+
+/** Absences et retards de Léa, au format de la vie scolaire ÉcoleDirecte. */
+const attendance = () => [
+  { id: 301, typeElement: 'Retard', date: day(-3), libelle: '10 minutes', motif: '', justifie: false },
+  { id: 302, typeElement: 'Absence', date: day(-13), libelle: '1 demi-journée', motif: 'Rendez-vous médical', justifie: true },
+];
+
+/** Messages reçus par le compte Famille (la liste seulement, comme HomeHub la lit). */
+const messages = () => {
+  const at = (offset: number, time: string) => `${day(offset)} ${time}`;
+  return [
+    { id: 401, subject: 'Réunion parents-professeurs du 19 novembre', date: at(-1, '17:42:10'), read: false, from: { civilite: 'M.', prenom: 'Paul', nom: 'Martin' } },
+    { id: 402, subject: 'Sortie au musée des Beaux-Arts', date: at(-4, '12:05:00'), read: false, from: { civilite: 'Mme', prenom: 'Claire', nom: 'Durand' } },
+    { id: 403, subject: 'Photos de classe', date: at(-12, '09:30:00'), read: true, from: { name: 'Vie scolaire' } },
+  ];
+};
+
 function fakeEcoleDirecte(url: URL): Response {
   const path = url.pathname.replace('/v3/', '');
   const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'x-token': 'docs' } });
@@ -70,6 +96,9 @@ function fakeEcoleDirecte(url: URL): Response {
     }
     return json({ code: 200, data: courses });
   }
+  if (path === 'eleves/7/notes.awp') return json({ code: 200, data: { notes: grades() } });
+  if (path === 'eleves/7/viescolaire.awp') return json({ code: 200, data: { absencesRetards: attendance(), sanctionsEncouragements: [] } });
+  if (path === 'familles/1/messages.awp') return json({ code: 200, data: { classeurs: [], messages: { received: messages(), sent: [] } } });
   const detail = homework();
   if (path === 'Eleves/7/cahierdetexte.awp') {
     return json({ code: 200, data: Object.fromEntries(Object.entries(detail).map(([k, v]) => [k, v.map(() => ({ aFaire: true }))])) });

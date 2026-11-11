@@ -2,18 +2,20 @@
 // Pronote 2026 par scripts/patch-pawnote.ts). Connexion par jeton, comme l'application : le jeton de départ vient
 // du QR code de Pronote (scripts/pronote-pair.ts), et Pronote en donne un nouveau à chaque connexion. Il est donc
 // réenregistré aussitôt dans un fichier : l'ancien ne sert plus, le perdre oblige à refaire l'appairage.
-// Les devoirs (cahier de texte) viennent de la même connexion, en lecture seule.
+// Les devoirs (cahier de texte) viennent de la même connexion, en lecture seule. De même la vie scolaire, réservée aux
+// parents : notes et carnet (absences, retards) de la période en cours, et la liste des discussions de la messagerie,
+// sans ouvrir leurs messages (Pronote les marquerait lus).
 import { chmod, readFile, rename, writeFile } from 'node:fs/promises';
 import * as pawnote from 'pawnote';
 import { z } from 'zod';
-import type { Homework, SchoolCourse } from '../../shared/types.ts';
+import type { Homework, SchoolAttendance, SchoolCourse, SchoolGrade, SchoolMessage } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import { homeworkFrom, htmlToText, sortHomework } from './homework.ts';
-import { formatSubject, normalizeName } from './school.ts';
+import { durationLabel, formatFrenchNumber, formatSubject, normalizeName } from './school.ts';
 import { localDay } from '../../shared/dates.ts';
 import { createRefreshingCache } from './refreshing-cache.ts';
 import type { SourceStatus } from './source-status.ts';
-import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
+import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolLifeData, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 /** En cas de panne, l'emploi du temps reste affiché tant qu'il a moins de 24 h. */
@@ -46,6 +48,12 @@ export type PronoteSession = {
   timetable(child: string, from: Date, to: Date): Promise<SchoolCourse[]>;
   /** Devoirs à faire entre ces deux dates. */
   homework(child: string, from: Date, to: Date): Promise<Homework[]>;
+  /** Notes de la période en cours, récentes d'abord ; null si l'onglet est fermé au compte. */
+  grades(child: string, now: Date): Promise<SchoolGrade[] | null>;
+  /** Absences et retards de la période en cours, récents d'abord ; null si l'onglet est fermé au compte. */
+  attendance(child: string, now: Date): Promise<SchoolAttendance[] | null>;
+  /** Discussions de la messagerie du compte, récentes d'abord ; null si le compte ne peut pas les lire. */
+  messages(): Promise<SchoolMessage[] | null>;
 };
 
 export interface PronoteClient {
@@ -120,6 +128,93 @@ export function toHomework(a: pawnote.Assignment): Homework {
   };
 }
 
+/** Discussions listées au plus. */
+const MESSAGES_LIMIT = 20;
+
+/** Note Pawnote telle que Pronote l'écrit : « 15,5 », ou les abréviations des notes spéciales ; null pour une erreur. */
+export function gradeText(value: pawnote.GradeValue): string | null {
+  switch (value.kind) {
+    case pawnote.GradeKind.Grade:
+      return formatFrenchNumber(value.points);
+    case pawnote.GradeKind.Absent:
+      return 'Abs';
+    case pawnote.GradeKind.AbsentZero:
+      return 'Abs (0)';
+    case pawnote.GradeKind.Exempted:
+      return 'Disp';
+    case pawnote.GradeKind.NotGraded:
+      return 'N.Not';
+    case pawnote.GradeKind.Unfit:
+      return 'Inap';
+    case pawnote.GradeKind.Unreturned:
+      return 'N.Rdu';
+    case pawnote.GradeKind.UnreturnedZero:
+      return 'N.Rdu (0)';
+    case pawnote.GradeKind.Congratulations:
+      return 'Félicitations';
+    default:
+      return null;
+  }
+}
+
+/** Une note Pawnote ; null pour une note en erreur. */
+export function toGrade(g: pawnote.Grade): SchoolGrade | null {
+  const value = gradeText(g.value);
+  if (value === null) return null;
+  const average = g.average && gradeText(g.average);
+  return {
+    id: g.id,
+    subject: formatSubject(g.subject.name),
+    date: localDay(g.date),
+    value,
+    outOf: g.outOf.kind === pawnote.GradeKind.Grade ? g.outOf.points : null,
+    ...(g.comment.trim() && { title: g.comment.trim() }),
+    ...(g.coefficient !== 1 && { coefficient: g.coefficient }),
+    ...(average && { classAverage: average }),
+  };
+}
+
+/** Une absence du carnet : en jours si elle en compte, sinon en heures. */
+export function toAbsence(a: pawnote.NotebookAbsence): SchoolAttendance {
+  const duration =
+    a.daysMissed > 0 ? `${a.daysMissed} jour${a.daysMissed > 1 ? 's' : ''}` : durationLabel(a.hoursMissed * 60 + a.minutesMissed);
+  return {
+    id: a.id,
+    kind: 'absence',
+    date: localDay(a.startDate),
+    duration,
+    justified: a.justified,
+    ...(a.reason?.trim() && { reason: a.reason.trim() }),
+  };
+}
+
+export function toDelay(d: pawnote.NotebookDelay): SchoolAttendance {
+  const reason = d.reason?.trim() || d.justification?.trim();
+  return { id: d.id, kind: 'delay', date: localDay(d.date), duration: durationLabel(d.minutes), justified: d.justified, ...(reason && { reason }) };
+}
+
+/** Une discussion : son objet, qui l'a ouverte, et lue s'il n'y reste aucun message non lu. */
+export function toMessage(d: pawnote.Discussion): SchoolMessage {
+  return {
+    id: d.participantsMessageID,
+    subject: d.subject.trim() || '(sans objet)',
+    from: d.creator?.trim() || d.recipientName?.trim() || 'Établissement',
+    date: d.date.toISOString(),
+    read: d.numberOfMessagesUnread === 0,
+  };
+}
+
+/**
+ * Période d'un onglet à lire : celle qui contient aujourd'hui et couvre le plus de jours (l'année plutôt que le
+ * trimestre, quand l'établissement la propose), sinon celle par défaut ; null si l'onglet est fermé au compte.
+ */
+export function periodFor(tab: pawnote.Tab | undefined, now: Date): pawnote.Period | null {
+  if (!tab) return null;
+  const span = (p: pawnote.Period) => p.endDate.getTime() - p.startDate.getTime();
+  const current = tab.periods.filter((p) => p.startDate <= now && now <= p.endDate).sort((a, b) => span(b) - span(a));
+  return current[0] ?? tab.defaultPeriod ?? null;
+}
+
 /** Pawnote attend un `fetcher` : celui par défaut n'a pas de délai maximal. */
 export const pawnoteFetcher: Parameters<typeof pawnote.createSessionHandle>[0] = async (req) => {
   const res = await fetch(req.url.href, {
@@ -148,10 +243,34 @@ export function createPawnoteClient(): PronoteClient {
         const resource = resources.find((r) => r.name === child);
         if (!resource) throw new Error('enfant inconnu');
         pawnote.use(session, resource);
+        return resource;
       };
       return {
         state: { ...refresh, kind: refresh.kind, deviceUUID: state.deviceUUID },
         children: resources.map((r) => r.name),
+        async grades(child, now) {
+          const period = periodFor(useChild(child).tabs.get(pawnote.TabLocation.Grades), now);
+          if (!period) return null;
+          const { grades } = await pawnote.gradesOverview(session, period);
+          return grades
+            .map(toGrade)
+            .filter((g) => g !== null)
+            .sort((a, b) => b.date.localeCompare(a.date));
+        },
+        async attendance(child, now) {
+          const period = periodFor(useChild(child).tabs.get(pawnote.TabLocation.Notebook), now);
+          if (!period) return null;
+          const notebook = await pawnote.notebook(session, period);
+          return [...notebook.absences.map(toAbsence), ...notebook.delays.map(toDelay)].sort((a, b) => b.date.localeCompare(a.date));
+        },
+        async messages() {
+          if (!session.user.authorizations.canReadDiscussions) return null;
+          const { items } = await pawnote.discussions(session);
+          return items
+            .map(toMessage)
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, MESSAGES_LIMIT);
+        },
         async homework(child, from, to) {
           useChild(child);
           return (await pawnote.assignmentsFromIntervals(session, from, to)).map(toHomework);
@@ -174,7 +293,7 @@ export function createPawnoteClient(): PronoteClient {
   };
 }
 
-type SchoolData = { courses: SchoolCourse[]; homework: Homework[] | null };
+type SchoolData = { courses: SchoolCourse[]; homework: Homework[] | null; life: SchoolLifeData };
 
 export type PronoteSourceDeps = {
   /** Prénom de l'enfant pour un profil, ou undefined si le profil n'a pas d'emploi du temps Pronote. */
@@ -232,7 +351,20 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
         } catch (err) {
           logger.error(`Pronote : devoirs de ${prenom} indisponibles : ${(err as Error).message}.`);
         }
-        return { courses, homework };
+        // Vie scolaire : chaque rubrique peut être fermée au compte ; son échec ne masque que cette rubrique.
+        const part = async <T>(label: string, task: () => Promise<T | null>): Promise<T | null> => {
+          try {
+            return await task();
+          } catch (err) {
+            logger.error(`Pronote : ${label} de ${prenom} indisponibles : ${(err as Error).message}.`);
+            return null;
+          }
+        };
+        const now = clock();
+        const grades = await part('notes', () => session.grades(child, now));
+        const attendance = await part('absences et retards', () => session.attendance(child, now));
+        const messages = await part('messages', () => session.messages());
+        return { courses, homework, life: { grades, attendance, messages: messages && { service: 'Pronote', items: messages } } };
       }),
   });
   let warnedNotPaired = false;
@@ -258,6 +390,9 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
     async homeworkFor(ownerId) {
       const homework = (await dataFor(ownerId))?.homework;
       return homework ? homeworkFrom(homework, clock()) : null;
+    },
+    async lifeFor(ownerId) {
+      return (await dataFor(ownerId))?.life ?? null;
     },
   };
 }

@@ -61,3 +61,28 @@ export function formatSubject(value: string): string {
 
 /** Prénom comparable : sans accents, sans espaces autour, en minuscules (« Léa » = « LEA »). */
 export const normalizeName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
+
+/** « 20 », « 20,00 », « 7.5 » → nombre ; null si ce n'en est pas un. */
+export function parseFrenchNumber(value: string | number | null | undefined): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const text = value?.trim().replace(',', '.');
+  if (!text || !/^-?\d+(\.\d+)?$/u.test(text)) return null;
+  return Number(text);
+}
+
+/** 15.5 → « 15,5 » ; 12 → « 12 » (deux décimales au plus, sans zéros inutiles). */
+export const formatFrenchNumber = (value: number) => String(Math.round(value * 100) / 100).replace('.', ',');
+
+/** Durée en minutes, comme on la dit : « 10 min », « 2 h », « 1 h 30 ». */
+export function durationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')}`;
+}
+
+/** Année scolaire de cette date, « 2026-2027 » (elle commence en août, avant la rentrée). */
+export function schoolYear(date: Date): string {
+  const start = date.getMonth() >= 7 ? date.getFullYear() : date.getFullYear() - 1;
+  return `${start}-${start + 1}`;
+}

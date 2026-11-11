@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Note, Routine, Task } from '../../../shared/types.ts';
+  import type { Note, Routine, SchoolLife, Task } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
   import NoteForm from '../components/NoteForm.svelte';
   import ProfileRail from '../components/ProfileRail.svelte';
@@ -9,6 +9,8 @@
   import FocusDashboard from '../components/FocusDashboard.svelte';
   import CommuteCard from '../components/widgets/CommuteCard.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
+  import SchoolLifeCard from '../components/widgets/SchoolLifeCard.svelte';
+  import SchoolLifeDetail from '../components/widgets/SchoolLifeDetail.svelte';
   import NextEventBanner from '../components/widgets/NextEventBanner.svelte';
   import NoteCard from '../components/widgets/NoteCard.svelte';
   import TaskList from '../components/widgets/TaskList.svelte';
@@ -17,6 +19,7 @@
   import { formatLongDate, greeting } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { routineFooter, routineTitle } from '../lib/routine.ts';
+  import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife, showsSchoolLife } from '../lib/school-life.ts';
   import { HOME_PATH } from '../lib/route.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel } from '../lib/weather.ts';
 
@@ -37,6 +40,32 @@
   onDestroy(dashboard.destroy);
 
   let writing = $state(false);
+
+  /**
+   * Vie scolaire des enfants, sur le dashboard d'un parent : redemandée à chaque changement de personne reconnue (et
+   * toutes les 10 min). Le serveur ne la donne qu'à un parent reconnu ; sinon le bloc disparaît aussitôt.
+   */
+  let schoolLife = $state<SchoolLife | null>(null);
+  let schoolLifeOpen = $state(false);
+  $effect(() => {
+    void actor.current?.id;
+    schoolLife = null;
+    schoolLifeOpen = false;
+    if (!showsSchoolLife(config.members, ownerId)) return;
+    let live = true;
+    const load = () =>
+      api.schoolLife().then(
+        (life) => live && (schoolLife = life),
+        () => live && ((schoolLife = null), (schoolLifeOpen = false)),
+      );
+    void load();
+    const timer = setInterval(load, SCHOOL_LIFE_REFRESH_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  });
+  const schoolLifeData = $derived(hasSchoolLife(schoolLife) ? schoolLife : null);
 
   // Un mot vu disparaît tout de suite ; le suivant prend sa place. Un mot à toute la famille : un parent.
   async function seeNote(note: Note) {
@@ -155,12 +184,23 @@
               color={profile.color}
               onToggle={toggleTask}
             />
-            {#if data.routine}
-              {@render routine(data.routine)}
-            {:else if data.homework}
-              <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} />
+            {#snippet middle()}
+              {#if data.routine}
+                {@render routine(data.routine)}
+              {:else if data.homework}
+                <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} />
+              {:else}
+                <UpcomingList events={data.upcoming} now={clock.now} />
+              {/if}
+            {/snippet}
+            {#if schoolLifeData}
+              <!-- Parent reconnu : la vie scolaire des enfants en tête de la colonne du milieu. -->
+              <div class="column">
+                <SchoolLifeCard life={schoolLifeData} {profiles} now={clock.now} onOpen={() => (schoolLifeOpen = true)} />
+                {@render middle()}
+              </div>
             {:else}
-              <UpcomingList events={data.upcoming} now={clock.now} />
+              {@render middle()}
             {/if}
             <NoteCard notes={data.notes} {profiles} now={clock.now} onSeen={seeNote} onWrite={startNote} />
           </div>
@@ -185,7 +225,58 @@
   </div>
 {/if}
 
+{#if schoolLifeOpen && schoolLifeData}
+  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (schoolLifeOpen = false)}>
+    <div class="dialog wide" role="dialog" aria-modal="true" aria-label="Vie scolaire">
+      <header class="dialog-head">
+        <h2 class="card-label">Vie scolaire</h2>
+        <button type="button" class="close" aria-label="Fermer" onclick={() => (schoolLifeOpen = false)}><Icon name="close" size={28} /></button>
+      </header>
+      <SchoolLifeDetail life={schoolLifeData} {profiles} now={clock.now} />
+    </div>
+  </div>
+{/if}
+
 <style>
+  .column {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .column > :global(:last-child) {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .dialog.wide {
+    width: min(1180px, calc(100vw - 64px));
+  }
+
+  .dialog-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+  }
+
+  .dialog-head h2 {
+    margin: 0;
+  }
+
+  .close {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: inherit;
+    cursor: pointer;
+  }
+
   .dashboard {
     height: 100%;
     display: flex;

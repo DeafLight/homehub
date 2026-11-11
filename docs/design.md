@@ -62,6 +62,9 @@ restent ; les espacements, les tailles de texte et les cartes deviennent des rè
   Scanner ressort en bleu.
 - **Bus sur l'accueil** : une ligne par arrêt, une pastille par ligne et destination avec le prochain passage et un
   point vert pour le temps réel.
+- **Vie scolaire** (dashboard d'un parent) : une carte compacte en tête de la colonne du milieu, toute la carte se
+  touche et ouvre le détail dans une fenêtre large ; « à justifier » en jaune (`--warn`), messages non lus en
+  pastille bleue.
 - **Dashboard élève** (« focus ») : une frise (aujourd'hui ou demain), la carte du moment en grand, le reste en tuiles
   qui ouvrent leur carte dans un panneau.
 

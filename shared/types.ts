@@ -152,6 +152,64 @@ export type Homework = {
   minutes?: number;
 };
 
+/** Note d'un devoir (Pronote ou ÉcoleDirecte), en lecture seule. */
+export type SchoolGrade = {
+  id: string;
+  subject: string;
+  /** Jour du devoir, AAAA-MM-JJ (heure locale). */
+  date: string;
+  /** Note telle que le service l'écrit : « 15,5 », ou « Abs », « Disp »… */
+  value: string;
+  /** Barème (20 le plus souvent) ; null s'il n'est pas donné. */
+  outOf: number | null;
+  /** Intitulé du devoir (« Contrôle fractions »), s'il y en a un. */
+  title?: string;
+  coefficient?: number;
+  /** Moyenne de la classe à ce devoir, écrite comme la note. */
+  classAverage?: string;
+};
+
+/** Absence ou retard relevé par la vie scolaire. */
+export type SchoolAttendance = {
+  id: string;
+  kind: 'absence' | 'delay';
+  /** Jour, AAAA-MM-JJ (heure locale). */
+  date: string;
+  /** Durée telle qu'on la dit : « 1 demi-journée », « 2 h », « 10 min ». */
+  duration: string;
+  justified: boolean;
+  /** Motif donné par l'établissement. */
+  reason?: string;
+};
+
+/** Message reçu sur la messagerie du service : l'objet seulement (le lire dans l'appli le marquerait lu). */
+export type SchoolMessage = {
+  id: string;
+  subject: string;
+  from: string;
+  /** ISO 8601. */
+  date: string;
+  read: boolean;
+};
+
+export type SchoolService = 'ÉcoleDirecte' | 'Pronote';
+
+/** Vie scolaire d'un enfant : null quand la rubrique est indisponible (fermée au compte, panne). */
+export type SchoolLifeChild = {
+  ownerId: string;
+  /** Notes récentes, de la plus récente à la plus ancienne. */
+  grades: SchoolGrade[] | null;
+  /** Absences et retards de l'année (ou de la période), du plus récent au plus ancien. */
+  attendance: SchoolAttendance[] | null;
+};
+
+/** Vie scolaire des enfants, réservée aux parents (GET /api/school/life). */
+export type SchoolLife = {
+  children: SchoolLifeChild[];
+  /** Messagerie de chaque compte (un compte Famille par service), messages récents d'abord. */
+  messages: { service: SchoolService; items: SchoolMessage[] }[];
+};
+
 /** Passage d'un bus ou d'un tram Irigo à un arrêt. */
 export type Departure = {
   /** Ligne affichée : « 3 », « A ». */

@@ -14,12 +14,15 @@
   import PhoneNotes from '../components/phone/PhoneNotes.svelte';
   import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
+  import SchoolLifeCard from '../components/widgets/SchoolLifeCard.svelte';
+  import SchoolLifeDetail from '../components/widgets/SchoolLifeDetail.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { clearPairing, loadPairing } from '../lib/phone.ts';
   import { canMarkSeen, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
+  import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
   import { PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
@@ -30,9 +33,9 @@
   const HOMEWORK_REFRESH_MS = 10 * 60_000;
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
-  // jours, mots reçus et, pour un adulte qui a un programme, le sport. Tout ce qui est coché ou ajouté l'est au nom de
-  // ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout. Règles : lib/phone-app.ts ;
-  // onglets : components/phone/.
+  // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus et, pour un adulte qui a un programme, le
+  // sport. Tout ce qui est coché ou ajouté l’est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre
+  // directement l'ajout. Règles : lib/phone-app.ts ; onglets : components/phone/.
   type Props = { tab: PhoneTab; shared?: string };
   let { tab, shared }: Props = $props();
 
@@ -65,6 +68,9 @@
   const routine = createResource(async () => (pairing ? (await api.routine(pairing.ownerId)).routine : null), ROUTINE_REFRESH_MS);
   // Devoirs (Pronote ou ÉcoleDirecte), en lecture seule ; le serveur les garde en cache, rafraîchis plus rarement.
   const homework = createResource(async () => (pairing ? (await api.homework(pairing.ownerId)).homework : null), HOMEWORK_REFRESH_MS);
+  // Vie scolaire des enfants, en tête de l'agenda d'un parent (le serveur la refuse à un enfant).
+  const schoolLife = createResource(async () => (member?.parent ? api.schoolLife() : null), SCHOOL_LIFE_REFRESH_MS);
+  let schoolLifeOpen = $state(false);
   // Rouverte (téléphone sorti de la poche) : la routine a pu changer de période ou être cochée sur la tablette.
   const onVisible = () => document.visibilityState === 'visible' && void routine.refresh();
   document.addEventListener('visibilitychange', onVisible);
@@ -72,6 +78,7 @@
     document.removeEventListener('visibilitychange', onVisible);
     routine.destroy();
     homework.destroy();
+    schoolLife.destroy();
     lists.destroy();
     agenda.destroy();
     holidays.destroy();
@@ -169,6 +176,11 @@
           onSee={seeNote}
         />
       {:else if tab === 'agenda'}
+        {#if hasSchoolLife(schoolLife.data)}
+          <div class="school-life">
+            <SchoolLifeCard life={schoolLife.data} {profiles} now={clock.now} onOpen={() => (schoolLifeOpen = true)} />
+          </div>
+        {/if}
         <PhoneAgenda weeks={agenda.data} loadError={agenda.error} holiday={holidays.data?.holiday ?? null} meId={me.id} now={clock.now} {profileOf} />
       {:else if tab === 'sport'}
         {#if member?.fitness}
@@ -233,6 +245,13 @@
     {#if writing}
       <BottomSheet label="Laisser un mot" onClose={() => (writing = false)}>
         <NoteForm from={me} profiles={profiles.filter((p) => p.id !== me.id)} onSubmit={writeNote} onCancel={() => (writing = false)} />
+      </BottomSheet>
+    {/if}
+
+    {#if schoolLifeOpen && hasSchoolLife(schoolLife.data)}
+      <BottomSheet label="Vie scolaire" onClose={() => (schoolLifeOpen = false)}>
+        <h2 class="sheet-title">Vie scolaire</h2>
+        <SchoolLifeDetail life={schoolLife.data} {profiles} now={clock.now} stacked />
       </BottomSheet>
     {/if}
 
@@ -318,8 +337,19 @@
     text-align: left;
   }
 
-  .homework {
+  .homework,
+  .school-life {
     margin-bottom: 16px;
+  }
+
+  .school-life :global(.card) {
+    width: 100%;
+    padding: 16px 18px;
+  }
+
+  .sheet-title {
+    margin: 0 0 12px;
+    font-size: 1.3rem;
   }
 
   .homework :global(.card) {

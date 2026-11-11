@@ -1,9 +1,9 @@
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Assignment, TimetableClassLesson } from 'pawnote';
+import { type Assignment, type Discussion, type Grade, GradeKind, type NotebookAbsence, type NotebookDelay, type Period, type Tab, type TimetableClassLesson } from 'pawnote';
 import { describe, expect, it } from 'vitest';
-import type { Homework, SchoolCourse } from '../../shared/types.ts';
+import type { Homework, SchoolAttendance, SchoolCourse, SchoolGrade, SchoolMessage } from '../../shared/types.ts';
 import { NOW, silentLogger } from '../testing.ts';
 import {
   type PronoteClient,
@@ -11,9 +11,15 @@ import {
   type PronoteStateStore,
   createFileStateStore,
   createPronoteSource,
+  gradeText,
   matchesChild,
+  periodFor,
+  toAbsence,
   toCourse,
+  toDelay,
+  toGrade,
   toHomework,
+  toMessage,
 } from './pronote.ts';
 import { firstSchoolSource } from './types.ts';
 
@@ -35,6 +41,10 @@ const COURSES = [
 const homework = (id: string, due: string, done = false): Homework => ({ id, subject: id, due, text: `Faire ${id}`, done });
 const HOMEWORK = [homework('svt', '2026-11-04'), homework('maths', '2026-11-03', true), homework('anglais', '2026-11-03')];
 
+const GRADES: SchoolGrade[] = [{ id: 'g1', subject: 'Mathematiques', date: '2026-10-30', value: '15', outOf: 20 }];
+const ATTENDANCE: SchoolAttendance[] = [{ id: 'r1', kind: 'delay', date: '2026-10-29', duration: '5 min', justified: false }];
+const MESSAGES: SchoolMessage[] = [{ id: 'm1', subject: 'Sortie', from: 'Mme Durand', date: '2026-10-28T17:00:00.000Z', read: false }];
+
 function memoryStore(initial: PronoteState | null = STATE) {
   let state = initial;
   const saved: string[] = [];
@@ -49,7 +59,11 @@ function memoryStore(initial: PronoteState | null = STATE) {
 }
 
 /** Faux Pronote : chaque connexion exige le dernier jeton et en rend un nouveau ; deux connexions à la fois échouent. */
-function fakeClient(children = ['DUPONT Héloïse', 'DUPONT Jean'], homeworkFor: () => Promise<Homework[]> = async () => HOMEWORK) {
+function fakeClient(
+  children = ['DUPONT Héloïse', 'DUPONT Jean'],
+  homeworkFor: () => Promise<Homework[]> = async () => HOMEWORK,
+  gradesFor: () => Promise<SchoolGrade[] | null> = async () => GRADES,
+) {
   let token = 'token-1';
   let busy = false;
   const logins: string[] = [];
@@ -62,7 +76,15 @@ function fakeClient(children = ['DUPONT Héloïse', 'DUPONT Jean'], homeworkFor:
       busy = false;
       logins.push(state.token);
       token = `token-${logins.length + 1}`;
-      return { state: { ...state, token }, children, timetable: async () => COURSES, homework: homeworkFor };
+      return {
+        state: { ...state, token },
+        children,
+        timetable: async () => COURSES,
+        homework: homeworkFor,
+        grades: gradesFor,
+        attendance: async () => ATTENDANCE,
+        messages: async () => MESSAGES,
+      };
     },
   };
   return { client, logins };
@@ -136,6 +158,25 @@ describe('createPronoteSource', () => {
     expect(logger.errors).toEqual([expect.stringContaining('onglet fermé')]);
   });
 
+  it('charge la vie scolaire avec la même connexion', async () => {
+    const { source, client } = setup();
+    await source.coursesFor('helo', RANGE);
+    expect(await source.lifeFor!('helo')).toEqual({ grades: GRADES, attendance: ATTENDANCE, messages: { service: 'Pronote', items: MESSAGES } });
+    expect(client.logins).toEqual(['token-1']);
+    expect(await source.lifeFor!('alex')).toBeNull();
+  });
+
+  it('notes indisponibles : le reste de la vie scolaire reste, l’erreur est notée', async () => {
+    const client = fakeClient(undefined, undefined, async () => {
+      throw new Error('onglet Notes fermé');
+    });
+    const { source, logger } = setup({ client });
+    const life = await source.lifeFor!('helo');
+    expect(life?.grades).toBeNull();
+    expect(life?.attendance).toEqual(ATTENDANCE);
+    expect(logger.errors).toEqual([expect.stringContaining('onglet Notes fermé')]);
+  });
+
   it('garde le nouveau jeton même si l’enfant est introuvable', async () => {
     const { source, store } = setup();
     await expect(source.coursesFor('zoe', RANGE)).rejects.toThrow('introuvable');
@@ -165,6 +206,106 @@ describe('toHomework', () => {
       attachments: 2,
       minutes: 30,
     });
+  });
+});
+
+describe('vie scolaire Pronote', () => {
+  const value = (points: number, kind: GradeKind = GradeKind.Grade) => ({ kind, points });
+  const subject = { id: 's', name: 'MATHEMATIQUES', inGroups: false };
+
+  it('écrit les notes comme Pronote : virgule, abréviations des notes spéciales', () => {
+    expect(gradeText(value(15.5))).toBe('15,5');
+    expect(gradeText(value(12))).toBe('12');
+    expect(gradeText(value(0, GradeKind.Absent))).toBe('Abs');
+    expect(gradeText(value(0, GradeKind.Exempted))).toBe('Disp');
+    expect(gradeText(value(0, GradeKind.Error))).toBeNull();
+  });
+
+  it('convertit une note, avec intitulé, coefficient et moyenne de classe', () => {
+    const grade = {
+      id: 'g',
+      value: value(14.25),
+      outOf: value(20),
+      date: new Date(2026, 9, 20, 0, 0),
+      subject,
+      average: value(11.8),
+      coefficient: 2,
+      comment: ' Contrôle fractions ',
+      isBonus: false,
+      isOptional: false,
+      isOutOf20: false,
+    } as unknown as Grade;
+    expect(toGrade(grade)).toEqual({
+      id: 'g',
+      subject: 'Mathématiques',
+      date: '2026-10-20',
+      value: '14,25',
+      outOf: 20,
+      title: 'Contrôle fractions',
+      coefficient: 2,
+      classAverage: '11,8',
+    });
+    expect(toGrade({ ...grade, value: value(0, GradeKind.Error) })).toBeNull();
+    expect(toGrade({ ...grade, coefficient: 1, comment: '', average: undefined })).toEqual({
+      id: 'g',
+      subject: 'Mathématiques',
+      date: '2026-10-20',
+      value: '14,25',
+      outOf: 20,
+    });
+  });
+
+  it('convertit absences (en jours ou en heures) et retards', () => {
+    const absence = {
+      id: 'a',
+      startDate: new Date(2026, 9, 12, 8, 0),
+      endDate: new Date(2026, 9, 12, 12, 0),
+      justified: true,
+      opened: false,
+      daysMissed: 0,
+      hoursMissed: 3,
+      minutesMissed: 30,
+      shouldParentsJustify: false,
+      administrativelyFixed: false,
+      isReasonUnknown: false,
+      reason: 'Médical',
+    } satisfies NotebookAbsence;
+    expect(toAbsence(absence)).toEqual({ id: 'a', kind: 'absence', date: '2026-10-12', duration: '3 h 30', justified: true, reason: 'Médical' });
+    expect(toAbsence({ ...absence, daysMissed: 2 }).duration).toBe('2 jours');
+    const delay = {
+      id: 'd',
+      date: new Date(2026, 10, 2, 8, 10),
+      minutes: 10,
+      justified: false,
+      shouldParentsJustify: true,
+      administrativelyFixed: false,
+      isReasonUnknown: true,
+    } satisfies NotebookDelay;
+    expect(toDelay(delay)).toEqual({ id: 'd', kind: 'delay', date: '2026-11-02', duration: '10 min', justified: false });
+  });
+
+  it('résume une discussion sans l’ouvrir : lue s’il ne reste aucun message non lu', () => {
+    const discussion = {
+      creator: 'M. Martin',
+      date: new Date('2026-11-03T08:15:00.000Z'),
+      participantsMessageID: 'p1',
+      subject: 'Réunion',
+      numberOfMessagesUnread: 1,
+    } as unknown as Discussion;
+    expect(toMessage(discussion)).toEqual({ id: 'p1', subject: 'Réunion', from: 'M. Martin', date: '2026-11-03T08:15:00.000Z', read: false });
+    expect(toMessage({ ...discussion, numberOfMessagesUnread: 0, creator: undefined }).read).toBe(true);
+  });
+
+  it('lit la période la plus longue qui contient aujourd’hui (l’année plutôt que le trimestre)', () => {
+    const period = (id: string, start: Date, end: Date): Period => ({ id, name: id, kind: 0, startDate: start, endDate: end });
+    const t1 = period('T1', new Date(2026, 8, 1), new Date(2026, 10, 30));
+    const year = period('Année', new Date(2026, 8, 1), new Date(2027, 6, 4));
+    const t2 = period('T2', new Date(2026, 11, 1), new Date(2027, 1, 28));
+    const tab = (periods: Period[], defaultPeriod?: Period) => ({ location: 198, periods, defaultPeriod }) as Tab;
+    expect(periodFor(tab([t1, year, t2]), NOW)?.id).toBe('Année');
+    expect(periodFor(tab([t1, t2]), NOW)?.id).toBe('T1');
+    expect(periodFor(tab([t2], t2), NOW)?.id).toBe('T2');
+    expect(periodFor(undefined, NOW)).toBeNull();
   });
 });
 
@@ -240,5 +381,8 @@ describe('firstSchoolSource', () => {
     const withHomework = { coursesFor: async () => COURSES, homeworkFor: async () => HOMEWORK };
     expect(await firstSchoolSource(none, { coursesFor: async () => null }, withHomework).homeworkFor!('x')).toBe(HOMEWORK);
     expect(await firstSchoolSource(none).homeworkFor!('x')).toBeNull();
+    const life = { grades: null, attendance: null, messages: null };
+    expect(await firstSchoolSource(none, { coursesFor: async () => null, lifeFor: async () => life }).lifeFor!('x')).toBe(life);
+    expect(await firstSchoolSource(none).lifeFor!('x')).toBeNull();
   });
 });

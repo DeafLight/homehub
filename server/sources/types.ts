@@ -1,6 +1,19 @@
 // Ports vers les sources de données. Chaque widget dépend d'une interface, pas d'une implémentation : une source
 // (agenda iCal ou d'exemple, Open-Meteo, ÉcoleDirecte ou Pronote…) se change sans toucher au service ni aux routes.
-import type { Author, CalendarEvent, Homework, Note, SchoolCourse, Task, Weather, WeatherForecast } from '../../shared/types.ts';
+import type {
+  Author,
+  CalendarEvent,
+  Homework,
+  Note,
+  SchoolAttendance,
+  SchoolCourse,
+  SchoolGrade,
+  SchoolMessage,
+  SchoolService,
+  Task,
+  Weather,
+  WeatherForecast,
+} from '../../shared/types.ts';
 
 /** Horloge injectable, pour des tests déterministes. */
 export type Clock = () => Date;
@@ -53,7 +66,17 @@ export interface SchoolSource {
    * de cahier de texte, ou s'il est indisponible (module fermé par l'établissement...).
    */
   homeworkFor?(ownerId: string): Promise<Homework[] | null>;
+  /** Vie scolaire du profil (notes, absences, messagerie du compte) ; null s'il n'est pas sur ce service. */
+  lifeFor?(ownerId: string): Promise<SchoolLifeData | null>;
 }
+
+/** Vie scolaire telle qu'une source la charge ; chaque rubrique vaut null si elle est indisponible. */
+export type SchoolLifeData = {
+  grades: SchoolGrade[] | null;
+  attendance: SchoolAttendance[] | null;
+  /** Messagerie du compte (la même pour tous ses enfants). */
+  messages: { service: SchoolService; items: SchoolMessage[] } | null;
+};
 
 /** Chaque profil a au plus un emploi du temps : le premier service qui le connaît répond (ÉcoleDirecte, Pronote...). */
 export const firstSchoolSource = (...sources: SchoolSource[]): SchoolSource => ({
@@ -68,6 +91,13 @@ export const firstSchoolSource = (...sources: SchoolSource[]): SchoolSource => (
     for (const source of sources) {
       const homework = (await source.homeworkFor?.(ownerId)) ?? null;
       if (homework) return homework;
+    }
+    return null;
+  },
+  async lifeFor(ownerId) {
+    for (const source of sources) {
+      const life = (await source.lifeFor?.(ownerId)) ?? null;
+      if (life) return life;
     }
     return null;
   },

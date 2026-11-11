@@ -328,6 +328,9 @@ await shoot('tablette-routines-enregistre', `${BASE}/routines`, TABLET, {
 });
 await call(A, 'PUT', '/routines', ROUTINES);
 await shoot('tablette-sport', `${BASE}/sport/p/alex`, TABLET, { init: asAlexAtTablet });
+// Vie scolaire de Léa sur le dashboard d'Alex reconnu (notes, retard à justifier, messages non lus), puis son détail.
+await shoot('tablette-dashboard-parent', `${BASE}/p/alex`, TABLET, { init: asAlexAtTablet });
+await shoot('tablette-vie-scolaire', `${BASE}/p/alex`, TABLET, { init: asAlexAtTablet, after: `document.querySelector('.school-life')?.click()` });
 // Séance guidée : échauffement passé, premier effort.
 await shoot('tablette-seance', `${BASE}/seance/p/alex`, TABLET, {
   init: asAlexAtTablet,
@@ -354,6 +357,9 @@ await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });
+// Téléphone d'un parent : la vie scolaire en tête de l'agenda, puis son détail.
+await shoot('telephone-agenda-parent', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex') });
+await shoot('telephone-vie-scolaire', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex'), after: `document.querySelector('.school-life button')?.click()` });
 await shoot('telephone-stock', `${BASE}/m/stock`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-sport', `${BASE}/m/sport`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-sport-exercice', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: `document.querySelectorAll('.plan button')[2].click()` });

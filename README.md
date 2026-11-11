@@ -134,6 +134,14 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   lire en entier), « Contrôle » quand ÉcoleDirecte l'annonce, pièces jointes et durée prévue s'il y en a. Aussi dans
   l'onglet Tâches de son téléphone. **Lecture seule** : un devoir se coche dans l'appli de l'école ; HomeHub montre
   « ✓ fait » au rafraîchissement suivant.
+- **Vie scolaire** (enfants avec ÉcoleDirecte ou Pronote), **pour les parents seulement** : sur le dashboard d'un
+  parent reconnu devant la tablette, un bloc « Vie scolaire » en tête de la colonne du milieu donne, par enfant, sa
+  dernière note, ses absences et retards (« 1 à justifier » en jaune), puis les messages non lus de l'établissement.
+  Le toucher ouvre le détail : notes récentes (barème, coefficient, moyenne de la classe), absences et retards avec
+  leur motif, objets des messages reçus. Même carte en tête de l'onglet Agenda du téléphone d'un parent. **Lecture
+  seule** : HomeHub ne lit que la liste des messages, jamais leur contenu (l'ouvrir les marquerait lus) ; on les lit
+  dans l'appli de l'école. Ni l'accueil, ni le dashboard d'un enfant, ni la tablette sans parent reconnu n'en montrent
+  rien : le serveur la refuse.
 - **Bus et tram Irigo** (Angers) : sur l'accueil, les prochains passages aux arrêts suivis (`transit.stops`), deux
   par ligne et direction, avec une antenne verte quand l'heure vient du temps réel, et les perturbations de ces
   lignes ; sous l'horloge de la veille, ceux du premier arrêt. Trajet du matin d'un membre (`commute`) : à ses heures
@@ -239,6 +247,12 @@ Les **devoirs** viennent de la même connexion (cahier de texte ÉcoleDirecte, d
 de trois semaines et au même rythme. Si l'établissement n'ouvre pas le cahier de texte au compte Famille, les cours
 restent affichés, sans carte « Devoirs », et l'erreur est notée dans les journaux.
 
+La **vie scolaire** aussi, au même rythme : notes et absences et retards de chaque enfant, liste des messages reçus
+par le compte (ÉcoleDirecte : carnet de notes, vie scolaire et messagerie du compte Famille ; Pronote : notes et
+carnet de la période en cours, l'année si l'établissement la propose, et discussions de la messagerie). Chaque
+rubrique fermée au compte manque seule, notée dans les journaux. Les formats ÉcoleDirecte viennent de la
+documentation communautaire de l'API (non officielle) : à vérifier dans les journaux au premier déploiement.
+
 Il peut aussi venir de **Pronote** (compte parent), avec `pronote: <prénom de l'enfant>` sur le profil, par
 [Pawnote](https://github.com/LiterateInk/Pawnote), bibliothèque non officielle qui imite l'application mobile.
 Pawnote 1.6.2 ne suit pas Pronote 2026 : `scripts/patch-pawnote.ts` le corrige à chaque `npm install` et fait
@@ -332,8 +346,8 @@ server/
   sources/sample.ts        agenda d'exemple, en mémoire (tant qu'aucun agenda n'est configuré)
   sources/open-meteo.ts    météo Open-Meteo
   sources/ical.ts          agendas iCal (adresses secrètes Google Agenda)
-  sources/ecoledirecte.ts  emploi du temps et devoirs ÉcoleDirecte (client de l'API privée + source)
-  sources/pronote.ts       emploi du temps et devoirs Pronote (Pawnote, jeton enregistré à chaque connexion)
+  sources/ecoledirecte.ts  emploi du temps, devoirs et vie scolaire ÉcoleDirecte (client de l'API privée + source)
+  sources/pronote.ts       emploi du temps, devoirs et vie scolaire Pronote (Pawnote, jeton enregistré à chaque connexion)
   sources/homework.ts      devoirs : consigne HTML → texte, tri, fenêtre
   sources/irigo.ts         bus et tram Irigo : passages (SIRI), perturbations, cache
   sources/gtfs-rt.ts       lecture minimale d'un flux d'alertes GTFS-RT (protobuf)
@@ -388,6 +402,7 @@ web/src/
 | `GET /api/transit` | `{ stops, alerts }` : prochains passages Irigo aux arrêts suivis, perturbations de leurs lignes |
 | `GET /api/school/holidays` | `{ holiday, zone, holidays }` : ce qu'on dit des vacances scolaires et des jours fériés aujourd'hui (`soon`, `last-day`, `during`, `public-holiday`, `public-holiday-next`), la zone, les périodes à venir (`start` premier jour sans école, `end` reprise) ; zone et périodes `null` si non configurées (les jours fériés restent annoncés). `?academie=Nantes` ou `?zone=B` : aperçu d'un autre réglage (tablette ou téléphone appairé) |
 | `GET /api/school/holidays/settings`, `PUT /api/school/holidays/settings` | réglage de la page « Vacances scolaires » `{ choice, saved, academies }` (tablette ou téléphone appairé) ; enregistrer : `{ choice }` avec `{ academie }`, `{ zone }` ou `null` (désactivées), un parent |
+| `GET /api/school/life` | `{ children, messages }` : vie scolaire des enfants (notes récentes, absences et retards par enfant ; messages reçus par service, objet seulement). Un parent seulement : reconnu devant la tablette, ou son téléphone |
 | `GET /api/dashboard/:id/homework` | `{ homework }` : les devoirs à faire seuls (appli du téléphone), `null` sans cahier de texte |
 | `PUT /api/dashboard/:id/routine/:itemId` | `{ "done": true }` → l'étape de la routine du jour (`morning-0`, `evening-2`…) (écriture) |
 | `GET /api/transit/settings`, `PUT /api/transit/settings` | réglages de la page « Transports » `{ places, commutes, stops }` (tablette ou téléphone appairé ; enregistrer : un parent) |

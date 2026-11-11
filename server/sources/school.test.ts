@@ -1,6 +1,6 @@
-// Tests de la mise en forme commune aux sources scolaires : matières, prénoms.
+// Tests de la mise en forme commune aux sources scolaires : matières, prénoms, nombres, durées, année scolaire.
 import { describe, expect, it } from 'vitest';
-import { formatSubject, normalizeName } from './school.ts';
+import { durationLabel, formatFrenchNumber, formatSubject, normalizeName, parseFrenchNumber, schoolYear } from './school.ts';
 
 describe('sources scolaires', () => {
   it('met en forme les matières', () => {
@@ -29,5 +29,31 @@ describe('sources scolaires', () => {
     expect(normalizeName(' Léa ')).toBe('lea');
     expect(normalizeName('LÉA')).toBe(normalizeName('lea'));
     expect(normalizeName('Tom')).not.toBe(normalizeName('Tim'));
+  });
+
+  it('lit et écrit les nombres à la française', () => {
+    expect(parseFrenchNumber('20')).toBe(20);
+    expect(parseFrenchNumber(' 14,5 ')).toBe(14.5);
+    expect(parseFrenchNumber('7.25')).toBe(7.25);
+    expect(parseFrenchNumber(3)).toBe(3);
+    expect(parseFrenchNumber('Abs')).toBeNull();
+    expect(parseFrenchNumber('')).toBeNull();
+    expect(parseFrenchNumber(null)).toBeNull();
+    expect(formatFrenchNumber(15.5)).toBe('15,5');
+    expect(formatFrenchNumber(12)).toBe('12');
+    expect(formatFrenchNumber(13.333)).toBe('13,33');
+  });
+
+  it('dit les durées comme à l’oral', () => {
+    expect(durationLabel(10)).toBe('10 min');
+    expect(durationLabel(120)).toBe('2 h');
+    expect(durationLabel(90)).toBe('1 h 30');
+    expect(durationLabel(65)).toBe('1 h 05');
+  });
+
+  it('donne l’année scolaire, qui commence en août', () => {
+    expect(schoolYear(new Date(2026, 10, 2))).toBe('2026-2027');
+    expect(schoolYear(new Date(2027, 5, 30))).toBe('2026-2027');
+    expect(schoolYear(new Date(2027, 7, 20))).toBe('2027-2028');
   });
 });

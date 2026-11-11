@@ -38,13 +38,42 @@ const HOMEWORK_DETAIL: Record<string, unknown> = {
   },
 };
 
+/** Carnet de notes, vie scolaire et messagerie, au format de la documentation communautaire de l'API. */
+const GRADES = {
+  notes: [
+    { id: 51, devoir: 'Contrôle fractions', codeMatiere: 'MATHS', libelleMatiere: 'MATHEMATIQUES', date: '2026-10-20', valeur: '14,5', noteSur: '20', coef: '2', moyenneClasse: '12,3' },
+    { id: 52, devoir: 'Dictée', codeMatiere: 'FRANC', libelleMatiere: 'FRANCAIS', date: '2026-11-03', valeur: ' Abs ', noteSur: '10', coef: '1' },
+    { id: 53, devoir: 'Pas encore notée', libelleMatiere: 'ANGLAIS LV1', date: '2026-11-04', valeur: '', noteSur: '20', coef: '1' },
+  ],
+};
+const ATTENDANCE = {
+  absencesRetards: [
+    { id: 61, typeElement: 'Absence', date: '2026-10-12', libelle: '1 demi-journée', motif: 'Rendez-vous médical', justifie: true },
+    { id: 62, typeElement: 'Retard', date: '2026-11-02', libelle: '10 minutes', motif: '', justifie: false },
+    { id: 63, typeElement: 'Punition', date: '2026-11-02' },
+  ],
+  sanctionsEncouragements: [],
+};
+const MESSAGES = {
+  classeurs: [],
+  messages: {
+    received: [
+      { id: 71, subject: 'Sortie au musée', date: '2026-10-28 18:02:11', read: true, from: { name: 'Mme Durand', role: 'P' } },
+      { id: 72, subject: 'Réunion parents-professeurs', date: '2026-11-03 09:15:00', read: false, from: { civilite: 'M.', prenom: 'Paul', nom: 'Martin' } },
+    ],
+    sent: [],
+  },
+};
+
 /** Faux serveur ÉcoleDirecte : cookie GTK, connexion (question si les jetons ne sont pas les bons), emploi du temps. */
-function fakeServer({ courses = COURSES as unknown[], loginCode = 200, homeworkCode = 200 } = {}) {
+function fakeServer({ courses = COURSES as unknown[], loginCode = 200, homeworkCode = 200, gradesCode = 200 } = {}) {
   const calls: string[] = [];
+  const bodies: Record<string, unknown> = {};
   const fn = (async (input: string, init?: RequestInit) => {
     const url = new URL(input);
     const path = url.pathname.replace('/v3/', '') + (url.searchParams.get('verbe') ? `?${url.searchParams.get('verbe')}` : '');
     calls.push(path);
+    if (init?.body) bodies[path] = JSON.parse(decodeURIComponent(String(init.body).slice('data='.length)));
     if (url.searchParams.has('gtk')) {
       return new Response('', { headers: { 'Set-Cookie': 'GTK=gtk-value; Path=/' } });
     }
@@ -78,16 +107,25 @@ function fakeServer({ courses = COURSES as unknown[], loginCode = 200, homeworkC
     if (path === 'Eleves/4321/cahierdetexte.awp?get') {
       return homeworkCode === 200 ? json({ code: 200, data: HOMEWORK_DAYS }) : json({ code: homeworkCode, message: 'Accès refusé' });
     }
+    if (path === 'eleves/4321/notes.awp?get') {
+      return gradesCode === 200 ? json({ code: 200, data: GRADES }) : json({ code: gradesCode, message: 'Accès refusé' });
+    }
+    if (path === 'eleves/4321/viescolaire.awp?get') return json({ code: 200, data: ATTENDANCE });
+    if (path === 'familles/9/messages.awp?get') {
+      if (url.searchParams.get('typeRecuperation') !== 'received') return json({ code: 400, message: 'typeRecuperation' });
+      return json({ code: 200, data: MESSAGES });
+    }
     const day = /^Eleves\/4321\/cahierdetexte\/(.+)\.awp\?get$/u.exec(path)?.[1];
     if (day && HOMEWORK_DETAIL[day]) return json({ code: 200, data: HOMEWORK_DETAIL[day] });
     return json({ code: 404, message: path });
   }) as unknown as typeof fetch;
-  return { fn, calls };
+  return { fn, calls, bodies };
 }
 
 describe('conversions', () => {
   it('lit les dates locales (matières : school.test.ts)', () => {
     expect(parseLocalDateTime('2026-11-03 08:35')).toEqual(new Date(2026, 10, 3, 8, 35));
+    expect(parseLocalDateTime('2026-11-03 09:15:42')).toEqual(new Date(2026, 10, 3, 9, 15, 42));
   });
 });
 
@@ -120,6 +158,36 @@ describe('createEcoleDirecteClient', () => {
     ]);
   });
 
+  it('lit les notes : récentes d’abord, sans les devoirs pas encore notés', async () => {
+    const { fn } = fakeServer();
+    const session = await createEcoleDirecteClient(fn).login(CREDENTIALS);
+    expect(await session.grades(4321)).toEqual([
+      { id: '52', subject: 'Français', date: '2026-11-03', value: 'Abs', outOf: 10, title: 'Dictée' },
+      { id: '51', subject: 'Mathématiques', date: '2026-10-20', value: '14,5', outOf: 20, title: 'Contrôle fractions', coefficient: 2, classAverage: '12,3' },
+    ]);
+  });
+
+  it('lit les absences et retards, sans les autres éléments de la vie scolaire', async () => {
+    const { fn } = fakeServer();
+    const session = await createEcoleDirecteClient(fn).login(CREDENTIALS);
+    expect(await session.attendance(4321)).toEqual([
+      { id: '62', kind: 'delay', date: '2026-11-02', duration: '10 minutes', justified: false },
+      { id: '61', kind: 'absence', date: '2026-10-12', duration: '1 demi-journée', justified: true, reason: 'Rendez-vous médical' },
+    ]);
+  });
+
+  it('liste les messages reçus du compte Famille, sans les ouvrir', async () => {
+    const { fn, calls, bodies } = fakeServer();
+    const session = await createEcoleDirecteClient(fn).login(CREDENTIALS);
+    expect(await session.messages(NOW)).toEqual([
+      { id: '72', subject: 'Réunion parents-professeurs', from: 'M. Paul Martin', date: new Date(2026, 10, 3, 9, 15).toISOString(), read: false },
+      { id: '71', subject: 'Sortie au musée', from: 'Mme Durand', date: new Date(2026, 9, 28, 18, 2, 11).toISOString(), read: true },
+    ]);
+    expect(bodies['familles/9/messages.awp?get']).toEqual({ anneeMessages: '2026-2027' });
+    // Jamais le détail d'un message : l'ouvrir le marquerait lu.
+    expect(calls.some((c) => /messages\/\d+/u.test(c))).toBe(false);
+  });
+
   it('répond à la question de sécurité quand les jetons manquent', async () => {
     const { fn } = fakeServer();
     const asked: string[] = [];
@@ -150,8 +218,8 @@ describe('createEcoleDirecteClient', () => {
 });
 
 describe('createEcoleDirecteSource', () => {
-  function setup(opts: { student?: string; credentials?: Credentials | undefined; homeworkCode?: number } = {}) {
-    const server = fakeServer({ homeworkCode: opts.homeworkCode });
+  function setup(opts: { student?: string; credentials?: Credentials | undefined; homeworkCode?: number; gradesCode?: number } = {}) {
+    const server = fakeServer({ homeworkCode: opts.homeworkCode, gradesCode: opts.gradesCode });
     const logger = silentLogger();
     const source = createEcoleDirecteSource({
       studentFor: (ownerId) => (ownerId === 'greg' ? (opts.student ?? 'heloise') : undefined),
@@ -205,6 +273,27 @@ describe('createEcoleDirecteSource', () => {
     expect(await source.homeworkFor!('greg')).toBeNull();
     expect(await source.coursesFor('greg', RANGE)).toHaveLength(3);
     expect(logger.errors).toEqual([expect.stringContaining('cahier de texte')]);
+  });
+
+  it('donne la vie scolaire avec la même connexion que l’emploi du temps', async () => {
+    const { source, calls } = setup();
+    await source.coursesFor('greg', RANGE);
+    const count = calls.length;
+    const life = await source.lifeFor!('greg');
+    expect(calls).toHaveLength(count);
+    expect(life?.grades?.map((g) => g.id)).toEqual(['52', '51']);
+    expect(life?.attendance?.map((a) => a.kind)).toEqual(['delay', 'absence']);
+    expect(life?.messages).toMatchObject({ service: 'ÉcoleDirecte', items: [{ id: '72' }, { id: '71' }] });
+    expect(await source.lifeFor!('lea')).toBeNull();
+  });
+
+  it('notes fermées au compte : le reste de la vie scolaire et les cours restent', async () => {
+    const { source, logger } = setup({ gradesCode: 403 });
+    const life = await source.lifeFor!('greg');
+    expect(life?.grades).toBeNull();
+    expect(life?.attendance).toHaveLength(2);
+    expect(await source.coursesFor('greg', RANGE)).toHaveLength(3);
+    expect(logger.errors).toEqual([expect.stringContaining('notes')]);
   });
 
   it('signale un élève introuvable', async () => {

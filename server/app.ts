@@ -15,7 +15,9 @@ import { createRouter, fail } from './http.ts';
 import { createListsApi } from './lists-api.ts';
 import { createPinGate } from './pin-gate.ts';
 import { createRoutinesApi } from './routines-api.ts';
+import { createSchoolLifeApi } from './school-life-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
+import { createSchoolLifeService, type SchoolLifeService } from './services/school-life.ts';
 import { createFaceRecognition } from './services/faces.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
@@ -39,6 +41,8 @@ import { createTransitApi } from './transit-api.ts';
 export type AppDeps = {
   config: ConfigStore;
   service: DashboardService;
+  /** Vie scolaire des enfants (parents seulement) ; absente (tests) : aucun enfant n'en a. */
+  schoolLife?: SchoolLifeService;
   nas: NasService;
   lists: ListsStore;
   notes: NotesStore;
@@ -96,6 +100,8 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
+  const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });
+  api.route('/', createSchoolLifeApi({ schoolLife, access }));
   api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 
   const app = createRouter();

@@ -10,6 +10,7 @@ import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
+import { createSchoolLifeService } from './services/school-life.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createDeviceStore } from './sources/devices.ts';
@@ -161,7 +162,8 @@ const nas = createNasService({
   version,
   startedAt,
 });
-const app = createApp({ config, service, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, clock, version, staticRoot });
+const schoolLife = createSchoolLifeService({ household, school: sources.school, logger: console });
+const app = createApp({ config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

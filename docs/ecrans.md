@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.47.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.48.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -52,6 +52,18 @@ Un jour férié compte comme un jour de vacances pour l'école. Mercredi 11 nove
 (la veille : « Demain férié · 11 novembre ») ; ni bus ni cours ce jour-là, routine du matin sans « Cartable ».
 
 ![Dashboard de Léa un jour férié](images/tablette-ferie-dashboard.png)
+
+### Dashboard d'un parent : vie scolaire
+
+Alex reconnu devant la tablette : en tête de la colonne du milieu, la vie scolaire de Léa (dernière note, un retard
+à justifier, une absence) et les messages non lus de l'établissement. Rien de tout cela sur l'accueil, sur le
+dashboard d'un enfant, ni quand personne n'est reconnu.
+
+![Dashboard d'Alex avec la vie scolaire](images/tablette-dashboard-parent.png)
+
+Le bloc touché : notes récentes, absences et retards, messages reçus (l'objet seulement, à lire dans ÉcoleDirecte).
+
+![Détail de la vie scolaire](images/tablette-vie-scolaire.png)
 
 ### Dashboard de la famille
 
@@ -153,6 +165,13 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 | Courses | Tâches et devoirs | Agenda | Mots |
 |---|---|---|---|
 | ![Courses](images/telephone-courses.png) | ![Tâches](images/telephone-taches.png) | ![Agenda](images/telephone-agenda.png) | ![Mots](images/telephone-mots.png) |
+
+### Vie scolaire sur le téléphone d'un parent
+
+En tête de l'onglet Agenda ; la toucher ouvre le détail.
+
+<img src="images/telephone-agenda-parent.png" alt="Agenda du téléphone d'Alex avec la vie scolaire" width="260">
+<img src="images/telephone-vie-scolaire.png" alt="Détail de la vie scolaire sur le téléphone" width="260">
 
 ### Stock du téléphone
 
