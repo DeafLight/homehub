@@ -1,4 +1,7 @@
-// Libellés du stock (logique pure, testée) : fiche d'un produit, provenance, quantités.
+// Libellés du stock (logique pure, testée) : fiche d'un produit, provenance, quantités, saisie d'un produit sans
+// code-barres.
+import { isLooseCode } from '../../../shared/barcode.ts';
+import { formatLoose, isCounted, looseAmount } from '../../../shared/loose.ts';
 import type { Author, Container, Product, ProductInfo, StockEntry, StockMark, StockMovement } from '../../../shared/types.ts';
 import { dayDiff, formatTime } from './format.ts';
 
@@ -18,6 +21,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'n
 /** D'où vient la version en vigueur : « Lu dans Open Food Facts le 5 novembre 2026 », « Corrigé à la main le … ». */
 export function provenance(product: Product): string {
   const { current, versionCount } = product;
+  if (isLooseCode(product.code)) return `Ajouté sans code-barres le ${day(current.from)}${versionCount > 1 ? ` · ${versionCount} versions` : ''}`;
   const what = current.source === 'base' ? `Lu dans ${baseName(current.base)}` : versionCount > 1 ? 'Corrigé à la main' : 'Saisi à la main';
   return `${what} le ${day(current.from)}${versionCount > 1 ? ` · ${versionCount} versions` : ''}`;
 }
@@ -85,6 +89,8 @@ export function lastMarksLine(entry: { quantity: number; lastIn: StockMark | nul
 export function movementLabel(m: Pick<StockMovement, 'kind' | 'count' | 'forgotten'>): string {
   switch (m.kind) {
     case 'in':
+      // Zéro unité : seule la contenance d'un produit sans code-barres a changé (« il reste 800 g »).
+      if (m.count === 0) return 'Quantité changée';
       return m.count > 1 ? `Rangé (+ ${m.count})` : 'Rangé';
     case 'out':
       return m.forgotten ? 'Jeté · entrée oubliée' : m.count > 1 ? `Jeté (− ${m.count})` : 'Jeté';
@@ -115,8 +121,37 @@ export function stockCounts(items: Pick<StockEntry, 'quantity'>[]): Record<Stock
 /** « Épuisé » proposé sur chaque produit de la liste, actif dès qu'il en reste un (grisé à 0, comme « − »). */
 export const canExhaust = (entry: Pick<StockEntry, 'quantity'>) => entry.quantity > 0;
 
-/** Sous-titre d'un produit de l'inventaire : marque, contenance, rayon ; sinon une invitation à compléter la fiche. */
-export const productSubtitle = (product: Product) => [productDetail(product.current), product.current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche';
+/**
+ * Sous-titre d'un produit de l'inventaire : marque, contenance, rayon ; sinon une invitation à compléter la fiche.
+ * Sans code-barres : « Sans code-barres », la quantité pesée (le nombre de pièces est déjà le compte du stock), le rayon.
+ */
+export function productSubtitle(product: Product): string {
+  const { current } = product;
+  if (isLooseCode(product.code)) {
+    const per = looseAmount(current.quantity, 1);
+    const measure = per && !isCounted(per.unit) ? formatLoose(per) : null;
+    return ['Sans code-barres', measure, current.category].filter(Boolean).join(' · ');
+  }
+  return [productDetail(current), current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche';
+}
+
+/** Rayons proposés pour un produit saisi à la main. */
+export const STOCK_CATEGORIES = ['Frais', 'Épicerie', 'Boissons', 'Surgelés', 'Fruits et légumes', 'Entretien', 'Hygiène', 'Bébé', 'Animaux'];
+
+/** Quantité tapée (« 1,2 », « 0.5 », « 6 ») ; null si ce n'est pas un nombre positif. */
+export function parseAmount(text: string): number | null {
+  const value = text.trim().replace(',', '.');
+  if (!/^\d+(\.\d+)?$|^\.\d+$/u.test(value)) return null;
+  const n = Number(value);
+  return n > 0 ? n : null;
+}
+
+/** Ce qu'on a d'un produit sans code-barres (« 1,2 kg », « 6 pièces ») ; null pour un produit à code-barres. */
+export function looseText(product: Product, quantity: number): string | null {
+  if (!isLooseCode(product.code)) return null;
+  const total = looseAmount(product.current.quantity, quantity);
+  return total ? formatLoose(total) || 'Épuisé' : null;
+}
 
 /** État d'un contenant : ce qu'il contient, ou vide (avec ce qu'il contenait). */
 export const containerState = (c: Pick<Container, 'full' | 'productName'>) =>

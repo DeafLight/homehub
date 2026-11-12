@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.60.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.61.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -128,6 +128,11 @@ liste de courses pour un produit épuisé.
 
 ![Stock](images/tablette-stock.png)
 
+**Sans code-barres** : un produit du marché, en vrac ou fait maison s'ajoute par son nom, sa quantité et son unité
+(ici 6 œufs de la ferme, rayon Frais). Ce qui se compte entre pièce par pièce ; ce qui se pèse entre en une fois.
+
+![Produit sans code-barres](images/tablette-stock-sans-code-barres.png)
+
 ### Scanner
 
 Mode « Jeté / épuisé » : le paquet de café scanné est d'habitude transvasé dans le bocal, d'où la question ; le
@@ -233,7 +238,12 @@ En tête de l'onglet Agenda ; la toucher ouvre le détail.
 ou épuisés, ± 1 et « Épuisé » sur chaque produit ; ni date ni auteur dans la liste, ils restent dans la fiche du produit ; plus bas, les
 contenants en lecture seule.
 
-<img src="images/telephone-stock.png" alt="Stock du téléphone" width="260">
+| Stock | Produit sans code-barres |
+|---|---|
+| <img src="images/telephone-stock.png" alt="Stock du téléphone" width="260"> | <img src="images/telephone-stock-sans-code-barres.png" alt="Fiche des pommes du marché" width="260"> |
+
+Le bouton + ajoute un produit sans code-barres, comme sur la tablette. Sa fiche (ici des pommes du marché, 1,2 kg)
+dit d'où il vient, se met à jour avec **Modifier la quantité** (« il reste 800 g », racheté) et garde l'historique.
 
 ### Sport
 

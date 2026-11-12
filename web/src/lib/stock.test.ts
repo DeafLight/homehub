@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { looseCode } from '../../../shared/barcode.ts';
 import type { Product } from '../../../shared/types.ts';
 import {
   canExhaust,
@@ -6,8 +7,10 @@ import {
   filterStock,
   infoDiff,
   lastMarksLine,
+  looseText,
   markLine,
   movementLabel,
+  parseAmount,
   productDetail,
   productSubtitle,
   provenance,
@@ -123,5 +126,32 @@ describe('inventaire du stock', () => {
     expect(containerState({ full: true, productName: null })).toBe('Plein');
     expect(containerState({ full: false, productName: 'Lessive' })).toBe('Vide (Lessive)');
     expect(containerState({ full: false, productName: null })).toBe('Vide');
+  });
+
+  it('produit sans code-barres : provenance, sous-titre, quantité en tout', () => {
+    const loose = (quantity: string, category: string | null = 'Fruits et légumes'): Product => ({
+      ...product({ name: 'Pommes', brand: null, quantity, category, source: 'manual', base: null }),
+      code: looseCode(1),
+    });
+    expect(provenance(loose('1,2 kg'))).toBe('Ajouté sans code-barres le 5 novembre 2026');
+    expect(productSubtitle(loose('1,2 kg'))).toBe('Sans code-barres · 1,2 kg · Fruits et légumes');
+    expect(productSubtitle(loose('1 pièce', null))).toBe('Sans code-barres');
+    expect(looseText(loose('1,2 kg'), 1)).toBe('1,2 kg');
+    expect(looseText(loose('1 pièce'), 6)).toBe('6 pièces');
+    expect(looseText(loose('1 botte'), 0)).toBe('Épuisé');
+    expect(looseText(product(), 2)).toBeNull();
+  });
+
+  it('historique : quantité changée sans unité de plus', () => {
+    expect(movementLabel({ kind: 'in', count: 0, forgotten: false })).toBe('Quantité changée');
+  });
+
+  it('quantité tapée', () => {
+    expect(parseAmount('1,2')).toBe(1.2);
+    expect(parseAmount(' 6 ')).toBe(6);
+    expect(parseAmount('0.5')).toBe(0.5);
+    expect(parseAmount('0')).toBeNull();
+    expect(parseAmount('beaucoup')).toBeNull();
+    expect(parseAmount('1,2,3')).toBeNull();
   });
 });

@@ -1,7 +1,9 @@
 // Règles du stock, sans HTTP : ce qu'est un code scanné (contenant, produit connu relu dans la base quand sa fiche
 // est ancienne, ou inconnu), relecture de la base, mouvements avec leur suite sur la liste de courses (produit épuisé :
-// ajouté d'office ou proposé ; annulé : l'article ajouté repart). Le magasin garde l'état ; ce service décide.
-import { isContainerCode } from '../../shared/barcode.ts';
+// ajouté d'office ou proposé ; annulé : l'article ajouté repart), produits sans code-barres (jamais cherchés dans la
+// base). Le magasin garde l'état ; ce service décide.
+import { isContainerCode, isLooseCode } from '../../shared/barcode.ts';
+import { type LooseUnit, looseStock } from '../../shared/loose.ts';
 import type { Author, Product, ProductInfo, ProductRecheck, ScanLookup, ShoppingItem, ShoppingOutcome, StockMovementResult } from '../../shared/types.ts';
 import type { ListsStore } from '../sources/lists.ts';
 import type { ProductBase } from '../sources/open-food-facts.ts';
@@ -23,6 +25,10 @@ export type StockService = {
   undo(movementId: string): Promise<{ quantity: number } | StockRefusal>;
   /** « Oui » à la proposition : sur la liste de courses ; `always` : d'office la prochaine fois. */
   shop(code: string, always: boolean, by: Author): Promise<ShoppingItem | StockRefusal>;
+  /** Produit sans code-barres (« 1,2 kg » de pommes, « 6 » œufs) : créé et entré au stock. */
+  addLoose(input: { name: string; category: string | null; amount: number; unit: LooseUnit }, by: Author): Promise<StockMovementResult>;
+  /** Nouvelle quantité d'un produit sans code-barres (plus de zéro : pour l'épuiser, la sortie « tout »). */
+  setLoose(code: string, amount: number, unit: LooseUnit, by: Author): Promise<StockMovementResult | StockRefusal>;
 };
 
 export type StockServiceDeps = {
@@ -42,7 +48,8 @@ const refuse = (refused: StockRefusal['refused']): StockRefusal => ({ refused })
 export function createStockService({ stock, productBase, lists, clock, logger = console }: StockServiceDeps): StockService {
   /** La base, ramenée à une fiche ; `null` : absent de la base ; lève une erreur si la base ne répond pas. */
   async function readBase(code: string): Promise<BaseReading | null> {
-    if (!productBase) return null;
+    // Identifiant interne (produit sans code-barres, ou étiquette de pesée d'un magasin) : rien à demander à la base.
+    if (!productBase || isLooseCode(code)) return null;
     const found = await productBase.find(code);
     if (!found) return null;
     const { name, brand = null, quantity = null } = found.info;
@@ -184,6 +191,19 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
       if (!product) return refuse('unknown-product');
       if (always) await stock.setPreferences(product.code, { autoShop: true });
       return lists.addShopping(shoppingLabel(product), by);
+    },
+
+    async addLoose({ name, category, amount, unit }, by) {
+      const { count, quantity } = looseStock(amount, unit);
+      const { product, ...movement } = await stock.addLoose({ name, brand: null, quantity, category }, count, by);
+      return plainMovement(movement, product, by);
+    },
+
+    async setLoose(code, amount, unit, by) {
+      const result = await stock.setLoose(code, looseStock(amount, unit), by);
+      if (!result) return refuse('unknown-product');
+      const { product, ...movement } = result;
+      return plainMovement(movement, product, by);
     },
   };
 }

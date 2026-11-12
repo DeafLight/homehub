@@ -5,6 +5,7 @@
   import Icon from '../components/Icon.svelte';
   import ContainerLabelDialog from '../components/stock/ContainerLabelDialog.svelte';
   import ContainersList from '../components/stock/ContainersList.svelte';
+  import LooseForm from '../components/stock/LooseForm.svelte';
   import Modal from '../components/stock/Modal.svelte';
   import ProductSheet from '../components/stock/ProductSheet.svelte';
   import ShopPrompt from '../components/stock/ShopPrompt.svelte';
@@ -15,7 +16,8 @@
   import type { StockFilter } from '../lib/stock.ts';
 
   // Stock de la maison (tablette ; depuis Listes ou le scanner) : ce qu'on a, ce qui est épuisé, les contenants et
-  // leur étiquette, et le réglage de la liste de courses. Les quantités se corrigent ici à la main (inventaire).
+  // leur étiquette, et le réglage de la liste de courses. Les quantités se corrigent ici à la main (inventaire), et
+  // un produit sans code-barres (marché, vrac, fait maison) s'ajoute par son nom et sa quantité (aussi au téléphone).
   // Sur le téléphone (`back` : null), pour voir au magasin ce qu'il reste : les produits, sans date ni auteur (dans leur
   // fiche), et les contenants en lecture. La page garde les données et les appels ; l'affichage est dans
   // components/stock/ (StockList, ContainersList, ContainerLabelDialog).
@@ -39,7 +41,11 @@
   let search = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
-  type Dialog = { kind: 'sheet'; product: Product; quantity: number } | { kind: 'shop'; code: string; label: string } | { kind: 'label'; container: Container };
+  type Dialog =
+    | { kind: 'sheet'; product: Product; quantity: number }
+    | { kind: 'shop'; code: string; label: string }
+    | { kind: 'label'; container: Container }
+    | { kind: 'loose' };
   let dialog = $state<Dialog | null>(null);
 
   /** Lance une modification (bouton occupé, erreur affichée), puis relit le stock ; vrai si elle a réussi. */
@@ -85,6 +91,7 @@
     {#if readOnly}
       <span class="muted">Lecture seule sur cet appareil</span>
     {:else}
+      <button type="button" class="btn" aria-label="Sans code-barres" onclick={() => (dialog = { kind: 'loose' })}><Icon name="plus" size={24} />{#if !phone}Sans code-barres{/if}</button>
       <button type="button" class="btn primary" aria-label="Scanner" onclick={() => navigate(phone ? PHONE_SCAN_PATH : detailPath('scan', router.route))}><Icon name="barcode" size={24} />{#if !phone}Scanner{/if}</button>
     {/if}
   </header>
@@ -153,6 +160,19 @@
         void stock.refresh();
       }}
       onClose={() => (dialog = null)}
+    />
+  </Modal>
+{:else if dialog?.kind === 'loose'}
+  <Modal label="Produit sans code-barres" onClose={() => (dialog = null)}>
+    <LooseForm
+      title="Produit sans code-barres"
+      onSubmit={async (input) => {
+        const result = await api.addLooseProduct(input);
+        await stock.refresh();
+        filter = 'in';
+        dialog = result.product ? { kind: 'sheet', product: result.product, quantity: result.quantity } : null;
+      }}
+      onCancel={() => (dialog = null)}
     />
   </Modal>
 {:else if dialog?.kind === 'shop'}
@@ -297,8 +317,18 @@
     font-size: 1.6rem;
   }
 
-  .phone header .btn.primary {
+  .phone header {
+    gap: 8px;
+  }
+
+  .phone header .search + .btn {
     margin-left: auto;
+  }
+
+  /* Boutons sans texte (sans code-barres, scanner) : ronds, pour tenir sur une ligne avec « Courses ». */
+  .phone header .search ~ .btn {
+    width: 52px;
+    padding: 0;
   }
 
   .phone .card {

@@ -1,10 +1,12 @@
 // Routes du stock de la maison. Lecture ouverte comme le reste de l'API, sauf ce qui interroge la base de produits
 // (appel sortant, et copie locale enregistrée). Écriture et base : la tablette ou un téléphone appairé, sans exiger
-// qu'une personne soit reconnue : pendant un scan la caméra lit les codes-barres, pas les visages.
+// qu'une personne soit reconnue : pendant un scan la caméra lit les codes-barres, pas les visages. Un produit sans
+// code-barres (vrac, marché, fait maison) s'ajoute par son nom et sa quantité, puis passe par les mêmes routes.
 // Le mouvement garde qui l'a fait quand on le sait (personne reconnue juste avant, ou profil du téléphone). Les règles
 // (base de produits, liste de courses) sont dans services/stock.ts ; ici, validation, droits et réponses.
 import { z } from 'zod';
-import { isContainerCode, isStockCode } from '../shared/barcode.ts';
+import { isContainerCode, isLooseCode, isStockCode } from '../shared/barcode.ts';
+import { LOOSE_UNITS, validLooseAmount } from '../shared/loose.ts';
 import type { ScanLookup, StockMovement, StockMovementResult } from '../shared/types.ts';
 import type { Access } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
@@ -50,6 +52,11 @@ const prefsSchema = z.object({ autoShop: z.boolean().nullable().optional(), refi
 const conflictSchema = z.object({ take: z.enum(['mine', 'base']) });
 const containerSchema = z.object({ name: z.string().trim().min(1).max(FIELD_MAX) });
 const settingsSchema = z.object({ autoShop: z.boolean() });
+const looseAmount = { amount: z.number(), unit: z.enum(LOOSE_UNITS) };
+const validAmount = ({ amount, unit }: { amount: number; unit: (typeof LOOSE_UNITS)[number] }) => validLooseAmount(amount, unit);
+const AMOUNT_EXPECTED = 'quantité positive attendue, entière (99 au plus) pour ce qui se compte';
+const looseAmountSchema = z.object(looseAmount).refine(validAmount, AMOUNT_EXPECTED);
+const looseSchema = z.object({ name: z.string().trim().min(1).max(NAME_MAX), category: optionalField, ...looseAmount }).refine(validAmount, AMOUNT_EXPECTED);
 
 const UNKNOWN_TO_ENTER = 'Produit inconnu : à saisir d’abord';
 const BARCODE_EXPECTED = 'Code-barres sur 13 chiffres attendu';
@@ -88,7 +95,24 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
     if (!isStockCode(value) || isContainerCode(value)) return fail(400, 'Code-barres de produit attendu');
     const info = await readBody(c, infoSchema);
     await access.appliance(c);
+    // Un identifiant interne ne se fabrique pas : seul POST /stock/loose en attribue un.
+    if (isLooseCode(value) && !(await stock.product(value))) return fail(404, 'Produit inconnu');
     return c.json(await stock.saveManual(value, info));
+  });
+
+  /** Produit sans code-barres : nom, rayon, quantité avec unité ; entré au stock aussitôt. */
+  api.post('/stock/loose', async (c) => {
+    const input = await readBody(c, looseSchema);
+    const author = await access.appliance(c);
+    return c.json<StockMovementResult>(await service.addLoose(input, author), 201);
+  });
+
+  /** Nouvelle quantité d'un produit sans code-barres (« il reste 800 g ») ; pour l'épuiser : la sortie « tout ». */
+  api.put('/stock/loose/:code', async (c) => {
+    const { amount, unit } = await readBody(c, looseAmountSchema);
+    const author = await access.appliance(c);
+    const result = await service.setLoose(c.req.param('code'), amount, unit, author);
+    return c.json<StockMovementResult>(orRefuse(result, { 'unknown-product': [404, 'Produit sans code-barres inconnu'] }));
   });
 
   /** « Revérifier » : relecture immédiate de la base, sans rien changer. */

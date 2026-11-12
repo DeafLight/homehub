@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { looseCode } from '../shared/barcode.ts';
 import type { Lists, Product, ProductRecheck, ScanLookup, StockData, StockMovement, StockMovementResult } from '../shared/types.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
@@ -224,5 +225,72 @@ describe('API du stock', () => {
     expect(recheck.status).toBe(200);
     expect(asked).toEqual([COMPOTE, COMPOTE]);
     expect((await call('POST', `/stock/products/${COMPOTE}/recheck`, undefined, OTHER, { Authorization: 'Bearer retire' })).status).toBe(401);
+  });
+
+  it('produit sans code-barres : identifiant interne, jamais demandé à la base, puis comme les autres', async () => {
+    const { call, asked, shopping, phone } = setup({ [COMPOTE]: compote });
+    const token = await phone();
+    const pommes = await call<StockMovementResult>(
+      'POST',
+      '/stock/loose',
+      { name: ' Pommes ', category: 'Fruits et légumes', amount: 1.2, unit: 'kg' },
+      OTHER,
+      { Authorization: `Bearer ${token}` },
+    );
+    expect(pommes.status).toBe(201);
+    expect(pommes.json).toMatchObject({
+      quantity: 1,
+      by: { ownerId: 'alex', via: 'phone' },
+      product: { code: looseCode(1), current: { name: 'Pommes', brand: null, quantity: '1,2 kg', category: 'Fruits et légumes', source: 'manual' } },
+    });
+    const oeufs = await call<StockMovementResult>('POST', '/stock/loose', { name: 'Œufs', amount: 6, unit: 'piece' });
+    expect(oeufs.json).toMatchObject({ quantity: 6, product: { code: looseCode(2), current: { quantity: '1 pièce', category: null } } });
+    const radis = await call<StockMovementResult>('POST', '/stock/loose', { name: 'Radis', amount: 1, unit: 'botte' });
+    expect(radis.json.product?.current.quantity).toBe('1 botte');
+
+    // Mêmes routes ensuite : scan (sans la base), « Revérifier » (rien à relire), un de moins, épuisé.
+    const code = pommes.json.product!.code;
+    const eggs = oeufs.json.product!.code;
+    expect((await call<ScanLookup>('GET', `/stock/scan/${code}`)).json).toMatchObject({ kind: 'product', quantity: 1 });
+    expect((await call<ProductRecheck>('POST', `/stock/products/${code}/recheck`)).json).toMatchObject({ base: null, differs: false, baseError: false });
+    expect((await call('POST', `/stock/products/${code}/accept-base`)).status).toBe(404);
+    expect((await call('GET', `/stock/scan/${looseCode(9)}`)).json).toMatchObject({ kind: 'unknown', suggestion: null });
+    expect(asked).toEqual([]);
+    expect((await call<StockMovementResult>('POST', '/stock/out', { code: eggs })).json.quantity).toBe(5);
+
+    // Il reste 800 g : nouvelle contenance sur place (pas une nouvelle version), annulable.
+    const left = await call<StockMovementResult>('PUT', `/stock/loose/${code}`, { amount: 800, unit: 'g' });
+    expect(left.json).toMatchObject({ quantity: 1, product: { versionCount: 1, current: { quantity: '800 g' } } });
+    await call('POST', '/stock/undo', { movementId: left.json.movementId });
+    let data = await call<StockData>('GET', '/stock');
+    expect(data.json.items.find((i) => i.product.code === code)?.product.current.quantity).toBe('1,2 kg');
+    // Des œufs : 5 → 10 (une entrée de 5).
+    expect((await call<StockMovementResult>('PUT', `/stock/loose/${eggs}`, { amount: 10, unit: 'piece' })).json.quantity).toBe(10);
+    expect((await call<StockMovement[]>('GET', `/stock/products/${eggs}/movements`)).json[0]).toMatchObject({ kind: 'in', count: 5 });
+
+    await call('POST', '/stock/out', { code, all: true });
+    expect(await shopping()).toEqual([]);
+    expect((await call('POST', '/stock/shopping', { code, always: false })).status).toBe(201);
+    expect(await shopping()).toEqual(['Pommes']);
+    // Racheté : 1,5 kg, de retour en stock.
+    expect((await call<StockMovementResult>('PUT', `/stock/loose/${code}`, { amount: 1.5, unit: 'kg' })).json.quantity).toBe(1);
+    data = await call<StockData>('GET', '/stock');
+    expect(data.json.items.find((i) => i.product.code === code)).toMatchObject({ quantity: 1, product: { current: { quantity: '1,5 kg' } } });
+  });
+
+  it('produit sans code-barres : quantité valide, appareil de la maison, identifiant non fabriqué', async () => {
+    const { call } = setup({ [COMPOTE]: compote });
+    expect((await call('POST', '/stock/loose', { name: 'Pommes', amount: 1, unit: 'kg' }, OTHER)).status).toBe(403);
+    expect((await call('POST', '/stock/loose', { name: 'Œufs', amount: 2.5, unit: 'piece' })).status).toBe(400);
+    expect((await call('POST', '/stock/loose', { name: 'Pommes', amount: 0, unit: 'kg' })).status).toBe(400);
+    expect((await call('POST', '/stock/loose', { name: 'Pommes', amount: 1, unit: 'tonne' })).status).toBe(400);
+    expect((await call('POST', '/stock/loose', { name: '  ', amount: 1, unit: 'kg' })).status).toBe(400);
+    expect((await call('PUT', `/stock/products/${looseCode(1)}`, { name: 'Fabriqué' })).status).toBe(404);
+    expect((await call('PUT', `/stock/loose/${looseCode(1)}`, { amount: 1, unit: 'kg' })).status).toBe(404);
+    // Un vrai code-barres n'est pas un produit sans code-barres.
+    await call('GET', `/stock/scan/${COMPOTE}`);
+    expect((await call('PUT', `/stock/loose/${COMPOTE}`, { amount: 1, unit: 'kg' })).status).toBe(404);
+    const created = await call<StockMovementResult>('POST', '/stock/loose', { name: 'Pommes', amount: 1, unit: 'kg' });
+    expect((await call('PUT', `/stock/loose/${created.json.product!.code}`, { amount: 1, unit: 'kg' }, OTHER)).status).toBe(403);
   });
 });

@@ -162,6 +162,8 @@ Reste :
 - [x] Inventaire consultable depuis le téléphone (page Stock de la PWA, `/m/stock`, 0.35.0 ; sans date ni auteur, 0.35.1).
 - [x] « J'en ai déjà » des recettes, d'après le stock (menu de la semaine, 0.51.0).
 - [x] « Épuisé » sur chaque produit de la page Stock, même s'il n'en reste qu'un (grisé une fois épuisé, 0.58.0).
+- [x] Produit sans code-barres (marché, vrac, fait maison) : nom, rayon, quantité avec unité, sur la tablette et le
+      téléphone ; identifiant interne, rien envoyé à la base ; ensuite comme les autres (menu, épuisé, quantité) (0.61.0).
 - [ ] Plus tard, en option : renvoyer une correction à Open Food Facts avec le compte de l'utilisateur, seulement à
       sa demande.
 - [x] Relier un produit scanné à un ingrédient de recette (0.51.0, deviné puis confirmé une fois) (« Lardons fumés

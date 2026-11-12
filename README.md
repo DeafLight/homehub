@@ -47,6 +47,12 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   des entrées et sorties (date, heure, qui, tablette ou téléphone), provenance (base et date, ou
   corrigé à la main), **Revérifier** (relecture immédiate de la base, différences montrées, à prendre ou non),
   **Corriger** (notre version l'emporte ; versions datées), liste de courses d'office ou non, contenant habituel.
+  **Sans code-barres** (marché, vrac, fait maison ; tablette et téléphone) : nom, rayon, quantité avec son unité
+  (1,2 kg de pommes, 6 œufs, 1 botte de radis). Identifiant interne (préfixe 28), jamais envoyé à une base de
+  produits. Ce qui se compte (pièces, bottes, bouquets, barquettes) entre pièce par pièce (± 1 comme un paquet) ; ce
+  qui se pèse ou se mesure (kg, g, l, cl) entre en une fois, contenance = la quantité. Ensuite comme les autres : relié
+  aux ingrédients du menu par sa contenance (jamais « peut-être entamé » : c'est ce qui reste), « Épuisé », liste de courses ; sa fiche a **Modifier la quantité**
+  (« il reste 800 g », racheté) et « Nom et rayon », sans Revérifier.
   Contenants de la maison : ajout, renommage, retrait, « Vide », **étiquette à imprimer**. Écriture depuis la tablette
   (sans reconnaissance du visage : la caméra sert au scan ; au nom de la personne reconnue s'il y en a une) ou un
   téléphone relié. Prix : facultatifs, pas encore saisis (lecture des tickets à venir).
@@ -538,7 +544,7 @@ server/
   sources/timers.ts        minuteurs (timers.json)
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
-  sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants
+  sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants, produits sans code-barres
   sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
   sources/recipes.ts       carnet de recettes (recipes.json, photos dans recipes/), doublons par adresse
   sources/recipe-notes.ts  notes de la famille sur les recettes (recipe-notes.json), résolues ou ouvertes
@@ -566,6 +572,7 @@ shared/recipes.ts          recettes : types, limites, durées des étapes, porti
 shared/quantities.ts       quantités par dimension (masse, volume, cuillères, pièces) : somme, différence, affichage, contenance d'un paquet
 shared/menu.ts             menu de la semaine : semaines, besoins agrégés, déductions, règle de synchronisation des courses
 shared/stock-link.ts       produit du stock → ingrédient deviné (mots du nom, rayon, contenance)
+shared/loose.ts            produit sans code-barres : quantité avec unité ↔ unités du stock et contenance
 shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD Product, clé d'un article, paquets (pièces par paquet), remplir le panier, récapitulatif, prix vus, introuvable ou en rupture (remplacement)
 shared/drive-cart.ts       drive : panier copié pour l'extension et son compte rendu (format, relecture, prix affichés)
 shared/recipe-notes.ts     notes sur une recette : limites, ordre (ouvertes, puis résolues), qui les modifie
@@ -642,6 +649,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/stock/undo` | `{ movementId }` : annule le dernier mouvement d'un produit ou d'un contenant (409 sinon) |
 | `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
 | `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |
+| `POST /api/stock/loose` | `{ name, category?, amount, unit }` : produit sans code-barres (unités `kg`, `g`, `l`, `cl`, `piece`, `botte`, `bouquet`, `barquette` ; entier pour ce qui se compte), entré aussitôt au stock (tablette ou téléphone relié) |
+| `PUT /api/stock/loose/:code` | `{ amount, unit }` : nouvelle quantité d'un produit sans code-barres (entrée ou sortie de la différence, annulable) |
 | `PUT /api/stock/settings` | `{ autoShop }` : réglage par défaut des produits épuisés |
 | `GET /api/recipes` | `{ recipes }` : le carnet, du plus récent (titre, photo, portions, temps, Cookeo, site, auteur, `openNotes` : notes ouvertes) |
 | `GET /api/recipes/:id`, `GET /api/recipes/:id/photo` | une recette (`ours` : notre version ; `source` : adresse, site, date, version lue) ; sa photo |

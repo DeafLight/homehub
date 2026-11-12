@@ -92,7 +92,7 @@ export function formatQuantities(q: Quantities): string {
     .join(' + ');
 }
 
-// --- Contenance d'un paquet du stock (« 2 x 75 g », « 1,5 L », « 6 × 1 L », « x12 ») ---
+// --- Contenance d'un paquet du stock (« 2 x 75 g », « 1,5 L », « 6 × 1 L », « x12 », « 1 botte ») ---
 
 const PACKAGE_UNITS: [RegExp, Unit][] = [
   [/^(kg|kilos?)$/iu, 'kg'],
@@ -102,6 +102,10 @@ const PACKAGE_UNITS: [RegExp, Unit][] = [
   [/^cl$/iu, 'cl'],
   [/^dl$/iu, 'dl'],
   [/^ml$/iu, 'ml'],
+  // Produits sans code-barres (voir shared/loose.ts) : « 1 botte » de radis, « 1 barquette » de fraises.
+  [/^bottes?$/iu, 'botte'],
+  [/^bouquets?$/iu, 'bouquet'],
+  [/^barquettes?$/iu, 'barquette'],
 ];
 
 export type Amount = { quantity: number; unit: Unit };

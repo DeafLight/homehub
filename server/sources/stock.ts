@@ -1,10 +1,11 @@
 // Stock de la maison (stock.json dans le dossier d'état) : les produits connus par leur code-barres (copie de la base
 // ou saisie à la main, en versions datées), ce qu'on en a, chaque entrée et sortie, et les contenants de la maison
-// (bidon de lessive, bocal…) où l'on transvase les recharges. Comme les listes : une modification à la fois, écrite
+// (bidon de lessive, bocal…) où l'on transvase les recharges. Les produits sans code-barres (vrac, marché, fait maison)
+// y ont un identifiant interne (préfixe 28, voir shared/barcode.ts) et se comportent ensuite comme les autres. Comme les listes : une modification à la fois, écrite
 // sur le disque (fichier temporaire puis renommage) avant d'être confirmée.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { containerCode } from '../../shared/barcode.ts';
+import { containerCode, isLooseCode, looseCode, looseNumber } from '../../shared/barcode.ts';
 import type { Author, Container, Product, ProductInfo, StockData, StockEntry, StockMark, StockMovement, StockSettings } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema } from './schemas.ts';
@@ -71,6 +72,8 @@ const fileSchema = z.object({
         quantity: z.number().int().nullable(),
         refill: z.string().nullable().optional(),
         container: containerSchema.nullable().optional(),
+        /** Contenance d'un produit sans code-barres avant une nouvelle quantité (voir setLoose). */
+        looseQuantity: z.string().nullable().optional(),
       }),
       /** Article ajouté d'office à la liste de courses (retiré si on annule). */
       shoppingId: z.string().nullable(),
@@ -133,6 +136,13 @@ export type StockStore = {
   /** Contenant vide : le produit qu'il contenait est concerné par la liste de courses. */
   emptyContainer(id: string, by: Author): Promise<(Omit<OutResult, 'forgotten' | 'quantity'> & { productCode: string | null }) | null>;
   saveSettings(settings: StockSettings): Promise<StockSettings>;
+  /** Produit sans code-barres : identifiant interne, fiche saisie à la main, et `count` unités entrées d'un coup. */
+  addLoose(info: ProductInfo, count: number, by: Author): Promise<{ product: Product; movementId: string; at: string; quantity: number }>;
+  /**
+   * Nouvelle quantité d'un produit sans code-barres : contenance par unité (changée sur place, pas de nouvelle version)
+   * et nombre d'unités, avec l'entrée ou la sortie qui y mène. null : pas un produit sans code-barres connu.
+   */
+  setLoose(code: string, change: { count: number; quantity: string }, by: Author): Promise<{ product: Product; movementId: string; at: string; quantity: number } | null>;
 };
 
 /** Libellé de la liste de courses pour un produit : son nom (la marque n'y est pas, on achète ce qu'on trouve). */
@@ -378,6 +388,8 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         if (movement.before.quantity !== null) setStock(file, movement.code, movement.before.quantity, now);
         const stored = file.products[movement.code];
         if (stored && movement.before.refill !== undefined) stored.refill = movement.before.refill;
+        const version = stored?.versions.at(-1);
+        if (version && movement.before.looseQuantity !== undefined) version.quantity = movement.before.looseQuantity;
         if (movement.before.container) {
           const container = file.containers.find((c) => c.id === movement.before.container?.id);
           if (container) Object.assign(container, movement.before.container);
@@ -446,6 +458,33 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
           autoShop: productCode ? autoShopOf(file, productCode) : false,
           container: toContainer(file, container),
         };
+      });
+    },
+
+    addLoose(info, count, by) {
+      return change((file, now) => {
+        const used = Object.keys(file.products).filter(isLooseCode).map(looseNumber);
+        const code = looseCode(Math.max(0, ...used) + 1);
+        const version = { ...info, brand: null, from: now.toISOString(), source: 'manual' as const, base: null };
+        file.products[code] = { versions: [version], image: null, autoShop: null, refill: null, conflict: null, baseReadAt: null };
+        setStock(file, code, count, now);
+        const movement = record(file, now, { code, kind: 'in', count, price: null, by, before: { quantity: 0 } });
+        return { product: productOf(file, code) as Product, movementId: movement.id, at: movement.at, quantity: count };
+      });
+    },
+
+    setLoose(code, { count, quantity }, by) {
+      return change((file, now) => {
+        const stored = file.products[code];
+        if (!stored || !isLooseCode(code)) return null;
+        const current = stored.versions.at(-1) as StoredProduct['versions'][number];
+        const before = { quantity: quantityOf(file, code), looseQuantity: current.quantity };
+        current.quantity = quantity;
+        setStock(file, code, count, now);
+        // Entrée ou sortie de la différence (zéro si seule la contenance change : 1,2 kg → 800 g) ; l'annuler rend
+        // aussi l'ancienne contenance.
+        const movement = record(file, now, { code, kind: count >= before.quantity ? 'in' : 'out', count: Math.abs(count - before.quantity), price: null, by, before });
+        return { product: productOf(file, code) as Product, movementId: movement.id, at: movement.at, quantity: count };
       });
     },
 

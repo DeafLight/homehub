@@ -1,6 +1,7 @@
 // Codes-barres des produits (EAN-13, EAN-8, UPC-A, UPC-E) : vérification de la clé de contrôle, pour écarter une
 // lecture fausse avant de chercher le produit, et forme unique sur 13 chiffres. Aussi les étiquettes des contenants
-// de la maison : un EAN-13 « à usage interne » (préfixe 29, jamais porté par un produit du commerce), et ses barres.
+// de la maison : un EAN-13 « à usage interne » (préfixe 29, jamais porté par un produit du commerce), et ses barres ;
+// et l'identifiant des produits sans code-barres (préfixe 28, même principe).
 
 /** Formats que porte un produit du commerce, dans les noms de l'API BarcodeDetector. */
 export const PRODUCT_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'] as const;
@@ -59,6 +60,22 @@ export function containerCode(n: number): string {
 }
 
 export const isContainerCode = (code: string) => code.startsWith(CONTAINER_PREFIX) && isStockCode(code);
+
+const LOOSE_PREFIX = '28';
+
+/**
+ * Identifiant interne du `n`-ième produit sans code-barres (vrac, marché, fait maison) : 28, numéro sur 10 chiffres,
+ * clé. Aussi « à usage interne » : jamais cherché dans une base de produits, jamais imprimé.
+ */
+export function looseCode(n: number): string {
+  const body = `${LOOSE_PREFIX}${String(n).padStart(10, '0')}`;
+  return `${body}${checkDigit(body)}`;
+}
+
+export const isLooseCode = (code: string) => code.startsWith(LOOSE_PREFIX) && isStockCode(code);
+
+/** Numéro d'un identifiant de produit sans code-barres (inverse de looseCode). */
+export const looseNumber = (code: string) => Number(code.slice(2, 12));
 
 // Barres d'un EAN-13 : le premier chiffre choisit la parité (A ou B) des six chiffres de gauche.
 const L_CODES = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];

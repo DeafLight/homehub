@@ -239,6 +239,17 @@ describe('API du menu : liste de courses', () => {
     await call('PUT', `/menu/links/${LAIT}`, { token: alex, body: { link: null } });
     expect((await view()).stock).toMatchObject([{ code: LAIT, link: null, decided: true }]);
   });
+
+  it('produit sans code-barres : relié par sa contenance, jamais « peut-être entamé » (c’est ce qui reste)', async () => {
+    const { call, alex, add, labels, view, stock, by, mijote } = await setup();
+    const { product } = await stock.addLoose({ name: 'Lait de la ferme', brand: null, quantity: '1,5 l', category: 'Frais' }, 1, by);
+    await add(mijote.id, 4);
+    const proposed = (await view()).stock.find((p) => p.code === product.code)!;
+    expect(proposed).toMatchObject({ link: { key: 'lait', per: { quantity: 1.5, unit: 'l' } }, partial: false, partialGuessed: true });
+    await call('PUT', `/menu/links/${product.code}`, { token: alex, body: { link: proposed.link } });
+    expect(await labels()).not.toContain('Lait · 50 cl');
+    expect((await view()).plan.find((l) => l.key === 'lait')).toMatchObject({ status: 'stock', stock: { enough: true } });
+  });
 });
 
 describe('API du menu : paquet peut-être entamé', () => {

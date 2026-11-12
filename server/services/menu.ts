@@ -26,6 +26,7 @@ import {
   syncOps,
   weekOf,
 } from '../../shared/menu.ts';
+import { isLooseCode } from '../../shared/barcode.ts';
 import type { Recipe } from '../../shared/recipes.ts';
 import type { Quantities } from '../../shared/quantities.ts';
 import { guessPartial, guessStockLink, type KnownIngredient } from '../../shared/stock-link.ts';
@@ -75,15 +76,19 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
   };
 
   const largestOf = (snap: Snapshot) => largestNeeds(snap.recipes.map((r) => r.ours));
-  /** « S'utilise en plusieurs fois » : la valeur du lien, sinon devinée. */
-  const partialOf = (link: StockLink | null, largest: ReadonlyMap<string, Quantities>) => (link ? (link.partial ?? guessPartial(link.per, largest.get(link.key))) : false);
+  /**
+   * « S'utilise en plusieurs fois » : la valeur du lien, sinon devinée. Jamais deviné pour un produit sans code-barres :
+   * sa contenance est déjà ce qui reste (« il reste 800 g »), pas un paquet peut-être entamé.
+   */
+  const partialOf = (code: string, link: StockLink | null, largest: ReadonlyMap<string, Quantities>) =>
+    link ? (link.partial ?? (!isLooseCode(code) && guessPartial(link.per, largest.get(link.key)))) : false;
 
   function poolOf(snap: Snapshot): StockPool {
     const largest = largestOf(snap);
     return stockPool(
       snap.stock.items.map((i) => {
         const link = snap.menu.links[i.product.code] ?? null;
-        return { name: i.product.current.name, count: i.quantity, link, partial: partialOf(link, largest) };
+        return { name: i.product.current.name, count: i.quantity, link, partial: partialOf(i.product.code, link, largest) };
       }),
     );
   }
@@ -132,7 +137,7 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
       const link = decided ? snap.menu.links[code] : guessStockLink(current, known);
       if (!decided && (!link || item.quantity === 0)) continue;
       const partialGuessed = link?.partial === undefined;
-      products.push({ code, name: current.name, quantity: current.quantity, count: item.quantity, link, decided, partial: partialOf(link, largest), partialGuessed });
+      products.push({ code, name: current.name, quantity: current.quantity, count: item.quantity, link, decided, partial: partialOf(code, link, largest), partialGuessed });
     }
     const rank = (p: MenuStockProduct) => (!p.decided && p.link && weekKeys.has(p.link.key) ? 0 : !p.decided ? 1 : 2);
     return products.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr'));

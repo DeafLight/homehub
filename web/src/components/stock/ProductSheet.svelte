@@ -1,12 +1,16 @@
 <script lang="ts">
+  import { isLooseCode } from '../../../../shared/barcode.ts';
+  import { looseAmount } from '../../../../shared/loose.ts';
   import type { Container, Product, ProductRecheck, StockMovement } from '../../../../shared/types.ts';
   import { getAppContext } from '../../lib/context.ts';
-  import { infoDiff, markLine, movementLabel, productDetail, provenance, stockText } from '../../lib/stock.ts';
+  import { infoDiff, looseText, markLine, movementLabel, productDetail, productSubtitle, provenance, stockText } from '../../lib/stock.ts';
+  import LooseForm from './LooseForm.svelte';
   import ProductForm from './ProductForm.svelte';
 
   // Fiche d'un produit (scanner, stock) : ce qu'on en sait et d'où ça vient ; « Ce n'est pas ça ? » → Revérifier
   // (relecture de la base, différences à accepter ou non) ou Corriger (notre version) ; conflit avec la base à
-  // trancher ; réglages (liste de courses d'office, contenant où on le transvase).
+  // trancher ; réglages (liste de courses d'office, contenant où on le transvase). Sans code-barres : pas de base à
+  // relire, mais sa quantité se change ici (« il reste 800 g », racheté).
   type Props = {
     product: Product;
     quantity: number | null;
@@ -28,7 +32,11 @@
     return () => (current = false);
   });
 
-  let mode = $state<'view' | 'correct'>('view');
+  let mode = $state<'view' | 'correct' | 'amount'>('view');
+  const loose = $derived(isLooseCode(product.code));
+  /** Quantité affichée par la fiche (après « Modifier la quantité », la nouvelle). */
+  let shown = $state<number | null>(null);
+  const count = $derived(shown ?? quantity);
   let recheck = $state<ProductRecheck | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -62,9 +70,24 @@
   ];
 </script>
 
-{#if mode === 'correct'}
+{#if mode === 'amount'}
+  {@const total = looseAmount(product.current.quantity, count ?? 0)}
+  <LooseForm
+    title={`Quantité : ${product.current.name}`}
+    amountOnly
+    initial={total && total.amount > 0 ? total : total ? { unit: total.unit } : null}
+    submitLabel="Enregistrer"
+    onSubmit={async ({ amount, unit }) => {
+      const result = await api.setLooseAmount(product.code, amount, unit);
+      shown = result.quantity;
+      if (result.product) onChange(result.product);
+      mode = 'view';
+    }}
+    onCancel={() => (mode = 'view')}
+  />
+{:else if mode === 'correct'}
   <ProductForm
-    title="Corriger le produit"
+    title={loose ? 'Nom et rayon' : 'Corriger le produit'}
     code={product.code}
     initial={product.current}
     hint="notre version l’emportera sur la base"
@@ -79,8 +102,13 @@
     {#if product.image}<img src={product.image} alt="" />{/if}
     <div class="title">
       <h2>{product.current.name}</h2>
-      <span class="muted">{productDetail(product.current) || 'Marque et contenance inconnues'}{product.current.category ? ` · ${product.current.category}` : ''}</span>
-      <span class="small">{provenance(product)}{quantity !== null ? ` · ${stockText(quantity)}` : ''}</span>
+      {#if loose}
+        <span class="muted">{productSubtitle(product)}</span>
+        <span class="small">{provenance(product)}{count !== null ? ` · ${count > 0 ? `${looseText(product, count) ?? count} en stock` : 'Épuisé'}` : ''}</span>
+      {:else}
+        <span class="muted">{productDetail(product.current) || 'Marque et contenance inconnues'}{product.current.category ? ` · ${product.current.category}` : ''}</span>
+        <span class="small">{provenance(product)}{count !== null ? ` · ${stockText(count)}` : ''}</span>
+      {/if}
     </div>
   </div>
 
@@ -98,7 +126,14 @@
     </div>
   {/if}
 
-  <section>
+  {#if loose}<section>
+    <h3 class="card-label">Sans code-barres</h3>
+    <p class="muted">Ajouté à la main, jamais cherché dans une base de produits.</p>
+    <div class="row">
+      <button type="button" class="btn small primary" disabled={busy} onclick={() => (mode = 'amount')}>Modifier la quantité</button>
+      <button type="button" class="btn small" disabled={busy} onclick={() => (mode = 'correct')}>Nom et rayon</button>
+    </div>
+  </section>{:else}<section>
     <h3 class="card-label">Ce n’est pas ça ?</h3>
     {#if recheck}
       {#if recheck.baseError}
@@ -126,7 +161,7 @@
       <button type="button" class="btn small" disabled={busy} onclick={reverify}>Revérifier</button>
       <button type="button" class="btn small" disabled={busy} onclick={() => (mode = 'correct')}>Corriger</button>
     </div>
-  </section>
+  </section>{/if}
 
   <section>
     <h3 class="card-label">Épuisé : liste de courses</h3>
@@ -154,7 +189,7 @@
     {#if history === null}
       <p class="muted">Chargement…</p>
     {:else if history.length === 0}
-      <p class="muted">Jamais scanné.</p>
+      <p class="muted">{loose ? 'Aucun mouvement.' : 'Jamais scanné.'}</p>
     {:else}
       <ul class="history">
         {#each history.slice(0, 12) as m (m.id)}

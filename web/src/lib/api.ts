@@ -49,6 +49,7 @@ import type {
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
+import type { LooseUnit, NewLooseProduct } from '../../../shared/loose.ts';
 import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
 import type { DriveChoice, DriveProduct, DriveReadResult, DriveSettings, DriveStockHint, DriveView } from '../../../shared/drive.ts';
 import type { DriveReportResult } from '../../../shared/drive-cart.ts';
@@ -158,6 +159,10 @@ export type Api = {
   resolveConflict(code: string, take: 'mine' | 'base'): Promise<Product>;
   setProductPreferences(code: string, prefs: ProductPreferences): Promise<Product>;
   stockIn(code: string, count?: number, price?: number | null): Promise<StockMovementResult>;
+  /** Produit sans code-barres (vrac, marché, fait maison), entré aussitôt au stock. */
+  addLooseProduct(input: NewLooseProduct): Promise<StockMovementResult>;
+  /** Nouvelle quantité d'un produit sans code-barres. */
+  setLooseAmount(code: string, amount: number, unit: LooseUnit): Promise<StockMovementResult>;
   stockOut(code: string, options?: StockOutOptions): Promise<StockMovementResult>;
   undoStock(movementId: string): Promise<{ quantity: number }>;
   /** Historique d'un produit, du plus récent au plus ancien. */
@@ -357,6 +362,8 @@ export function createApi(
     resolveConflict: (code, take) => send('POST', `/stock/products/${encodeURIComponent(code)}/conflict`, { take }),
     setProductPreferences: (code, prefs) => send('PATCH', `/stock/products/${encodeURIComponent(code)}`, prefs),
     stockIn: (code, count = 1, price = null) => send('POST', '/stock/in', { code, count, price }),
+    addLooseProduct: (input) => send('POST', '/stock/loose', input),
+    setLooseAmount: (code, amount, unit) => send('PUT', `/stock/loose/${encodeURIComponent(code)}`, { amount, unit }),
     stockOut: (code, options = {}) => send('POST', '/stock/out', { code, ...options }),
     undoStock: (movementId) => send('POST', '/stock/undo', { movementId }),
     stockMovements: (code) => request(`/stock/products/${encodeURIComponent(code)}/movements`),

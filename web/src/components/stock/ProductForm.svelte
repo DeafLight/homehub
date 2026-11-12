@@ -1,6 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { isLooseCode } from '../../../../shared/barcode.ts';
   import type { ProductInfo } from '../../../../shared/types.ts';
+  import { STOCK_CATEGORIES } from '../../lib/stock.ts';
 
   // Fiche d'un produit à saisir (code inconnu de la base) ou à corriger : notre version l'emporte ensuite sur la base.
   type Props = {
@@ -14,7 +16,9 @@
   };
   let { title, code, initial = null, hint, submitLabel = 'Enregistrer', onSubmit, onCancel }: Props = $props();
 
-  const CATEGORIES = ['Frais', 'Épicerie', 'Boissons', 'Surgelés', 'Fruits et légumes', 'Entretien', 'Hygiène', 'Bébé', 'Animaux'];
+  const CATEGORIES = STOCK_CATEGORIES;
+  /** Sans code-barres : ni marque ni contenance ici (la quantité se change à part). */
+  const loose = untrack(() => isLooseCode(code));
 
   let name = $state(untrack(() => initial?.name ?? ''));
   let brand = $state(untrack(() => initial?.brand ?? ''));
@@ -42,13 +46,13 @@
 
 <form onsubmit={submit}>
   <h2>{title}</h2>
-  <p class="code">Code-barres {code}{#if hint} · {hint}{/if}</p>
+  {#if loose}<p class="code">Produit sans code-barres</p>{:else}<p class="code">Code-barres {code}{#if hint} · {hint}{/if}</p>{/if}
   <label>
     Nom du produit
     <!-- svelte-ignore a11y_autofocus -->
     <input bind:value={name} required maxlength="120" autofocus={!initial?.name} placeholder="Compote de pomme" />
   </label>
-  <div class="row">
+  {#if !loose}<div class="row">
     <label>
       Marque
       <input bind:value={brand} maxlength="60" placeholder="Facultatif" />
@@ -57,7 +61,7 @@
       Contenance
       <input bind:value={quantity} maxlength="60" placeholder="4 x 90 g" />
     </label>
-  </div>
+  </div>{/if}
   <div class="field">
     <span>Rayon</span>
     <div class="chips">

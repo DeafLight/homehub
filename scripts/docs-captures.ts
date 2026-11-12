@@ -209,6 +209,12 @@ await call(A, 'POST', '/stock/containers', { name: 'Boîte à riz' });
 // Qui a scanné : Alex et Léa par leur téléphone ; le riz sur la tablette, sans personne de reconnu (anonyme).
 await call('', 'POST', '/stock/out', { code: DOCS_PRODUCTS.riz, all: true });
 await call(L, 'POST', '/stock/out', { code: DOCS_PRODUCTS.lait });
+// Sans code-barres : des pommes du marché (au poids), une botte de radis, une soupe faite maison.
+for (const loose of [
+  { name: 'Pommes', category: 'Fruits et légumes', amount: 1.2, unit: 'kg' },
+  { name: 'Radis', category: 'Fruits et légumes', amount: 1, unit: 'botte' },
+  { name: 'Soupe de potiron maison', category: 'Frais', amount: 1, unit: 'l' },
+]) await call(A, 'POST', '/stock/loose', loose);
 
 // Carnet de recettes : trois recettes importées du faux site (cuisine.exemple.test), une saisie à la main ; notre
 // version des galettes modifiée (astuce, beurre demi-sel corrigé à la main, ingrédients et étapes rangés en groupes).
@@ -404,6 +410,12 @@ for (const [name, path] of [
   ['tablette-telephones', '/telephones'],
   ['tablette-nas', '/nas'],
 ] as const) await shoot(name, BASE + path, TABLET);
+// Ajout d'un produit sans code-barres sur la tablette : des œufs de la ferme, 6 pièces, rayon Frais (non validé).
+const typeInto = (selector: string, text: string) =>
+  `{ const i = document.querySelector('${selector}'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, '${text}'); i.dispatchEvent(new Event('input', { bubbles: true })); }`;
+await shoot('tablette-stock-sans-code-barres', `${BASE}/stock`, TABLET, {
+  after: `${click('Sans code-barres')}; setTimeout(() => { ${typeInto('[role=dialog] input[required]', 'Œufs de la ferme')} ${typeInto('[role=dialog] input[inputmode=decimal]', '6')} ${click('pièces')}; ${click('Frais')}; document.activeElement?.blur(); }, 300)`,
+});
 // Drive, étape 2 : « Remplir le panier » sur la tablette (ouvert depuis les courses).
 await shoot('tablette-drive-panier', `${BASE}/listes`, TABLET, { after: click('Remplir le panier') });
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
@@ -558,6 +570,11 @@ await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') }
 await shoot('telephone-agenda-parent', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-vie-scolaire', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex'), after: `document.querySelector('.school-life button')?.click()` });
 await shoot('telephone-stock', `${BASE}/m/stock`, PHONE, { init: asPhone('alex') });
+// Sans code-barres : la fiche des pommes du marché (quantité à changer, nom et rayon), sur le téléphone d'Alex.
+await shoot('telephone-stock-sans-code-barres', `${BASE}/m/stock`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('.products li button.name')].find((b) => b.textContent.includes('Pommes'))?.click()`,
+});
 await shoot('telephone-sport', `${BASE}/m/sport`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-sport-exercice', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: `document.querySelectorAll('.plan button')[2].click()` });
 await shoot('telephone-sport-stats', `${BASE}/m/sport`, PHONE, { init: asPhone('alex'), after: click('Statistiques et tout l’historique') });
