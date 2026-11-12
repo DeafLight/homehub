@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.53.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.54.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -89,10 +89,16 @@ Conditions actuelles en grand (seule carte sans étiquette), vent, humidité, so
 
 Courses et tâches de la famille ; tâches en retard en rouge, tâches qui reviennent. Les courses à acheter sont rangées
 par rayon ; une ligne du menu de la semaine porte un livre et ses recettes d'origine. Avec une enseigne de drive
-choisie (bouton « Drive · Super U Exemple »), chaque article a un chariot pour choisir son produit chez l'enseigne, et
-le produit retenu s'affiche sous l'article (ici les oignons).
+choisie (bouton « Drive »), chaque article a un chariot pour choisir son produit chez l'enseigne, et
+le produit retenu s'affiche sous l'article (ici les oignons). « Remplir le panier » ouvre la liste à cocher du drive.
 
 ![Listes](images/tablette-listes.png)
+
+« Remplir le panier » sur la tablette : les articles par rayon, le produit retenu, les paquets et le bouton « Fiche »
+qui ouvre le produit chez l'enseigne ; pour les oignons (filet de 1 kg contre « 1 oignon »), la question « Combien de
+pièces dans ce paquet ? ».
+
+![Remplir le panier sur la tablette](images/tablette-drive-panier.png)
 
 ### Menu de la semaine
 
@@ -309,6 +315,16 @@ demi-écrémé · 1 L »).
 | Fiche lue | Site qui refuse la lecture |
 |---|---|
 | ![Fiche lue](images/telephone-drive-fiche.png) | ![Site qui refuse la lecture](images/telephone-drive-refus.png) |
+
+**Remplir le panier** (bouton des courses) : les articles dans l'ordre des rayons, chacun avec son produit retenu, le
+nombre de paquets et « Fiche » ; on coche à mesure qu'on remplit le panier dans l'appli de l'enseigne. Les oignons se
+comptent en pièces et le filet pèse 1 kg : HomeHub demande une fois combien de pièces il contient. Le
+récapitulatif dit ce qui part au drive (la lessive, déjà cochée), ce qui reste à mettre au panier et ce qui s'achète
+ailleurs ; pas de prix. Dans la liste, la lessive est passée dans « Au drive », pas encore cochée comme achetée.
+
+| Remplir le panier | Récapitulatif | Au drive dans la liste |
+|---|---|---|
+| ![Remplir le panier](images/telephone-drive-panier.png) | ![Récapitulatif du panier](images/telephone-drive-recap.png) | ![Article au drive](images/telephone-drive-marque.png) |
 
 ## Non capturés
 

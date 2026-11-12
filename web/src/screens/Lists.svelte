@@ -7,6 +7,7 @@
   import Icon from '../components/Icon.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import DriveFill from '../components/drive/DriveFill.svelte';
   import DriveProductForm from '../components/drive/DriveProductForm.svelte';
   import DriveSettingsForm from '../components/drive/DriveSettingsForm.svelte';
   import { getAppContext } from '../lib/context.ts';
@@ -18,7 +19,8 @@
 
   // Courses et tâches de la famille sur la tablette, ouvertes depuis un dashboard ou l'accueil : ce qui est coché ou
   // ajouté l'est au nom de la personne reconnue devant la tablette (un enfant : ses tâches seulement). Le bouton
-  // « Drive » règle l'enseigne et le magasin ; le chariot d'un article ouvre le choix de son produit chez l'enseigne.
+  // « Drive » règle l'enseigne et le magasin ; le chariot d'un article ouvre le choix de son produit chez l'enseigne ;
+  // « Remplir le panier » ouvre la liste à cocher pendant qu'on remplit le panier dans l'appli de l'enseigne.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -34,6 +36,7 @@
   });
   let driveSettings = $state(false);
   let driveItem = $state<ShoppingItem | null>(null);
+  let driveFill = $state(false);
   const driveSaved = (view: DriveView) => {
     drive.set(view);
     driveSettings = false;
@@ -72,8 +75,11 @@
       <section class="card">
         <h2>
           <Icon name="cart" size={28} /> Courses
+          {#if drive.data?.settings.enseigne}
+            <button type="button" class="drive-button fill-button" onclick={() => (driveFill = true)}>Remplir le panier</button>
+          {/if}
           {#if drive.data && !readOnly}
-            <button type="button" class="drive-button" onclick={() => (driveSettings = true)}>Drive{drive.data.settings.store ? ` · ${drive.data.settings.store.name}` : ''}</button>
+            <button type="button" class="drive-button" onclick={() => (driveSettings = true)}>Drive</button>
           {/if}
         </h2>
         <div class="scroll">
@@ -133,7 +139,7 @@
 {#if driveSettings && drive.data}
   <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (driveSettings = false)}>
     <div class="dialog" role="dialog" aria-modal="true" aria-label="Réglages du drive">
-      <DriveSettingsForm {api} view={drive.data} onSaved={driveSaved} onClose={() => (driveSettings = false)} />
+      <DriveSettingsForm {api} view={drive.data} onSaved={driveSaved} onClose={() => (driveSettings = false)} onFill={() => ((driveSettings = false), (driveFill = true))} />
     </div>
   </div>
 {/if}
@@ -146,8 +152,21 @@
   </div>
 {/if}
 
+{#if driveFill && drive.data && lists.data}
+  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (driveFill = false)}>
+    <div class="dialog wide" role="dialog" aria-modal="true" aria-label="Remplir le panier">
+      <DriveFill {api} items={lists.data.shopping} view={drive.data} {readOnly} onView={drive.set} onChanged={drive.refresh} onClose={() => (driveFill = false)} />
+    </div>
+  </div>
+{/if}
+
 <style>
+  .fill-button + .drive-button {
+    margin-left: 0;
+  }
+
   .drive-button {
+    white-space: nowrap;
     min-height: 44px;
     margin-left: auto;
     padding: 0 18px;
@@ -264,5 +283,9 @@
     border-radius: var(--radius-xl);
     background: var(--surface);
     overflow-y: auto;
+  }
+
+  .dialog.wide {
+    width: min(820px, calc(100vw - 32px));
   }
 </style>

@@ -3,13 +3,15 @@
   import type { ShoppingItem } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
   import { revert } from '../lib/checkbox.ts';
-  import { choiceSummary } from '../lib/drive.ts';
+  import { basketMark, choiceSummary } from '../lib/drive.ts';
   import { byAisle, itemAisle } from '../lib/menu.ts';
 
   // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter (rangés par rayon) puis « dans le
   // panier » jusqu'à ce qu'on le vide. Les lignes du menu de la semaine portent le livre et leurs recettes ; elles
   // suivent le menu tant qu'elles ne sont pas cochées ; celles « à vérifier » (paquet peut-être entamé) le disent. Avec une enseigne de drive choisie, chaque article à
-  // acheter dit le produit retenu chez elle (et ses paquets), et le bouton du chariot ouvre « Produit chez … ».
+  // acheter dit le produit retenu chez elle (et ses paquets), et le bouton du chariot ouvre « Produit chez … ». Les
+  // articles mis au panier en cours du drive (mode « Remplir le panier ») passent dans « Au drive » : ils ne sont pas
+  // achetés pour autant ; « Reçu : tout cocher » les coche une fois le panier retiré (décocher reste possible).
   // Tailles réglables par le parent (--list-font, --list-row).
   type Props = {
     items: ShoppingItem[];
@@ -26,7 +28,9 @@
   const enseigne = $derived(drive?.view.settings.enseigne ?? null);
 
   const toBuy = $derived(items.filter((i) => !i.done));
-  const aisles = $derived(byAisle(toBuy, itemAisle));
+  const markOf = (item: ShoppingItem) => (drive && enseigne ? basketMark(drive.view, item) : null);
+  const atDrive = $derived(toBuy.filter((i) => markOf(i) !== null));
+  const aisles = $derived(byAisle(toBuy.filter((i) => markOf(i) === null), itemAisle));
   const basket = $derived(items.filter((i) => i.done));
 
   let label = $state('');
@@ -72,8 +76,20 @@
       {/each}
     </ul>
   {:else}
-    <p class="empty">Rien à acheter.</p>
+    <p class="empty">{atDrive.length > 0 ? 'Rien d’autre à acheter.' : 'Rien à acheter.'}</p>
   {/each}
+
+  {#if atDrive.length > 0}
+    <div class="basket-head">
+      <span><Icon name="cart" size={18} /> Au drive · {atDrive.length}</span>
+      {#if !readOnly}<button type="button" class="clear" onclick={() => atDrive.forEach((i) => onToggle(i, true))}>Reçu : tout cocher</button>{/if}
+    </div>
+    <ul class="items">
+      {#each atDrive as item (item.id)}
+        {@render row(item)}
+      {/each}
+    </ul>
+  {/if}
 
   {#if basket.length > 0}
     <div class="basket-head">
@@ -100,8 +116,9 @@
           {#if item.menu.check && !item.done}<span class="check">À vérifier : paquet peut-être entamé</span>{/if}
         {/if}
         {#if enseigne && drive && !item.done}
-          {@const summary = choiceSummary(item, choiceFor(drive.view.choices, itemKey(item), enseigne))}
-          {#if summary}<span class="product"><Icon name="cart" size={16} /> {summary}</span>{/if}
+          {@const mark = markOf(item)}
+          {@const summary = mark ?? choiceSummary(item, choiceFor(drive.view.choices, itemKey(item), enseigne))}
+          {#if summary}<span class="product" class:at-drive={mark !== null}><Icon name="cart" size={16} /> {summary}</span>{/if}
         {/if}
       </span>
     </label>
@@ -238,6 +255,14 @@
     color: var(--rain-soft);
   }
 
+  .product :global(svg) {
+    flex-shrink: 0;
+  }
+
+  .product.at-drive {
+    color: var(--ok-fg);
+  }
+
   .check {
     display: inline-block;
     margin-top: 2px;
@@ -290,6 +315,12 @@
     font-size: var(--list-font, 1.3rem);
     color: var(--fg-muted);
     border: 0;
+  }
+
+  .basket-head span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .basket-head {

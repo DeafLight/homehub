@@ -1,10 +1,22 @@
 // Tests de la logique du drive : liens des fiches produit (identifiant tiré de l'URL), contenance lue dans le nom,
-// EAN, JSON-LD `Product` → produit, clé d'un article de la liste, paquets (arrondi de la liste), correspondance EAN.
+// EAN, JSON-LD `Product` → produit, clé d'un article de la liste, paquets (arrondi de la liste), correspondance EAN ;
+// étape 2 : pièces par paquet, paquets signalés, articles du mode « Remplir le panier » et récapitulatif.
 import { describe, expect, it } from 'vitest';
+import type { ShoppingItem } from './types.ts';
 import {
+  basketLine,
   choiceFor,
+  countFlag,
   type DriveChoice,
+  driveCount,
+  type DriveProduct,
+  driveRecap,
+  type DriveView,
   drivePacks,
+  fillRows,
+  formatCount,
+  piecesQuestion,
+  piecesUnit,
   eanCheck,
   enseigneOf,
   itemKey,
@@ -110,5 +122,83 @@ describe('articles de la liste', () => {
     expect(eanCheck('2000000000015', [{ ean: '2000000000022' }])).toBe('other');
     expect(eanCheck(null, [{ ean: '2000000000015' }])).toBeNull();
     expect(eanCheck('2000000000015', [])).toBeNull();
+  });
+});
+
+describe('pièces par paquet et paquets signalés', () => {
+  const mark = (quantities: Record<string, number>, toTaste = false) => ({ week: '2026-11-02', key: 'oignon', quantities, toTaste, aisle: null, sources: [] });
+  const oignons = { menu: mark({ piece: 5 }) };
+  const filet = { pack: { quantity: 1, unit: 'kg' as const }, pieces: null };
+
+  it('« 5 oignons » contre un filet de 1 kg : on demande les pièces, puis on calcule', () => {
+    expect(piecesUnit(oignons, filet)).toBe('piece');
+    expect(piecesQuestion('piece')).toBe('Combien de pièces dans ce paquet ?');
+    expect(piecesQuestion('gousse')).toBe('Combien de gousses dans ce paquet ?');
+    expect(driveCount(oignons, filet)).toEqual({ count: 1, per: { quantity: 1, unit: 'kg' }, flag: 'pieces' });
+    expect(driveCount(oignons, { ...filet, pieces: 3 })).toEqual({ count: 2, per: { quantity: 1, unit: 'kg' }, flag: null });
+    expect(drivePacks(oignons, { ...filet, pieces: 6 })).toEqual({ count: 1, per: { quantity: 1, unit: 'kg' } });
+    // Contenance inconnue mais pièces dites (botte, filet sans poids) : « 2 × 3 ».
+    expect(drivePacks(oignons, { pack: null, pieces: 3 })).toEqual({ count: 2, per: { quantity: 3, unit: 'piece' } });
+  });
+
+  it('rien à demander quand les grandeurs se comparent, ou pour une ligne au poids', () => {
+    expect(piecesUnit(oignons, { pack: { quantity: 6, unit: 'piece' } })).toBeNull();
+    expect(driveCount(oignons, { pack: { quantity: 3, unit: 'piece' }, pieces: null })).toMatchObject({ count: 2, flag: null });
+    expect(piecesUnit({ menu: mark({ masse: 500 }) }, filet)).toBeNull();
+    expect(piecesUnit({}, filet)).toBeNull();
+  });
+
+  it('contenance inconnue ou autre grandeur : 1 paquet, signalé ; hors recettes ou sans quantité : 1 paquet', () => {
+    expect(driveCount({ menu: mark({ masse: 500 }) }, { pack: null, pieces: null })).toEqual({ count: 1, per: null, flag: 'pack' });
+    expect(driveCount({ menu: mark({ volume: 200 }) }, filet)).toEqual({ count: 1, per: { quantity: 1, unit: 'kg' }, flag: 'mismatch' });
+    expect(driveCount({}, filet)).toEqual({ count: 1, per: { quantity: 1, unit: 'kg' }, flag: null });
+    expect(driveCount({ menu: mark({}, true) }, { pack: null, pieces: null })).toEqual({ count: 1, per: null, flag: null });
+    expect(countFlag('pack')).toMatch(/Contenance inconnue/u);
+    expect(countFlag(null)).toBeNull();
+  });
+
+  it('écriture des paquets', () => {
+    expect(formatCount({ count: 2, per: { quantity: 200, unit: 'g' } })).toBe('2 × 200 g');
+    expect(formatCount({ count: 1, per: null })).toBe('1 paquet');
+    expect(formatCount({ count: 3, per: null })).toBe('3 paquets');
+  });
+});
+
+describe('remplir le panier', () => {
+  const by = { ownerId: 'alex', via: 'phone' } as const;
+  const item = (id: string, label: string, menu?: ShoppingItem['menu'], done = false): ShoppingItem => ({ id, label, done, addedBy: by, addedAt: '', ...(menu && { menu }) });
+  const lardons = item('1', 'Lardons · 350 g', { week: '2026-11-02', key: 'lardon', quantities: { masse: 350 }, toTaste: false, aisle: null, sources: [] });
+  const product = (id: string): DriveProduct => ({ enseigne: 'coursesu', id, url: `https://www.coursesu.com/p/x/${id}.html`, name: `Produit ${id}`, brand: null, packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'manual', seenAt: '', pieces: null });
+  const choice = (key: string, preferred: DriveProduct | null, fallback: DriveProduct[] = []): DriveChoice => ({ key, enseigne: 'coursesu', label: key, preferred, fallback, updatedAt: '', updatedBy: by });
+  const items = [lardons, item('2', 'Lessive'), item('3', 'Persil'), item('4', 'Pain', undefined, true)];
+  const view = (lines: DriveView['basket'] = null): DriveView => ({
+    settings: { enseigne: 'coursesu', store: null },
+    choices: [choice('lardon', product('10')), choice('lessive', null, [product('20')])],
+    basket: lines,
+  });
+
+  it('articles à acheter avec leur produit, leurs paquets et leur état', () => {
+    const rows = fillRows(items, view());
+    expect(rows.map((r) => [r.item.id, r.status, r.count?.count ?? null])).toEqual([['1', 'ready', 2], ['2', 'fallback', null], ['3', 'none', null]]);
+    expect(fillRows(items, { ...view(), settings: { enseigne: null, store: null } })).toEqual([]);
+  });
+
+  it('ligne du panier calculée depuis le produit retenu ; sans produit : 1 paquet', () => {
+    expect(basketLine(lardons, choice('lardon', product('10')))).toEqual({ itemId: '1', key: 'lardon', label: 'Lardons', product: { id: '10', name: 'Produit 10', url: 'https://www.coursesu.com/p/x/10.html' }, count: 2, per: { quantity: 200, unit: 'g' } });
+    expect(basketLine(item('2', 'Lessive'), null)).toMatchObject({ product: null, count: 1, per: null });
+  });
+
+  it('cochés, changés depuis, et récapitulatif', () => {
+    const line = (itemId: string, count: number, productId: string | null) => ({ itemId, key: '', label: '', product: productId ? { id: productId, name: '', url: '' } : null, count, per: null, at: '', by });
+    const basket = { enseigne: 'coursesu' as const, startedAt: '', startedBy: by, lines: [line('1', 1, '10'), line('3', 1, null)] };
+    const rows = fillRows(items, view(basket));
+    expect(rows.map((r) => [r.item.id, r.line !== null, r.changed])).toEqual([['1', true, true], ['2', false, false], ['3', true, false]]);
+    const recap = driveRecap(rows);
+    expect(recap.drive.map((r) => r.item.id)).toEqual(['1', '3']);
+    expect(recap.toFill).toEqual([]);
+    expect(recap.elsewhere.map((r) => r.item.id)).toEqual(['2']);
+    expect(recap.packs).toBe(2);
+    // Panier d'une autre enseigne : ignoré.
+    expect(fillRows(items, view({ ...basket, enseigne: 'autre' as 'coursesu' })).some((r) => r.line)).toBe(false);
   });
 });

@@ -8,6 +8,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import DriveFill from '../components/drive/DriveFill.svelte';
   import DriveProductForm from '../components/drive/DriveProductForm.svelte';
   import DriveSettingsForm from '../components/drive/DriveSettingsForm.svelte';
   import SportPanel from '../components/fitness/SportPanel.svelte';
@@ -175,8 +176,10 @@
     if (shared !== undefined) navigate(phonePath(tab));
   }
 
-  // Drive : réglages, produit d'un article, et lien d'une fiche reçu par « Partager » à relier à un article.
+  // Drive : réglages, produit d'un article, lien d'une fiche reçu par « Partager » à relier à un article, et mode
+  // « Remplir le panier ».
   let driveSettings = $state(false);
+  let driveFill = $state(false);
   let driveItem = $state<ShoppingItem | null>(null);
   let linking = $state(untrack(() => sharedProduct !== undefined));
   /** Lien partagé, lu dès qu'un article est choisi. */
@@ -252,6 +255,9 @@
               <button type="button" class="stock-link wide" onclick={() => (driveSettings = true)}>
                 <Icon name="cart" size={24} /> Drive{drive.data.settings.store ? ` · ${drive.data.settings.store.name}` : drive.data.settings.enseigne ? '' : ' : choisir une enseigne'}
               </button>
+              {#if drive.data.settings.enseigne}
+                <button type="button" class="stock-link wide fill" onclick={() => (driveFill = true)}><Icon name="check" size={24} /> Remplir le panier</button>
+              {/if}
             {/if}
           </div>
           <ShoppingPanel
@@ -343,7 +349,13 @@
 
     {#if driveSettings && drive.data}
       <BottomSheet label="Réglages du drive" onClose={() => (driveSettings = false)}>
-        <DriveSettingsForm {api} view={drive.data} onSaved={(view) => (drive.set(view), (driveSettings = false))} onClose={() => (driveSettings = false)} />
+        <DriveSettingsForm {api} view={drive.data} onSaved={(view) => (drive.set(view), (driveSettings = false))} onClose={() => (driveSettings = false)} onFill={() => ((driveSettings = false), (driveFill = true))} />
+      </BottomSheet>
+    {/if}
+
+    {#if driveFill && drive.data && lists.data}
+      <BottomSheet label="Remplir le panier" onClose={() => (driveFill = false)}>
+        <DriveFill {api} items={lists.data.shopping} view={drive.data} onView={drive.set} onChanged={drive.refresh} onClose={() => (driveFill = false)} />
       </BottomSheet>
     {/if}
 
@@ -470,6 +482,10 @@
 
   .stock-link.wide {
     grid-column: 1 / -1;
+  }
+
+  .stock-link.fill {
+    background: var(--rain-bg);
   }
 
   .link-sheet,

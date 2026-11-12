@@ -6,9 +6,10 @@
 
   // Réglages du drive : l'enseigne (Courses U pour l'instant) et le magasin de retrait (un nom, et si on veut le lien
   // de sa page chez l'enseigne). Un parent seulement : le serveur refuse les autres, le message s'affiche ici. Le
-  // créneau et le paiement se font toujours dans l'appli de l'enseigne.
-  type Props = { api: Api; view: DriveView; onSaved: (view: DriveView) => void; onClose: () => void };
-  let { api, view, onSaved, onClose }: Props = $props();
+  // créneau et le paiement se font toujours dans l'appli de l'enseigne. `onFill` : ouvre « Remplir le panier »
+  // (enseigne déjà choisie).
+  type Props = { api: Api; view: DriveView; onSaved: (view: DriveView) => void; onClose: () => void; onFill?: () => void };
+  let { api, view, onSaved, onClose, onFill }: Props = $props();
 
   let enseigne = $state<Enseigne | null>(untrack(() => view.settings.enseigne));
   let storeName = $state(untrack(() => view.settings.store?.name ?? ''));
@@ -35,6 +36,9 @@
 <form class="settings" onsubmit={save}>
   <h2><Icon name="cart" size={26} /> Drive</h2>
   <p class="muted">Pour chaque article des courses, on retient un produit de l’enseigne. Le créneau et le paiement se font dans son appli.</p>
+  {#if onFill && view.settings.enseigne}
+    <button type="button" class="btn primary fill" onclick={onFill}><Icon name="cart" size={22} /> Remplir le panier</button>
+  {/if}
 
   <fieldset>
     <legend class="muted">Enseigne</legend>
@@ -59,6 +63,10 @@
 </form>
 
 <style>
+  .fill {
+    align-self: flex-start;
+  }
+
   .settings {
     display: flex;
     flex-direction: column;

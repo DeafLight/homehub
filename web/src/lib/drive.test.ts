@@ -1,7 +1,8 @@
-// Tests du drive côté écran : résumé sous l'article, aperçu des paquets, correspondance EAN, lien partagé.
+// Tests du drive côté écran : résumé sous l'article, aperçu des paquets, correspondance EAN, lien partagé, quantité
+// d'une ligne et marque « au drive ».
 import { describe, expect, it } from 'vitest';
 import type { DriveChoice, DriveProduct } from '../../../shared/drive.ts';
-import { choiceSummary, eanMessage, packLabel, packsPreview, sharedProductLink } from './drive.ts';
+import { basketMark, choiceSummary, eanMessage, itemAmount, packLabel, packsPreview, sharedProductLink } from './drive.ts';
 
 const FICHE = 'https://www.coursesu.com/p/lardons-fumes-exemple/9990001.html';
 const menu = { week: '2026-11-02', key: 'lardon', quantities: { masse: 350 }, toTaste: false, aisle: null, sources: [] };
@@ -16,6 +17,7 @@ const product = (pack: DriveProduct['pack'], packText: string | null = null): Dr
   ean: null,
   source: 'page',
   seenAt: '',
+  pieces: null,
 });
 const choice = (preferred: DriveProduct | null, fallback: DriveProduct[] = []) => ({ key: 'lardon', enseigne: 'coursesu', label: 'Lardons', preferred, fallback }) as DriveChoice;
 
@@ -56,5 +58,26 @@ describe('drive à l’écran', () => {
     expect(sharedProductLink(new URLSearchParams({ text: `Lardons ${FICHE}?x=1` }))).toBe(FICHE);
     expect(sharedProductLink(new URLSearchParams({ url: 'https://cuisine.exemple.test/recette' }))).toBeNull();
     expect(sharedProductLink(new URLSearchParams({ url: 'https://www.coursesu.com/' }))).toBeNull();
+  });
+});
+
+describe('panier en cours', () => {
+  const by = { ownerId: 'alex', via: 'phone' } as const;
+  const view = (enseigne: 'coursesu' | null = 'coursesu') => ({
+    settings: { enseigne, store: null },
+    choices: [],
+    basket: { enseigne: 'coursesu' as const, startedAt: '', startedBy: by, lines: [{ itemId: '1', key: 'lardon', label: 'Lardons', product: { id: '9990001', name: 'Lardons fumés', url: FICHE }, count: 2, per: { quantity: 200, unit: 'g' as const }, at: '', by }, { itemId: '2', key: 'lessive', label: 'Lessive', product: null, count: 1, per: null, at: '', by }] },
+  });
+
+  it('marque « au drive » d’un article mis au panier, avec le produit et les paquets', () => {
+    expect(basketMark(view(), { id: '1' })).toBe('Au drive : Lardons fumés · 2 × 200 g');
+    expect(basketMark(view(), { id: '2' })).toBe('Au drive · 1 paquet');
+    expect(basketMark(view(), { id: '3' })).toBeNull();
+    expect(basketMark(view(null), { id: '1' })).toBeNull();
+  });
+
+  it('quantité écrite après le nom', () => {
+    expect(itemAmount({ label: 'Lardons · 350 g' })).toBe('350 g');
+    expect(itemAmount({ label: 'Lessive' })).toBeNull();
   });
 });

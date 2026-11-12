@@ -199,6 +199,17 @@ contenance du produit retenu (200 g) → **2 paquets**, arrondi au supérieur ; 
 (`drivePacks` dans `shared/drive.ts`, affiché dès Drive 1).
 Grandeurs incompatibles (« 2 oignons » contre un filet de 1 kg) : on demande une fois « combien de pièces dans ce
 paquet ? » et on le retient sur le choix. Produit au poids ou contenance illisible : 1 paquet, signalé.
+Fait en 0.54.0 (Drive 2) : la réponse est rangée sur le produit retenu (`pieces`, elle le suit s'il devient un
+secours), et la question vaut pour toute ligne comptée (pièces, gousses, bottes…) dont le paquet a une autre
+contenance ou aucune (`piecesUnit`, `driveCount` dans `shared/drive.ts`).
+
+Panier à cocher (Drive 2) : un seul panier en cours (`DriveBasket` dans `drive.json`), plutôt qu'un panier par
+semaine : chaque ligne cochée est liée à l'article de la liste par son identifiant, ce qui la fait disparaître avec
+l'article (retiré, ou vidé du panier après l'achat) ; « Nouveau panier » efface le reste. Une ligne cochée marque
+l'article « au drive » dans la liste sans le cocher comme acheté (il n'est pas encore retiré) ; « Reçu : tout
+cocher » le fait d'un geste, réversible comme toute coche. Le récapitulatif n'a pas de prix (la fiche n'en donne pas
+sans magasin) : ce qui part au drive, ce qui reste à mettre au panier, ce qui s'achète ailleurs (sans produit
+retenu, ou seulement des secours) ; un produit de contenance inconnue part au drive pour 1 paquet, signalé.
 
 ## 5. Recommandation
 
@@ -223,7 +234,7 @@ paquet ? » et on le retient sur le choix. Produit au poids ou contenance illisi
 | Version | Contenu |
 |---|---|
 | Drive 1 | Réglages : enseigne (Courses U) et magasin de retrait. Magasin `drive.json`. Sur chaque ligne de la liste, « Produit chez Courses U » : choix d'un produit en partageant ou collant le lien de sa fiche (identifiant tiré de l'URL ; la fiche partagée peut être lue une fois à la demande, `/p/` étant autorisé par `robots.txt`, comme une recette ; si Cloudflare refuse, pas de contournement : nom et contenance saisis, ou repris du stock par EAN). Choix retenu, produit de secours. Nombre de paquets affiché (arrondi au paquet de la 0.52). **Fait en 0.53.0.** |
-| Drive 2 | Grandeurs incompatibles (« combien de pièces dans ce paquet ? »), mode « Remplir le panier » : liste ordonnée par rayon, liens vers les fiches, cases à cocher, récapitulatif (ce qui part, prix estimé, ce qui reste à acheter ailleurs), lignes marquées comme achetées en drive. |
+| Drive 2 | Grandeurs incompatibles (« combien de pièces dans ce paquet ? »), mode « Remplir le panier » : liste ordonnée par rayon, liens vers les fiches, cases à cocher, récapitulatif (ce qui part, ce qui reste à acheter ailleurs ; prix reportés à Drive 3), lignes marquées « au drive » dans la liste. **Fait en 0.54.0** (panier en cours unique, lignes liées aux articles, marque « au drive » sans cocher comme acheté). |
 | Drive 3 | Extension navigateur (ordinateur, puis Firefox Android) : appairage, lecture du panier préparé, recherche dans la page pour choisir un produit, ajout depuis la session, arrêt sur captcha, retour des prix et EAN vers l'historique des prix. |
 | Plus tard | Autres enseignes (adaptateur par enseigne), « Copier pour l'assistant Carrefour », prochain créneau affiché ; jamais de réservation ni de paiement. |
 

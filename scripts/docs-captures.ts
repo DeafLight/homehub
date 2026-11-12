@@ -272,6 +272,12 @@ for (const [label, slug, role] of [
   const { product } = (await call(A, 'POST', '/drive/read', { url: driveUrl(slug) })) as { product: Record<string, unknown> };
   await call(A, 'PUT', '/drive/choices', { key: itemKey({ label }), label, role, product: { ...product, source: 'page' } });
 }
+// Panier en cours : la lessive est déjà mise au panier de l'enseigne (marquée « au drive » dans les courses).
+{
+  const { shopping } = (await call(A, 'GET', '/lists')) as { shopping: { id: string; label: string }[] };
+  const lessive = shopping.find((i) => i.label.startsWith('Lessive'));
+  if (lessive) await call(A, 'PUT', `/drive/basket/${lessive.id}`, { in: true });
+}
 
 // DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
 if (process.env.DOCS_SERVE) {
@@ -370,6 +376,8 @@ for (const [name, path] of [
   ['tablette-telephones', '/telephones'],
   ['tablette-nas', '/nas'],
 ] as const) await shoot(name, BASE + path, TABLET);
+// Drive, étape 2 : « Remplir le panier » sur la tablette (ouvert depuis les courses).
+await shoot('tablette-drive-panier', `${BASE}/listes`, TABLET, { after: click('Remplir le panier') });
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
 // Réglage des vacances scolaires : académie de Nantes (celle du YAML fictif) et aperçu de ses prochaines vacances.
 await shoot('tablette-vacances-reglages', `${BASE}/vacances`, TABLET);
@@ -484,6 +492,15 @@ await shoot('telephone-drive-reglages', `${BASE}/m`, PHONE, {
   init: asPhone('alex'),
   after: `[...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith('Drive'))?.click()`,
 });
+// Drive, étape 2 : « Remplir le panier » (oignons à compter en pièces, lessive déjà au panier), puis le récapitulatif ;
+// sur la tablette, la même liste en grand.
+await shoot('telephone-drive-panier', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: click('Remplir le panier') });
+// La liste de courses descendue au groupe « Au drive » (la lessive mise au panier, pas encore cochée comme achetée).
+await shoot('telephone-drive-marque', `${BASE}/m`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('.basket-head')].find((h) => h.textContent.includes('Au drive'))?.scrollIntoView({ block: 'center' })`,
+});
+await shoot('telephone-drive-recap', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: `${click('Remplir le panier')}; setTimeout(() => { ${click('Récapitulatif')} }, 500)` });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });

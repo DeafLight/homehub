@@ -131,7 +131,7 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createSchoolLifeApi({ schoolLife, access }));
   const shareInbox = createShareInbox();
   api.route('/', createRecipesApi({ recipes: deps.recipes, importer: deps.recipeImporter, household, access, clock, inbox: shareInbox }));
-  api.route('/', createDriveApi({ drive: deps.drive, reader: deps.driveReader, stock: deps.stock, menus: deps.menus, access, clock }));
+  api.route('/', createDriveApi({ drive: deps.drive, reader: deps.driveReader, stock: deps.stock, menus: deps.menus, lists: deps.lists, access, clock }));
   api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 
   const app = createRouter();

@@ -1,6 +1,7 @@
 // Tests du magasin du drive : réglages, produit retenu et produits de secours (jamais pris d'office), retrait,
-// relecture du fichier.
-import { mkdtempSync } from 'node:fs';
+// relecture du fichier ; pièces par paquet, panier en cours (lignes par article, nettoyées, nouveau panier), fichier
+// de l'étape 1 relu tel quel.
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +21,7 @@ const product = (id: string, name = `Produit ${id}`): DriveProduct => ({
   ean: null,
   source: 'manual',
   seenAt: fixedClock().toISOString(),
+  pieces: null,
 });
 
 function setup() {
@@ -77,5 +79,43 @@ describe('magasin du drive', () => {
     await store.choose({ key: 'lessive', label: 'Lessive', product: product('7'), role: 'preferred' }, by);
     expect(await store.forget('lardon', 'coursesu', null, by)).toBe(true);
     expect((await store.choices()).map((c) => c.key)).toEqual(['lessive']);
+  });
+
+  it('pièces par paquet : retenues sur le produit, gardées quand il change de rôle, oubliées sur demande', async () => {
+    const { store } = setup();
+    await store.choose({ key: 'oignon', label: 'Oignons', product: product('1'), role: 'preferred' }, by);
+    expect((await store.setPieces('oignon', 'coursesu', '1', 6, by))?.preferred?.pieces).toBe(6);
+    expect(await store.setPieces('oignon', 'coursesu', '9', 6, by)).toBeNull();
+    let choice = await store.choose({ key: 'oignon', label: 'Oignons', product: product('2'), role: 'preferred' }, by);
+    expect(choice?.fallback[0]).toMatchObject({ id: '1', pieces: 6 });
+    choice = await store.choose({ key: 'oignon', label: 'Oignons', product: product('1'), role: 'preferred' }, by);
+    expect(choice?.preferred?.pieces).toBe(6);
+    expect((await store.setPieces('oignon', 'coursesu', '1', null, by))?.preferred?.pieces).toBeNull();
+  });
+
+  it('panier : une ligne par article, remplacée, retirée ; les articles partis de la liste s’en vont', async () => {
+    const { path, store } = setup();
+    expect(await store.basket()).toBeNull();
+    const line = (itemId: string, count = 1) => ({ itemId, key: itemId, label: itemId, product: null, count, per: null });
+    await store.putInBasket('coursesu', line('a'), new Set(['a', 'b']), by);
+    await store.putInBasket('coursesu', line('b'), new Set(['a', 'b']), by);
+    let basket = await store.putInBasket('coursesu', line('a', 3), new Set(['a', 'b']), by);
+    expect(basket?.lines.map((l) => [l.itemId, l.count])).toEqual([['b', 1], ['a', 3]]);
+    expect(basket).toMatchObject({ enseigne: 'coursesu', startedBy: by, startedAt: fixedClock().toISOString() });
+    basket = await store.takeOutOfBasket('a', new Set(['a']));
+    expect(basket?.lines).toEqual([]);
+    await store.putInBasket('coursesu', line('c'), new Set(['c']), by);
+    expect((await createDriveStore({ path, clock: fixedClock }).basket())?.lines.map((l) => l.itemId)).toEqual(['c']);
+    await store.clearBasket();
+    expect(await store.basket()).toBeNull();
+  });
+
+  it('relit un fichier de l’étape 1 (sans pièces ni panier)', async () => {
+    const { path } = setup();
+    const { pieces: _pieces, ...old } = product('1');
+    writeFileSync(path, JSON.stringify({ version: 1, settings: { enseigne: 'coursesu', store: null }, choices: [{ key: 'lardon', enseigne: 'coursesu', label: 'Lardons', preferred: old, fallback: [], updatedAt: '', updatedBy: by }] }));
+    const store = createDriveStore({ path, clock: fixedClock });
+    expect((await store.choices())[0].preferred?.pieces).toBeNull();
+    expect(await store.basket()).toBeNull();
   });
 });

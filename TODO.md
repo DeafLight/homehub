@@ -96,10 +96,13 @@ Jusqu'où on peut aller (conclusions de l'étude) :
       **retenu** (« gruyère » → tel paquet chez cette enseigne) ; produits de secours, jamais pris d'office ; nombre de
       paquets affiché sous l'article (arrondi au paquet de la 0.52) ; partager une fiche propose « Relier à un article
       de la liste ».
-- [ ] Drive 2 : quantité en **paquets** pour tout le panier (déjà affichée par article depuis la 0.53 ; grandeurs
-      incompatibles, « 2 oignons » contre un filet de 1 kg, demandées une fois et retenues sur le choix) ; mode « Remplir le panier » : liste dans l'ordre des
-      rayons, liens vers les fiches, cases à cocher pendant qu'on remplit le panier dans l'appli ; récapitulatif (ce
-      qui part, prix estimé, ce qui reste à acheter ailleurs) ; lignes marquées dans la liste.
+- [x] Drive 2 (0.54.0) : quantité en **paquets** pour tout le panier ; grandeurs incompatibles (« 5 oignons »
+      contre un filet de 1 kg) : « Combien de pièces dans ce paquet ? » demandé une fois et retenu sur le produit ;
+      contenance inconnue ou au poids : 1 paquet, signalé. Mode « Remplir le panier » (tablette et téléphone) : liste
+      dans l'ordre des rayons, bouton « Fiche », cases à cocher pendant qu'on remplit le panier dans l'appli (panier
+      en cours gardé par le serveur, « Nouveau panier ») ; récapitulatif (ce qui part, ce qui reste à mettre au
+      panier, ce qui s'achète ailleurs ; **sans prix**, ils viendront avec Drive 3) ; lignes cochées passées dans
+      « Au drive » de la liste, sans être cochées comme achetées (« Reçu : tout cocher »).
 - [ ] Drive 3 : extension « Remplir le panier » (Chrome / Firefox sur ordinateur, puis Firefox Android ; pas Safari
       iOS au départ) : appairée comme un appareil ou panier copié depuis HomeHub, ajoute les produits depuis la
       session de la personne, à rythme humain, de préférence en cliquant le bouton « Ajouter » de la page ; **s'arrête

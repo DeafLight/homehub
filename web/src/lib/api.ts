@@ -225,6 +225,12 @@ export type Api = {
   chooseDriveProduct(input: DriveChoiceInput): Promise<DriveChoice>;
   /** Retirer un produit d'un choix (`id`), ou tout le choix. */
   forgetDriveProduct(key: string, id?: string): Promise<void>;
+  /** Pièces dans un paquet d'un produit (null : oublier), pour les articles comptés en pièces. */
+  setDrivePieces(key: string, id: string, pieces: number | null): Promise<DriveChoice>;
+  /** Cocher ou décocher un article dans le panier en cours ; le serveur calcule produit et paquets. */
+  setInBasket(itemId: string, inBasket: boolean): Promise<DriveView>;
+  /** Nouveau panier : plus aucun article marqué « au drive ». */
+  newBasket(): Promise<DriveView>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -232,7 +238,7 @@ export type DriveChoiceInput = {
   key: string;
   label: string;
   role?: 'preferred' | 'fallback';
-  product: Pick<DriveProduct, 'url' | 'name' | 'brand' | 'packText' | 'ean' | 'source'>;
+  product: Pick<DriveProduct, 'url' | 'name' | 'brand' | 'packText' | 'ean' | 'source'> & { pieces?: number | null };
 };
 
 export type Credentials = { token?: string | null; kioskKey?: string | null; actor?: string | null };
@@ -379,6 +385,9 @@ export function createApi(
     readDriveProduct: (url) => send('POST', '/drive/read', { url }),
     chooseDriveProduct: (input) => send('PUT', '/drive/choices', input),
     forgetDriveProduct: (key, id) => send('DELETE', `/drive/choices?key=${encodeURIComponent(key)}${id ? `&id=${encodeURIComponent(id)}` : ''}`),
+    setDrivePieces: (key, id, pieces) => send('PUT', '/drive/pieces', { key, id, pieces }),
+    setInBasket: (itemId, inBasket) => send('PUT', `/drive/basket/${encodeURIComponent(itemId)}`, { in: inBasket }),
+    newBasket: () => send('DELETE', '/drive/basket'),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };
 }

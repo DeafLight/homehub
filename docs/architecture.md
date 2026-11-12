@@ -255,7 +255,7 @@ classDiagram
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
 | `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
-| `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres) |
+| `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres, pièces par paquet) ; le panier en cours (articles de la liste cochés, produit et paquets mis au panier) |
 
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
@@ -339,6 +339,17 @@ recherche dans le catalogue de l'enseigne. Tout le monde lit `GET /api/drive` ; 
 parent (`access.parent`) ; lire une fiche et retenir un produit : le droit d'écrire sur la liste de courses
 (`access.writer` sur la famille), vérifié avant toute lecture. Un secours n'est jamais pris d'office, même quand le
 produit retenu est retiré. Le nombre de paquets reprend l'arrondi de la liste (`packsFor`).
+
+Étape 2, **remplir le panier** : toujours sans rien automatiser chez l'enseigne. `shared/drive.ts` calcule pour chaque
+article à acheter ce qu'on met au panier (`driveCount`) : l'arrondi au paquet ; pour une ligne comptée en pièces (ou
+gousses, bottes…) contre une contenance d'une autre grandeur ou inconnue, les pièces par paquet demandées une fois et
+retenues sur le produit (`pieces`) ; sinon 1 paquet, signalé (contenance inconnue, au poids ou autre grandeur). Un
+seul panier en cours dans `drive.json`, dont chaque ligne est liée à un article de la liste par son identifiant : la
+ligne marque l'article « au drive » sans toucher à la liste (cocher comme acheté reste un geste de la personne), et
+s'efface dès que l'article quitte la liste (retiré, ou vidé du panier une fois acheté) ; `GET /api/drive` ne montre
+que les lignes encore liées. Cocher (`PUT /api/drive/basket/:itemId`) : le serveur relit l'article et son produit
+retenu et calcule lui-même la ligne (rien n'est repris du front) ; une ligne dont l'article ou le produit a changé
+depuis est signalée à l'écran (« Mettre à jour »). Mêmes droits que les choix : `access.writer` sur la famille.
 
 **Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
 si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe

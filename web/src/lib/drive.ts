@@ -1,6 +1,7 @@
 // Drive côté écran : ce qu'une ligne de la liste de courses dit de son produit chez l'enseigne, l'aperçu des paquets
-// pendant qu'on choisit, le message de correspondance avec le stock, et le lien d'une fiche reçu par « Partager ».
-import { type DriveChoice, type DriveProduct, drivePacks, eanCheck, type DriveStockHint, productLink } from '../../../shared/drive.ts';
+// pendant qu'on choisit, le message de correspondance avec le stock, le lien d'une fiche reçu par « Partager », et la
+// marque « au drive » d'un article mis au panier en cours.
+import { basketLines, type DriveChoice, type DriveProduct, drivePacks, type DriveView, eanCheck, type DriveStockHint, formatCount, productLink } from '../../../shared/drive.ts';
 import { formatPacks } from '../../../shared/menu.ts';
 import { formatQuantities, parsePackage } from '../../../shared/quantities.ts';
 import type { ShoppingItem } from '../../../shared/types.ts';
@@ -13,9 +14,9 @@ export function choiceSummary(item: Pick<ShoppingItem, 'menu'>, choice: DriveCho
   return packs ? `${choice.preferred.name} · ${formatPacks(packs)}` : choice.preferred.name;
 }
 
-/** Paquets pendant qu'on choisit : « 2 × 200 g pour 350 g » ; null si rien à calculer. */
-export function packsPreview(item: Pick<ShoppingItem, 'menu'>, packText: string | null): string | null {
-  const packs = drivePacks(item, { pack: parsePackage(packText) });
+/** Paquets pendant qu'on choisit : « 2 × 200 g pour 350 g » (`pieces` : pièces par paquet, si on les a dites). */
+export function packsPreview(item: Pick<ShoppingItem, 'menu'>, packText: string | null, pieces: number | null = null): string | null {
+  const packs = drivePacks(item, { pack: parsePackage(packText), pieces });
   if (!packs || !item.menu) return null;
   return `${formatPacks(packs)} pour ${formatQuantities(item.menu.quantities)}`;
 }
@@ -39,4 +40,13 @@ export function sharedProductLink(params: URLSearchParams): string | null {
     if (link) return link.url;
   }
   return null;
+}
+
+/** Quantité d'une ligne telle qu'écrite après le nom (« Lardons · 350 g » → « 350 g »), ou null. */
+export const itemAmount = (item: Pick<ShoppingItem, 'label'>) => item.label.split(' · ')[1]?.trim() || null;
+
+/** Ligne du panier en cours pour un article (« Au drive : Gruyère râpé, 200g · 2 × 200 g »), ou null. */
+export function basketMark(view: DriveView, item: Pick<ShoppingItem, 'id'>): string | null {
+  const line = basketLines(view).find((l) => l.itemId === item.id);
+  return line ? `Au drive${line.product ? ` : ${line.product.name}` : ''} · ${formatCount(line)}` : null;
 }

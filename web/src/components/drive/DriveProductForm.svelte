@@ -1,15 +1,17 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { choiceFor, type DriveProduct, type DriveProductDraft, type DriveStockHint, type DriveView, enseigneName, itemKey, itemName } from '../../../../shared/drive.ts';
+  import { choiceFor, type DriveProduct, type DriveProductDraft, type DriveStockHint, type DriveView, enseigneName, itemKey, itemName, piecesUnit } from '../../../../shared/drive.ts';
   import type { ShoppingItem } from '../../../../shared/types.ts';
   import type { Api } from '../../lib/api.ts';
   import { eanMessage, packLabel, packsPreview } from '../../lib/drive.ts';
   import Icon from '../Icon.svelte';
+  import DrivePieces from './DrivePieces.svelte';
 
   // « Produit chez <enseigne> » pour un article de la liste de courses : le produit retenu (contenance, EAN, paquets),
   // ses secours, et le choix d'un produit en collant (ou en partageant) le lien de sa fiche. La fiche n'est lue qu'en
   // touchant « Lire la fiche » ; si le site refuse, on saisit le nom et la contenance, ou on les reprend d'un produit
-  // du stock (par EAN). Un secours n'est jamais pris d'office : il faut le choisir.
+  // du stock (par EAN). Un secours n'est jamais pris d'office : il faut le choisir. Article compté en pièces et paquet
+  // d'une autre contenance (« 2 oignons », filet de 1 kg) : « Combien de pièces dans ce paquet ? », retenu sur le produit.
   type Props = {
     api: Api;
     item: ShoppingItem;
@@ -170,8 +172,13 @@
       <strong>{product.name}</strong>
       <span class="muted small">
         {packLabel(product)}{product.ean ? ` · EAN ${product.ean}` : ''}
-        {#if preferred && packsPreview(item, product.packText)} · {packsPreview(item, product.packText)}{/if}
+        {#if preferred && packsPreview(item, product.packText, product.pieces)} · {packsPreview(item, product.packText, product.pieces)}{/if}
       </span>
+      {#if preferred && piecesUnit(item, product)}
+        {#key product.id}
+          <DrivePieces {api} itemKey={key} {product} unit={piecesUnit(item, product)!} {readOnly} {onChanged} />
+        {/key}
+      {/if}
       <a href={product.url} target="_blank" rel="noreferrer noopener" class="small">Voir la fiche</a>
     </div>
     {#if !readOnly}

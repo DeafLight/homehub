@@ -1,12 +1,17 @@
-// Routes du drive (étape 1) : l'enseigne et le magasin de retrait, et le produit retenu pour chaque article de la
-// liste de courses. Lecture ouverte comme la liste (rien de personnel). Régler l'enseigne et le magasin : un parent.
+// Routes du drive : l'enseigne et le magasin de retrait, le produit retenu pour chaque article de la liste de courses
+// (étape 1), les pièces par paquet et le panier en cours, coché pendant qu'on le remplit dans l'appli (étape 2). Lecture ouverte comme la liste (rien de personnel). Régler l'enseigne et le magasin : un parent.
 // Lire une fiche et retenir un produit : qui peut modifier la liste de courses (droit sur la famille : un parent),
 // vérifié avant toute lecture sur le réseau. La fiche n'est lue que sur demande, une fois, et seulement si c'est une
 // fiche produit d'une enseigne connue ; un refus du site n'est jamais contourné : la personne saisit le nom et la
-// contenance, ou les reprend d'un produit du stock (par EAN).
+// contenance, ou les reprend d'un produit du stock (par EAN). Cocher le panier et dire les pièces d'un paquet : même
+// droit que la liste de courses. Le serveur calcule lui-même ce qui part au panier (produit retenu, paquets) d'après
+// l'article de la liste : rien n'est repris du front.
 import { z } from 'zod';
 import {
+  basketLine,
+  choiceFor,
   DRIVE_LIMITS,
+  type DriveBasket,
   type DriveProduct,
   type DriveReadResult,
   type DriveStockHint,
@@ -14,6 +19,7 @@ import {
   ENSEIGNES,
   type Enseigne,
   enseigneName,
+  itemKey,
   normalizeEan,
   productLink,
   storeLink,
@@ -23,6 +29,7 @@ import { parsePackage } from '../shared/quantities.ts';
 import { FAMILY_ID } from '../shared/types.ts';
 import type { Access } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
+import type { ListsStore } from './sources/lists.ts';
 import type { DriveReader } from './sources/drive-page.ts';
 import type { DriveStore } from './sources/drive.ts';
 import type { MenuStore } from './sources/menus.ts';
@@ -36,6 +43,8 @@ export type DriveApiDeps = {
   reader?: DriveReader;
   stock: StockStore;
   menus: MenuStore;
+  /** Liste de courses : les articles mis au panier en viennent. */
+  lists: ListsStore;
   access: Access;
   clock: Clock;
 };
@@ -61,16 +70,27 @@ const chooseSchema = z.object({
     packText: z.string().trim().max(DRIVE_LIMITS.pack).nullish(),
     ean: z.string().trim().max(14).nullish(),
     source: z.enum(['page', 'manual', 'stock']).default('manual'),
+    pieces: z.number().int().min(1).max(DRIVE_LIMITS.pieces).nullish(),
   }),
 });
+const piecesSchema = z.object({ key, id: z.string().trim().min(1).max(80), pieces: z.number().int().min(1, 'Au moins une pièce').max(DRIVE_LIMITS.pieces).nullable() });
+const basketSchema = z.object({ in: z.boolean() });
 
 /** Clé d'un nom de produit du stock, comparable à celle d'un article (« Lessive liquide » → « lessive-liquide »). */
 const nameKey = (name: string) => ingredientKey(parseIngredient(name).name);
 
-export function createDriveApi({ drive, reader, stock, menus, access, clock }: DriveApiDeps) {
+export function createDriveApi({ drive, reader, stock, menus, lists, access, clock }: DriveApiDeps) {
   const api = createRouter();
 
-  const view = async (): Promise<DriveView> => ({ settings: await drive.settings(), choices: await drive.choices() });
+  const shopping = async () => (await lists.lists()).shopping;
+  /** Panier tel qu'on le montre : seulement les lignes dont l'article est encore dans la liste. */
+  const visibleBasket = (basket: DriveBasket | null, ids: ReadonlySet<string>): DriveBasket | null =>
+    basket && { ...basket, lines: basket.lines.filter((l) => ids.has(l.itemId)) };
+  const view = async (): Promise<DriveView> => ({
+    settings: await drive.settings(),
+    choices: await drive.choices(),
+    basket: visibleBasket(await drive.basket(), new Set((await shopping()).map((i) => i.id))),
+  });
   const enseigne = async (): Promise<Enseigne> => (await drive.settings()).enseigne ?? fail(400, NO_ENSEIGNE);
   const hint = (code: string, info: { name: string; brand: string | null; quantity: string | null }): DriveStockHint => ({ ean: code, name: info.name, brand: info.brand, quantity: info.quantity });
 
@@ -144,6 +164,7 @@ export function createDriveApi({ drive, reader, stock, menus, access, clock }: D
       ean,
       source: input.product.source,
       seenAt: clock().toISOString(),
+      pieces: input.product.pieces ?? null,
     };
     const choice = (await drive.choose({ key: input.key, label: input.label, product, role: input.role }, author)) ?? fail(409, 'Trop de produits retenus');
     return c.json(choice);
@@ -155,6 +176,42 @@ export function createDriveApi({ drive, reader, stock, menus, access, clock }: D
     const author = await access.writer(c, FAMILY_ID);
     const removed = await drive.forget(wanted, await enseigne(), c.req.query('id') ?? null, author);
     return removed ? c.body(null, 204) : fail(404, 'Rien à retirer');
+  });
+
+  /** Pièces dans un paquet (« 2 oignons » contre un filet de 1 kg), retenues sur le produit ; null : oublier. */
+  api.put('/drive/pieces', async (c) => {
+    const input = await readBody(c, piecesSchema, z.prettifyError);
+    const author = await access.writer(c, FAMILY_ID);
+    const choice = (await drive.setPieces(input.key, await enseigne(), input.id, input.pieces, author)) ?? fail(404, 'Produit introuvable pour cet article');
+    return c.json(choice);
+  });
+
+  /**
+   * Cocher (`in: true`) ou décocher un article dans le panier en cours. Le produit et les paquets viennent du produit
+   * retenu pour l'article ; un article sans produit retenu peut être coché aussi (trouvé dans l'appli), 1 paquet.
+   */
+  api.put('/drive/basket/:itemId', async (c) => {
+    const input = await readBody(c, basketSchema, 'Corps attendu : { "in": true }');
+    const author = await access.writer(c, FAMILY_ID);
+    const chosen = await enseigne();
+    const items = await shopping();
+    const ids = new Set(items.map((i) => i.id));
+    const item = items.find((i) => i.id === c.req.param('itemId')) ?? fail(404, 'Article introuvable dans la liste de courses');
+    if (input.in) {
+      if (item.done) return fail(409, 'Article déjà acheté');
+      const line = basketLine(item, choiceFor(await drive.choices(), itemKey(item), chosen));
+      (await drive.putInBasket(chosen, line, ids, author)) ?? fail(409, 'Panier plein');
+    } else {
+      await drive.takeOutOfBasket(item.id, ids);
+    }
+    return c.json(await view());
+  });
+
+  /** Nouveau panier : plus aucun article marqué « au drive ». */
+  api.delete('/drive/basket', async (c) => {
+    await access.writer(c, FAMILY_ID);
+    await drive.clearBasket();
+    return c.json(await view());
   });
 
   return api;
