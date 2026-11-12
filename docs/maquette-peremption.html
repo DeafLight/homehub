@@ -1,0 +1,237 @@
+<!doctype html>
+<!-- Maquette statique de la proposition « dates de péremption » (docs/proposition-peremption.md) : scanner, page
+     Stock, accueil de la tablette, téléphone et menu, dans le thème sombre de web/src/app.css. Monde fictif, rien de
+     réel ; aucun code de l'application. Capture : docs/images/maquette-peremption.png (Chrome sans tête, 1280 px
+     de large, échelle 1,5). -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette péremption</title>
+<style>
+  :root {
+    --bg: #0f1115; --surface-rail: #14171d; --surface: #181b22; --surface-1: #1f222a; --surface-2: #262a33;
+    --border-strong: #3a3f4a; --fg: #e8eaed; --fg-soft: #cfd3d9; --fg-muted: #9aa1ab;
+    --sun: #f2b84b; --rain: #5b8def; --rain-soft: #9cc3f5; --rain-bg: #1e2a3a;
+    --danger-bg: #4a1f1d; --danger-fg: #ffb4ab; --ok: #3fcf7f; --ok-bg: #173b2c; --ok-fg: #bfeccf;
+    --warn: #f2b84b; --warn-bg: #3d3018; --bad: #ff7a6b; --off: #4a505c;
+    --space-1: 8px; --space-2: 16px; --space-3: 24px; --space-4: 32px; --space-6: 48px;
+    --text-label: 1rem; --text-small: 1.1rem; --text-body: 1.25rem; --text-title: 1.5rem; --text-heading: 2.25rem;
+    --radius-sm: 12px; --radius-md: 20px; --radius-lg: 24px; --radius-xl: 28px;
+    color-scheme: dark;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--fg); background: var(--bg);
+    font-size: 13px;
+  }
+  body { margin: 0; background: var(--bg); padding: var(--space-3); }
+  h1 { margin: 0 0 4px; font-size: var(--text-heading); }
+  .lead { margin: 0 0 var(--space-3); color: var(--fg-muted); font-size: var(--text-small); }
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .panel { display: flex; flex-direction: column; gap: var(--space-1); }
+  .panel > .caption { color: var(--fg-soft); font-size: var(--text-small); font-weight: 600; }
+  .panel > .caption span { color: var(--fg-muted); font-weight: 400; }
+  .screen { background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-xl);
+    padding: var(--space-2); position: relative; overflow: hidden; }
+  .card { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-3);
+    display: flex; flex-direction: column; gap: var(--space-2); }
+  .card-label { margin: 0; font-size: var(--text-label); font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--fg-muted); }
+  .row { display: flex; align-items: center; gap: var(--space-2); }
+  .row + .row { border-top: 1px solid var(--surface-2); padding-top: var(--space-2); }
+  .grow { flex: 1; min-width: 0; }
+  .name { font-weight: 700; font-size: var(--text-body); }
+  .sub { color: var(--fg-muted); font-size: var(--text-small); }
+  .btn { background: var(--surface-2); color: var(--fg); border: 0; border-radius: 999px;
+    padding: 10px 18px; font: inherit; font-size: var(--text-small); font-weight: 600; white-space: nowrap; }
+  .btn.primary { background: var(--rain); color: #0f1115; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border-strong); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 12px;
+    font-size: var(--text-small); font-weight: 600; white-space: nowrap; background: var(--surface-2); color: var(--fg-soft); }
+  .pill.bad { background: var(--danger-bg); color: var(--danger-fg); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
+  .pill.ask { background: transparent; border: 1px dashed var(--rain); color: var(--rain-soft); }
+  .pill.est { background: transparent; border: 1px dashed var(--border-strong); color: var(--fg-muted); }
+  .filters { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+  .filters .btn.on { background: var(--rain); color: #0f1115; }
+  .filters .btn.warn { background: var(--warn-bg); color: var(--warn); }
+  .filters .btn.warn.on { background: var(--warn); color: #0f1115; }
+  .header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+  .header h2 { margin: 0; font-size: var(--text-title); }
+  .stepper { display: flex; align-items: center; gap: 10px; }
+  .round { width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center;
+    font-size: 1.3rem; color: var(--fg); }
+  .qty { font-size: var(--text-title); min-width: 18px; text-align: center; }
+  .note { color: var(--fg-muted); font-size: var(--text-small); border-left: 3px solid var(--border-strong); padding-left: 10px; }
+
+  /* Scanner */
+  .scanner { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); min-height: 430px; }
+  .camera { background: #000; border-radius: var(--radius-lg); position: relative; }
+  .mode { display: flex; gap: var(--space-1); grid-column: 1 / -1; }
+  .mode .btn { flex: 1; text-align: center; }
+  .flash { position: absolute; left: 12px; right: 12px; bottom: 12px; background: var(--ok-bg); color: var(--ok-fg);
+    border-radius: var(--radius-md); padding: 12px 16px; }
+  .flash b { display: block; font-size: var(--text-body); color: var(--fg); }
+  .sheet { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); width: 400px;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    padding: var(--space-3); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px #000c; }
+  .dim::after { content: ''; position: absolute; inset: 0; background: #0f1115a8; }
+  .seg { display: flex; background: var(--surface-2); border-radius: 999px; padding: 4px; }
+  .seg span { flex: 1; text-align: center; padding: 8px; border-radius: 999px; font-weight: 600; color: var(--fg-muted); font-size: var(--text-small); }
+  .seg span.on { background: var(--bg); color: var(--fg); }
+  .date-big { text-align: center; font-size: 2.4rem; font-weight: 700; letter-spacing: .04em; }
+  .date-big small { display: block; font-size: var(--text-small); font-weight: 400; color: var(--fg-muted); letter-spacing: 0; }
+  .keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .keys span { background: var(--surface-2); border-radius: var(--radius-sm); padding: 9px 0; text-align: center; font-size: var(--text-body); font-weight: 600; }
+  .quick { display: flex; gap: 6px; flex-wrap: wrap; }
+  .quick .btn { padding: 7px 12px; }
+  .actions { display: flex; gap: var(--space-1); justify-content: flex-end; }
+
+  /* Accueil */
+  .home { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  .tile { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-3); display: flex; flex-direction: column; gap: 8px; }
+  .tile.warn { box-shadow: inset 4px 0 0 var(--warn); }
+  .chev { color: var(--fg-muted); font-size: 1.6rem; }
+
+  /* Téléphone */
+  .phones { display: flex; gap: var(--space-2); }
+  .phone { width: 300px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 34px; padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 10px; }
+  .phone .card { padding: var(--space-2); gap: 10px; }
+  .phone .name { font-size: 1.1rem; }
+  .phone .sub { font-size: 1rem; }
+  .phone .pill { font-size: .95rem; padding: 3px 10px; }
+  .push { background: var(--surface-2); border-radius: var(--radius-md); padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .push .icon { width: 34px; height: 34px; border-radius: 9px; background: var(--rain); color: #0f1115; display: grid; place-items: center; font-weight: 800; }
+  .wide { grid-column: 1 / -1; }
+  .menu { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-2); }
+  .tag { color: var(--warn); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Dates de péremption — maquette</h1>
+<p class="lead">Proposition, monde fictif (jeudi 5 novembre). Rien de ceci n'est développé : voir docs/proposition-peremption.md.</p>
+
+<div class="board">
+
+  <!-- 1. Scanner : date facultative, sans arrêter la lecture -->
+  <div class="panel">
+    <div class="caption">1 · Scanner, « Ranger les courses » <span>— la date se donne après coup, jamais exigée</span></div>
+    <div class="screen">
+      <div class="scanner">
+        <div class="mode"><span class="btn primary">Ranger les courses</span><span class="btn">Jeté / épuisé</span></div>
+        <div class="camera">
+          <div class="flash"><b>Yaourts nature</b>+1 · 4 en stock · <span style="color:var(--rain-soft)">Date ? (touche)</span></div>
+        </div>
+        <div class="card" style="padding:var(--space-2)">
+          <p class="card-label">Ce passage</p>
+          <div class="row"><div class="grow"><div class="name">Yaourts nature</div><div class="sub">+4 · 4 en stock</div></div><span class="pill ask">Date ?</span></div>
+          <div class="row"><div class="grow"><div class="name">Crème fraîche épaisse</div><div class="sub">+1 · 1 en stock</div></div><span class="pill warn">DLC 7/11</span></div>
+          <div class="row"><div class="grow"><div class="name">Jambon blanc</div><div class="sub">+1 · 2 en stock</div></div><span class="pill">DLC 12/11</span></div>
+          <div class="row"><div class="grow"><div class="name">Coquillettes</div><div class="sub">+2 · 3 en stock</div></div><span class="pill est" title="non demandé">pas de date</span></div>
+          <div class="note">« Date ? » seulement pour les produits qui en ont l'habitude (rayons frais, ou date déjà donnée une fois). Le scan continue pendant ce temps.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Saisie de la date -->
+  <div class="panel">
+    <div class="caption">2 · En touchant « Date ? » <span>— jour et mois au pavé, l'année se devine</span></div>
+    <div class="screen dim" style="min-height:430px">
+      <div class="sheet" style="z-index:2">
+        <div class="name">Yaourts nature <span class="sub">· 4 pots</span></div>
+        <div class="seg"><span class="on">À consommer jusqu'au</span><span>De préférence avant</span></div>
+        <div class="date-big">09 / 11 <small>lundi 9 novembre 2026 · dans 4 jours</small></div>
+        <div class="keys"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div>
+        <div class="quick"><span class="btn">Même date que le précédent</span><span class="btn">Mois et année seuls</span></div>
+        <div class="actions"><span class="btn">Passer</span><span class="btn">2 pots à une autre date…</span><span class="btn primary">Enregistrer</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Page Stock -->
+  <div class="panel wide">
+    <div class="caption">3 · Page Stock, filtre « À consommer » <span>— trié par date, la plus proche d'abord ; une ligne par date (lot)</span></div>
+    <div class="screen">
+      <div class="header"><span class="btn">‹ Accueil</span><h2>Stock</h2><span class="grow"></span><span class="btn primary">Scanner</span></div>
+      <div class="card">
+        <div class="filters"><span class="btn">En stock · 11</span><span class="btn warn on">À consommer · 5</span><span class="btn">Épuisés · 1</span><span class="btn">Tout · 12</span></div>
+        <div class="row"><div class="grow"><div class="name">Crème fraîche épaisse <span class="sub">· 1 sur 2</span></div><div class="sub">Laiterie du Val · 20 cl · rangée lundi</div></div>
+          <span class="pill bad">DLC passée · hier</span><span class="btn">Jeté</span><span class="btn ghost">Encore bon</span></div>
+        <div class="row"><div class="grow"><div class="name">Jambon blanc <span class="sub">· 1 sur 2</span></div><div class="sub">Charcuterie du Val · 4 tranches</div></div>
+          <span class="pill warn">DLC aujourd'hui</span><div class="stepper"><span class="round">−</span><span class="qty">1</span><span class="round">+</span></div></div>
+        <div class="row"><div class="grow"><div class="name">Yaourts nature <span class="sub">· 4</span></div><div class="sub">Ferme des Coteaux · 4 × 125 g</div></div>
+          <span class="pill warn">DLC lundi 9 · dans 4 j</span><div class="stepper"><span class="round">−</span><span class="qty">4</span><span class="round">+</span></div></div>
+        <div class="row"><div class="grow"><div class="name">Carottes des sables</div><div class="sub">Maraîchers du Val · 1 kg · sans date sur le paquet</div></div>
+          <span class="pill est">≈ mardi 10 · estimé (Fruits et légumes, 5 j)</span><div class="stepper"><span class="round">−</span><span class="qty">1</span><span class="round">+</span></div></div>
+        <div class="row"><div class="grow"><div class="name">Biscottes complètes</div><div class="sub">Moulin d'Anjou · 300 g</div></div>
+          <span class="pill">DDM 30/11 · dans 25 j</span><div class="stepper"><span class="round">−</span><span class="qty">1</span><span class="round">+</span></div></div>
+        <div class="note">« Encore bon » : la date reste, l'alerte se tait pour ce lot (utile pour une DDM, déconseillé pour une DLC : demandé une seconde fois). « Jeté » sort ce lot (pas un autre) et passe par la proposition de courses habituelle.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Accueil de la tablette -->
+  <div class="panel">
+    <div class="caption">4 · Accueil de la tablette <span>— le stock est familial : rien de personnel, pas d'auteur</span></div>
+    <div class="screen">
+      <div class="home">
+        <div class="tile"><p class="card-label">Météo</p><div class="name">15° · Couvert</div><div class="sub">Min 9° · Max 16°</div></div>
+        <div class="tile"><p class="card-label">Famille</p><div class="name" style="font-weight:400">Dîner en famille · 20:00</div></div>
+        <div class="tile warn wide"><div class="row" style="border:0;padding:0">
+          <div class="grow"><p class="card-label" style="color:var(--warn)">À consommer</p>
+          <div class="name" style="font-weight:400">Crème fraîche <span class="sub">(hier)</span> · jambon blanc <span class="sub">(aujourd'hui)</span></div>
+          <div class="sub">DLC passée ou dans les 2 jours</div></div><span class="chev">›</span></div></div>
+      </div>
+      <div class="note" style="margin-top:var(--space-2)">Visible seulement s'il y a une DLC passée ou dans les 2 jours ; touchée, elle ouvre la page Stock sur « À consommer ». Les DDM et les dates estimées n'y vont pas.</div>
+    </div>
+  </div>
+
+  <!-- 5. Téléphone -->
+  <div class="panel">
+    <div class="caption">5 · Téléphone <span>— page Stock de la PWA ; puis notification (Web Push, plus tard)</span></div>
+    <div class="phones">
+      <div class="phone">
+        <div class="name" style="font-size:1.4rem">Stock</div>
+        <div class="filters"><span class="pill warn">À consommer · 5</span><span class="pill">En stock</span></div>
+        <div class="card">
+          <div class="row"><div class="grow"><div class="name">Crème fraîche</div><span class="pill bad">DLC passée · hier</span></div></div>
+          <div class="row"><div class="grow"><div class="name">Jambon blanc</div><span class="pill warn">DLC aujourd'hui</span></div></div>
+          <div class="row"><div class="grow"><div class="name">Yaourts nature · 4</div><span class="pill warn">DLC lundi · 4 j</span></div></div>
+        </div>
+      </div>
+      <div class="phone" style="justify-content:flex-start">
+        <div class="sub" style="text-align:center">18:00 · écran verrouillé</div>
+        <div class="push"><div class="icon">H</div><div><div class="name">HomeHub</div>
+          <div class="sub" style="color:var(--fg-soft)">À consommer : jambon blanc aujourd'hui, crème fraîche passée depuis hier.</div></div></div>
+        <div class="note">Une fois par jour au plus, à l'heure choisie, sur les téléphones qui l'ont demandé.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Menu -->
+  <div class="panel wide">
+    <div class="caption">6 · Menu de la semaine <span>— cuisiner d'abord ce qui arrive à date ; une DLC avant le repas ne compte pas comme stock</span></div>
+    <div class="screen">
+      <div class="menu">
+        <div class="card">
+          <p class="card-label">À cuisiner d'abord</p>
+          <div class="row"><div class="grow"><div class="name">Quiche lorraine</div><div class="sub">utilise <span class="tag">crème fraîche (hier)</span>, <span class="tag">jambon blanc (aujourd'hui)</span></div></div><span class="btn primary">Ce soir</span><span class="btn">Demain</span></div>
+          <div class="row"><div class="grow"><div class="name">Gâteau au yaourt</div><div class="sub">utilise <span class="tag">yaourts nature (lundi)</span></div></div><span class="btn">Ajouter</span></div>
+          <div class="note">Recettes du carnet triées par ingrédients reliés à un produit qui arrive à date (lien produit ↔ ingrédient de la 0.51). Jamais ajoutées d'office.</div>
+        </div>
+        <div class="card">
+          <p class="card-label">Courses du menu</p>
+          <div class="row"><div class="grow"><div class="name">Crème fraîche · 20 cl</div><div class="sub">Pour : Tarte aux poireaux (dimanche)</div></div>
+            <span class="pill warn">Le pot en stock finit samedi</span></div>
+          <div class="row"><div class="grow"><div class="name">Lait · 1 l</div><div class="sub">Pour : Crêpes (mardi)</div></div><span class="pill ok">En stock</span></div>
+          <div class="note">Le pot rangé aujourd'hui (DLC samedi 7) ne couvre pas le repas de dimanche : la ligne reste dans les courses, ou « Avancer la tarte à samedi ».</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
