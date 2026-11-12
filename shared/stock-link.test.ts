@@ -1,6 +1,6 @@
 // Tests de la correspondance devinée entre un produit du stock et un ingrédient.
 import { describe, expect, it } from 'vitest';
-import { guessStockLink, nameWords } from './stock-link.ts';
+import { guessStock, guessStockLink, nameWords } from './stock-link.ts';
 
 const KNOWN = [
   { key: 'lait', name: 'lait' },
@@ -41,5 +41,36 @@ describe('guessStockLink', () => {
 
   it('contenance illisible : relié quand même, quantité inconnue', () => {
     expect(guessStockLink(product('Lardons', null), KNOWN)).toEqual({ key: 'lardon', name: 'lardon', per: null });
+  });
+});
+
+describe('guessStock, avec les catégories Open Food Facts', () => {
+  const CARNET = [...KNOWN, { key: 'chocolat', name: 'chocolat' }, { key: 'fromage', name: 'fromage' }, { key: 'gruyere', name: 'gruyère' }, { key: 'poulet', name: 'poulet' }];
+  const withCategories = (name: string, categories: string[] | null, quantity: string | null = '200 g') => ({ name, quantity, category: null, categories });
+
+  it('le nom l’emporte quand il porte l’ingrédient en premier mot', () => {
+    expect(guessStock(withCategories('Gruyère râpé', ['en:cheeses', 'en:grated-cheeses']), CARNET)).toEqual({ link: { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' } }, from: 'name' });
+    expect(guessStock(withCategories('Lait demi-écrémé', ['en:milks'], '1 L'), CARNET)?.from).toBe('name');
+  });
+
+  it('« Chocolat au lait » : les catégories corrigent le nom (chocolat, pas lait)', () => {
+    expect(guessStockLink(withCategories('Chocolat au lait', null), CARNET)?.key).toBe('lait');
+    expect(guessStock(withCategories('Chocolat au lait', ['en:chocolates', 'en:milk-chocolates']), CARNET)).toMatchObject({ link: { key: 'chocolat' }, from: 'category' });
+  });
+
+  it('un nom sans indice (marque, nom de fantaisie) : proposé d’après les catégories', () => {
+    expect(guessStock(withCategories('Fol Épi', ['en:dairies', 'en:cheeses']), CARNET)).toMatchObject({ link: { key: 'fromage', name: 'fromage' }, from: 'category' });
+    expect(guessStock(withCategories('Mélange du chef', ['en:rices', 'en:basmati-rices'], '1 kg'), CARNET)).toEqual({ link: { key: 'riz-basmati', name: 'riz basmati', per: { quantity: 1, unit: 'kg' } }, from: 'category' });
+  });
+
+  it('un ingrédient plus loin dans le nom reste proposé si les catégories n’en disent rien ou le confirment', () => {
+    expect(guessStock(withCategories('Filets de poulet', ['en:meats', 'en:poultries']), CARNET)).toMatchObject({ link: { key: 'poulet' }, from: 'name' });
+    // Nom et catégories d'accord : « d'après le nom ».
+    expect(guessStock(withCategories('Filets de poulet', ['en:chicken-breasts']), CARNET)).toMatchObject({ link: { key: 'poulet' }, from: 'name' });
+    expect(guessStock(withCategories('Aiguillettes nature', ['en:chicken-breasts']), CARNET)).toMatchObject({ link: { key: 'poulet' }, from: 'category' });
+  });
+
+  it('le rayon choisi « ne se mange pas » l’emporte sur tout', () => {
+    expect(guessStock({ ...withCategories('Lait corporel', ['en:milks']), category: 'Hygiène' }, CARNET)).toBeNull();
   });
 });

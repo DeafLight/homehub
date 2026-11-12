@@ -1,9 +1,17 @@
-// Bases libres de produits (Open Food Facts et ses sœurs) : nom, marque et contenance d'un code-barres. Alimentaire
+// Bases libres de produits (Open Food Facts et ses sœurs) : nom, marque, contenance d'un code-barres et, pour
+// l'alimentaire, ses catégories (« en:grated-cheeses », pour deviner l'ingrédient de recette). Alimentaire
 // d'abord, puis hygiène (Open Beauty Facts) et le reste (Open Products Facts : lessive, entretien…). Lecture seule,
 // sans compte ; l'API demande seulement un User-Agent qui dit qui appelle.
+import { cleanCategories } from '../../shared/food-categories.ts';
 import type { ProductInfo } from '../../shared/types.ts';
 
-export type BaseProduct = { info: Partial<ProductInfo> & { name: string }; image: string | null; base: string };
+export type BaseProduct = {
+  info: Partial<ProductInfo> & { name: string };
+  image: string | null;
+  base: string;
+  /** Catégories Open Food Facts, de la plus large à la plus précise ; vide pour les autres bases (hygiène, lessive). */
+  categories: string[];
+};
 
 export type ProductBase = {
   /** Le produit, ou null s'il n'est dans aucune base. Lève une erreur si aucune base n'a répondu. */
@@ -16,7 +24,7 @@ const BASES = [
   { id: 'open-products-facts', host: 'https://world.openproductsfacts.org' },
 ] as const;
 
-const FIELDS = 'product_name_fr,product_name,generic_name_fr,brands,quantity,image_front_small_url';
+const FIELDS = 'product_name_fr,product_name,generic_name_fr,brands,quantity,image_front_small_url,categories_tags';
 
 type RawProduct = {
   product_name_fr?: string;
@@ -25,6 +33,7 @@ type RawProduct = {
   brands?: string;
   quantity?: string;
   image_front_small_url?: string;
+  categories_tags?: unknown;
 };
 
 const clean = (value: string | undefined) => {
@@ -43,6 +52,8 @@ export function toBaseProduct(raw: RawProduct, base: string): BaseProduct {
     },
     image: clean(raw.image_front_small_url),
     base,
+    // Seules les catégories alimentaires servent : celles d'Open Beauty Facts (« fr:laits-corporels ») tromperaient.
+    categories: base === 'open-food-facts' ? cleanCategories(raw.categories_tags) : [],
   };
 }
 

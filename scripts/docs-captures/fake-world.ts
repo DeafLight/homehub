@@ -141,17 +141,28 @@ export const DOCS_PRODUCTS = {
   riz: '3000000000069',
 } as const;
 export const DOCS_UNKNOWN = '3000000000076';
-/** Produits du placard reliés aux ingrédients des recettes (menu de la semaine). */
-export const DOCS_FOOD = { lentilles: '3000000000083', carottes: '3000000000090', gruyere: '3000000000106' } as const;
-const PRODUCT_BASES: Record<string, Record<string, Record<string, string>>> = {
+/**
+ * Produits du placard reliés aux ingrédients des recettes (menu de la semaine). Le thon (« Miettes au naturel ») n'a
+ * rien de reconnaissable dans son nom : il est proposé d'après sa catégorie Open Food Facts.
+ */
+export const DOCS_FOOD = { lentilles: '3000000000083', carottes: '3000000000090', gruyere: '3000000000106', thon: '3000000000113' } as const;
+/** Catégories inventées dans la forme d'Open Food Facts (de la plus large à la plus précise). */
+const categories = (...tags: string[]) => tags;
+const PRODUCT_BASES: Record<string, Record<string, Record<string, string | string[]>>> = {
   'world.openfoodfacts.org': {
-    [DOCS_PRODUCTS.lait]: { product_name_fr: 'Lait demi-écrémé', brands: 'Laiterie du Val', quantity: '1 L' },
-    [DOCS_PRODUCTS.pates]: { product_name_fr: 'Coquillettes', brands: 'Moulin d’Anjou', quantity: '500 g' },
+    [DOCS_PRODUCTS.lait]: { product_name_fr: 'Lait demi-écrémé', brands: 'Laiterie du Val', quantity: '1 L', categories_tags: categories('en:dairies', 'en:milks', 'en:semi-skimmed-milks') },
+    [DOCS_PRODUCTS.pates]: { product_name_fr: 'Coquillettes', brands: 'Moulin d’Anjou', quantity: '500 g', categories_tags: categories('en:cereals-and-potatoes', 'en:pastas', 'fr:coquillettes') },
     [DOCS_PRODUCTS.cafe]: { product_name_fr: 'Café moulu pur arabica', brands: 'Torréfaction des Halles', quantity: '250 g' },
     [DOCS_PRODUCTS.riz]: { product_name_fr: 'Riz basmati', brands: 'Moulin d’Anjou', quantity: '1 kg' },
     [DOCS_FOOD.lentilles]: { product_name_fr: 'Lentilles vertes', brands: 'Moulin d’Anjou', quantity: '500 g' },
     [DOCS_FOOD.carottes]: { product_name_fr: 'Carottes des sables', brands: 'Maraîchers du Val', quantity: '1 kg' },
-    [DOCS_FOOD.gruyere]: { product_name_fr: 'Gruyère râpé', brands: 'Fromagerie du Val', quantity: '200 g' },
+    [DOCS_FOOD.gruyere]: { product_name_fr: 'Gruyère râpé', brands: 'Fromagerie du Val', quantity: '200 g', categories_tags: categories('en:dairies', 'en:cheeses', 'en:grated-cheeses') },
+    [DOCS_FOOD.thon]: {
+      product_name_fr: 'Miettes au naturel',
+      brands: 'Conserverie de l’Estuaire',
+      quantity: '140 g',
+      categories_tags: categories('en:seafood', 'en:fishes', 'en:canned-fishes', 'en:tunas', 'en:canned-tunas'),
+    },
   },
   'world.openbeautyfacts.org': {
     [DOCS_PRODUCTS.shampooing]: { product_name_fr: 'Shampooing doux', brands: 'Bain de Loire', quantity: '250 ml' },

@@ -261,7 +261,8 @@ await call(L, 'POST', `/recipes/${lentilles.id}/notes`, { text: 'Super avec du r
 // Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont une sans jour ; trois produits du placard
 // reliés aux ingrédients (lentilles en stock en quantité suffisante, carottes au kilo contre des carottes à la pièce :
 // à vérifier, et un seul paquet de gruyère râpé, qui s'utilise en plusieurs fois, pour les galettes et les pâtes :
-// « à vérifier au placard », 160 g arrondis à un paquet de 200 g), les coquillettes encore à relier ; les œufs cochés
+// « à vérifier au placard », 160 g arrondis à un paquet de 200 g), les coquillettes et le thon (deviné d'après sa
+// catégorie Open Food Facts) encore à relier ; les œufs cochés
 // « j'en ai déjà ». « Lait » et « Pâtes » sont déjà sur la liste, écrits à la main : ils l'emportent sur les lignes du menu.
 type Summary = { id: string; title: string };
 const carnet = ((await call(A, 'GET', '/recipes')) as { recipes: Summary[] }).recipes;
@@ -277,6 +278,8 @@ for (const code of Object.values(DOCS_FOOD)) await call(A, 'GET', `/stock/scan/$
 await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.lentilles, count: 2, price: 2.1 });
 await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.carottes, count: 1, price: 1.6 });
 await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.gruyere, count: 1, price: 2.4 });
+// Boîte de thon au nom sans indice : proposée pour le thon d'après sa catégorie Open Food Facts, pas encore reliée.
+await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.thon, count: 2, price: 1.9 });
 await call(A, 'PUT', `/menu/links/${DOCS_FOOD.gruyere}`, { link: { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' } } });
 
 await call(A, 'PUT', `/menu/links/${DOCS_FOOD.lentilles}`, { link: { key: 'lentille-verte', name: 'lentille verte', per: { quantity: 500, unit: 'g' } } });
@@ -491,6 +494,11 @@ await shoot('telephone-menu-stock', `${BASE}/m/menu`, PHONE, {
   init: asPhone('alex'),
   // Ouvre « Stock et ingrédients » et descend aux produits déjà reliés (gruyère : « s'utilise en plusieurs fois »).
   after: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('à relier'))?.click(); setTimeout(() => [...document.querySelectorAll('[role=dialog] h3')].find((h) => h.textContent.includes('Déjà reliés'))?.scrollIntoView({ block: 'start' }), 400)`,
+});
+// Propositions à confirmer : le thon (« Miettes au naturel ») deviné d'après sa catégorie Open Food Facts.
+await shoot('telephone-menu-stock-categorie', `${BASE}/m/menu`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('à relier'))?.click(); setTimeout(() => [...document.querySelectorAll('[role=dialog] h3')].find((h) => h.textContent.includes('À confirmer'))?.scrollIntoView({ block: 'start' }), 400)`,
 });
 await shoot('telephone-recettes', `${BASE}/m/recettes`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-recette', `${BASE}/m/recette/${lentilles.id}`, PHONE, { init: asPhone('alex') });

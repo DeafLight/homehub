@@ -637,6 +637,8 @@ export type Product = {
   conflict: ProductInfo | null;
   /** Dernière lecture de la base, s'il y en a eu une. */
   baseReadAt: string | null;
+  /** Catégories Open Food Facts copiées à la lecture de la base (« en:milks »…) ; null : jamais copiées. */
+  categories: string[] | null;
 };
 
 /** Contenant de la maison (bidon de lessive, bocal à farine…), avec son étiquette à code-barres. */

@@ -224,7 +224,7 @@ describe('API du menu : liste de courses', () => {
     const before = await view();
     // 1 l par brique, 50 cl au plus dans une recette : deviné « s'utilise en plusieurs fois ».
     expect(before.stock).toEqual([
-      { code: LAIT, name: 'Lait demi-écrémé', quantity: '1 L', count: 2, link: { key: 'lait', name: 'lait', per: { quantity: 1, unit: 'l' } }, decided: false, partial: true, partialGuessed: true },
+      { code: LAIT, name: 'Lait demi-écrémé', quantity: '1 L', count: 2, link: { key: 'lait', name: 'lait', per: { quantity: 1, unit: 'l' } }, decided: false, partial: true, partialGuessed: true, byCategory: false },
     ]);
     // Proposition pas encore confirmée : rien n'est retiré.
     expect(await labels()).toContain('Lait · 50 cl');
@@ -249,6 +249,20 @@ describe('API du menu : liste de courses', () => {
     await call('PUT', `/menu/links/${product.code}`, { token: alex, body: { link: proposed.link } });
     expect(await labels()).not.toContain('Lait · 50 cl');
     expect((await view()).plan.find((l) => l.key === 'lait')).toMatchObject({ status: 'stock', stock: { enough: true } });
+  });
+
+  it('un nom sans indice : proposé d’après ses catégories Open Food Facts, jamais relié d’office', async () => {
+    const { call, alex, add, labels, view, stock, by, mijote } = await setup();
+    const info = { name: 'Brique UHT', brand: 'Laiterie du Val', quantity: '1 L', category: null };
+    await stock.saveFromBase(LAIT, { info, image: null, base: 'open-food-facts', categories: ['en:dairies', 'en:milks', 'en:semi-skimmed-milks'] });
+    await stock.add(LAIT, 1, null, by);
+    await add(mijote.id, 4);
+    expect((await view()).stock).toMatchObject([{ code: LAIT, link: { key: 'lait', name: 'lait' }, decided: false, byCategory: true }]);
+    expect(await labels()).toContain('Lait · 50 cl');
+    // Confirmé : relié comme un autre, plus marqué « d'après sa catégorie ».
+    await call('PUT', `/menu/links/${LAIT}`, { token: alex, body: { link: (await view()).stock[0].link } });
+    expect(await labels()).not.toContain('Lait · 50 cl');
+    expect((await view()).stock).toMatchObject([{ code: LAIT, decided: true, byCategory: false }]);
   });
 });
 

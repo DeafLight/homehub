@@ -95,8 +95,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   jamais touchée (seul le complément revient, sur une nouvelle ligne), une ligne ajoutée à la main pour le même
   ingrédient l'emporte, et retirer une ligne du menu vaut « j'en ai déjà » pour la semaine. **J'en ai déjà** : les
   placards (sel, poivre, huile, eau ; liste modifiable) ne sont jamais demandés ; « J'en ai déjà » se coche par
-  ingrédient et par semaine ; d'après le **stock**, un produit relié à un ingrédient (deviné par les mots du nom et la
-  contenance, confirmé une fois puis retenu par produit, « Changer », « Pas un ingrédient ») retire la ligne quand il y
+  ingrédient et par semaine ; d'après le **stock**, un produit relié à un ingrédient (deviné par les mots du nom, les
+  catégories Open Food Facts copiées au scan et la contenance, toujours une proposition, confirmée une fois puis
+  retenue par produit, « Changer », « Pas un ingrédient ») retire la ligne quand il y
   en a assez (« en stock (1 kg) »), ne demande que la différence sinon, et le signale sans trancher quand les unités ne
   se comparent pas (« 1 oignon » contre « 1 kg »). Un produit qui **s'utilise en plusieurs fois** (gruyère, farine,
   beurre : deviné quand un paquet couvre plus que le plus grand besoin d'une recette du carnet, réglable dans « Stock
@@ -397,7 +398,12 @@ Les **produits** viennent des bases libres [Open Food Facts](https://world.openf
 (hygiène) et Open Products Facts (lessive, entretien…) : sans compte, avec un User-Agent qui nomme HomeHub ; seul le
 code-barres leur est envoyé. Chaque produit trouvé est copié dans `stock.json` : la base n'est relue qu'au scan d'un
 produit lu il y a plus de 180 jours, ou sur « Revérifier ». Ce qui a été corrigé à la main l'emporte : une relecture
-qui le contredit est signalée sur la fiche (garder la nôtre ou prendre la base), jamais appliquée d'office.
+qui le contredit est signalée sur la fiche (garder la nôtre ou prendre la base), jamais appliquée d'office. Les
+**catégories** d'Open Food Facts (`categories_tags`, alimentaire seulement) sont copiées avec la fiche ; une fiche lue
+avant la 0.62 est relue une fois, à son prochain scan. Elles servent à proposer l'ingrédient relié quand le nom ne
+suffit pas (« Miettes au naturel » → thon ; « Chocolat au lait » → chocolat, pas lait) : règles et table des
+catégories dans `shared/food-categories.ts`, ordre des indices dans `shared/stock-link.ts`. Le nom l'emporte quand il
+porte l'ingrédient en premier mot (« Gruyère râpé » → gruyère, pas fromage).
 
 Les **recettes** sont lues sur la page partagée, chez son site : une seule demande (et une pour la photo), avec un
 User-Agent qui nomme HomeHub, seulement quand quelqu'un importe. Le serveur refuse les adresses locales ou privées

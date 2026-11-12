@@ -12,6 +12,7 @@ const product = (over: Partial<Product> = {}): Product => ({
   refill: null,
   conflict: null,
   baseReadAt: null,
+  categories: null,
   ...over,
 });
 

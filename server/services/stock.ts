@@ -53,7 +53,7 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
     const found = await productBase.find(code);
     if (!found) return null;
     const { name, brand = null, quantity = null } = found.info;
-    return { info: { name, brand, quantity, category: null }, image: found.image, base: found.base };
+    return { info: { name, brand, quantity, category: null }, image: found.image, base: found.base, categories: found.categories };
   }
 
   /** Produit épuisé : ajouté d'office à la liste de courses, ou proposé. Déjà sur la liste : rien à faire. */

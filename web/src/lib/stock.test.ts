@@ -29,6 +29,7 @@ const product = (over: Partial<Product['current']> = {}, versionCount = 1): Prod
   refill: null,
   conflict: null,
   baseReadAt: null,
+  categories: null,
 });
 
 describe('libellés du stock', () => {

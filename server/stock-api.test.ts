@@ -56,7 +56,7 @@ function setup(catalog: Record<string, BaseProduct | 'error'> = {}) {
   return { call, asked, shopping, sessions, later, laterMinutes, phone };
 }
 
-const compote: BaseProduct = { info: { name: 'Purée de pomme', brand: 'Carrefour Kids', quantity: '4 x 90 g' }, image: 'https://img/1.jpg', base: 'open-food-facts' };
+const compote: BaseProduct = { info: { name: 'Purée de pomme', brand: 'Carrefour Kids', quantity: '4 x 90 g' }, image: 'https://img/1.jpg', base: 'open-food-facts', categories: [] };
 
 describe('API du stock', () => {
   it('note l’heure et qui a scanné : personne reconnue devant la tablette, sinon anonyme', async () => {
@@ -164,7 +164,7 @@ describe('API du stock', () => {
   });
 
   it('recharge transvasée : l’emballage sort, le produit reste dans le contenant, retenu pour la suite', async () => {
-    const { call, shopping } = setup({ [LESSIVE]: { info: { name: 'Lessive liquide', brand: 'X', quantity: '1,5 L' }, image: null, base: 'open-products-facts' } });
+    const { call, shopping } = setup({ [LESSIVE]: { info: { name: 'Lessive liquide', brand: 'X', quantity: '1,5 L' }, image: null, base: 'open-products-facts', categories: [] } });
     await call('GET', `/stock/scan/${LESSIVE}`);
     const bidon = await call<{ id: string; code: string }>('POST', '/stock/containers', { name: 'Bidon de lessive' });
     expect(bidon.json.code).toMatch(/^29/u);

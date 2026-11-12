@@ -29,7 +29,7 @@ import {
 import { isLooseCode } from '../../shared/barcode.ts';
 import type { Recipe } from '../../shared/recipes.ts';
 import type { Quantities } from '../../shared/quantities.ts';
-import { guessPartial, guessStockLink, type KnownIngredient } from '../../shared/stock-link.ts';
+import { guessPartial, guessStock, type KnownIngredient } from '../../shared/stock-link.ts';
 import { localDay } from '../../shared/dates.ts';
 import type { Author, ShoppingItem, ShoppingLater, ShoppingMenuMark, StockData } from '../../shared/types.ts';
 import type { ListsStore } from '../sources/lists.ts';
@@ -132,12 +132,13 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     const largest = largestOf(snap);
     const products: MenuStockProduct[] = [];
     for (const item of snap.stock.items) {
-      const { code, current } = item.product;
+      const { code, current, categories } = item.product;
       const decided = code in snap.menu.links;
-      const link = decided ? snap.menu.links[code] : guessStockLink(current, known);
+      const guess = decided ? null : guessStock({ ...current, categories }, known);
+      const link = decided ? snap.menu.links[code] : (guess?.link ?? null);
       if (!decided && (!link || item.quantity === 0)) continue;
       const partialGuessed = link?.partial === undefined;
-      products.push({ code, name: current.name, quantity: current.quantity, count: item.quantity, link, decided, partial: partialOf(code, link, largest), partialGuessed });
+      products.push({ code, name: current.name, quantity: current.quantity, count: item.quantity, link, decided, partial: partialOf(code, link, largest), partialGuessed, byCategory: guess?.from === 'category' });
     }
     const rank = (p: MenuStockProduct) => (!p.decided && p.link && weekKeys.has(p.link.key) ? 0 : !p.decided ? 1 : 2);
     return products.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr'));

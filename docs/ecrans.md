@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.61.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.62.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -315,7 +315,9 @@ publicité, « Vous aimerez aussi », commentaires) partagé vers HomeHub : l'ap
 Depuis les onglets Courses et Recettes : le menu en une colonne, puis ses courses. Un parent ajoute une recette (nombre
 de personnes, jour), la règle ou la retire d'un geste (croix, « Annuler » quelques secondes) ; un enfant le voit sans le
 modifier : « À vérifier au placard » s'affiche, sans les boutons. « Stock » propose de relier un produit à un
-ingrédient : deviné d'après le nom et la contenance, confirmé une fois, puis retenu ; « S'utilise en plusieurs fois »
+ingrédient : deviné d'après le nom, les catégories Open Food Facts et la contenance, confirmé une fois, puis retenu (la
+boîte « Miettes au naturel » est proposée pour le thon « d'après sa catégorie Open Food Facts », jamais reliée
+d'office) ; « S'utilise en plusieurs fois »
 est deviné (« deviné ») et se change d'une case. Sur la liste de courses, la ligne du gruyère dit « À vérifier : paquet
 peut-être entamé ». Les frais d'un repas tardif attendent « À acheter plus tard », dans le menu comme en bas de la
 liste de courses, par jour d'achat (« Demain », « Dimanche 8 »), avec « Acheter maintenant » pour un parent.
@@ -324,6 +326,10 @@ liste de courses, par jour d'achat (« Demain », « Dimanche 8 »), avec « Ach
 | Menu | Ajouter une recette | Stock et ingrédients |
 |---|---|---|
 | ![Menu](images/telephone-menu.png) | ![Ajouter une recette](images/telephone-menu-ajout.png) | ![Stock et ingrédients](images/telephone-menu-stock.png) |
+
+| Proposition d'après la catégorie |
+|---|
+| ![Thon proposé d'après sa catégorie](images/telephone-menu-stock-categorie.png) |
 
 <img src="images/telephone-menu-placard.png" width="260" alt="À vérifier au placard, vu par un enfant"> <img src="images/telephone-courses-verifier.png" width="260" alt="Liste de courses : gruyère à vérifier, arrondi au paquet">
 

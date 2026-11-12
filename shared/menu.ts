@@ -598,6 +598,8 @@ export type MenuStockProduct = {
   /** S'utilise en plusieurs fois : valeur du lien, ou devinée quand `partialGuessed`. */
   partial: boolean;
   partialGuessed: boolean;
+  /** Proposition (pas encore décidée) devinée d'après les catégories Open Food Facts plutôt que le nom. */
+  byCategory: boolean;
 };
 
 

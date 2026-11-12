@@ -1,5 +1,5 @@
 // Tests des règles du stock sans HTTP : code scanné, base de produits, suite sur la liste de courses, annulation.
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -34,12 +34,32 @@ function setup(catalog: Record<string, BaseProduct | 'error'> = {}, withBase = t
     logger: { error: (m: string) => void errors.push(m) },
     ...(withBase && { productBase }),
   });
-  return { service, stock, lists, errors };
+  return { service, stock, lists, errors, dir };
 }
 
-const compote: BaseProduct = { info: { name: 'Compote pomme', brand: 'Verger', quantity: '4 x 100 g' }, image: null, base: 'open-food-facts' };
+const compote: BaseProduct = { info: { name: 'Compote pomme', brand: 'Verger', quantity: '4 x 100 g' }, image: null, base: 'open-food-facts', categories: [] };
 
 describe('createStockService', () => {
+  it('scan : les catégories Open Food Facts sont copiées ; une fiche lue avant est relue une seule fois', async () => {
+    const asked: string[] = [];
+    const categories = ['en:plant-based-foods', 'en:compotes'];
+    const first = setup({ [COMPOTE]: compote });
+    await first.service.scan(COMPOTE);
+    // Fiche d'avant la copie des catégories : on retire le champ du fichier, comme une ancienne version l'écrivait.
+    const path = join(first.dir, 'stock.json');
+    const file = JSON.parse(readFileSync(path, 'utf8'));
+    delete file.products[COMPOTE].categories;
+    writeFileSync(path, JSON.stringify(file));
+    const stock = createStockStore({ path, clock: fixedClock });
+    const lists = createListsStore({ path: join(first.dir, 'lists.json'), clock: fixedClock });
+    const productBase = { find: async (code: string) => (asked.push(code), { ...compote, categories }) };
+    const service = createStockService({ stock, lists, clock: fixedClock, productBase });
+    expect((await stock.product(COMPOTE))?.categories).toBeNull();
+    expect(await service.scan(COMPOTE)).toMatchObject({ kind: 'product', product: { categories } });
+    await service.scan(COMPOTE);
+    expect(asked).toEqual([COMPOTE]);
+  });
+
   it('scan : produit trouvé dans la base, enregistré, puis connu', async () => {
     const { service, stock } = setup({ [COMPOTE]: compote });
     const lookup = await service.scan(COMPOTE);
@@ -48,7 +68,7 @@ describe('createStockService', () => {
   });
 
   it('scan : inconnu, avec la suggestion de la base quand elle n’a pas de nom ; base en panne signalée', async () => {
-    const { service, errors } = setup({ [MYSTERE]: { info: { name: '', brand: 'Marque' }, image: null, base: 'x' }, [COMPOTE]: 'error' });
+    const { service, errors } = setup({ [MYSTERE]: { info: { name: '', brand: 'Marque' }, image: null, base: 'x', categories: [] }, [COMPOTE]: 'error' });
     expect(await service.scan(MYSTERE)).toEqual({ kind: 'unknown', code: MYSTERE, suggestion: { brand: 'Marque', quantity: null }, baseError: false });
     expect(await service.scan(COMPOTE)).toEqual({ kind: 'unknown', code: COMPOTE, suggestion: null, baseError: true });
     expect(errors).toHaveLength(1);

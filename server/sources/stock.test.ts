@@ -10,7 +10,7 @@ const by = { ownerId: 'alex', via: 'tablet' as const };
 const tempPath = () => join(mkdtempSync(join(tmpdir(), 'homehub-stock-')), 'stock.json');
 const store = () => createStockStore({ path: tempPath(), clock: fixedClock });
 const pasta = { name: 'Pâtes', brand: 'Marque A', quantity: '500 g', category: null };
-const reading = (info = pasta) => ({ info, image: null, base: 'open-food-facts' });
+const reading = (info = pasta) => ({ info, image: null, base: 'open-food-facts', categories: [] as string[] });
 
 describe('fiches des produits', () => {
   it('garde une version par changement venu de la base, et le rayon choisi à la main', async () => {
@@ -44,6 +44,20 @@ describe('fiches des produits', () => {
     expect(needsBaseRead(read, NOW)).toBe(false);
     expect(needsBaseRead(read, later)).toBe(true);
     expect(needsBaseRead(manual, later)).toBe(false);
+  });
+
+  it('copie les catégories de la base ; une fiche lue avant qu’on les copie est relue une fois', async () => {
+    const s = store();
+    const read = await s.saveFromBase('111', { ...reading(), categories: ['en:cereals-and-potatoes', 'en:pastas'] });
+    expect(read.categories).toEqual(['en:cereals-and-potatoes', 'en:pastas']);
+    expect(needsBaseRead(read, NOW)).toBe(false);
+    // Fiche d'avant 0.62 : lue, sans catégories copiées.
+    expect(needsBaseRead({ ...read, categories: null }, NOW)).toBe(true);
+    // Relue sans catégories (hygiène, lessive…) : liste vide, plus de relecture.
+    const empty = await s.saveFromBase('111', reading());
+    expect(empty.categories).toEqual([]);
+    expect(needsBaseRead(empty, NOW)).toBe(false);
+    expect((await s.saveManual('222', pasta)).categories).toBeNull();
   });
 });
 

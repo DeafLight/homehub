@@ -48,6 +48,8 @@ const fileSchema = z.object({
       refill: z.string().nullable(),
       conflict: infoSchema.nullable(),
       baseReadAt: z.string().nullable(),
+      /** Catégories Open Food Facts (absent : fiche lue avant qu'on les copie). */
+      categories: z.array(z.string()).optional(),
     }),
   ),
   stock: z.record(z.string(), z.object({ quantity: z.number().int().min(0), updatedAt: z.string() })),
@@ -90,7 +92,7 @@ type StoredProduct = StockFile['products'][string];
 type Movement = StockFile['movements'][number];
 type StoredContainer = z.infer<typeof containerSchema>;
 
-export type BaseReading = { info: ProductInfo; image: string | null; base: string };
+export type BaseReading = { info: ProductInfo; image: string | null; base: string; categories: string[] };
 
 /** Ce qu'a donné une sortie, avant la décision sur la liste de courses (prise par l'API). */
 export type OutResult = {
@@ -176,6 +178,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
       refill: stored.refill,
       conflict: stored.conflict,
       baseReadAt: stored.baseReadAt,
+      categories: stored.categories ?? null,
     };
   }
 
@@ -261,16 +264,17 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         return found ? toContainer(file, found) : null;
       }),
 
-    saveFromBase(code, { info, image, base }) {
+    saveFromBase(code, { info, image, base, categories }) {
       return change((file, now) => {
         const stored = file.products[code];
         const version = { ...info, from: now.toISOString(), source: 'base' as const, base };
         if (!stored) {
-          file.products[code] = { versions: [version], image, autoShop: null, refill: null, conflict: null, baseReadAt: now.toISOString() };
+          file.products[code] = { versions: [version], image, autoShop: null, refill: null, conflict: null, baseReadAt: now.toISOString(), categories };
           return productOf(file, code) as Product;
         }
         stored.baseReadAt = now.toISOString();
         stored.image = image ?? stored.image;
+        stored.categories = categories;
         const current = stored.versions.at(-1) as StoredProduct['versions'][number];
         // Le rayon est le nôtre : la base n'en donne pas.
         const incoming = { ...info, category: current.category };
@@ -497,9 +501,13 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
   };
 }
 
-/** Fiche à relire dans la base : jamais lue, ou lue il y a plus de BASE_REREAD_DAYS jours. */
+/**
+ * Fiche à relire dans la base : jamais lue, lue il y a plus de BASE_REREAD_DAYS jours, ou lue avant qu'on copie les
+ * catégories (une seule fois : ensuite elles sont copiées, même vides).
+ */
 export function needsBaseRead(product: Product | null, now: Date): boolean {
   if (!product) return true;
   if (!product.baseReadAt) return false; // saisi à la main, jamais trouvé dans la base : on ne redemande pas à chaque scan
+  if (product.categories === null) return true;
   return now.getTime() - Date.parse(product.baseReadAt) > BASE_REREAD_DAYS * 86_400_000;
 }

@@ -4,8 +4,8 @@
   import { formatAmount } from '../../../../shared/quantities.ts';
   import { PACKAGE_UNITS } from '../../lib/menu.ts';
 
-  // Relier les produits du stock aux ingrédients des recettes : la correspondance devinée (mots du nom, contenance)
-  // se confirme une fois, puis elle est retenue par produit ; « Changer » choisit un autre ingrédient ou une autre
+  // Relier les produits du stock aux ingrédients des recettes : la correspondance devinée (mots du nom, catégories
+  // Open Food Facts, contenance) se confirme une fois, puis elle est retenue par produit ; « Changer » choisit un autre ingrédient ou une autre
   // contenance, « Pas un ingrédient » ne le propose plus. Ce qui est relié et en stock est retiré des courses.
   // « S'utilise en plusieurs fois » (deviné tant qu'on n'y a pas touché) : un paquet est peut-être entamé, il n'est
   // pas compté sûr et l'ingrédient peut passer « À vérifier au placard ».
@@ -89,6 +89,7 @@
         <p class="link">
           {#if product.link}→ {describe(product.link)}{:else}Pas un ingrédient{/if}
         </p>
+        {#if product.byCategory}<p class="muted">Deviné d’après sa catégorie Open Food Facts</p>{/if}
         {#if product.link?.per}
           {#if product.decided && editable}
             <label class="partial">

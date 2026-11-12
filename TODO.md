@@ -45,9 +45,12 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [x] Suite du menu : **frais à acheter plus tard dans la semaine** (0.57.0) : crèmerie, boucherie, fruits et
       légumes d'un repas prévu plus de 3 jours après aujourd'hui attendent « À acheter plus tard », puis rejoignent
       la liste 3 jours avant le repas ; « Acheter maintenant » ; seule la part du repas tardif attend.
-- [ ] Suites du menu : catégories Open Food Facts pour deviner un produit relié (seuls le nom, le rayon choisi et la
-      contenance servent) ; « brique de crème fraîche » rangée en Autres (unité « brique » à reconnaître) ; capture
-      d'une semaine passée.
+- [x] Suite du menu : **catégories Open Food Facts pour deviner un produit relié** (0.62.0) : copiées au scan
+      (alimentaire seulement ; fiche plus ancienne relue une fois), elles proposent l'ingrédient quand le nom ne suffit
+      pas (« Miettes au naturel » → thon, « Chocolat au lait » → chocolat) ; toujours une proposition, marquée
+      « d'après sa catégorie Open Food Facts ».
+- [ ] Suites du menu : « brique de crème fraîche » rangée en Autres (unité « brique » à reconnaître) ; capture d'une
+      semaine passée.
 - [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (toujours jamais d'office en 0.52 :
 
       à proposer, ingrédient par ingrédient, et annulable).
