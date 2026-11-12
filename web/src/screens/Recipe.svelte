@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
+  import { canChangeNote, isOpen, type NotePatch, type RecipeNote } from '../../../shared/recipe-notes.ts';
   import type { Recipe, RecipeContent } from '../../../shared/recipes.ts';
   import Icon from '../components/Icon.svelte';
   import KitchenMode from '../components/recipes/KitchenMode.svelte';
   import RecipeEditor from '../components/recipes/RecipeEditor.svelte';
+  import RecipeNotes from '../components/recipes/RecipeNotes.svelte';
   import RecipeView from '../components/recipes/RecipeView.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
@@ -12,7 +14,8 @@
   import { detailPath, phonePath, phoneRecipePath, recipePath, type RecipeMode } from '../lib/route.ts';
 
   // Une recette du carnet : sa fiche, son édition (notre version, une nouvelle recette saisie à la main, ou l'aperçu
-  // d'un texte collé ou d'une page enregistrée), et sur la tablette le mode cuisine. La page garde les données et les appels ; l'affichage est dans components/recipes/.
+  // d'un texte collé ou d'une page enregistrée), ses notes de la famille, et sur la tablette le mode cuisine (qui
+  // rappelle les notes ouvertes). La page garde les données et les appels ; l'affichage est dans components/recipes/.
   // Sur la tablette, modifier demande quelqu'un de reconnu ; sur le téléphone, son profil agit. Le serveur décide.
   type Props = { id: string | null; mode: RecipeMode; phone?: boolean };
   let { id, mode, phone = false }: Props = $props();
@@ -21,9 +24,36 @@
   const pairing = untrack(() => (phone ? loadPairing() : null));
   const phoneMember = config.members.find((m) => m.id === pairing?.ownerId);
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
+  const colorOf = (ownerId: string) => config.members.find((m) => m.id === ownerId)?.color ?? 'var(--surface-2)';
 
   const recipe = createResource<Recipe | null>(async () => (id ? api.recipe(id) : null), 5 * 60_000);
   onDestroy(() => recipe.destroy());
+
+  // Notes de la famille : relues avec la fiche (une note laissée depuis un téléphone apparaît à la tablette).
+  const noteList = createResource<RecipeNote[]>(async () => (id ? (await api.recipeNotes(id)).notes : []), 60_000);
+  onDestroy(() => noteList.destroy());
+  const openNotes = $derived((noteList.data ?? []).filter(isOpen));
+  let notesError = $state<string | null>(null);
+
+  /**
+   * Appel sur une note : la liste revient du serveur ; vrai si tout s'est bien passé. Sur la tablette, attend
+   * quelqu'un de reconnu qui en a le droit ; le téléphone agit pour son profil.
+   */
+  async function onNote(ownerId: string | null, action: () => Promise<unknown>): Promise<boolean> {
+    if (!phone && !(await actor.allow(ownerId))) return false;
+    notesError = null;
+    try {
+      await action();
+      noteList.set(id ? (await api.recipeNotes(id)).notes : []);
+      return true;
+    } catch (err) {
+      notesError = (err as Error).message;
+      return false;
+    }
+  }
+  const addNote = (text: string) => onNote(null, () => api.addRecipeNote(id ?? '', text));
+  const changeNote = (note: RecipeNote, patch: NotePatch) => onNote(note.by.ownerId, () => api.changeRecipeNote(note.recipeId, note.id, patch));
+  const removeNote = (note: RecipeNote) => onNote(note.by.ownerId, () => api.removeRecipeNote(note.recipeId, note.id));
 
   // Saisie à la main après un import illisible : titre prérempli, lien gardé. Ou aperçu d'un texte collé ou d'une
   // page enregistrée : ce qui a été compris, à corriger avant d'enregistrer (le serveur garde la source en attendant).
@@ -114,7 +144,7 @@
 
 <div class="recipe-page" class:phone class:cook={mode === 'cook'}>
   {#if mode === 'cook' && recipe.data && !phone}
-    <KitchenMode recipe={recipe.data} {servings} onTimer={startTimer} onExit={() => navigate(pathOf(id, 'view'))} />
+    <KitchenMode recipe={recipe.data} {servings} notes={openNotes} nameOf={(ownerId) => nameOf(ownerId) ?? ownerId} onTimer={startTimer} onExit={() => navigate(pathOf(id, 'view'))} />
   {:else}
     <header>
       {#if mode === 'edit'}
@@ -162,7 +192,23 @@
         {rereading}
         onCook={phone ? undefined : () => navigate(pathOf(data.id, 'cook'))}
         onTimer={phone ? undefined : startTimer}
-      />
+        openNotes={openNotes.length}
+      >
+        {#snippet notes()}
+          <RecipeNotes
+            notes={noteList.data ?? (noteList.error ? [] : null)}
+            {phone}
+            canAdd={phone ? phoneMember !== undefined : true}
+            canChange={(note) => (phone ? canChangeNote(phoneMember, note) : true)}
+            nameOf={(ownerId) => nameOf(ownerId) ?? ownerId}
+            {colorOf}
+            error={notesError}
+            onAdd={addNote}
+            onChange={changeNote}
+            onRemove={removeNote}
+          />
+        {/snippet}
+      </RecipeView>
     {:else if recipe.error}
       <p class="muted">Impossible d’ouvrir la recette : {recipe.error}</p>
     {:else}

@@ -1,9 +1,10 @@
 // Tests de la logique du carnet côté front : recherche, lignes à l'échelle, étapes, édition, partage (lien, texte, page
-// enregistrée), aperçu d'un import, relecture.
+// enregistrée), aperçu d'un import, relecture, signature des notes.
 import { describe, expect, it } from 'vitest';
 import { ingredientLines, type RecipeContent, type RecipeSummary } from '../../../shared/recipes.ts';
 import {
   canEditRecipe,
+  noteMeta,
   changeServings,
   contentProblem,
   rereadMessage,
@@ -183,5 +184,19 @@ describe('rereadMessage', () => {
     expect(rereadMessage(['étapes'], [])).toBe('Repris de la page : étapes.');
     expect(rereadMessage(['ingrédients', 'étapes', 'temps'], ['titre'])).toBe('Repris de la page : ingrédients, étapes et temps. Notre version gardée pour : titre.');
     expect(rereadMessage([], [])).toBe('Rien de nouveau sur la page.');
+  });
+});
+
+describe('signature des notes', () => {
+  const now = new Date(2026, 10, 5, 19, 0);
+  const names: Record<string, string> = { tom: 'Tom', alex: 'Alex' };
+  const nameOf = (id: string) => names[id] ?? id;
+  const base = { id: 'n', recipeId: 'r', text: 'Moins salé', by: { ownerId: 'tom', via: 'phone' as const }, at: new Date(2026, 10, 5, 18, 55).toISOString() };
+
+  it('qui et quand, modifiée, résolue par qui', () => {
+    expect(noteMeta(base, nameOf, now)).toBe('Tom · il y a 5 min');
+    expect(noteMeta({ ...base, editedAt: now.toISOString() }, nameOf, now)).toBe('Tom · il y a 5 min · modifiée');
+    const resolved = { ...base, resolvedAt: new Date(2026, 10, 4, 18, 30).toISOString(), resolvedBy: { ownerId: 'alex', via: 'tablet' as const } };
+    expect(noteMeta(resolved, nameOf, now)).toBe('Tom · il y a 5 min — résolue par Alex hier à 18:30');
   });
 });

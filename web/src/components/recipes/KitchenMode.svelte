@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { notesBadge, type RecipeNote } from '../../../../shared/recipe-notes.ts';
   import type { Recipe } from '../../../../shared/recipes.ts';
   import { createWakeLock } from '../../lib/wake-lock.ts';
   import { durationText, servingsText, shownIngredients, shownSteps, type ShownStep } from '../../lib/recipes.ts';
@@ -7,19 +8,34 @@
 
   // Mode cuisine de la tablette : une étape à la fois, en grand, lisible de loin ; l'écran reste allumé (verrou
   // d'écran) ; une étape qui cite une durée lance le minuteur de la maison d'un toucher ; le mode Cookeo de l'étape
-  // ressort. Les ingrédients s'ouvrent sur le côté, aux portions choisies sur la fiche.
+  // ressort. Les ingrédients s'ouvrent sur le côté, aux portions choisies sur la fiche ; les notes ouvertes de la
+  // famille aussi (« moins salé la prochaine fois »), ouvertes d'elles-mêmes en arrivant pour ne pas les oublier.
   type Props = {
     recipe: Recipe;
     servings: number | null;
+    /** Notes ouvertes de la famille. */
+    notes?: RecipeNote[];
+    nameOf?: (ownerId: string) => string;
     onTimer: (seconds: number, step: ShownStep) => void;
     onExit: () => void;
   };
-  let { recipe, servings, onTimer, onExit }: Props = $props();
+  let { recipe, servings, notes = [], nameOf = (id) => id, onTimer, onExit }: Props = $props();
 
   const steps = $derived(shownSteps(recipe.ours));
   const ingredients = $derived(shownIngredients(recipe.ours, servings));
   let index = $state(0);
-  let showIngredients = $state(false);
+  /** Panneau ouvert sur le côté. */
+  let panel = $state<'ingredients' | 'notes' | null>(null);
+  /** Panneau choisi à la main : les notes ne s'ouvrent plus d'elles-mêmes. */
+  let touched = false;
+  const badge = $derived(notesBadge(notes.length));
+  $effect(() => {
+    if (!touched && notes.length > 0 && panel === null) panel = 'notes';
+  });
+  function toggle(which: 'ingredients' | 'notes') {
+    touched = true;
+    panel = panel === which ? null : which;
+  }
   const step = $derived(steps[Math.min(index, steps.length - 1)]);
   const last = $derived(index >= steps.length - 1);
 
@@ -43,7 +59,10 @@
       {#if step?.section}<span class="muted"> · {step.section}</span>{/if}
     </div>
     <span class="muted">Étape {Math.min(index + 1, steps.length)} / {steps.length}</span>
-    <button type="button" class="btn" aria-pressed={showIngredients} onclick={() => (showIngredients = !showIngredients)}><Icon name="list" size={24} /> Ingrédients</button>
+    {#if badge}
+      <button type="button" class="btn notes" aria-pressed={panel === 'notes'} onclick={() => toggle('notes')}><Icon name="message" size={24} /> {badge}</button>
+    {/if}
+    <button type="button" class="btn" aria-pressed={panel === 'ingredients'} onclick={() => toggle('ingredients')}><Icon name="list" size={24} /> Ingrédients</button>
   </header>
 
   <div class="body">
@@ -61,7 +80,16 @@
       {/if}
     </main>
 
-    {#if showIngredients}
+    {#if panel === 'notes' && notes.length}
+      <aside>
+        <h2 class="card-label">Notes de la famille</h2>
+        <ul class="notes">
+          {#each notes as note (note.id)}
+            <li><p>{note.text}</p><span class="muted">{nameOf(note.by.ownerId)}</span></li>
+          {/each}
+        </ul>
+      </aside>
+    {:else if panel === 'ingredients'}
       <aside>
         <h2 class="card-label">Ingrédients{servings ? ` · ${servingsText(servings, recipe.ours.servingsUnit)}` : ''}</h2>
         {#each ingredients as group, g (g)}
@@ -188,6 +216,29 @@
     padding: 0;
     list-style: none;
     font-size: var(--text-body);
+  }
+
+  .btn.notes {
+    background: var(--rain-bg);
+    color: var(--rain-soft);
+  }
+
+  .notes li {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--surface-2);
+  }
+
+  .notes p {
+    margin: 0;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  .notes .muted {
+    font-size: var(--text-small);
   }
 
   footer {

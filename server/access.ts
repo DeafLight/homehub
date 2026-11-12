@@ -133,6 +133,11 @@ export type Access = {
   writer(c: Context, target: string | null): Promise<Author>;
   /** Un parent (reconnu à la tablette, ou son téléphone) ; `denied` : le refus fait à un enfant. */
   parent(c: Context, denied: string): Promise<Author>;
+  /**
+   * L'auteur d'une chose de la famille (recette ajoutée, note sur une recette), ou un parent : même règle que l'écriture
+   * sur un profil (`canWrite`), avec son propre refus (`denied`) ; un appareil non appairé reste en lecture seule.
+   */
+  authorOrParent(c: Context, ownerId: string | null, denied: string): Promise<Author & { ownerId: string }>;
   /** La tablette de la maison seulement. */
   kiosk(c: Context): Promise<Caller>;
   /** La tablette ou un téléphone appairé (pages qui montrent les adresses de la famille). */
@@ -197,6 +202,14 @@ export function createAccess({
     async parent(c, denied) {
       const author = await writer(c, null);
       return household.member(author.ownerId)?.parent ? author : fail(403, denied);
+    },
+
+    async authorOrParent(c, ownerId, denied) {
+      const author = await writer(c, null);
+      const actor = household.member(author.ownerId ?? '');
+      if (!actor || author.ownerId === null) return fail(403, 'Profil inconnu');
+      const allowed = ownerId === null ? actor.parent : canWrite(actor, ownerId);
+      return allowed ? { ...author, ownerId: author.ownerId } : fail(403, denied);
     },
 
     async kiosk(c) {

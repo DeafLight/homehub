@@ -236,6 +236,17 @@ await call(A, 'POST', '/recipes', {
   },
 });
 
+// Notes de la famille : sur les galettes (une ouverte de Léa, une d'Alex, une résolue), sur le mijoté (deux ouvertes,
+// rappelées dans le mode cuisine).
+type Note = { id: string };
+const galettesNotes = `/recipes/${galettes.id}/notes`;
+const salt = (await call(A, 'POST', galettesNotes, { text: 'Moins salé la prochaine fois : beurre doux dans la pâte.' })) as Note;
+await call(A, 'PATCH', `${galettesNotes}/${salt.id}`, { resolved: true });
+await call(L, 'POST', galettesNotes, { text: 'Tom n’aime pas les champignons : en garder sans pour lui.' });
+await call(A, 'POST', galettesNotes, { text: 'Pâte un peu épaisse : ajouter 5 cl de lait.' });
+await call(A, 'POST', `/recipes/${lentilles.id}/notes`, { text: 'Moins de cumin, les enfants l’ont trouvé fort.' });
+await call(L, 'POST', `/recipes/${lentilles.id}/notes`, { text: 'Super avec du riz !' });
+
 // Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont une sans jour ; trois produits du placard
 // reliés aux ingrédients (lentilles en stock en quantité suffisante, carottes au kilo contre des carottes à la pièce :
 // à vérifier, et un seul paquet de gruyère râpé, qui s'utilise en plusieurs fois, pour les galettes et les pâtes :
@@ -465,6 +476,11 @@ await shoot('telephone-menu-stock', `${BASE}/m/menu`, PHONE, {
 });
 await shoot('telephone-recettes', `${BASE}/m/recettes`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-recette', `${BASE}/m/recette/${lentilles.id}`, PHONE, { init: asPhone('alex') });
+// Notes de la famille sur les galettes, vues par Léa : les siennes se modifient, celles d'Alex se lisent seulement.
+await shoot('telephone-recette-notes', `${BASE}/m/recette/${galettes.id}`, PHONE, {
+  init: asPhone('lea'),
+  after: `document.querySelector('.notes-box')?.scrollIntoView({ block: 'start' }); ${click('1 note résolue')}`,
+});
 await shoot('telephone-recette-modifier', `${BASE}/m/recette/${galettes.id}/modifier`, PHONE, {
   init: asPhone('lea'),
   after: `[...document.querySelectorAll('h2, h3, legend, span, p')].find((e) => e.textContent.trim() === 'Ingrédients')?.scrollIntoView()`,

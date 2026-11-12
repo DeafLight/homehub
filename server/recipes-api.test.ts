@@ -9,13 +9,13 @@ import type { Recipe, RereadResult } from '../shared/recipes.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
-import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
 import { createRecipesApi, createShareRoute, firstLink, NOT_YOURS, REFUSED_REASON } from './recipes-api.ts';
 import { createShareInbox } from './services/recipe-imports.ts';
 import { createRecipeImporter } from './services/recipes.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
+import { createRecipeNoteStore } from './sources/recipe-notes.ts';
 import { createRecipeStore } from './sources/recipes.ts';
 import { type FetchedPage, PageError } from './sources/web-page.ts';
 import { connectedFrom, fixedClock } from './testing.ts';
@@ -74,7 +74,7 @@ async function setup() {
   });
   const inbox = createShareInbox();
   const api = createRouter();
-  api.route('/', createRecipesApi({ recipes, importer, household: createHousehold(config), access, clock: fixedClock, inbox }));
+  api.route('/', createRecipesApi({ recipes, notes: createRecipeNoteStore({ path: join(dir, 'recipe-notes.json'), clock: fixedClock }), importer, access, clock: fixedClock, inbox }));
   const phone = async (ownerId: string) => {
     const { code } = devices.createCode(ownerId);
     return (await devices.claim(code, `Téléphone de ${ownerId}`))!.token;

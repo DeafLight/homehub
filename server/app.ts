@@ -18,6 +18,7 @@ import { createMenuApi } from './menu-api.ts';
 import { createMenuService } from './services/menu.ts';
 import type { MenuStore } from './sources/menus.ts';
 import { createPinGate } from './pin-gate.ts';
+import { createRecipeNotesApi } from './recipe-notes-api.ts';
 import { createRecipesApi, createShareRoute } from './recipes-api.ts';
 import { createShareInbox } from './services/recipe-imports.ts';
 import { createRoutinesApi } from './routines-api.ts';
@@ -38,6 +39,7 @@ import type { ListsStore } from './sources/lists.ts';
 import type { NotesStore } from './sources/notes.ts';
 import type { ProductBase } from './sources/open-food-facts.ts';
 import type { PinStore } from './sources/pins.ts';
+import type { RecipeNoteStore } from './sources/recipe-notes.ts';
 import type { RecipeStore } from './sources/recipes.ts';
 import type { RoutinePlanStore } from './sources/routine-plans.ts';
 import type { StockStore } from './sources/stock.ts';
@@ -65,6 +67,8 @@ export type AppDeps = {
   stock: StockStore;
   fitness: FitnessStore;
   recipes: RecipeStore;
+  /** Notes de la famille sur les recettes. */
+  recipeNotes: RecipeNoteStore;
   menus: MenuStore;
   /** Drive : enseigne, magasin et produits retenus pour les articles de la liste. */
   drive: DriveStore;
@@ -111,10 +115,11 @@ export function createApp(deps: AppDeps): Hono {
   const menu = createMenuService({ menus: deps.menus, recipes: deps.recipes, stock: deps.stock, lists: deps.lists, clock });
 
   const api = createRouter();
-  // Le stock ou une recette a changé (scan, notre version modifiée, recette retirée) : la liste suit le menu.
+  // Le stock ou une recette a changé (scan, notre version modifiée, recette retirée) : la liste suit le menu. Les
+  // notes sur une recette n'y changent rien.
   api.use('*', async (c, next) => {
     await next();
-    if (c.req.method === 'GET' || c.res.status >= 400 || !/^\/api\/(stock|recipes)(\/|$)/u.test(c.req.path)) return;
+    if (c.req.method === 'GET' || c.res.status >= 400 || !/^\/api\/(stock|recipes)(\/|$)/u.test(c.req.path) || /\/notes(\/|$)/u.test(c.req.path)) return;
     await menu.sync({ ownerId: null, via: 'tablet' }).catch((err: unknown) => console.error('Synchronisation du menu :', err));
   });
   api.route('/', createDashboardApi({ ...deps, access }));
@@ -130,7 +135,8 @@ export function createApp(deps: AppDeps): Hono {
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });
   api.route('/', createSchoolLifeApi({ schoolLife, access }));
   const shareInbox = createShareInbox();
-  api.route('/', createRecipesApi({ recipes: deps.recipes, importer: deps.recipeImporter, household, access, clock, inbox: shareInbox }));
+  api.route('/', createRecipesApi({ recipes: deps.recipes, notes: deps.recipeNotes, importer: deps.recipeImporter, access, clock, inbox: shareInbox }));
+  api.route('/', createRecipeNotesApi({ recipes: deps.recipes, notes: deps.recipeNotes, access }));
   api.route('/', createDriveApi({ drive: deps.drive, reader: deps.driveReader, stock: deps.stock, menus: deps.menus, lists: deps.lists, access, clock }));
   api.route('/', createStockApi({ stock: deps.stock, productBase: deps.productBase, lists: deps.lists, access, clock }));
 

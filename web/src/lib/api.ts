@@ -52,6 +52,7 @@ import type { TabletSession } from '../../../shared/fitness-workout.ts';
 import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
 import type { DriveChoice, DriveProduct, DriveReadResult, DriveSettings, DriveStockHint, DriveView } from '../../../shared/drive.ts';
 import type { DriveReportResult } from '../../../shared/drive-cart.ts';
+import type { NotePatch, RecipeNote } from '../../../shared/recipe-notes.ts';
 import type { ImportPreview, ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
 /**
@@ -200,6 +201,14 @@ export type Api = {
   removeRecipe(id: string): Promise<void>;
   /** Adresse de la photo gardée (pour une balise img). */
   recipePhotoUrl(id: string): string;
+  /** Notes de la famille sur une recette (lecture ouverte). */
+  recipeNotes(id: string): Promise<{ notes: RecipeNote[] }>;
+  /** Laisser une note : tout membre identifié. */
+  addRecipeNote(id: string, text: string): Promise<RecipeNote>;
+  /** Texte modifié, note résolue ou rouverte : son auteur ou un parent. */
+  changeRecipeNote(id: string, noteId: string, patch: NotePatch): Promise<RecipeNote>;
+  /** Retirer une note : son auteur ou un parent. */
+  removeRecipeNote(id: string, noteId: string): Promise<void>;
   /** Menu d'une semaine (son lundi ; absent : la semaine en cours), avec ses courses calculées. */
   menu(week?: string): Promise<MenuView>;
   /** Modifier le menu, les coches, les placards, les liens du stock : un parent. */
@@ -392,6 +401,10 @@ export function createApi(
     setInBasket: (itemId, inBasket) => send('PUT', `/drive/basket/${encodeURIComponent(itemId)}`, { in: inBasket }),
     newBasket: () => send('DELETE', '/drive/basket'),
     sendDriveReport: (report) => send('POST', '/drive/report', report),
+    recipeNotes: (id) => request(`/recipes/${encodeURIComponent(id)}/notes`),
+    addRecipeNote: (id, text) => send('POST', `/recipes/${encodeURIComponent(id)}/notes`, { text }),
+    changeRecipeNote: (id, noteId, patch) => send('PATCH', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, patch),
+    removeRecipeNote: (id, noteId) => send('DELETE', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };
 }

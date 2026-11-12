@@ -1,8 +1,9 @@
 // Logique du carnet côté front, sans DOM (testée) : recherche dans le carnet, lignes mises à l'échelle des portions
 // et rangées par groupe, étapes avec leurs minuteurs et leur mode Cookeo, édition de notre version (lignes ajoutées,
 // déplacées, portions par défaut qui entraînent les quantités), lien, texte ou page enregistrée reçus par
-// « Partager », aperçu d'un import, droit de modifier, compte rendu d'une relecture de la page.
+// « Partager », aperçu d'un import, droit de modifier, compte rendu d'une relecture de la page, signature des notes.
 import { fold, formatIngredient } from '../../../shared/ingredients.ts';
+import type { RecipeNote } from '../../../shared/recipe-notes.ts';
 import { looksLikeRecipeText } from '../../../shared/recipe-text.ts';
 import {
   cookeoMode,
@@ -22,6 +23,7 @@ import {
   formatMinutes,
 } from '../../../shared/recipes.ts';
 import type { Member } from '../../../shared/types.ts';
+import { formatAgo } from './format.ts';
 
 // --- Carnet ---
 
@@ -247,3 +249,13 @@ export const handoff: { draft: RecipeDraft | null; preview: ImportPreview['previ
   preview: null,
   servings: new Map(),
 };
+
+/**
+ * Signature d'une note : « Tom · il y a 5 min », « · modifiée » si son texte a changé ; une note résolue dit qui l'a
+ * résolue et quand (« Résolue par Alex hier à 18:30 »).
+ */
+export function noteMeta(note: RecipeNote, nameOf: (ownerId: string) => string, now: Date): string {
+  const head = `${nameOf(note.by.ownerId)} · ${formatAgo(new Date(note.at), now)}${note.editedAt ? ' · modifiée' : ''}`;
+  if (!note.resolvedAt) return head;
+  return `${head} — résolue${note.resolvedBy ? ` par ${nameOf(note.resolvedBy.ownerId)}` : ''} ${formatAgo(new Date(note.resolvedAt), now)}`;
+}

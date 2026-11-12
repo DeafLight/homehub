@@ -30,7 +30,8 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       saisie à la main si la page n'a rien de lisible ; mode cuisine sur la tablette.
 - [x] Notre version : chaque recette importée se personnalise (portions par défaut, ingrédients, quantités, étapes,
       astuces) ; c'est elle qui sert ensuite, la source restant consultable.
-- [ ] Notes et commentaires de chaque membre sur une recette ; un commentaire peut être résolu.
+- [x] Notes et commentaires de chaque membre sur une recette ; un commentaire peut être résolu (rouvert, toujours
+      consultable) ; pastille sur les cartes du carnet, rappel dans le mode cuisine.
 - [x] Menu de la semaine (0.51.0) : choisir des recettes et le nombre de personnes pour chacune ; retirer un repas
       d'un geste, avec « Annuler » (0.51.1).
 - [x] Liste de courses **agrégée et cohérente** (0.51.0) : quantités mises à l'échelle des portions, même ingrédient

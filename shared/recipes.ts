@@ -106,6 +106,8 @@ export type RecipeSummary = Pick<Recipe, 'id' | 'photo' | 'addedBy' | 'addedAt'>
   appliance: RecipeContent['appliance'];
   site: string | null;
   ingredients: number;
+  /** Notes de la famille encore ouvertes (ajouté par l'API du carnet). */
+  openNotes?: number;
 };
 
 /** Ce qu'un import n'a pas pu lire : de quoi préremplir la saisie à la main. */

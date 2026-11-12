@@ -15,6 +15,7 @@ import { createNotesStore } from './sources/notes.ts';
 import { createPinStore, PARENT_PIN_ID } from './sources/pins.ts';
 import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createFitnessStore } from './sources/fitness.ts';
+import { createRecipeNoteStore } from './sources/recipe-notes.ts';
 import { createRecipeStore } from './sources/recipes.ts';
 import { createMenuStore } from './sources/menus.ts';
 import { createDriveStore } from './sources/drive.ts';
@@ -60,6 +61,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
     stock: createStockStore({ path: join(dir, 'stock.json'), clock: fixedClock }),
     fitness: createFitnessStore({ path: join(dir, 'fitness.json'), clock: fixedClock }),
     recipes: createRecipeStore({ path: join(dir, 'recipes.json'), photosDir: join(dir, 'recipes'), clock: fixedClock }),
+    recipeNotes: createRecipeNoteStore({ path: join(dir, 'recipe-notes.json'), clock: fixedClock }),
     menus: createMenuStore({ path: join(dir, 'menus.json'), clock: fixedClock }),
     drive: createDriveStore({ path: join(dir, 'drive.json'), clock: fixedClock }),
     transitSettings,

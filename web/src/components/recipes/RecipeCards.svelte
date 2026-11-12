@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { RecipeSummary } from '../../../../shared/recipes.ts';
   import { formatMinutes } from '../../../../shared/recipes.ts';
+  import { notesBadge } from '../../../../shared/recipe-notes.ts';
   import { servingsText } from '../../lib/recipes.ts';
   import Icon from '../Icon.svelte';
 
-  // Cartes du carnet : photo (ou pictogramme), titre, temps, portions, site d'origine, pastille Cookeo. En grille sur
-  // la tablette, en liste sur le téléphone. Affichage seul : `onOpen` ouvre la fiche.
+  // Cartes du carnet : photo (ou pictogramme), titre, temps, portions, site d'origine, pastille Cookeo, et une pastille
+  // discrète quand des notes de la famille sont ouvertes. En grille sur la tablette, en liste sur le téléphone.
+  // Affichage seul : `onOpen` ouvre la fiche.
   type Props = { recipes: RecipeSummary[]; photoUrl: (id: string) => string; phone?: boolean; onOpen: (recipe: RecipeSummary) => void };
   let { recipes, photoUrl, phone = false, onOpen }: Props = $props();
 </script>
@@ -26,6 +28,7 @@
           <span class="title">{recipe.title}</span>
           <span class="details">
             {#if recipe.appliance === 'cookeo'}<span class="chip">Cookeo</span>{/if}
+            {#if recipe.openNotes}<span class="chip notes" aria-label={notesBadge(recipe.openNotes)}><Icon name="message" size={16} /> {recipe.openNotes}</span>{/if}
             {details.join(' · ')}
           </span>
         </span>
@@ -106,6 +109,15 @@
     background: var(--warn-bg);
     color: var(--sun);
     font-weight: 600;
+  }
+
+  .chip.notes {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: -2px;
+    background: var(--rain-bg);
+    color: var(--rain-soft);
   }
 
   .phone {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
+  import { notesBadge } from '../../../../shared/recipe-notes.ts';
   import { formatMinutes, type Recipe, type RecipeContent, sourceLabel } from '../../../../shared/recipes.ts';
   import { durationText, groupBySection, servingsText, shownIngredients, shownSteps, type ShownStep } from '../../lib/recipes.ts';
   import Icon from '../Icon.svelte';
@@ -6,8 +8,9 @@
   // Fiche d'une recette : notre version (portions ajustables, quantités recalculées, étapes avec leurs minuteurs et
   // leur mode Cookeo, nos astuces), et la source telle que lue, consultable à côté. Sur la tablette, deux colonnes
   // et le mode cuisine ; sur le téléphone, une colonne. « Relire la page » (vue source, ou fiche sans étapes ou sans
-  // ingrédients) reprend ce que la page donne de nouveau sans écraser notre version. Affichage seul : les actions
-  // remontent par les rappels.
+  // ingrédients) reprend ce que la page donne de nouveau sans écraser notre version. Les notes de la famille (`notes`,
+  // fournies par la page) suivent les ingrédients ; une pastille en tête de fiche dit combien sont ouvertes et y mène.
+  // Affichage seul : les actions remontent par les rappels.
   type Props = {
     recipe: Recipe;
     /** Portions affichées (gardées par la page : le mode cuisine les reprend). */
@@ -25,8 +28,15 @@
     onCook?: () => void;
     /** Lancer un minuteur depuis une étape (tablette). */
     onTimer?: (seconds: number, step: ShownStep) => void;
+    /** Notes de la famille, sous les ingrédients. */
+    notes?: Snippet;
+    /** Notes encore ouvertes (pastille en tête de fiche). */
+    openNotes?: number;
   };
-  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onTimer }: Props = $props();
+  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onTimer, notes, openNotes = 0 }: Props = $props();
+
+  let notesBox = $state<HTMLElement | null>(null);
+  const badge = $derived(notesBadge(openNotes));
 
   let showSource = $state(false);
   let confirmRemove = $state(false);
@@ -55,6 +65,9 @@
     <div class="meta">
       {#if content.appliance === 'cookeo'}<span class="chip cookeo">Cookeo</span>{/if}
       {#each times as time (time)}<span class="chip">{time}</span>{/each}
+      {#if badge && notes && !showSource}
+        <button type="button" class="chip notes-badge" onclick={() => notesBox?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><Icon name="message" size={18} /> {badge}</button>
+      {/if}
     </div>
 
     {#if showSource}
@@ -81,6 +94,10 @@
     {:else}
       <p class="muted">Aucun ingrédient.</p>
     {/each}
+
+    {#if notes && !showSource}
+      <div class="notes-box" bind:this={notesBox}>{@render notes()}</div>
+    {/if}
   </section>
 
   <section class="main card">
@@ -204,6 +221,17 @@
     background: var(--warn-bg);
     color: var(--sun);
     font-weight: 600;
+  }
+
+  .chip.notes-badge {
+    background: var(--rain-bg);
+    color: var(--rain-soft);
+    cursor: pointer;
+  }
+
+  .notes-box {
+    margin-top: var(--space-2);
+    scroll-margin-top: var(--space-2);
   }
 
   .chip.timer {

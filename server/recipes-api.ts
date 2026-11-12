@@ -11,10 +11,10 @@ import { z } from 'zod';
 import { RECIPE_TEXT_MAX } from '../shared/recipe-text.ts';
 import { type ImportPreview, type ImportResult, mergeReread, type Recipe, type RecipeDraft, type RereadResult } from '../shared/recipes.ts';
 import type { Access } from './access.ts';
-import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { MHTML_MAX_BYTES } from './sources/mhtml.ts';
 import { siteName } from './sources/recipe-page.ts';
+import type { RecipeNoteStore } from './sources/recipe-notes.ts';
 import type { RecipeStore } from './sources/recipes.ts';
 import { PageError } from './sources/web-page.ts';
 import {
@@ -33,9 +33,10 @@ import type { Clock } from './sources/types.ts';
 
 export type RecipesApiDeps = {
   recipes: RecipeStore;
+  /** Notes de la famille sur les recettes : comptées dans le carnet, retirées avec leur recette. */
+  notes: RecipeNoteStore;
   /** Absent (tests sans réseau) : l'import propose la saisie à la main. */
   importer?: RecipeImporter;
-  household: Household;
   access: Access;
   clock: Clock;
   /** Aperçus en attente d'enregistrement (texte collé, page enregistrée). */
@@ -72,12 +73,16 @@ export function firstLink(text: string): string | null {
   return /https?:\/\/[^\s<>"']+/iu.exec(text)?.[0].replace(/[).,;!?»]+$/u, '') ?? null;
 }
 
-export function createRecipesApi({ recipes, importer, household, access, clock, pending = createPendingImports(), inbox = createShareInbox() }: RecipesApiDeps) {
+export function createRecipesApi({ recipes, notes, importer, access, clock, pending = createPendingImports(), inbox = createShareInbox() }: RecipesApiDeps) {
   const api = createRouter();
 
   const recipeOf = async (id: string): Promise<Recipe> => (await recipes.get(id)) ?? fail(404, 'Recette inconnue');
 
-  api.get('/recipes', async (c) => c.json({ recipes: await recipes.list() }));
+  /** Le carnet, avec le nombre de notes ouvertes de chaque recette (pastille des cartes). */
+  api.get('/recipes', async (c) => {
+    const [list, open] = await Promise.all([recipes.list(), notes.openCounts()]);
+    return c.json({ recipes: list.map((r) => ({ ...r, openNotes: open.get(r.id) ?? 0 })) });
+  });
 
   api.get('/recipes/:id', async (c) => c.json(await recipeOf(c.req.param('id'))));
 
@@ -178,12 +183,7 @@ export function createRecipesApi({ recipes, importer, household, access, clock, 
   });
 
   /** Qui modifie : un parent, ou qui a ajouté la recette. */
-  async function editor(c: Parameters<Access['writer']>[0], recipe: Recipe) {
-    const author = await access.writer(c, null);
-    const parent = household.member(author.ownerId ?? '')?.parent === true;
-    if (!parent && recipe.addedBy.ownerId !== author.ownerId) return fail(403, NOT_YOURS);
-    return author;
-  }
+  const editor = (c: Context, recipe: Recipe) => access.authorOrParent(c, recipe.addedBy.ownerId, NOT_YOURS);
 
   api.put('/recipes/:id', async (c) => {
     const input = await readBody(c, updateSchema, z.prettifyError);
@@ -219,6 +219,8 @@ export function createRecipesApi({ recipes, importer, household, access, clock, 
     await recipeOf(c.req.param('id'));
     await access.parent(c, 'Seul un parent peut retirer une recette du carnet');
     await recipes.remove(c.req.param('id'));
+    // Les notes de la famille partent avec la recette.
+    await notes.removeRecipe(c.req.param('id'));
     return c.body(null, 204);
   });
 

@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.55.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.56.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -194,12 +194,15 @@ Fiche des galettes, importées par Léa : notre version, avec son astuce et une 
 plus bas). Portions ± (les quantités suivent), étapes numérotées, minuteur en un geste pour chaque durée trouvée dans
 le texte ; « Voir la source » montre la recette telle que lue, et là « Relire la page » reprend ce que la page donne de
 nouveau (des étapes manquées à l'import) sans écraser notre version ; la fiche le propose aussi quand il lui manque
-ses étapes ou ses ingrédients.
+ses étapes ou ses ingrédients. Sous les ingrédients, les **notes de la famille** : chacune signée (bordure à la
+couleur de son auteur) et datée, « Résolu » la replie avec les notes résolues, toujours consultables et qui se
+rouvrent ; la pastille « 2 notes » en tête de fiche y mène, et une pastille pareille marque la carte dans le carnet.
 
 ![Fiche d'une recette](images/tablette-recette.png)
 
 Mode cuisine du mijoté au Cookeo : une étape à la fois en grand, le mode Cookeo de l'étape, le minuteur de sa durée ;
-l'écran reste allumé et la tablette ne revient pas à l'accueil.
+l'écran reste allumé et la tablette ne revient pas à l'accueil. Les notes ouvertes de la famille s'ouvrent d'elles-mêmes
+sur le côté (« Moins de cumin… »), pour ne pas les oublier ; « Ingrédients » prend leur place.
 
 ![Mode cuisine](images/tablette-recette-cuisine.png)
 
@@ -267,7 +270,10 @@ Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barre
 Onglet Recettes : le carnet en liste, la fiche en une colonne, notre version à modifier (ici par Léa, qui a ajouté
 les galettes : chaque ligne d'ingrédient analysée, « Ajuster » pour corriger quantité, unité ou nom, « corrigé » quand
 c'est fait). Une page partagée sans recette lisible (un billet de blog) propose la saisie à la main, lien gardé ; un
-lien partagé peut aussi aller sur une liste.
+lien partagé peut aussi aller sur une liste. Les notes des galettes vues par Léa : la sienne se résout, se modifie ou
+se retire ; celle d'Alex se lit seulement ; la note résolue, dépliée, se rouvre.
+
+<img src="images/telephone-recette-notes.png" alt="Notes de la famille sur une recette" width="260">
 
 | Carnet | Fiche | Notre version | Lien partagé |
 |---|---|---|---|

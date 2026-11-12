@@ -225,6 +225,12 @@ classDiagram
     name, key, aisle, section
     optional, manual
   }
+  class RecipeNote {
+    text
+    by, at
+    editedBy, editedAt
+    resolvedBy, resolvedAt
+  }
   class Author {
     ownerId
     via : tablet | phone
@@ -248,6 +254,8 @@ classDiagram
   Recipe "1" --> "1..2" RecipeContent : recipes.json
   RecipeContent "1" --> "*" IngredientLine
   Recipe ..> Author
+  Recipe "1" --> "*" RecipeNote : recipe-notes.json
+  RecipeNote ..> Author
 ```
 
 | Fichier d'état | Contenu |
@@ -259,6 +267,7 @@ classDiagram
 | `timers.json` | minuteurs en cours |
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
+| `recipe-notes.json` | notes de la famille sur les recettes (texte, auteur, date ; modifiée, résolue par qui et quand) ; à part du carnet pour qu'une note ne touche pas notre version, retirées avec leur recette |
 | `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
 | `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres, pièces par paquet, dernier prix vu par l'extension) ; le panier en cours (articles de la liste cochés, produit et paquets mis au panier) |
 
@@ -293,7 +302,10 @@ appelle Open Food Facts.
 
 Les **recettes** : le carnet est familial. Ajouter (importer un lien, saisir à la main) : quelqu'un de reconnu sur la
 tablette ou un téléphone relié, vérifié avant toute lecture du site ; modifier notre version : un parent ou qui l'a
-ajoutée ; retirer : un parent. La lecture d'une page (`sources/web-page.ts`) n'accepte que `http`/`https` vers une
+ajoutée ; retirer : un parent. Les **notes** sur une recette : tout le monde les lit ; tout membre identifié en
+laisse (enfants compris) ; les modifier, les résoudre, les rouvrir ou les retirer : leur auteur ou un parent
+(`access.authorOrParent`, même règle que l'écriture sur un profil, qui sert aussi pour modifier notre version) ; un
+appareil non appairé ne fait que lire. 1 000 caractères par note, 100 notes par recette. La lecture d'une page (`sources/web-page.ts`) n'accepte que `http`/`https` vers une
 adresse publique (vérifiée après résolution DNS, et de nouveau à chaque redirection, quatre au plus), 3 Mo et 10 s au
 plus ; `recipes.allowedHosts` autorise nommément un site de la maison. Limite connue : un nom qui change d'adresse
 entre la vérification et la connexion (rebinding DNS) n'est pas couvert.

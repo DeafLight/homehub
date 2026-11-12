@@ -70,7 +70,11 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   temps, portions ±, ingrédients, étapes numérotées avec le mode Cookeo et un minuteur en un geste pour chaque durée
   (« 15 minutes », « 1 h 30 »). **Mode cuisine** (tablette) : une étape à la fois en grand, l'écran reste allumé, pas
   de retour à l'accueil. Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
-  ou qui a ajouté la recette ; retirer : un parent.
+  ou qui a ajouté la recette ; retirer : un parent. **Notes de la famille** sur la fiche (tablette et téléphone, sous
+  les ingrédients) : chacun laisse une note signée et datée (« moins salé la prochaine fois », « Tom n'aime pas les
+  champignons ») ; une note se marque **résolue** (repliée, toujours consultable) et se rouvre ; son auteur ou un
+  parent la modifie ou la retire. Les notes ouvertes font une pastille sur les cartes du carnet et en tête de fiche, et
+  s'ouvrent d'elles-mêmes dans le mode cuisine. Elles partent avec la recette quand elle est retirée.
 - **Menu de la semaine** (`/menu` sur la tablette, depuis Recettes ou Listes ; `/m/menu` sur le téléphone, depuis les
   onglets Courses et Recettes) : des recettes du carnet (notre version), chacune pour un nombre de personnes (par défaut
   ses portions) et un jour, ou « dans la semaine » ; une recette peut revenir plusieurs fois. Semaines suivantes
@@ -477,7 +481,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet et le dernier prix vu par l’extension) et panier en cours (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet et le dernier prix vu par l’extension) et panier en cours (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
@@ -519,12 +523,14 @@ server/
   sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants
   sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
   sources/recipes.ts       carnet de recettes (recipes.json, photos dans recipes/), doublons par adresse
+  sources/recipe-notes.ts  notes de la famille sur les recettes (recipe-notes.json), résolues ou ouvertes
   sources/web-page.ts      lecture d'une page web sûre : adresses publiques seulement, redirections revérifiées, taille et délai bornés
   sources/recipe-page.ts   recette d'une page (schema.org Recipe en JSON-LD ou microdonnées), site d'origine
   sources/mhtml.ts         page enregistrée (.mhtml) : parties MIME, quoted-printable, base64, document principal
   services/recipes.ts      import d'une recette (page, photo) et nettoyage d'une version modifiée
   services/recipe-imports.ts  texte collé et page enregistrée : aperçus en attente, boîte des fichiers partagés
   recipes-api.ts           routes du carnet de recettes
+  recipe-notes-api.ts      routes des notes sur une recette (auteur ou parent pour modifier)
   sources/menus.ts         menus de la semaine (menus.json) : recettes et personnes, « j'en ai déjà », placards, produits reliés
   services/menu.ts         courses du menu : besoins, déductions (placards, stock…), synchronisation avec la liste de courses
   menu-api.ts              routes du menu de la semaine
@@ -544,6 +550,7 @@ shared/menu.ts             menu de la semaine : semaines, besoins agrégés, dé
 shared/stock-link.ts       produit du stock → ingrédient deviné (mots du nom, rayon, contenance)
 shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD Product, clé d'un article, paquets (pièces par paquet), remplir le panier, récapitulatif, prix vus
 shared/drive-cart.ts       drive : panier copié pour l'extension et son compte rendu (format, relecture, prix affichés)
+shared/recipe-notes.ts     notes sur une recette : limites, ordre (ouvertes, puis résolues), qui les modifie
 shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
@@ -618,7 +625,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
 | `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |
 | `PUT /api/stock/settings` | `{ autoShop }` : réglage par défaut des produits épuisés |
-| `GET /api/recipes` | `{ recipes }` : le carnet, du plus récent (titre, photo, portions, temps, Cookeo, site, auteur) |
+| `GET /api/recipes` | `{ recipes }` : le carnet, du plus récent (titre, photo, portions, temps, Cookeo, site, auteur, `openNotes` : notes ouvertes) |
 | `GET /api/recipes/:id`, `GET /api/recipes/:id/photo` | une recette (`ours` : notre version ; `source` : adresse, site, date, version lue) ; sa photo |
 | `POST /api/recipes/import` | `{ url }` (ou un texte partagé qui contient le lien) → `{ recipe, existing }` (201 si nouvelle ; `existing` : déjà au carnet) ou `{ draft, reason }` quand la page n'a pas de recette lisible ; 400 pour une adresse refusée. Quelqu'un de reconnu ou un téléphone relié, vérifié avant toute lecture |
 | `POST /api/recipes/import-text` | `{ text, url?, title? }` : texte copié d'une page → `{ preview: { token, content, url, site, origin, photo } }`, ou `{ recipe, existing: true }` si la page est déjà au carnet ; 422 sans ingrédient ni étape. Mêmes droits que l'import ; rien n'est lu sur le réseau. (Après un refus du site, `POST /api/recipes/import` répond `{ draft, reason, refused: true }`.) |
@@ -626,7 +633,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /partager` | cible de « Partager » (formulaire multipart) : lien ou texte renvoyés en `GET /partager?…` ; une page enregistrée mise en attente → `/partager?fichier=<numéro>` |
 | `POST /api/recipes` | `{ content, url?, pending? }` : recette saisie à la main (avec le lien d'une page illisible), ou l'aperçu `pending` corrigé (sa source et sa photo sont reprises) |
 | `POST /api/recipes/:id/reread` | relit la page d'origine → `{ recipe, updated, kept }` : les parties (titre, portions, ingrédients, étapes, temps, appareil) que notre version n'avait pas modifiées sont reprises, les autres gardées ; un parent ou qui l'a ajoutée ; 422 si la page n'a plus de recette lisible |
-| `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent |
+| `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent (ses notes partent avec elle) |
+| `GET /api/recipes/:id/notes`, `POST …/notes` | `{ notes }` : notes de la famille (lecture ouverte) ; `{ text }` (1 000 caractères au plus, 100 notes par recette, 409 au-delà) : tout membre identifié, enfants compris ; un appareil non appairé ne fait que lire |
+| `PATCH /api/recipes/:id/notes/:note`, `DELETE …` | `{ text?, resolved? }` : texte modifié, note résolue ou rouverte ; retrait ; son auteur ou un parent |
 | `GET /api/menu?week=<lundi>` | menu d'une semaine (par défaut la semaine en cours) : `{ week, current, editable, entries, plan, pantry, stock, ingredients }` ; `plan` : chaque ingrédient, ce qu'il faut, ce qui en est déduit et pourquoi (`buy`, `pantry`, `have`, `manual`, `bought`, `stock`), `check` (paquet peut-être entamé : `ask`, `enough`, `needed`) et `packs` (paquets à acheter) ; `stock` : produits avec `partial` (s'utilise en plusieurs fois) et `partialGuessed` |
 | `POST /api/menu/entries`, `PUT`/`DELETE …/entries/:id` | `{ week, recipeId, people, day }` ; modification `{ people, day }` ; un parent ; semaines passées ou trop lointaines refusées ; la liste de courses suit |
 | `PUT /api/menu/have` | `{ week, key, have }` : « j'en ai déjà » pour un ingrédient, cette semaine ; un parent |
