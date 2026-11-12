@@ -1,7 +1,7 @@
 // Tests de la logique du drive : liens des fiches produit (identifiant tiré de l'URL), contenance lue dans le nom,
 // EAN, JSON-LD `Product` → produit, clé d'un article de la liste, paquets (arrondi de la liste), correspondance EAN ;
 // étape 2 : pièces par paquet, paquets signalés, articles du mode « Remplir le panier » et récapitulatif ;
-// étape 3 : total indicatif des prix vus par l'extension.
+// étape 3 : total indicatif des prix vus par l'extension ; article introuvable ou en rupture (remplacement).
 import { describe, expect, it } from 'vitest';
 import type { ShoppingItem } from './types.ts';
 import {
@@ -23,6 +23,8 @@ import {
   itemKey,
   itemName,
   linePrice,
+  missingState,
+  missingTrace,
   normalizeEan,
   packPrice,
   packFromName,
@@ -171,7 +173,7 @@ describe('remplir le panier', () => {
   const by = { ownerId: 'alex', via: 'phone' } as const;
   const item = (id: string, label: string, menu?: ShoppingItem['menu'], done = false): ShoppingItem => ({ id, label, done, addedBy: by, addedAt: '', ...(menu && { menu }) });
   const lardons = item('1', 'Lardons · 350 g', { week: '2026-11-02', key: 'lardon', quantities: { masse: 350 }, toTaste: false, aisle: null, sources: [] });
-  const product = (id: string): DriveProduct => ({ enseigne: 'coursesu', id, url: `https://www.coursesu.com/p/x/${id}.html`, name: `Produit ${id}`, brand: null, packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'manual', seenAt: '', pieces: null, price: null });
+  const product = (id: string): DriveProduct => ({ enseigne: 'coursesu', id, url: `https://www.coursesu.com/p/x/${id}.html`, name: `Produit ${id}`, brand: null, packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'manual', seenAt: '', pieces: null, price: null, missingAt: null });
   const choice = (key: string, preferred: DriveProduct | null, fallback: DriveProduct[] = []): DriveChoice => ({ key, enseigne: 'coursesu', label: key, preferred, fallback, updatedAt: '', updatedBy: by });
   const items = [lardons, item('2', 'Lessive'), item('3', 'Persil'), item('4', 'Pain', undefined, true)];
   const view = (lines: DriveView['basket'] = null): DriveView => ({
@@ -193,7 +195,7 @@ describe('remplir le panier', () => {
 
   it('cochés, changés depuis, et récapitulatif', () => {
     const line = (itemId: string, count: number, productId: string | null) => ({ itemId, key: '', label: '', product: productId ? { id: productId, name: '', url: '' } : null, count, per: null, at: '', by });
-    const basket = { enseigne: 'coursesu' as const, startedAt: '', startedBy: by, lines: [line('1', 1, '10'), line('3', 1, null)] };
+    const basket = { enseigne: 'coursesu' as const, startedAt: '', startedBy: by, missing: [], lines: [line('1', 1, '10'), line('3', 1, null)] };
     const rows = fillRows(items, view(basket));
     expect(rows.map((r) => [r.item.id, r.line !== null, r.changed])).toEqual([['1', true, true], ['2', false, false], ['3', true, false]]);
     const recap = driveRecap(rows);
@@ -206,13 +208,40 @@ describe('remplir le panier', () => {
     expect(fillRows(items, view({ ...basket, enseigne: 'autre' as 'coursesu' })).some((r) => r.line)).toBe(false);
   });
 
+  it('introuvable ou en rupture : à remplacer, secours proposés, jamais pris d’office ; remplacement choisi', () => {
+    const missing = (unavailable: string[], replacement: string | null = null) => ({ itemId: '1', key: 'lardon', unavailable, replacement, source: 'extension' as const, at: '', by });
+    const withFallbacks = (m: ReturnType<typeof missing>[]): DriveView => ({
+      settings: { enseigne: 'coursesu', store: null },
+      choices: [choice('lardon', product('10'), [product('11'), product('12')])],
+      basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, lines: [], missing: m },
+    });
+    let [row] = fillRows([lardons], withFallbacks([missing(['10'])]));
+    expect(row).toMatchObject({ status: 'missing', product: null, count: null, missing: { unavailable: ['10'] } });
+    expect(row.proposals.map((p) => p.id)).toEqual(['11', '12']);
+    expect(driveRecap([row])).toMatchObject({ missing: [row], toFill: [], elsewhere: [] });
+    // Un secours aussi en rupture n'est plus proposé ; le remplacement choisi part au panier, avec ses paquets.
+    [row] = fillRows([lardons], withFallbacks([missing(['10', '11'], '12')]));
+    expect(row).toMatchObject({ status: 'ready', product: { id: '12' }, count: { count: 2 }, proposals: [] });
+    expect(basketLine(lardons, row.choice, row.missing).product?.id).toBe('12');
+    // Remplacement lui-même indisponible : de nouveau à remplacer.
+    expect(fillRows([lardons], withFallbacks([missing(['10', '12'], '12')]))[0]).toMatchObject({ status: 'missing', product: null });
+    // Signalement caduc (un autre produit retenu depuis) : ignoré.
+    expect(fillRows([lardons], withFallbacks([missing(['99'])]))[0]).toMatchObject({ status: 'ready', product: { id: '10' }, missing: null });
+    expect(missingState(null, missing(['10'])).active).toBe(false);
+  });
+
+  it('trace d’une rupture passée sur le produit', () => {
+    expect(missingTrace({ missingAt: '2026-11-09T18:00:00.000Z' })).toBe('Introuvable ou en rupture le 09/11');
+    expect(missingTrace({ missingAt: null })).toBeNull();
+  });
+
   it('prix vus par l’extension : prix d’un paquet × paquets au panier, total indicatif', () => {
     const priced = (id: string, value: number) => ({ ...product(id), price: { value, at: '' } });
     const line = (itemId: string, count: number, productId: string | null) => ({ itemId, key: '', label: '', product: productId ? { id: productId, name: '', url: '' } : null, count, per: null, at: '', by });
     const withPrices: DriveView = {
       settings: { enseigne: 'coursesu', store: null },
       choices: [choice('lardon', priced('10', 1.95)), choice('lessive', null, [priced('20', 7.5)])],
-      basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, lines: [line('1', 2, '10'), line('2', 1, '20'), line('3', 1, null)] },
+      basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, missing: [], lines: [line('1', 2, '10'), line('2', 1, '20'), line('3', 1, null)] },
     };
     const rows = fillRows(items, withPrices);
     expect(rows.map((r) => linePrice(r))).toEqual([3.9, 7.5, null]);

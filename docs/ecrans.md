@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.59.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.60.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -352,13 +352,25 @@ compte rendu.
 
 <img src="images/telephone-drive-extension.png" width="260" alt="Onglet Extension : copier le panier, recoller le compte rendu">
 
+**Introuvable ou en rupture** : le compte rendu de l'extension a dit le gruyère indisponible au magasin. Dans
+« Remplir le panier », il ne part plus au panier : HomeHub propose son secours (« Remplacer par… » le paquet de
+500 g, pour ce panier seulement), un autre produit par sa fiche, ou « De retour en rayon » ; rien n'est choisi
+d'office. Un produit à mettre au panier peut aussi être signalé à la main (« Introuvable ? »). Sa fiche produit le
+dit aussi (« Remplacer pour ce panier », « Le retenir à la place », et la trace « Introuvable ou en rupture le… »,
+capture « Produit retenu et secours » plus haut). Dans la liste classique, le gruyère reste dans son rayon, signalé
+« à remplacer ».
+
+| Rupture dans Remplir le panier | Signalé dans la liste |
+|---|---|
+| ![Gruyère en rupture, secours proposé](images/telephone-drive-rupture.png) | ![Gruyère à remplacer dans la liste](images/telephone-drive-rupture-liste.png) |
+
 ### Extension « Remplir le panier » (ordinateur)
 
 Sur une fausse fiche du monde fictif (allure neutre « Drive d'exemple », servie à l'adresse des fiches Courses U sans
 jamais appeler le vrai site, `npm run extension:check`). Pendant le remplissage, un bandeau en bas de la page dit
 où on en est (ici le gruyère vient d'être ajouté en deux paquets, la lessive suit), avec « Arrêter ». À la fin, le
 panier du site contient les produits et le bandeau résume (un produit indisponible a été passé, le thon était déjà
-au panier). Au premier captcha, l'extension s'arrête et le dit ; la personne finit à la main. Le panneau de
+au panier ; HomeHub le signalera « à remplacer »). Au premier captcha, l'extension s'arrête et le dit ; la personne finit à la main. Le panneau de
 l'extension liste ce qui est parti et propose le compte rendu à recoller dans HomeHub.
 
 ![Remplissage en cours](images/ordinateur-extension-ajout.png)

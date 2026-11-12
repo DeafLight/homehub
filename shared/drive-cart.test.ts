@@ -11,7 +11,7 @@ const FICHE = 'https://www.coursesu.com/p/gruyere-rape-exemple/9990012.html';
 const item = (id: string, label: string, menu?: ShoppingItem['menu']): ShoppingItem => ({ id, label, done: false, addedBy: by, addedAt: '', ...(menu && { menu }) });
 const product = (id: string, slug = 'x'): DriveProduct => ({
   enseigne: 'coursesu', id, url: `https://www.coursesu.com/p/${slug}/${id}.html`, name: `Produit ${id}`, brand: null,
-  packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'page', seenAt: '', pieces: null, price: null,
+  packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'page', seenAt: '', pieces: null, price: null, missingAt: null,
 });
 const choice = (key: string, preferred: DriveProduct | null, fallback: DriveProduct[] = []): DriveChoice => ({ key, enseigne: 'coursesu', label: key, preferred, fallback, updatedAt: '', updatedBy: by });
 
@@ -21,7 +21,7 @@ describe('panier copié pour l’extension', () => {
   const view: DriveView = {
     settings: { enseigne: 'coursesu', store: { name: 'Super U Exemple', url: null } },
     choices: [choice('gruyere-rape', product('9990012', 'gruyere-rape-exemple')), choice('lessive', product('9990014')), choice('persil', null, [product('3')]), choice('thon', product('9990015'))],
-    basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, lines: [{ itemId: 'd', key: 'thon', label: 'Thon', product: null, count: 1, per: null, at: '', by }] },
+    basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, missing: [], lines: [{ itemId: 'd', key: 'thon', label: 'Thon', product: null, count: 1, per: null, at: '', by }] },
   };
 
   it('seulement les articles avec un produit retenu, pas encore au panier, avec leurs paquets', () => {
@@ -31,6 +31,17 @@ describe('panier copié pour l’extension', () => {
       { itemId: 'a', label: 'Gruyère râpé', id: '9990012', name: 'Produit 9990012', url: FICHE, count: 2 },
       { itemId: 'b', label: 'Lessive', id: '9990014', name: 'Produit 9990014', url: 'https://www.coursesu.com/p/x/9990014.html', count: 1 },
     ]);
+  });
+
+  it('article introuvable : absent du panier tant qu’aucun remplacement n’est choisi, puis le remplacement', () => {
+    const missing = (replacement: string | null) => ({ itemId: 'b', key: 'lessive', unavailable: ['9990014'], replacement, source: 'manual' as const, at: '', by });
+    const withMissing = (replacement: string | null): DriveView => ({
+      ...view,
+      choices: view.choices.map((c) => (c.key === 'lessive' ? { ...c, fallback: [product('9990018')] } : c)),
+      basket: { ...view.basket!, missing: [missing(replacement)] },
+    });
+    expect(cartFor(fillRows(items, withMissing(null)), 'coursesu', null).lines.map((l) => l.id)).toEqual(['9990012']);
+    expect(cartFor(fillRows(items, withMissing('9990018')), 'coursesu', null).lines.map((l) => l.id)).toEqual(['9990012', '9990018']);
   });
 
   it('relu tel quel par l’extension, même entouré de texte', () => {
@@ -92,5 +103,6 @@ describe('compte rendu recollé dans HomeHub', () => {
       '1 article marqué « au drive », 3 prix notés ; laissé de côté : Thon (article plus dans la liste).',
     );
     expect(reportSummary({ marked: 0, prices: 0, ignored: [] })).toBe('Aucun article marqué « au drive ».');
+    expect(reportSummary({ marked: 1, prices: 0, missing: 2, ignored: [] })).toBe('1 article marqué « au drive », 2 articles introuvables ou en rupture, à remplacer.');
   });
 });

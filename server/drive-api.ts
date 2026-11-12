@@ -10,12 +10,17 @@
 // les articles partis au panier y sont marqués « au drive », le prix et l'EAN lus sur la fiche notés sur le produit.
 // Seules les lignes dont l'article est encore à acheter comptent ; le produit vient du compte rendu (c'est lui qui est
 // au panier), les paquets aussi (ce que l'extension a vu au panier).
+// Introuvable ou en rupture : une ligne passée par l'extension (fiche indisponible ou disparue) signale l'article pour
+// le panier en cours, comme le bouton « Introuvable » de « Remplir le panier » (même droit que la liste). Le
+// remplacement pour ce panier est choisi par la personne parmi les secours de l'article, jamais pris d'office ; un
+// autre produit s'ajoute d'abord en secours par le lien de sa fiche (PUT /drive/choices).
 import { z } from 'zod';
 import {
   basketLine,
   choiceFor,
   DRIVE_LIMITS,
   type DriveBasket,
+  type DriveMissing,
   type DriveProduct,
   type DriveReadResult,
   type DriveStockHint,
@@ -25,6 +30,7 @@ import {
   enseigneName,
   itemKey,
   itemName,
+  missingState,
   normalizeEan,
   productLink,
   storeLink,
@@ -81,6 +87,9 @@ const chooseSchema = z.object({
 });
 const piecesSchema = z.object({ key, id: z.string().trim().min(1).max(80), pieces: z.number().int().min(1, 'Au moins une pièce').max(DRIVE_LIMITS.pieces).nullable() });
 const basketSchema = z.object({ in: z.boolean() });
+const missingSchema = z
+  .object({ missing: z.boolean().optional(), replacement: z.string().trim().min(1).max(80).nullable().optional() })
+  .refine((v) => v.missing !== undefined || v.replacement !== undefined, 'Corps attendu : { "missing": true } ou { "replacement": "…" }');
 const reportSchema = z.object({
   kind: z.literal(REPORT_KIND, 'Ce n’est pas un compte rendu de l’extension « Remplir le panier »'),
   version: z.literal(1, 'Compte rendu d’une autre version de l’extension'),
@@ -111,13 +120,18 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
   const shopping = async () => (await lists.lists()).shopping;
   /** Panier tel qu'on le montre : seulement les lignes dont l'article est encore dans la liste. */
   const visibleBasket = (basket: DriveBasket | null, ids: ReadonlySet<string>): DriveBasket | null =>
-    basket && { ...basket, lines: basket.lines.filter((l) => ids.has(l.itemId)) };
+    basket && { ...basket, lines: basket.lines.filter((l) => ids.has(l.itemId)), missing: basket.missing.filter((m) => ids.has(m.itemId)) };
   const view = async (): Promise<DriveView> => ({
     settings: await drive.settings(),
     choices: await drive.choices(),
     basket: visibleBasket(await drive.basket(), new Set((await shopping()).map((i) => i.id))),
   });
   const enseigne = async (): Promise<Enseigne> => (await drive.settings()).enseigne ?? fail(400, NO_ENSEIGNE);
+  /** Signalement d'un article dans le panier en cours chez l'enseigne, ou null. */
+  const missingFor = async (itemId: string, chosen: Enseigne): Promise<DriveMissing | null> => {
+    const basket = await drive.basket();
+    return (basket?.enseigne === chosen && basket.missing.find((m) => m.itemId === itemId)) || null;
+  };
   const hint = (code: string, info: { name: string; brand: string | null; quantity: string | null }): DriveStockHint => ({ ean: code, name: info.name, brand: info.brand, quantity: info.quantity });
 
   api.get('/drive', async (c) => c.json(await view()));
@@ -192,6 +206,7 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
       seenAt: clock().toISOString(),
       pieces: input.product.pieces ?? null,
       price: null,
+      missingAt: null,
     };
     const choice = (await drive.choose({ key: input.key, label: input.label, product, role: input.role }, author)) ?? fail(409, 'Trop de produits retenus');
     return c.json(choice);
@@ -226,10 +241,42 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
     const item = items.find((i) => i.id === c.req.param('itemId')) ?? fail(404, 'Article introuvable dans la liste de courses');
     if (input.in) {
       if (item.done) return fail(409, 'Article déjà acheté');
-      const line = basketLine(item, choiceFor(await drive.choices(), itemKey(item), chosen));
+      const line = basketLine(item, choiceFor(await drive.choices(), itemKey(item), chosen), await missingFor(item.id, chosen));
       (await drive.putInBasket(chosen, line, ids, author)) ?? fail(409, 'Panier plein');
     } else {
       await drive.takeOutOfBasket(item.id, ids);
+    }
+    return c.json(await view());
+  });
+
+  /**
+   * Introuvable ou en rupture (`missing: true`) : le produit qu'on mettait au panier (le retenu, ou son remplacement)
+   * est signalé pour le panier en cours ; `missing: false` retire le signalement. `replacement` : le secours choisi
+   * pour remplacer le produit retenu dans ce panier (null : aucun), jamais pris d'office.
+   */
+  api.put('/drive/missing/:itemId', async (c) => {
+    const input = await readBody(c, missingSchema, z.prettifyError);
+    const author = await access.writer(c, FAMILY_ID);
+    const chosen = await enseigne();
+    const items = await shopping();
+    const ids = new Set(items.map((i) => i.id));
+    const item = items.find((i) => i.id === c.req.param('itemId')) ?? fail(404, 'Article introuvable dans la liste de courses');
+    if (item.done) return fail(409, 'Article déjà acheté');
+    const key = itemKey(item);
+    const choice = choiceFor(await drive.choices(), key, chosen);
+    if (input.missing === false) {
+      await drive.unmarkMissing(item.id, ids);
+    } else if (input.missing) {
+      const product = missingState(choice, await missingFor(item.id, chosen)).product ?? fail(409, 'Aucun produit à signaler : choisis d’abord un produit pour cet article');
+      (await drive.markMissing({ enseigne: chosen, itemId: item.id, key, productId: product.id, source: 'manual' }, ids, author)) ?? fail(409, 'Panier plein');
+    }
+    if (input.replacement !== undefined) {
+      const state = missingState(choice, await missingFor(item.id, chosen));
+      if (!state.active) return fail(409, 'Cet article n’est pas signalé introuvable ou en rupture');
+      if (input.replacement !== null && !state.proposals.concat(state.replacement ?? []).some((p) => p.id === input.replacement)) {
+        return fail(400, 'Remplacement attendu parmi les secours de l’article (ni introuvables ni en rupture)');
+      }
+      await drive.setReplacement(item.id, input.replacement, ids);
     }
     return c.json(await view());
   });
@@ -242,10 +289,11 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
     if (input.enseigne !== chosen) return fail(400, `Compte rendu d’une autre enseigne que ${enseigneName(chosen)}`);
     const items = await shopping();
     const ids = new Set(items.map((i) => i.id));
-    const result: Omit<DriveReportResult, 'view'> = { marked: 0, prices: 0, ignored: [] };
+    const result: Omit<DriveReportResult, 'view'> = { marked: 0, prices: 0, missing: 0, ignored: [] };
     for (const line of input.lines) {
       const sent = line.status === 'added' || line.status === 'already';
-      if (!sent && line.price === null && line.ean === null) continue;
+      const skipped = line.status === 'skipped';
+      if (!sent && !skipped && line.price === null && line.ean === null) continue;
       const link = productLink(line.url);
       if (!link || link.enseigne !== chosen || link.id !== line.id) {
         result.ignored.push({ name: line.name, reason: 'lien qui n’est pas une fiche de l’enseigne' });
@@ -260,13 +308,23 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
       const ean = line.ean ? normalizeEan(line.ean) : null;
       const noted = await drive.notePage(key, chosen, line.id, { price: line.price, ean });
       if (noted?.price) result.prices++;
+      if (skipped) {
+        // Passée par l'extension (indisponible ou fiche disparue) : signalée, si c'est un produit retenu pour l'article.
+        if (!noted) {
+          result.ignored.push({ name: line.name, reason: 'produit qui n’est plus retenu pour cet article' });
+          continue;
+        }
+        (await drive.markMissing({ enseigne: chosen, itemId: item.id, key, productId: line.id, source: 'extension' }, ids, author)) ?? fail(409, 'Panier plein');
+        result.missing++;
+        continue;
+      }
       if (!sent) continue;
       if (line.count < 1) {
         result.ignored.push({ name: line.name, reason: 'aucun paquet au panier' });
         continue;
       }
       const choice = choiceFor(await drive.choices(), key, chosen);
-      const computed = basketLine(item, choice);
+      const computed = basketLine(item, choice, await missingFor(item.id, chosen));
       const same = computed.product?.id === line.id;
       const product = same ? computed.product : { id: line.id, name: line.name || itemName(item), url: link.url };
       (await drive.putInBasket(chosen, { ...computed, product, count: line.count, per: same ? computed.per : null }, ids, author)) ?? fail(409, 'Panier plein');

@@ -2,7 +2,7 @@
 // magasin est choisi), pages de blocage (captcha, refus, connexion), quantité lue. Les sélecteurs de la page, eux,
 // sont éprouvés dans Chrome sur la fausse fiche du monde fictif (scripts/extension-check.ts).
 import { describe, expect, it } from 'vitest';
-import { blockedReason, productFromLd, quantityOf } from './coursesu.ts';
+import { blockedReason, notFoundPage, productFromLd, quantityOf } from './coursesu.ts';
 
 describe('JSON-LD de la fiche', () => {
   const ld = { '@context': 'https://schema.org/', '@type': 'Product', name: 'Gruyère râpé, 200g', mpn: '9990012', sku: '3000000000106' };
@@ -29,6 +29,16 @@ describe('pages de blocage', () => {
     expect(blockedReason({ ...page, title: 'Un instant…' })).toMatch(/refuse ou vérifie/u);
     expect(blockedReason({ ...page, title: 'Accès refusé' })).toMatch(/refuse ou vérifie/u);
     expect(blockedReason({ ...page, path: '/connexion' })).toMatch(/connecter/u);
+  });
+});
+
+describe('fiche introuvable', () => {
+  it('titre ou premier titre qui dit que la page n’existe plus', () => {
+    expect(notFoundPage({ title: 'Page introuvable | Drive', heading: '' })).toBe(true);
+    expect(notFoundPage({ title: 'Erreur', heading: 'Ce produit n’existe plus' })).toBe(true);
+    expect(notFoundPage({ title: 'Erreur 404', heading: '' })).toBe(true);
+    expect(notFoundPage({ title: 'Gruyère râpé, 200g', heading: 'Gruyère râpé, 200g' })).toBe(false);
+    expect(notFoundPage({ title: 'Accueil', heading: 'Nos promotions' })).toBe(false);
   });
 });
 

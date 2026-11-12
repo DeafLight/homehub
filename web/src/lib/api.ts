@@ -241,6 +241,11 @@ export type Api = {
   setDrivePieces(key: string, id: string, pieces: number | null): Promise<DriveChoice>;
   /** Cocher ou décocher un article dans le panier en cours ; le serveur calcule produit et paquets. */
   setInBasket(itemId: string, inBasket: boolean): Promise<DriveView>;
+  /**
+   * Article introuvable ou en rupture pour le panier en cours : `missing` (signaler le produit qu'on mettait au
+   * panier, ou retirer le signalement), `replacement` (secours choisi pour ce panier ; null : aucun).
+   */
+  setDriveMissing(itemId: string, change: { missing?: boolean; replacement?: string | null }): Promise<DriveView>;
   /** Nouveau panier : plus aucun article marqué « au drive ». */
   newBasket(): Promise<DriveView>;
   /** Compte rendu de l'extension « Remplir le panier » (objet collé) : lignes marquées, prix notés. */
@@ -402,6 +407,7 @@ export function createApi(
     forgetDriveProduct: (key, id) => send('DELETE', `/drive/choices?key=${encodeURIComponent(key)}${id ? `&id=${encodeURIComponent(id)}` : ''}`),
     setDrivePieces: (key, id, pieces) => send('PUT', '/drive/pieces', { key, id, pieces }),
     setInBasket: (itemId, inBasket) => send('PUT', `/drive/basket/${encodeURIComponent(itemId)}`, { in: inBasket }),
+    setDriveMissing: (itemId, change) => send('PUT', `/drive/missing/${encodeURIComponent(itemId)}`, change),
     newBasket: () => send('DELETE', '/drive/basket'),
     sendDriveReport: (report) => send('POST', '/drive/report', report),
     recipeNotes: (id) => request(`/recipes/${encodeURIComponent(id)}/notes`),

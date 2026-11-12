@@ -49,16 +49,22 @@ export type ReportLine = Pick<CartLine, 'itemId' | 'id' | 'name' | 'url'> & {
 
 export type DriveReport = { kind: typeof REPORT_KIND; version: 1; enseigne: Enseigne; at: string; stop: string | null; lines: ReportLine[] };
 
-/** POST /api/drive/report : articles marqués « au drive », prix notés, lignes laissées de côté et pourquoi. */
-export type DriveReportResult = { view: DriveView; marked: number; prices: number; ignored: { name: string; reason: string }[] };
+/**
+ * POST /api/drive/report : articles marqués « au drive », prix notés, articles signalés introuvables ou en rupture
+ * (lignes passées par l'extension), lignes laissées de côté et pourquoi.
+ */
+export type DriveReportResult = { view: DriveView; marked: number; prices: number; missing: number; ignored: { name: string; reason: string }[] };
 
-/** Panier à copier pour l'extension : les articles qui ont un produit retenu et ne sont pas encore au panier. */
+/**
+ * Panier à copier pour l'extension : les articles qui ont un produit à mettre au panier (le retenu, ou son
+ * remplacement s'il est introuvable ou en rupture) et n'y sont pas encore. Un article à remplacer n'y est pas.
+ */
 export function cartFor<I extends ShoppingItem>(rows: readonly FillRow<I>[], enseigne: Enseigne, store: string | null): DriveCart {
   const lines = rows
-    .filter((r) => r.line === null && r.status === 'ready' && r.choice?.preferred && r.count)
+    .filter((r) => r.line === null && r.status === 'ready' && r.product && r.count)
     .slice(0, CART_LIMITS.lines)
     .map((r) => {
-      const product = r.choice!.preferred!;
+      const product = r.product!;
       return { itemId: r.item.id, label: itemName(r.item), id: product.id, name: product.name, url: product.url, count: Math.min(r.count!.count, CART_LIMITS.count) };
     });
   return { kind: CART_KIND, version: 1, enseigne, store, lines };
@@ -119,10 +125,11 @@ export function readReport(text: string): Parsed<Json> {
 }
 
 /** Ce qu'a donné un compte rendu, en une phrase (« 2 articles marqués au drive, 1 prix noté »). */
-export function reportSummary(result: Pick<DriveReportResult, 'marked' | 'prices' | 'ignored'>): string {
+export function reportSummary(result: Pick<DriveReportResult, 'marked' | 'prices' | 'ignored'> & { missing?: number }): string {
   const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
   const parts = [result.marked ? `${plural(result.marked, 'article')} marqué${result.marked > 1 ? 's' : ''} « au drive »` : 'Aucun article marqué « au drive »'];
   if (result.prices) parts.push(`${plural(result.prices, 'prix')} noté${result.prices > 1 ? 's' : ''}`.replace('prixs', 'prix'));
+  if (result.missing) parts.push(`${plural(result.missing, 'article')} introuvable${result.missing > 1 ? 's' : ''} ou en rupture, à remplacer`);
   const ignored = result.ignored.length ? ` ; laissé${result.ignored.length > 1 ? 's' : ''} de côté : ${result.ignored.map((i) => `${i.name} (${i.reason})`).join(', ')}` : '';
   return `${parts.join(', ')}${ignored}.`;
 }

@@ -1,6 +1,19 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { choiceFor, type DriveProduct, type DriveProductDraft, type DriveStockHint, type DriveView, enseigneName, itemKey, itemName, piecesUnit } from '../../../../shared/drive.ts';
+  import {
+    choiceFor,
+    type DriveProduct,
+    type DriveProductDraft,
+    type DriveStockHint,
+    type DriveView,
+    enseigneName,
+    itemKey,
+    itemName,
+    missingOf,
+    missingState,
+    missingTrace,
+    piecesUnit,
+  } from '../../../../shared/drive.ts';
   import type { ShoppingItem } from '../../../../shared/types.ts';
   import type { Api } from '../../lib/api.ts';
   import { eanMessage, packLabel, packsPreview } from '../../lib/drive.ts';
@@ -12,6 +25,9 @@
   // touchant « Lire la fiche » ; si le site refuse, on saisit le nom et la contenance, ou on les reprend d'un produit
   // du stock (par EAN). Un secours n'est jamais pris d'office : il faut le choisir. Article compté en pièces et paquet
   // d'une autre contenance (« 2 oignons », filet de 1 kg) : « Combien de pièces dans ce paquet ? », retenu sur le produit.
+  // Article introuvable ou en rupture pour le panier en cours : on le dit, et on propose de le remplacer pour ce panier
+  // par un secours (choisi ici, jamais pris d'office) ou par un autre produit lu par sa fiche, qui devient un secours.
+  // Un produit garde la trace de sa dernière rupture (« Introuvable ou en rupture le 12/11 »).
   type Props = {
     api: Api;
     item: ShoppingItem;
@@ -28,6 +44,7 @@
   const enseigne = $derived(view.settings.enseigne);
   const key = $derived(itemKey(item));
   const choice = $derived(enseigne ? choiceFor(view.choices, key, enseigne) : null);
+  const missing = $derived(missingState(choice, missingOf(view, item.id)));
 
   let url = $state(untrack(() => initialUrl ?? ''));
   let draft = $state<DriveProductDraft | null>(null);
@@ -72,17 +89,20 @@
     if (source !== 'page') source = 'stock';
   }
 
-  async function save(role: 'preferred' | 'fallback') {
+  /** Retenir le produit lu ; `replace` : en secours, et remplacement du produit introuvable pour ce panier. */
+  async function save(role: 'preferred' | 'fallback', replace = false) {
     const current = draft;
     if (!current) return;
     await run('Enregistrement…', async () => {
       await api.chooseDriveProduct({ key, label: itemName(item), role, product: { url: current.url, name: current.name.trim(), brand: current.brand, packText: current.packText?.trim() || null, ean: current.ean?.trim() || null, source } });
+      if (replace) await api.setDriveMissing(item.id, { replacement: current.id });
       draft = null;
       url = '';
       await onChanged();
     });
   }
 
+  const replaceWith = (id: string | null) => run('Enregistrement…', async () => (await api.setDriveMissing(item.id, { replacement: id }), await onChanged()));
   const forget = (id?: string) => run('Retrait…', async () => (await api.forgetDriveProduct(key, id), await onChanged()));
   const promote = (product: DriveProduct) =>
     run('Enregistrement…', async () => {
@@ -106,6 +126,12 @@
   {#if !enseigne}
     <p>Choisis d’abord une enseigne dans les réglages du drive (bouton « Drive » des courses).</p>
   {:else}
+    {#if missing.active && choice?.preferred}
+      <p class="notice missing">
+        <strong>{choice.preferred.name}</strong> est introuvable ou en rupture pour ce panier.
+        {missing.replacement ? 'Remplacé par un secours, ci-dessous.' : missing.proposals.length > 0 ? 'Remplace-le par un secours, ou par un autre produit.' : 'Remplace-le par un autre produit (lien de sa fiche), ou achète-le ailleurs.'}
+      </p>
+    {/if}
     {#if choice?.preferred}
       {@render productCard(choice.preferred, true)}
     {:else if choice}
@@ -158,6 +184,9 @@
           <button type="button" class="btn primary" disabled={busy !== null || !draft.name?.trim()} onclick={() => save('preferred')}><Icon name="check" size={22} /> Retenir ce produit</button>
           {#if choice?.preferred && choice.preferred.id !== draft.id}
             <button type="button" class="btn" disabled={busy !== null || !draft.name?.trim()} onclick={() => save('fallback')}>En secours</button>
+            {#if missing.active}
+              <button type="button" class="btn" disabled={busy !== null || !draft.name?.trim()} onclick={() => save('fallback', true)}>Remplacer pour ce panier</button>
+            {/if}
           {/if}
         </div>
       </div>
@@ -168,7 +197,7 @@
 {#snippet productCard(product: DriveProduct, preferred: boolean)}
   <div class="product" class:fallback={!preferred}>
     <div class="what">
-      <span class="role">{preferred ? 'Retenu' : 'Secours'}</span>
+      <span class="role">{preferred ? 'Retenu' : missing.replacement?.id === product.id ? 'Remplace pour ce panier' : 'Secours'}</span>
       <strong>{product.name}</strong>
       <span class="muted small">
         {packLabel(product)}{product.ean ? ` · EAN ${product.ean}` : ''}
@@ -179,11 +208,17 @@
           <DrivePieces {api} itemKey={key} {product} unit={piecesUnit(item, product)!} {readOnly} {onChanged} />
         {/key}
       {/if}
+      {#if missingTrace(product)}<span class="warn-text small">{missingTrace(product)}</span>{/if}
       <a href={product.url} target="_blank" rel="noreferrer noopener" class="small">Voir la fiche</a>
     </div>
     {#if !readOnly}
       <div class="product-actions">
-        {#if !preferred}<button type="button" class="btn small" disabled={busy !== null} onclick={() => promote(product)}>Prendre celui-ci</button>{/if}
+        {#if !preferred && missing.proposals.includes(product)}
+          <button type="button" class="btn small primary" disabled={busy !== null} onclick={() => replaceWith(product.id)}>Remplacer pour ce panier</button>
+        {:else if !preferred && missing.replacement?.id === product.id}
+          <button type="button" class="btn small" disabled={busy !== null} onclick={() => replaceWith(null)}>Annuler le remplacement</button>
+        {/if}
+        {#if !preferred}<button type="button" class="btn small" disabled={busy !== null} onclick={() => promote(product)}>{missing.active ? 'Le retenir à la place' : 'Prendre celui-ci'}</button>{/if}
         <button type="button" class="icon" aria-label="Retirer {product.name}" disabled={busy !== null} onclick={() => forget(product.id)}><Icon name="trash" size={22} /></button>
       </div>
     {/if}
@@ -305,7 +340,7 @@
     background: var(--surface-2);
   }
 
-  .product.fallback .btn {
+  .product.fallback .btn:not(.primary) {
     background: var(--border-strong);
   }
 

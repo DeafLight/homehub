@@ -1,7 +1,21 @@
 // Drive côté écran : ce qu'une ligne de la liste de courses dit de son produit chez l'enseigne, l'aperçu des paquets
 // pendant qu'on choisit, le message de correspondance avec le stock, le lien d'une fiche reçu par « Partager », et la
-// marque « au drive » d'un article mis au panier en cours.
-import { basketLines, type DriveChoice, type DriveProduct, drivePacks, type DriveView, eanCheck, type DriveStockHint, formatCount, productLink } from '../../../shared/drive.ts';
+// marque « au drive » d'un article mis au panier en cours, et celle d'un article introuvable ou en rupture.
+import {
+  basketLines,
+  choiceFor,
+  type DriveChoice,
+  type DriveProduct,
+  drivePacks,
+  type DriveView,
+  eanCheck,
+  type DriveStockHint,
+  formatCount,
+  itemKey,
+  missingOf,
+  missingState,
+  productLink,
+} from '../../../shared/drive.ts';
 import { formatPacks } from '../../../shared/menu.ts';
 import { formatQuantities, parsePackage } from '../../../shared/quantities.ts';
 import type { ShoppingItem } from '../../../shared/types.ts';
@@ -49,4 +63,19 @@ export const itemAmount = (item: Pick<ShoppingItem, 'label'>) => item.label.spli
 export function basketMark(view: DriveView, item: Pick<ShoppingItem, 'id'>): string | null {
   const line = basketLines(view).find((l) => l.itemId === item.id);
   return line ? `Au drive${line.product ? ` : ${line.product.name}` : ''} · ${formatCount(line)}` : null;
+}
+
+/**
+ * Article introuvable ou en rupture dans le panier en cours, tel que la liste classique le montre : « Introuvable ou
+ * en rupture : Gruyère râpé, 200g · à remplacer », ou « Remplacé par Gruyère râpé, 500g (…en rupture) » ; null sinon.
+ */
+export function missingMark(view: DriveView, item: Pick<ShoppingItem, 'id' | 'label' | 'menu'>): string | null {
+  const enseigne = view.settings.enseigne;
+  if (!enseigne) return null;
+  const choice = choiceFor(view.choices, itemKey(item), enseigne);
+  const state = missingState(choice, missingOf(view, item.id));
+  if (!state.active || !choice?.preferred) return null;
+  return state.replacement
+    ? `Remplacé par ${state.replacement.name} (${choice.preferred.name} en rupture)`
+    : `Introuvable ou en rupture : ${choice.preferred.name} · à remplacer`;
 }

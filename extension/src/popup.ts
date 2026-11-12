@@ -116,9 +116,9 @@ function endView(run: Run) {
   return [
     h('h2', {}, run.phase === 'done' ? 'Terminé' : 'Arrêté'),
     run.stop ? h('p', { class: 'warn' }, run.stop) : null,
-    h('p', {}, `${p.added + p.already} au panier${p.skipped ? `, ${p.skipped} indisponible${p.skipped > 1 ? 's' : ''}` : ''}${p.waiting + p.failed ? `, ${p.waiting + p.failed} à finir à la main` : ''}. Vérifie ton panier sur le site avant de commander.`),
+    h('p', {}, `${p.added + p.already} au panier${p.skipped ? `, ${p.skipped} introuvable${p.skipped > 1 ? 's' : ''} ou en rupture` : ''}${p.waiting + p.failed ? `, ${p.waiting + p.failed} à finir à la main` : ''}. Vérifie ton panier sur le site avant de commander.`),
     linesList(run),
-    h('p', { class: 'muted' }, 'Pour marquer les lignes « au drive » dans HomeHub : copie ce compte rendu, puis colle-le dans Remplir le panier → Extension.'),
+    h('p', { class: 'muted' }, 'Pour marquer les lignes « au drive » dans HomeHub : copie ce compte rendu, puis colle-le dans Remplir le panier → Extension. Les produits introuvables ou en rupture y sont signalés, avec un remplacement à choisir.'),
     area,
     h('div', { class: 'actions' }, copyButton, resume, again),
   ];

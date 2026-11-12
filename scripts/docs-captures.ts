@@ -295,13 +295,14 @@ for (const [label, slug, role] of [
   const lessive = shopping.find((i) => i.label.startsWith('Lessive'));
   if (lessive) await call(A, 'PUT', `/drive/basket/${lessive.id}`, { in: true });
   // Compte rendu de l'extension « Remplir le panier » recollé : prix vus sur les fiches de la lessive (déjà au panier)
-  // et du gruyère (remplissage arrêté sur sa fiche), pour le total indicatif du récapitulatif.
+  // et du gruyère, que l'extension a trouvé en rupture : il reste dans la liste, signalé, avec son secours (le grand
+  // paquet) proposé en remplacement, jamais pris d'office.
   const gruyere = shopping.find((i) => i.label.startsWith('Gruyère'));
-  const seen = (slug: string, itemId: string, status: string, count: number, price: number) => ({ itemId, ...driveProduct(slug), status, count, ean: null, price, note: null });
+  const seen = (slug: string, itemId: string, status: string, count: number, price: number, note: string | null = null) => ({ itemId, ...driveProduct(slug), status, count, ean: null, price, note });
   if (lessive && gruyere) {
     await call(A, 'POST', '/drive/report', {
       kind: 'homehub-drive-report', version: 1, enseigne: 'coursesu', at: new Date(DOCS_NOW).toISOString(), stop: null,
-      lines: [seen('lessive-liquide-exemple', lessive.id, 'already', 1, 7.9), seen('gruyere-rape-exemple', gruyere.id, 'failed', 0, 2.35)],
+      lines: [seen('lessive-liquide-exemple', lessive.id, 'already', 1, 7.9), seen('gruyere-rape-exemple', gruyere.id, 'skipped', 0, 2.35, 'Indisponible au magasin choisi')],
     });
   }
 }
@@ -538,6 +539,16 @@ await shoot('telephone-drive-marque', `${BASE}/m`, PHONE, {
   after: `[...document.querySelectorAll('.basket-head')].find((h) => h.textContent.includes('Au drive'))?.scrollIntoView({ block: 'center' })`,
 });
 await shoot('telephone-drive-recap', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: `${click('Remplir le panier')}; setTimeout(() => { ${click('Récapitulatif')} }, 500)` });
+// Drive : le gruyère en rupture (vu par l'extension) dans « Remplir le panier », remplacement proposé (sa fiche
+// produit le dit aussi : telephone-drive-produit) ; puis la liste classique où il reste, signalé.
+await shoot('telephone-drive-rupture', `${BASE}/m`, PHONE, {
+  init: asPhone('alex'),
+  after: `${click('Remplir le panier')}; setTimeout(() => { [...document.querySelectorAll('.drive-fill li')].find((li) => li.textContent.includes('Gruyère'))?.scrollIntoView({ block: 'center' }) }, 500)`,
+});
+await shoot('telephone-drive-rupture-liste', `${BASE}/m`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('.product.missing')][0]?.scrollIntoView({ block: 'center' })`,
+});
 // Drive, étape 3 : l'onglet « Extension » (panier à copier pour l'extension, compte rendu à recoller).
 await shoot('telephone-drive-extension', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: `${click('Remplir le panier')}; setTimeout(() => { ${click('Extension')} }, 500)` });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });

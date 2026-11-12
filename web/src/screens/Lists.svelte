@@ -160,7 +160,7 @@
 {#if driveFill && drive.data && lists.data}
   <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (driveFill = false)}>
     <div class="dialog wide" role="dialog" aria-modal="true" aria-label="Remplir le panier">
-      <DriveFill {api} items={lists.data.shopping} view={drive.data} {readOnly} onView={drive.set} onChanged={drive.refresh} onClose={() => (driveFill = false)} />
+      <DriveFill {api} items={lists.data.shopping} view={drive.data} {readOnly} onView={drive.set} onChanged={drive.refresh} onProduct={(item) => ((driveFill = false), (driveItem = item))} onClose={() => (driveFill = false)} />
     </div>
   </div>
 {/if}

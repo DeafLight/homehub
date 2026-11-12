@@ -250,6 +250,7 @@ retenu, ou seulement des secours) ; un produit de contenance inconnue part au dr
 | Drive 1 | Réglages : enseigne (Courses U) et magasin de retrait. Magasin `drive.json`. Sur chaque ligne de la liste, « Produit chez Courses U » : choix d'un produit en partageant ou collant le lien de sa fiche (identifiant tiré de l'URL ; la fiche partagée peut être lue une fois à la demande, `/p/` étant autorisé par `robots.txt`, comme une recette ; si Cloudflare refuse, pas de contournement : nom et contenance saisis, ou repris du stock par EAN). Choix retenu, produit de secours. Nombre de paquets affiché (arrondi au paquet de la 0.52). **Fait en 0.53.0.** |
 | Drive 2 | Grandeurs incompatibles (« combien de pièces dans ce paquet ? »), mode « Remplir le panier » : liste ordonnée par rayon, liens vers les fiches, cases à cocher, récapitulatif (ce qui part, ce qui reste à acheter ailleurs ; prix reportés à Drive 3), lignes marquées « au drive » dans la liste. **Fait en 0.54.0** (panier en cours unique, lignes liées aux articles, marque « au drive » sans cocher comme acheté). |
 | Drive 3 | Extension navigateur (ordinateur, puis Firefox Android) : appairage, lecture du panier préparé, recherche dans la page pour choisir un produit, ajout depuis la session, arrêt sur captcha, retour des prix et EAN vers l'historique des prix. **Fait en 0.55.0 en partie** : extension pour ordinateur, panier copié depuis HomeHub, ajout en cliquant les boutons de la fiche à rythme fixe, arrêt au premier captcha, refus ou page inattendue, compte rendu recollé (lignes cochées « au drive », dernier prix et EAN notés sur le produit). Restent : l'essai réel (section 7), l'appairage, la recherche dans la page, l'historique des prix, Firefox Android (extension signée). |
+| Rupture | Article introuvable ou en rupture : signalé par l'extension (fiche indisponible, ou fiche que le site dit introuvable : passée sans arrêter le remplissage) ou à la main dans « Remplir le panier », pour le panier en cours. L'article reste dans la liste classique, signalé ; remplacement pour ce panier par un secours ou un autre produit lu par sa fiche (devient un secours), choisi par la personne, jamais d'office ; trace de la rupture sur le produit, effacée quand il repart au panier. **Fait en 0.60.0.** |
 | Plus tard | Autres enseignes (adaptateur par enseigne), « Copier pour l'assistant Carrefour », prochain créneau affiché ; jamais de réservation ni de paiement. |
 
 ## 7. Essai réel de l'extension (à faire par l'utilisateur)
@@ -277,7 +278,7 @@ avec Chrome ou Edge :
    tenter qu'une fois, plus tard. Noter après combien de produits il est apparu : si le site bloque dès quelques
    produits à ce rythme, on en reste au chemin (c), la liste à cocher.
 7. **Puis trois produits ou plus**, dont un déjà au panier (il ne doit pas être rajouté) et, si possible, un
-   indisponible (il doit être passé et signalé).
+   indisponible (il doit être passé et signalé ; dans HomeHub, après le compte rendu, l'article est « à remplacer »).
 8. **Compte rendu** : panneau de l'extension → « Copier le compte rendu » → HomeHub, même onglet Extension → coller →
    « Marquer les lignes ». Les articles partis passent « au drive », les prix vus apparaissent dans le récapitulatif.
 9. Même essai avec **Firefox** (module temporaire, `about:debugging`), qui demande l'accès à coursesu.com au premier

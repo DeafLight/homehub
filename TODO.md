@@ -119,8 +119,10 @@ Jusqu'où on peut aller (conclusions de l'étude) :
       après l'essai réel) ; recherche dans la page pour choisir un produit ; prix renvoyés vers un historique des prix
       (voir « Prix ») ; appairage de l'extension comme un appareil (adresse de HomeHub choisie à l'installation, CORS
       limité à l'extension, jeton d'appareil) si le copier-coller pèse à l'usage.
-- [ ] Article introuvable ou en rupture : il reste dans la liste classique, signalé ; produit de remplacement
-      proposé, jamais choisi d'office.
+- [x] Article introuvable ou en rupture : il reste dans la liste classique, signalé ; produit de remplacement
+      proposé, jamais choisi d'office. **Fait en 0.60.0** : signalé par l'extension (indisponible, ou fiche
+      introuvable passée) ou à la main (« Introuvable ? »), remplacement pour ce panier par un secours ou un autre
+      produit par sa fiche, trace de la rupture sur le produit.
 - [ ] Plus tard, si besoin : autres enseignes (un adaptateur chacune ; Leclerc incertain à cause de DataDome),
       « Copier la liste pour l'assistant Carrefour » (appli Carrefour dans ChatGPT), prochain créneau affiché par
       l'extension, sans réserver.

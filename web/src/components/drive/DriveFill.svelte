@@ -1,5 +1,19 @@
 <script lang="ts">
-  import { countFlag, type DriveView, driveRecap, enseigneName, fillRows, type FillRow, formatCount, itemName, linePrice, packPrice, piecesUnit } from '../../../../shared/drive.ts';
+  import {
+    countFlag,
+    type DriveProduct,
+    type DriveView,
+    driveRecap,
+    enseigneName,
+    fillRows,
+    type FillRow,
+    formatCount,
+    itemName,
+    linePrice,
+    missingTrace,
+    packPrice,
+    piecesUnit,
+  } from '../../../../shared/drive.ts';
   import { cartFor, formatPrice, readReport, reportSummary } from '../../../../shared/drive-cart.ts';
   import type { ShoppingItem } from '../../../../shared/types.ts';
   import type { Api } from '../../lib/api.ts';
@@ -17,6 +31,10 @@
   // Onglet « Extension » (étape 3) : copier le panier (ce qui reste à mettre au panier avec un produit retenu) pour
   // l'extension « Remplir le panier », puis recoller son compte rendu pour marquer les lignes et noter les prix vus ;
   // le récapitulatif en tire un total indicatif.
+  // Introuvable ou en rupture : signalé par le compte rendu de l'extension, ou ici (« Introuvable ? ») ; l'article ne
+  // part plus au panier avec ce produit et reste dans la liste classique, signalé. On propose ses secours (« Remplacer
+  // par… », pour ce panier, jamais pris d'office) ou un autre produit (fiche produit de l'article) ; « De retour »
+  // retire le signalement. Un produit déjà signalé une autre fois le rappelle (« Introuvable ou en rupture le 12/11 »).
   type Props = {
     api: Api;
     items: ShoppingItem[];
@@ -26,9 +44,11 @@
     onView: (view: DriveView) => void;
     /** Après un changement de produit (pièces par paquet) : la vue est rechargée par le parent. */
     onChanged: () => Promise<void> | void;
+    /** Ouvre le produit d'un article (pour en ajouter un autre par le lien de sa fiche) ; absent : pas proposé. */
+    onProduct?: (item: ShoppingItem) => void;
     onClose: () => void;
   };
-  let { api, items, view, readOnly = false, onView, onChanged, onClose }: Props = $props();
+  let { api, items, view, readOnly = false, onView, onChanged, onProduct, onClose }: Props = $props();
 
   const enseigne = $derived(view.settings.enseigne);
   const rows = $derived(fillRows(items, view));
@@ -61,6 +81,9 @@
   }
 
   const toggle = (row: FillRow, inBasket: boolean) => run(row.item.id, () => api.setInBasket(row.item.id, inBasket));
+  const setMissing = (row: FillRow, change: { missing?: boolean; replacement?: string | null }) => run(row.item.id, () => api.setDriveMissing(row.item.id, change));
+  /** Le produit retenu signalé (celui que le remplacement remplace). */
+  const signaled = (row: FillRow): DriveProduct | null => (row.missing ? (row.choice?.preferred ?? null) : null);
   const newBasket = () => run('new', async () => ((confirmNew = false), await api.newBasket()));
 
   async function copyCart() {
@@ -170,6 +193,16 @@
           </p>
         {/if}
 
+        {#if recap.missing.length > 0}
+          <h3>À remplacer · {recap.missing.length}</h3>
+          {#each recap.missing as row (row.item.id)}
+            <p class="recap-row">
+              <span>{itemName(row.item)} <span class="muted">· {signaled(row)?.name}</span></span>
+              <span class="flag">{row.proposals.length > 0 ? `${row.proposals.length} secours possible${row.proposals.length > 1 ? 's' : ''}` : 'introuvable ou en rupture'}</span>
+            </p>
+          {/each}
+        {/if}
+
         {#if recap.toFill.length > 0}
           <h3>Reste à mettre au panier · {recap.toFill.length}</h3>
           {#each recap.toFill as row (row.item.id)}
@@ -191,7 +224,7 @@
     {/if}
 
     <div class="actions">
-      {#if !readOnly && recap.drive.length > 0}
+      {#if !readOnly && (recap.drive.length > 0 || rows.some((r) => r.missing))}
         {#if confirmNew}
           <button type="button" class="btn" disabled={busy !== null} onclick={newBasket}>Oui, tout décocher</button>
           <button type="button" class="btn" onclick={() => (confirmNew = false)}>Non</button>
@@ -205,7 +238,7 @@
 </div>
 
 {#snippet fillRow(row: FillRow)}
-  {@const product = row.choice?.preferred ?? null}
+  {@const product = row.product}
   {@const unit = product ? piecesUnit(row.item, product) : null}
   <li class:in={row.line !== null}>
     <input
@@ -222,10 +255,30 @@
         {@const price = packPrice(row, product.id)}
         <span class="count">{formatCount(row.count)}{#if price}<span class="muted price">{` · ${formatPrice(price.value)} le paquet`}</span>{/if}</span>
         {#if countFlag(row.count.flag) && !(unit && !readOnly)}<span class="flag">{countFlag(row.count.flag)}</span>{/if}
+        {#if row.missing}
+          <span class="flag">
+            Remplace {signaled(row)?.name}, introuvable ou en rupture
+            {#if !readOnly}<button type="button" class="link" disabled={busy !== null} onclick={() => setMissing(row, { replacement: null })}>Annuler</button>{/if}
+          </span>
+        {:else if missingTrace(product)}
+          <span class="muted small">{missingTrace(product)}</span>
+        {/if}
         {#if unit && enseigne}
           {#key product.id}
             <DrivePieces {api} itemKey={row.key} {product} {unit} {readOnly} {onChanged} />
           {/key}
+        {/if}
+      {:else if row.status === 'missing'}
+        <span class="product">{signaled(row)?.name}</span>
+        <span class="flag">Introuvable ou en rupture{row.missing?.source === 'extension' ? ' (vu par l’extension)' : ''} : à remplacer, ou à acheter ailleurs</span>
+        {#if !readOnly}
+          <span class="replace">
+            {#each row.proposals as fallback (fallback.id)}
+              <button type="button" class="btn small" disabled={busy !== null} onclick={() => setMissing(row, { replacement: fallback.id })}>Remplacer par {fallback.name}</button>
+            {/each}
+            {#if onProduct}<button type="button" class="btn small" onclick={() => onProduct(row.item)}>Autre produit…</button>{/if}
+            <button type="button" class="link" disabled={busy !== null} onclick={() => setMissing(row, { missing: false })}>De retour en rayon</button>
+          </span>
         {/if}
       {:else if row.status === 'fallback'}
         <span class="flag">Seulement des secours : choisis-en un avec le chariot de l’article</span>
@@ -240,7 +293,12 @@
       {/if}
     </div>
     {#if product}
-      <a class="btn small" href={product.url} target="_blank" rel="noreferrer noopener"><Icon name="link" size={18} /> Fiche</a>
+      <div class="side">
+        <a class="btn small" href={product.url} target="_blank" rel="noreferrer noopener"><Icon name="link" size={18} /> Fiche</a>
+        {#if !readOnly && row.line === null}
+          <button type="button" class="link small" disabled={busy !== null} onclick={() => setMissing(row, { missing: true })}>Introuvable ?</button>
+        {/if}
+      </div>
     {/if}
   </li>
 {/snippet}
@@ -366,6 +424,27 @@
   a.btn {
     flex-shrink: 0;
     text-decoration: none;
+  }
+
+  .side {
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .side .link {
+    margin: 0;
+    color: var(--fg-muted);
+  }
+
+  .replace {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: 4px;
   }
 
   .ok {

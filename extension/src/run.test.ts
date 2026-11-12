@@ -39,6 +39,10 @@ describe('décisions sur la page ouverte', () => {
     expect(decide(running(), product({ canAdd: false, unavailable: true }))).toEqual({ do: 'skip', note: 'Indisponible au magasin choisi' });
   });
 
+  it('fiche introuvable (produit retiré du site) : passée, on continue', () => {
+    expect(decide(running(), { kind: 'gone' })).toEqual({ do: 'skip', note: 'Fiche introuvable sur le site' });
+  });
+
   it('arrêt au premier captcha, page inattendue, autre produit, bouton absent', () => {
     expect(decide(running(), { kind: 'blocked', reason: 'Captcha' })).toEqual({ do: 'stop', reason: 'Captcha' });
     expect(decide(running(), { kind: 'other', what: 'page /' })).toMatchObject({ do: 'stop', reason: expect.stringMatching(/Page inattendue/u) });

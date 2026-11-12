@@ -23,6 +23,7 @@ const product = (id: string, name = `Produit ${id}`): DriveProduct => ({
   seenAt: fixedClock().toISOString(),
   pieces: null,
   price: null,
+  missingAt: null,
 });
 
 function setup() {
@@ -113,12 +114,45 @@ describe('magasin du drive', () => {
 
   it('relit un fichier de l’étape 1 (sans pièces ni panier)', async () => {
     const { path } = setup();
-    const { pieces: _pieces, price: _price, ...old } = product('1');
+    const { pieces: _pieces, price: _price, missingAt: _missingAt, ...old } = product('1');
     writeFileSync(path, JSON.stringify({ version: 1, settings: { enseigne: 'coursesu', store: null }, choices: [{ key: 'lardon', enseigne: 'coursesu', label: 'Lardons', preferred: old, fallback: [], updatedAt: '', updatedBy: by }] }));
     const store = createDriveStore({ path, clock: fixedClock });
     expect((await store.choices())[0].preferred?.pieces).toBeNull();
     expect((await store.choices())[0].preferred?.price).toBeNull();
     expect(await store.basket()).toBeNull();
+  });
+
+  it('introuvable ou en rupture : signalé pour le panier, remplacement, trace sur le produit effacée quand il repart au panier', async () => {
+    const { path, store } = setup();
+    const items = new Set(['a']);
+    await store.choose({ key: 'lardon', label: 'Lardons', product: product('2'), role: 'fallback' }, by);
+    await store.choose({ key: 'lardon', label: 'Lardons', product: product('1'), role: 'preferred' }, by);
+    await store.putInBasket('coursesu', { itemId: 'a', key: 'lardon', label: 'Lardons', product: { id: '1', name: '', url: '' }, count: 1, per: null }, items, by);
+    let basket = await store.markMissing({ enseigne: 'coursesu', itemId: 'a', key: 'lardon', productId: '1', source: 'extension' }, items, by);
+    expect(basket?.missing).toEqual([{ itemId: 'a', key: 'lardon', unavailable: ['1'], replacement: null, source: 'extension', at: fixedClock().toISOString(), by }]);
+    expect(basket?.lines).toEqual([]);
+    expect((await store.choices())[0].preferred?.missingAt).toBe(fixedClock().toISOString());
+    expect((await store.setReplacement('a', '2', items))?.missing[0].replacement).toBe('2');
+    expect(await store.setReplacement('b', '2', items)).toBeNull();
+    // Le remplacement aussi en rupture : il ne l'est plus, et rejoint les indisponibles.
+    basket = await store.markMissing({ enseigne: 'coursesu', itemId: 'a', key: 'lardon', productId: '2', source: 'manual' }, items, by);
+    expect(basket?.missing[0]).toMatchObject({ unavailable: ['1', '2'], replacement: null, source: 'manual' });
+    expect((await createDriveStore({ path, clock: fixedClock }).basket())?.missing).toHaveLength(1);
+    // Reparti au panier : la trace s'efface ; retirer le signalement efface celle des autres produits.
+    await store.putInBasket('coursesu', { itemId: 'a', key: 'lardon', label: 'Lardons', product: { id: '1', name: '', url: '' }, count: 1, per: null }, items, by);
+    expect((await store.choices())[0].preferred?.missingAt).toBeNull();
+    expect((await store.choices())[0].fallback[0].missingAt).not.toBeNull();
+    expect((await store.unmarkMissing('a', items))?.missing).toEqual([]);
+    expect((await store.choices())[0].fallback[0].missingAt).toBeNull();
+    // Article parti de la liste : son signalement s'en va à l'écriture suivante.
+    await store.markMissing({ enseigne: 'coursesu', itemId: 'a', key: 'lardon', productId: '1', source: 'manual' }, items, by);
+    expect((await store.putInBasket('coursesu', { itemId: 'b', key: 'b', label: 'b', product: null, count: 1, per: null }, new Set(['b']), by))?.missing).toEqual([]);
+  });
+
+  it('relit un panier sans signalements (étapes 2 et 3)', async () => {
+    const { path } = setup();
+    writeFileSync(path, JSON.stringify({ version: 1, settings: { enseigne: 'coursesu', store: null }, choices: [], basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, lines: [] } }));
+    expect((await createDriveStore({ path, clock: fixedClock }).basket())?.missing).toEqual([]);
   });
 
   it('fiche lue par l’extension : prix noté, EAN gardé seulement s’il manquait ; il suit le produit qui change de rôle', async () => {

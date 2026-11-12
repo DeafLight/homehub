@@ -10,12 +10,17 @@
 //
 // Étape 3 : le dernier prix d'un paquet vu par l'extension « Remplir le panier » (`price`, indicatif), et l'EAN lu sur
 // la fiche quand le produit n'en avait pas. Les fichiers des étapes 1 et 2 se lisent tels quels (pas de prix).
+//
+// Introuvable ou en rupture : les articles signalés pendant le panier en cours (`missing` du panier, nettoyés comme
+// ses lignes) et le remplacement choisi pour ce panier ; la trace sur le produit (`missingAt`), effacée quand il
+// repart au panier. Les fichiers plus anciens se lisent tels quels (aucun signalement, aucune trace).
 import { z } from 'zod';
 import {
   DRIVE_LIMITS,
   type DriveBasket,
   type DriveBasketLine,
   type DriveChoice,
+  type DriveMissing,
   type DriveProduct,
   type DriveSettings,
   ENSEIGNES,
@@ -40,6 +45,7 @@ const productSchema = z.object({
   seenAt: z.string(),
   pieces: z.number().int().positive().nullable().default(null),
   price: z.object({ value: z.number().nonnegative(), at: z.string() }).nullable().default(null),
+  missingAt: z.string().nullable().default(null),
 });
 sameShape<z.infer<typeof productSchema>, DriveProduct>(true);
 
@@ -73,7 +79,24 @@ const basketLineSchema = z.object({
 });
 sameShape<z.infer<typeof basketLineSchema>, DriveBasketLine>(true);
 
-const basketSchema = z.object({ enseigne: z.enum(ENSEIGNES), startedAt: z.string(), startedBy: authorSchema, lines: z.array(basketLineSchema) });
+const missingSchema = z.object({
+  itemId: z.string(),
+  key: z.string(),
+  unavailable: z.array(z.string()),
+  replacement: z.string().nullable(),
+  source: z.enum(['extension', 'manual']),
+  at: z.string(),
+  by: authorSchema,
+});
+sameShape<z.infer<typeof missingSchema>, DriveMissing>(true);
+
+const basketSchema = z.object({
+  enseigne: z.enum(ENSEIGNES),
+  startedAt: z.string(),
+  startedBy: authorSchema,
+  lines: z.array(basketLineSchema),
+  missing: z.array(missingSchema).default([]),
+});
 sameShape<z.infer<typeof basketSchema>, DriveBasket>(true);
 
 const fileSchema = z.object({ version: z.literal(1), settings: settingsSchema, choices: z.array(choiceSchema), basket: basketSchema.nullable().default(null) });
@@ -113,6 +136,16 @@ export type DriveStore = {
   putInBasket(enseigne: Enseigne, line: Omit<DriveBasketLine, 'at' | 'by'>, items: ReadonlySet<string>, by: Author): Promise<DriveBasket | null>;
   /** Retire un article du panier (il n'est plus marqué « au drive »). */
   takeOutOfBasket(itemId: string, items: ReadonlySet<string>): Promise<DriveBasket | null>;
+  /**
+   * Signale un produit d'un article introuvable ou en rupture pour le panier en cours (commencé s'il n'y en a pas) :
+   * ajouté aux indisponibles de l'article ; s'il était le remplacement choisi, il ne l'est plus ; sa ligne du panier
+   * s'en va si c'était ce produit ; le produit du choix en garde la trace. null : panier plein.
+   */
+  markMissing(input: { enseigne: Enseigne; itemId: string; key: string; productId: string; source: DriveMissing['source'] }, items: ReadonlySet<string>, by: Author): Promise<DriveBasket | null>;
+  /** Retire le signalement d'un article (erreur, ou de retour en rayon), et la trace laissée sur ses produits. */
+  unmarkMissing(itemId: string, items: ReadonlySet<string>): Promise<DriveBasket | null>;
+  /** Remplacement choisi pour ce panier (un secours de l'article ; null : aucun). null : article non signalé. */
+  setReplacement(itemId: string, replacement: string | null, items: ReadonlySet<string>): Promise<DriveBasket | null>;
   /** Nouveau panier : plus aucune ligne. */
   clearBasket(): Promise<void>;
 };
@@ -129,6 +162,17 @@ export function createDriveStore({ path, clock }: { path: string; clock: Clock }
   });
 
   const find = (file: DriveFile, key: string, enseigne: Enseigne) => file.choices.find((c) => c.key === key && c.enseigne === enseigne);
+  const productOf = (file: DriveFile, key: string, enseigne: Enseigne, id: string) => {
+    const choice = find(file, key, enseigne);
+    return (choice && [choice.preferred, ...choice.fallback].find((p) => p?.id === id)) || null;
+  };
+  /** Panier en cours chez l'enseigne (commencé s'il n'y en a pas), sans les lignes et signalements d'articles partis. */
+  const basketOf = (file: DriveFile, enseigne: Enseigne, items: ReadonlySet<string>, by: Author) => {
+    if (!file.basket || file.basket.enseigne !== enseigne) file.basket = { enseigne, startedAt: clock().toISOString(), startedBy: by, lines: [], missing: [] };
+    file.basket.lines = file.basket.lines.filter((l) => items.has(l.itemId));
+    file.basket.missing = file.basket.missing.filter((m) => items.has(m.itemId));
+    return file.basket;
+  };
 
   return {
     async settings() {
@@ -154,7 +198,7 @@ export function createDriveStore({ path, clock }: { path: string; clock: Clock }
           }
           // Les pièces par paquet déjà dites pour ce produit le suivent quand il change de rôle.
           const known = [choice.preferred, ...choice.fallback].find((p) => p?.id === product.id);
-          product = { ...product, pieces: product.pieces ?? known?.pieces ?? null, price: product.price ?? known?.price ?? null };
+          product = { ...product, pieces: product.pieces ?? known?.pieces ?? null, price: product.price ?? known?.price ?? null, missingAt: product.missingAt ?? known?.missingAt ?? null };
           const others = choice.fallback.filter((p) => p.id !== product.id);
           if (role === 'preferred') {
             const previous = choice.preferred && choice.preferred.id !== product.id ? [choice.preferred] : [];
@@ -231,11 +275,14 @@ export function createDriveStore({ path, clock }: { path: string; clock: Clock }
       return state.update(
         (file) => {
           const now = clock().toISOString();
-          if (!file.basket || file.basket.enseigne !== enseigne) file.basket = { enseigne, startedAt: now, startedBy: by, lines: [] };
-          const lines = file.basket.lines.filter((l) => items.has(l.itemId) && l.itemId !== line.itemId);
+          const basket = basketOf(file, enseigne, items, by);
+          const lines = basket.lines.filter((l) => l.itemId !== line.itemId);
           if (lines.length >= DRIVE_LIMITS.basket) return null;
-          file.basket.lines = [...lines, { ...line, at: now, by }];
-          return structuredClone(file.basket);
+          basket.lines = [...lines, { ...line, at: now, by }];
+          // Reparti au panier : la trace d'une rupture passée s'efface.
+          const product = line.product && productOf(file, line.key, enseigne, line.product.id);
+          if (product) product.missingAt = null;
+          return structuredClone(basket);
         },
         (basket) => basket !== null,
       );
@@ -246,6 +293,55 @@ export function createDriveStore({ path, clock }: { path: string; clock: Clock }
         if (file.basket) file.basket.lines = file.basket.lines.filter((l) => items.has(l.itemId) && l.itemId !== itemId);
         return structuredClone(file.basket);
       });
+    },
+
+    markMissing({ enseigne, itemId, key, productId, source }, items, by) {
+      return state.update(
+        (file) => {
+          const now = clock().toISOString();
+          const basket = basketOf(file, enseigne, items, by);
+          let record = basket.missing.find((m) => m.itemId === itemId);
+          if (!record) {
+            if (basket.missing.length >= DRIVE_LIMITS.basket) return null;
+            record = { itemId, key, unavailable: [], replacement: null, source, at: now, by };
+            basket.missing.push(record);
+          }
+          if (!record.unavailable.includes(productId)) record.unavailable.push(productId);
+          if (record.replacement === productId) record.replacement = null;
+          Object.assign(record, { key, source, at: now, by });
+          basket.lines = basket.lines.filter((l) => l.itemId !== itemId || l.product?.id !== productId);
+          const product = productOf(file, key, enseigne, productId);
+          if (product) product.missingAt = now;
+          return structuredClone(basket);
+        },
+        (basket) => basket !== null,
+      );
+    },
+
+    unmarkMissing(itemId, items) {
+      return state.update((file) => {
+        const basket = file.basket;
+        if (!basket) return null;
+        const record = basket.missing.find((m) => m.itemId === itemId);
+        for (const id of record?.unavailable ?? []) {
+          const product = productOf(file, record!.key, basket.enseigne, id);
+          if (product) product.missingAt = null;
+        }
+        basket.missing = basket.missing.filter((m) => items.has(m.itemId) && m.itemId !== itemId);
+        return structuredClone(basket);
+      });
+    },
+
+    setReplacement(itemId, replacement, items) {
+      return state.update(
+        (file) => {
+          const record = file.basket?.missing.find((m) => m.itemId === itemId && items.has(m.itemId));
+          if (!file.basket || !record) return null;
+          record.replacement = replacement;
+          return structuredClone(file.basket);
+        },
+        (basket) => basket !== null,
+      );
     },
 
     async clearBasket() {

@@ -3,7 +3,8 @@
 // dans l'onglet de la personne, on regarde ce que montre la page (adaptateur de l'enseigne), on décide quoi faire,
 // puis on passe au suivant après une pause fixe. Règle d'arrêt : au premier captcha, refus ou page inattendue, on
 // s'arrête et on le dit ; on ne réessaie pas, on ne contourne rien, la personne finit à la main (ou reprend elle-même
-// plus tard). Seul cas où l'on continue : un produit que la fiche dit indisponible, passé et signalé.
+// plus tard). Seuls cas où l'on continue : un produit que la fiche dit indisponible, ou une fiche que le site dit
+// introuvable (produit retiré du catalogue), passé et signalé ; HomeHub le montre ensuite « à remplacer ».
 //
 // Rythme fixe et lent, sans hasard ni accélération : c'est la cadence d'une personne pressée, pas une imitation.
 import { type CartLine, type DriveCart, type DriveReport, REPORT_KIND, type ReportStatus } from '../../shared/drive-cart.ts';
@@ -54,6 +55,8 @@ export type Page =
       canAdd: boolean;
       unavailable: boolean;
     }
+  /** Le site dit que la fiche n'existe plus (« Page introuvable ») : produit retiré, à remplacer dans HomeHub. */
+  | { kind: 'gone' }
   | { kind: 'other'; what: string };
 
 export type Step =
@@ -95,6 +98,7 @@ export function decide(run: Run, page: Page): Step {
   const line = current(run);
   if (run.phase !== 'running' || !line) return { do: 'idle' };
   if (page.kind === 'blocked') return { do: 'stop', reason: page.reason };
+  if (page.kind === 'gone') return { do: 'skip', note: 'Fiche introuvable sur le site' };
   if (page.kind === 'other') return { do: 'stop', reason: `Page inattendue au lieu de la fiche de « ${line.name} » (${page.what})` };
   if (page.id !== line.id) return { do: 'stop', reason: `Ce n’est pas la fiche attendue (« ${line.name} ») : le site a montré un autre produit` };
   const inCart = page.inCart ?? 0;

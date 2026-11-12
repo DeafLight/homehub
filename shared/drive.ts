@@ -20,6 +20,12 @@
 //
 // Étape 3, extension « Remplir le panier » (voir drive-cart.ts) : le dernier prix d'un paquet vu sur la fiche par
 // l'extension est retenu sur le produit (`price`, indicatif) ; le récapitulatif en fait un total indicatif.
+//
+// Article introuvable ou en rupture (DriveMissing) : signalé par l'extension (fiche indisponible ou disparue) ou à la
+// main dans « Remplir le panier », pour le panier en cours. L'article reste dans la liste classique, signalé, et ne
+// part plus au panier avec ce produit ; on propose un remplacement pour ce panier : un secours déjà retenu, ou un
+// autre produit par le lien de sa fiche (il devient un secours), choisi par la personne, jamais pris d'office. Le
+// produit garde la trace de sa dernière rupture (`missingAt`), effacée quand il repart au panier.
 import { ingredientKey, parseIngredient, type Unit, unitLabel } from './ingredients.ts';
 import { formatPacks, type Packs, packsFor } from './menu.ts';
 import { type Amount, dimensionOf, parsePackage } from './quantities.ts';
@@ -76,6 +82,11 @@ export type DriveProduct = {
    * site), indicatif ; null : jamais vu.
    */
   price: DrivePrice | null;
+  /**
+   * Dernière fois que le produit a été signalé introuvable ou en rupture (trace pour la prochaine fois) ; null :
+   * jamais, ou reparti au panier depuis.
+   */
+  missingAt: string | null;
 };
 
 /** Prix d'un paquet vu sur la fiche, et quand. */
@@ -117,10 +128,30 @@ export type DriveBasketLine = {
   by: Author;
 };
 
-/** Panier en cours chez une enseigne : ce qu'on y a mis, coché pendant qu'on le remplit dans son appli. */
-export type DriveBasket = { enseigne: Enseigne; startedAt: string; startedBy: Author; lines: DriveBasketLine[] };
+/**
+ * Article introuvable ou en rupture pendant ce panier : les produits vus indisponibles (`unavailable` : le produit
+ * retenu d'abord, puis un remplacement qui l'était aussi), et le remplacement choisi pour ce panier parmi les secours
+ * (null : pas encore choisi). Le signalement ne vaut que tant que le produit retenu est l'un des indisponibles :
+ * retenir un autre produit le rend caduc.
+ */
+export type DriveMissing = {
+  itemId: string;
+  key: string;
+  unavailable: string[];
+  replacement: string | null;
+  /** Qui l'a vu : l'extension (fiche indisponible ou disparue), ou la personne dans « Remplir le panier ». */
+  source: 'extension' | 'manual';
+  at: string;
+  by: Author;
+};
 
-/** GET /api/drive (`basket` : seulement les lignes dont l'article est encore dans la liste). */
+/**
+ * Panier en cours chez une enseigne : ce qu'on y a mis, coché pendant qu'on le remplit dans son appli, et les
+ * articles signalés introuvables ou en rupture.
+ */
+export type DriveBasket = { enseigne: Enseigne; startedAt: string; startedBy: Author; lines: DriveBasketLine[]; missing: DriveMissing[] };
+
+/** GET /api/drive (`basket` : seulement les lignes et signalements dont l'article est encore dans la liste). */
 export type DriveView = { settings: DriveSettings; choices: DriveChoice[]; basket: DriveBasket | null };
 
 /** Ce qu'on sait d'un produit avant de le retenir (lecture de la fiche, ou seulement son lien). */
@@ -297,19 +328,50 @@ export function countFlag(flag: DriveCount['flag']): string | null {
   return null;
 }
 
+// --- Introuvable ou en rupture ---
+
+/**
+ * Ce que devient un article signalé introuvable ou en rupture : `active` (le signalement vaut pour le produit retenu),
+ * le produit qu'on met au panier (`product` : le produit retenu sans signalement, sinon le remplacement choisi, sinon
+ * null), et les secours proposés en remplacement (ni indisponibles, ni déjà choisis).
+ */
+export function missingState(choice: DriveChoice | null, missing: DriveMissing | null) {
+  const preferred = choice?.preferred ?? null;
+  if (!missing || !preferred || !missing.unavailable.includes(preferred.id)) return { active: false, product: preferred, replacement: null, proposals: [] as DriveProduct[] };
+  const usable = (choice?.fallback ?? []).filter((p) => !missing.unavailable.includes(p.id));
+  const replacement = usable.find((p) => p.id === missing.replacement) ?? null;
+  return { active: true, product: replacement, replacement, proposals: usable.filter((p) => p !== replacement) };
+}
+
+/** Signalement d'un article dans le panier en cours chez l'enseigne choisie (même caduc), ou null. */
+export const missingOf = (view: DriveView, itemId: string): DriveMissing | null =>
+  (view.settings.enseigne && view.basket?.enseigne === view.settings.enseigne ? view.basket.missing : []).find((m) => m.itemId === itemId) ?? null;
+
+/** « Introuvable ou en rupture le 12/11 » : la trace laissée sur un produit, ou null. */
+export function missingTrace(product: Pick<DriveProduct, 'missingAt'>): string | null {
+  if (!product.missingAt) return null;
+  const [, month, day] = product.missingAt.slice(0, 10).split('-');
+  return `Introuvable ou en rupture le ${day}/${month}`;
+}
+
 // --- Remplir le panier ---
 
 /**
- * Un article à acheter dans le mode « Remplir le panier » : son choix chez l'enseigne, son état (`ready` : produit
- * retenu ; `fallback` : seulement des secours, jamais pris d'office ; `none` : aucun produit), ce qu'il faut mettre au
- * panier, et sa ligne du panier s'il est coché. `changed` : la ligne cochée ne correspond plus à ce qu'il faut
- * (quantité ou produit changés depuis).
+ * Un article à acheter dans le mode « Remplir le panier » : son choix chez l'enseigne, son état (`ready` : produit à
+ * mettre au panier ; `missing` : produit retenu introuvable ou en rupture, remplacement à choisir ; `fallback` :
+ * seulement des secours, jamais pris d'office ; `none` : aucun produit), le produit qu'on met au panier (`product` :
+ * le retenu, ou son remplacement pour ce panier), ce qu'il faut mettre au panier, et sa ligne du panier s'il est
+ * coché. `missing` : le signalement, s'il vaut encore, et `proposals` les secours proposés en remplacement.
+ * `changed` : la ligne cochée ne correspond plus à ce qu'il faut (quantité ou produit changés depuis).
  */
 export type FillRow<I extends ShoppingItem = ShoppingItem> = {
   item: I;
   key: string;
   choice: DriveChoice | null;
-  status: 'ready' | 'fallback' | 'none';
+  status: 'ready' | 'missing' | 'fallback' | 'none';
+  product: DriveProduct | null;
+  missing: DriveMissing | null;
+  proposals: DriveProduct[];
   count: DriveCount | null;
   line: DriveBasketLine | null;
   changed: boolean;
@@ -329,18 +391,23 @@ export function fillRows<I extends ShoppingItem>(items: readonly I[], view: Driv
     .map((item) => {
       const key = itemKey(item);
       const choice = choiceFor(view.choices, key, enseigne);
-      const product = choice?.preferred ?? null;
+      const signal = missingOf(view, item.id);
+      const state = missingState(choice, signal);
+      const product = state.product;
       const count = product ? driveCount(item, product) : null;
       const line = lines.find((l) => l.itemId === item.id) ?? null;
       const changed = line !== null && ((line.product?.id ?? null) !== (product?.id ?? null) || (count !== null && line.count !== count.count));
-      const status = product ? 'ready' : choice?.fallback.length ? 'fallback' : 'none';
-      return { item, key, choice, status, count, line, changed };
+      const status = product ? 'ready' : state.active ? 'missing' : choice?.fallback.length ? 'fallback' : 'none';
+      return { item, key, choice, status, product, missing: state.active ? signal : null, proposals: state.proposals, count, line, changed };
     });
 }
 
-/** Ce qu'on met au panier pour un article, à partir de son produit retenu (sans produit : 1 paquet). */
-export function basketLine(item: ShoppingItem, choice: DriveChoice | null): Pick<DriveBasketLine, 'itemId' | 'key' | 'label' | 'product' | 'count' | 'per'> {
-  const product = choice?.preferred ?? null;
+/**
+ * Ce qu'on met au panier pour un article, à partir de son produit retenu, ou de son remplacement s'il est signalé
+ * introuvable ou en rupture (sans produit : 1 paquet).
+ */
+export function basketLine(item: ShoppingItem, choice: DriveChoice | null, missing: DriveMissing | null = null): Pick<DriveBasketLine, 'itemId' | 'key' | 'label' | 'product' | 'count' | 'per'> {
+  const product = missingState(choice, missing).product;
   const count = product ? driveCount(item, product) : { count: 1, per: null };
   return {
     itemId: item.id,
@@ -353,9 +420,10 @@ export function basketLine(item: ShoppingItem, choice: DriveChoice | null): Pick
 }
 
 /**
- * Récapitulatif du panier : ce qui part au drive (cochés), ce qui reste à mettre au panier (produit retenu, pas
- * coché), ce qui s'achète ailleurs (pas coché et sans produit retenu : aucun produit, ou seulement des secours), et le
- * nombre de paquets au panier.
+ * Récapitulatif du panier : ce qui part au drive (cochés), ce qui reste à mettre au panier (produit retenu ou
+ * remplacement, pas coché), ce qui est à remplacer (introuvable ou en rupture, sans remplacement choisi), ce qui
+ * s'achète ailleurs (pas coché et sans produit retenu : aucun produit, ou seulement des secours), et le nombre de
+ * paquets au panier.
  */
 export function driveRecap<I extends ShoppingItem>(rows: readonly FillRow<I>[]) {
   const drive = rows.filter((r) => r.line !== null);
@@ -363,7 +431,8 @@ export function driveRecap<I extends ShoppingItem>(rows: readonly FillRow<I>[]) 
   return {
     drive,
     toFill: rows.filter((r) => r.line === null && r.status === 'ready'),
-    elsewhere: rows.filter((r) => r.line === null && r.status !== 'ready'),
+    missing: rows.filter((r) => r.line === null && r.status === 'missing'),
+    elsewhere: rows.filter((r) => r.line === null && (r.status === 'fallback' || r.status === 'none')),
     packs: drive.reduce((sum, r) => sum + (r.line?.count ?? 0), 0),
     /** Total indicatif des lignes au panier dont le prix a été vu par l'extension, et combien n'en ont pas. */
     total: Math.round(prices.reduce<number>((sum, p) => sum + (p ?? 0), 0) * 100) / 100,

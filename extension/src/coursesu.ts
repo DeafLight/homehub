@@ -44,6 +44,7 @@ export const SELECTORS = {
 const ADD_TEXT = /^\+?\s*ajouter(\s+au\s+panier)?$/iu;
 const UNAVAILABLE_TEXT = /indisponible|en rupture|plus disponible|victime de son succès/iu;
 const BLOCKED_TITLE = /just a moment|un instant|attention required|access denied|accès refusé|vérification|too many requests|trop de requêtes/iu;
+const NOT_FOUND = /introuvable|n['’]existe plus|n['’]est plus disponible|\b404\b/iu;
 const LOGIN_PATH = /\/(connexion|login|identification|authentification)\b/iu;
 
 const clean = (text: string | null | undefined) => (text ?? '').replace(/\s+/gu, ' ').trim();
@@ -104,6 +105,9 @@ export function blockedReason(page: { title: string; path: string; status?: stri
   return null;
 }
 
+/** La page dit-elle que la fiche n'existe plus (titre ou premier titre de la page) ? */
+export const notFoundPage = (page: { title: string; heading: string }) => NOT_FOUND.test(page.title) || NOT_FOUND.test(page.heading);
+
 /** Quantité lue dans un champ ou un texte (« 2 », « Qté : 2 ») ; null si illisible. */
 export function quantityOf(value: string | null | undefined): number | null {
   const m = /\d+/u.exec(value ?? '');
@@ -159,6 +163,7 @@ export function inspect(doc: Document, loc: Location): Page {
   if (reason) return { kind: 'blocked', reason };
   const fromUrl = productLink(loc.href);
   const ld = productFromLd([...doc.querySelectorAll('script[type="application/ld+json"]')].map((s) => s.textContent ?? ''));
+  if (!ld && notFoundPage({ title: doc.title, heading: clean(doc.querySelector('h1')?.textContent) })) return { kind: 'gone' };
   if (!ld) return { kind: 'other', what: fromUrl ? 'fiche sans description du produit lisible' : `page ${loc.pathname}` };
   const add = addButton(doc);
   const plus = plusButton(doc);

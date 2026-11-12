@@ -302,6 +302,7 @@ describe('API du drive : remplir le panier', () => {
       const result = (await res.json()) as DriveReportResult;
       expect(result).toMatchObject({ marked: 2, prices: 1 });
       expect(result.ignored).toEqual([
+        { name: 'Oignons jaunes', reason: 'produit qui n’est plus retenu pour cet article' },
         { name: 'Lardons fumés, 2x100g', reason: 'article plus dans la liste' },
         { name: 'Lardons fumés, 2x100g', reason: 'lien qui n’est pas une fiche de l’enseigne' },
       ]);
@@ -310,6 +311,85 @@ describe('API du drive : remplir le panier', () => {
         { itemId: id('Lessive'), key: 'lessive', product: { id: '9990020', name: 'Lessive Clair' }, count: 1, per: null },
       ]);
       expect((await view()).choices[0].preferred).toMatchObject({ ean: EAN, price: { value: 1.95 } });
+    });
+
+    it('ligne passée (indisponible ou fiche disparue) : l’article est signalé, rien n’est pris d’office', async () => {
+      const { call, alex, choose, lardons, id, view } = await withList();
+      await choose(lardons({ url: AUTRE, name: 'Lardons nature' }, 'fallback'));
+      await choose(lardons());
+      const res = await call('POST', '/drive/report', { token: alex, body: report([{ itemId: id('Lardons'), status: 'skipped', count: 0, price: 1.8, note: 'Indisponible au magasin choisi' }]) });
+      const result = (await res.json()) as DriveReportResult;
+      expect(result).toMatchObject({ marked: 0, prices: 1, missing: 1, ignored: [] });
+      expect(result.view.basket?.missing).toMatchObject([{ itemId: id('Lardons'), key: 'lardon', unavailable: ['9990001'], replacement: null, source: 'extension' }]);
+      expect(result.view.basket?.lines).toEqual([]);
+      const choice = (await view()).choices[0];
+      expect(choice.preferred).toMatchObject({ id: '9990001', missingAt: expect.any(String) });
+      expect(choice.fallback.map((p) => p.id)).toEqual(['9990002']);
+    });
+  });
+
+  describe('introuvable ou en rupture', () => {
+    async function withMissing() {
+      const ctx = await withList();
+      await ctx.choose(ctx.lardons({ url: AUTRE, name: 'Lardons nature', packText: '150 g' }, 'fallback'));
+      await ctx.choose(ctx.lardons());
+      return ctx;
+    }
+
+    it('signalé à la main : l’article ne part plus au panier avec ce produit ; remplacement choisi parmi les secours', async () => {
+      const { call, alex, id } = await withMissing();
+      const path = `/drive/missing/${id('Lardons')}`;
+      await call('PUT', `/drive/basket/${id('Lardons')}`, { token: alex, body: { in: true } });
+      let res = await call('PUT', path, { token: alex, body: { missing: true } });
+      expect(res.status).toBe(200);
+      let { basket } = (await res.json()) as DriveView;
+      expect(basket?.missing).toMatchObject([{ unavailable: ['9990001'], replacement: null, source: 'manual' }]);
+      expect(basket?.lines).toEqual([]);
+      // Jamais pris d'office : coché sans remplacement, il part sans produit.
+      res = await call('PUT', `/drive/basket/${id('Lardons')}`, { token: alex, body: { in: true } });
+      expect(((await res.json()) as DriveView).basket?.lines[0]).toMatchObject({ product: null, count: 1 });
+      expect((await call('PUT', path, { token: alex, body: { replacement: '9990001' } })).status).toBe(400);
+      expect((await call('PUT', path, { token: alex, body: { replacement: '1234' } })).status).toBe(400);
+      res = await call('PUT', path, { token: alex, body: { replacement: '9990002' } });
+      expect(((await res.json()) as DriveView).basket?.missing[0].replacement).toBe('9990002');
+      // Paquets calculés avec le remplacement : 350 g en paquets de 150 g → 3.
+      res = await call('PUT', `/drive/basket/${id('Lardons')}`, { token: alex, body: { in: true } });
+      expect(((await res.json()) as DriveView).basket?.lines[0]).toMatchObject({ product: { id: '9990002' }, count: 3 });
+      // Le remplacement aussi en rupture : signalé à son tour, plus rien n'est choisi.
+      res = await call('PUT', path, { token: alex, body: { missing: true } });
+      ({ basket } = (await res.json()) as DriveView);
+      expect(basket?.missing[0]).toMatchObject({ unavailable: ['9990001', '9990002'], replacement: null });
+      expect(basket?.lines).toEqual([]);
+      // De retour : le signalement retiré, le produit retenu repart.
+      res = await call('PUT', path, { token: alex, body: { missing: false } });
+      expect(((await res.json()) as DriveView).basket?.missing).toEqual([]);
+    });
+
+    it('refusé : article sans produit, non signalé, inconnu, déjà acheté, corps vide', async () => {
+      const { call, alex, lists, id } = await withMissing();
+      expect((await call('PUT', `/drive/missing/${id('Lessive')}`, { token: alex, body: { missing: true } })).status).toBe(409);
+      expect((await call('PUT', `/drive/missing/${id('Lardons')}`, { token: alex, body: { replacement: '9990002' } })).status).toBe(409);
+      expect((await call('PUT', '/drive/missing/inconnu', { token: alex, body: { missing: true } })).status).toBe(404);
+      expect((await call('PUT', `/drive/missing/${id('Lardons')}`, { token: alex, body: {} })).status).toBe(400);
+      await lists.setShoppingDone(id('Lardons'), true, by);
+      expect((await call('PUT', `/drive/missing/${id('Lardons')}`, { token: alex, body: { missing: true } })).status).toBe(409);
+    });
+
+    it('droits de la liste de courses : un parent ; ni enfant, ni appareil non appairé, ni tablette sans visage', async () => {
+      const { call, phone, tablet, id } = await withMissing();
+      const path = `/drive/missing/${id('Lardons')}`;
+      expect((await call('PUT', path, { ...tablet('alex'), body: { missing: true } })).status).toBe(200);
+      expect((await call('PUT', path, { token: await phone('lea'), body: { missing: false } })).status).toBe(403);
+      expect((await call('PUT', path, { ...tablet('lea'), body: { missing: false } })).status).toBe(403);
+      expect((await call('PUT', path, { body: { missing: false } })).status).toBe(403);
+      expect((await call('PUT', path, { from: TABLET, body: { missing: false } })).status).toBe(403);
+    });
+  });
+
+  describe('compte rendu de l’extension (droits)', () => {
+    const report = (lines: Partial<ReportLine>[]): DriveReport => ({
+      kind: REPORT_KIND, version: 1, enseigne: 'coursesu', at: '2026-03-10T10:00:00.000Z', stop: null,
+      lines: lines.map((l) => ({ itemId: '', id: '9990001', name: 'Lardons fumés, 2x100g', url: FICHE, status: 'added', count: 2, ean: null, price: null, note: null, ...l })),
     });
 
     it('refuse un autre format, une autre enseigne ; droits de la liste de courses', async () => {

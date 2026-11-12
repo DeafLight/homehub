@@ -3,7 +3,7 @@
   import type { ShoppingItem, ShoppingLater } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
   import { revert } from '../lib/checkbox.ts';
-  import { basketMark, choiceSummary } from '../lib/drive.ts';
+  import { basketMark, choiceSummary, missingMark } from '../lib/drive.ts';
   import { buyDayLabel, byAisle, itemAisle, laterByDay } from '../lib/menu.ts';
 
   // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter (rangés par rayon) puis « dans le
@@ -12,6 +12,7 @@
   // acheter dit le produit retenu chez elle (et ses paquets), et le bouton du chariot ouvre « Produit chez … ». Les
   // articles mis au panier en cours du drive (mode « Remplir le panier ») passent dans « Au drive » : ils ne sont pas
   // achetés pour autant ; « Reçu : tout cocher » les coche une fois le panier retiré (décocher reste possible).
+  // Un article introuvable ou en rupture au drive reste ici, signalé (« à remplacer », ou le remplacement choisi).
   // Les frais d'un repas tardif du menu attendent dans « À acheter plus tard », avec le jour où les acheter : ils
   // rejoignent la liste d'eux-mêmes ce jour-là ; « Acheter maintenant » (un parent) les avance. Ils ne sont pas sur la
   // liste : le drive ne les prend pas. Tailles réglables par le parent (--list-font, --list-row).
@@ -147,8 +148,9 @@
         {/if}
         {#if enseigne && drive && !item.done}
           {@const mark = markOf(item)}
-          {@const summary = mark ?? choiceSummary(item, choiceFor(drive.view.choices, itemKey(item), enseigne))}
-          {#if summary}<span class="product" class:at-drive={mark !== null}><Icon name="cart" size={16} /> {summary}</span>{/if}
+          {@const missing = mark ? null : missingMark(drive.view, item)}
+          {@const summary = mark ?? missing ?? choiceSummary(item, choiceFor(drive.view.choices, itemKey(item), enseigne))}
+          {#if summary}<span class="product" class:at-drive={mark !== null} class:missing={missing !== null}><Icon name="cart" size={16} /> {summary}</span>{/if}
         {/if}
       </span>
     </label>
@@ -287,6 +289,10 @@
 
   .product :global(svg) {
     flex-shrink: 0;
+  }
+
+  .product.missing {
+    color: var(--sun);
   }
 
   .product.at-drive {

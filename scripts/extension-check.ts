@@ -3,7 +3,7 @@
 // servie par la fausse enseigne (scripts/docs-captures/fake-drive.ts). Le script de page construit
 // (extension/dist/content.js) y est injecté avec un faux `chrome.storage`, et on vérifie, au rythme réel de
 // l'extension : remplissage complet (ajouts, indisponible passé, déjà au panier), arrêt au captcha, arrêt quand le site
-// ne confirme pas l'ajout, arrêt sur une page inattendue. Refait aussi les captures « ordinateur-extension-* ».
+// ne confirme pas l'ajout, fiche introuvable passée et signalée. Refait aussi les captures « ordinateur-extension-* ».
 // À lancer depuis le dossier du repo : `npm run extension:check` (construit l'extension d'abord). Dure environ 2 min.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -214,11 +214,12 @@ try {
   check('rien ajouté, rien après', JSON.stringify(statuses(run)) === JSON.stringify(['failed:0', 'waiting:0']), statuses(run));
   await tab.close();
 
-  console.log('Arrêt sur une page inattendue (fiche introuvable)');
+  console.log('Fiche introuvable (produit retiré du site) : passée et signalée, on continue');
   tab = await openTab();
   await fill(tab, [{ url: 'https://www.coursesu.com/p/produit-retire-exemple/9990098.html', id: '9990098', name: 'Produit retiré', count: 1 }, { slug: 'gruyere-rape-exemple', count: 1 }]);
   run = await finish(tab);
-  check('arrêté', run.phase === 'stopped' && /Page inattendue/u.test(run.stop ?? ''), [run.phase, run.stop]);
+  check('fini', run.phase === 'done', [run.phase, run.stop]);
+  check('fiche introuvable passée, suivant ajouté', JSON.stringify(statuses(run)) === JSON.stringify(['skipped:0', 'added:1']) && run.lines[0].note === 'Fiche introuvable sur le site', [statuses(run), run.lines[0].note]);
   await tab.close();
 
   // Le panneau de l'extension à la fin du premier remplissage (compte rendu à copier).

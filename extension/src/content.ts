@@ -53,7 +53,7 @@ function render(run: Run | null) {
     button.textContent = 'Arrêter';
     buttonAction = () => void stop('Arrêté par toi');
   } else {
-    const parts = [`${p.added + p.already} au panier`, p.skipped ? `${p.skipped} indisponible${p.skipped > 1 ? 's' : ''}` : '', p.waiting + p.failed ? `${p.waiting + p.failed} à finir à la main` : ''].filter(Boolean);
+    const parts = [`${p.added + p.already} au panier`, p.skipped ? `${p.skipped} introuvable${p.skipped > 1 ? 's' : ''} ou en rupture` : '', p.waiting + p.failed ? `${p.waiting + p.failed} à finir à la main` : ''].filter(Boolean);
     title.textContent = run.phase === 'done' ? `Panier rempli : ${parts.join(', ')}` : `Arrêté : ${run.stop ?? ''}`;
     const priced = run.lines.filter((l) => l.price !== null && l.inCart > 0);
     const total = priced.reduce((sum, l) => sum + l.price! * l.inCart, 0);

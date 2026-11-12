@@ -359,7 +359,7 @@
 
     {#if driveFill && drive.data && lists.data}
       <BottomSheet label="Remplir le panier" onClose={() => (driveFill = false)}>
-        <DriveFill {api} items={lists.data.shopping} view={drive.data} onView={drive.set} onChanged={drive.refresh} onClose={() => (driveFill = false)} />
+        <DriveFill {api} items={lists.data.shopping} view={drive.data} onView={drive.set} onChanged={drive.refresh} onProduct={(item) => ((driveFill = false), (driveItem = item))} onClose={() => (driveFill = false)} />
       </BottomSheet>
     {/if}
 
