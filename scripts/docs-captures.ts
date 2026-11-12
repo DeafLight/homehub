@@ -15,14 +15,15 @@ import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
 import { itemKey } from '../shared/drive.ts';
-import { DRIVE_REFUSED_URL, driveUrl } from './docs-captures/fake-drive.ts';
+import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
 const OUT = join(ROOT, 'docs', 'images');
-const PORT = 3190;
+// DOCS_PORT : autre port (une autre copie du dépôt a déjà son monde fictif ouvert sur 3190).
+const PORT = Number(process.env.DOCS_PORT) || 3190;
 const BASE = `http://localhost:${PORT}`;
 const only = process.argv[2] ? new RegExp(process.argv[2]) : null;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -277,6 +278,16 @@ for (const [label, slug, role] of [
   const { shopping } = (await call(A, 'GET', '/lists')) as { shopping: { id: string; label: string }[] };
   const lessive = shopping.find((i) => i.label.startsWith('Lessive'));
   if (lessive) await call(A, 'PUT', `/drive/basket/${lessive.id}`, { in: true });
+  // Compte rendu de l'extension « Remplir le panier » recollé : prix vus sur les fiches de la lessive (déjà au panier)
+  // et du gruyère (remplissage arrêté sur sa fiche), pour le total indicatif du récapitulatif.
+  const gruyere = shopping.find((i) => i.label.startsWith('Gruyère'));
+  const seen = (slug: string, itemId: string, status: string, count: number, price: number) => ({ itemId, ...driveProduct(slug), status, count, ean: null, price, note: null });
+  if (lessive && gruyere) {
+    await call(A, 'POST', '/drive/report', {
+      kind: 'homehub-drive-report', version: 1, enseigne: 'coursesu', at: new Date(DOCS_NOW).toISOString(), stop: null,
+      lines: [seen('lessive-liquide-exemple', lessive.id, 'already', 1, 7.9), seen('gruyere-rape-exemple', gruyere.id, 'failed', 0, 2.35)],
+    });
+  }
 }
 
 // DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
@@ -501,6 +512,8 @@ await shoot('telephone-drive-marque', `${BASE}/m`, PHONE, {
   after: `[...document.querySelectorAll('.basket-head')].find((h) => h.textContent.includes('Au drive'))?.scrollIntoView({ block: 'center' })`,
 });
 await shoot('telephone-drive-recap', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: `${click('Remplir le panier')}; setTimeout(() => { ${click('Récapitulatif')} }, 500)` });
+// Drive, étape 3 : l'onglet « Extension » (panier à copier pour l'extension, compte rendu à recoller).
+await shoot('telephone-drive-extension', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: `${click('Remplir le panier')}; setTimeout(() => { ${click('Extension')} }, 500)` });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-mots', `${BASE}/m/mots`, PHONE, { init: asPhone('alex') });

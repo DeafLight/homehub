@@ -6,6 +6,10 @@
 // contenance, ou les reprend d'un produit du stock (par EAN). Cocher le panier et dire les pièces d'un paquet : même
 // droit que la liste de courses. Le serveur calcule lui-même ce qui part au panier (produit retenu, paquets) d'après
 // l'article de la liste : rien n'est repris du front.
+// Étape 3 : le compte rendu de l'extension « Remplir le panier », collé par la personne (même droit que la liste) :
+// les articles partis au panier y sont marqués « au drive », le prix et l'EAN lus sur la fiche notés sur le produit.
+// Seules les lignes dont l'article est encore à acheter comptent ; le produit vient du compte rendu (c'est lui qui est
+// au panier), les paquets aussi (ce que l'extension a vu au panier).
 import { z } from 'zod';
 import {
   basketLine,
@@ -20,10 +24,12 @@ import {
   type Enseigne,
   enseigneName,
   itemKey,
+  itemName,
   normalizeEan,
   productLink,
   storeLink,
 } from '../shared/drive.ts';
+import { CART_LIMITS, type DriveReportResult, REPORT_KIND } from '../shared/drive-cart.ts';
 import { ingredientKey, parseIngredient } from '../shared/ingredients.ts';
 import { parsePackage } from '../shared/quantities.ts';
 import { FAMILY_ID } from '../shared/types.ts';
@@ -75,6 +81,26 @@ const chooseSchema = z.object({
 });
 const piecesSchema = z.object({ key, id: z.string().trim().min(1).max(80), pieces: z.number().int().min(1, 'Au moins une pièce').max(DRIVE_LIMITS.pieces).nullable() });
 const basketSchema = z.object({ in: z.boolean() });
+const reportSchema = z.object({
+  kind: z.literal(REPORT_KIND, 'Ce n’est pas un compte rendu de l’extension « Remplir le panier »'),
+  version: z.literal(1, 'Compte rendu d’une autre version de l’extension'),
+  enseigne: z.enum(ENSEIGNES),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.string().min(1).max(80),
+        id: z.string().min(1).max(80),
+        name: z.string().max(DRIVE_LIMITS.name),
+        url: z.string().max(2000),
+        status: z.enum(['added', 'already', 'skipped', 'failed', 'waiting']),
+        count: z.number().int().min(0).max(CART_LIMITS.count),
+        ean: z.string().max(14).nullable(),
+        price: z.number().nonnegative().max(10_000).nullable(),
+      }),
+    )
+    .max(CART_LIMITS.lines),
+});
+
 
 /** Clé d'un nom de produit du stock, comparable à celle d'un article (« Lessive liquide » → « lessive-liquide »). */
 const nameKey = (name: string) => ingredientKey(parseIngredient(name).name);
@@ -165,6 +191,7 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
       source: input.product.source,
       seenAt: clock().toISOString(),
       pieces: input.product.pieces ?? null,
+      price: null,
     };
     const choice = (await drive.choose({ key: input.key, label: input.label, product, role: input.role }, author)) ?? fail(409, 'Trop de produits retenus');
     return c.json(choice);
@@ -205,6 +232,47 @@ export function createDriveApi({ drive, reader, stock, menus, lists, access, clo
       await drive.takeOutOfBasket(item.id, ids);
     }
     return c.json(await view());
+  });
+
+  /** Compte rendu de l'extension, collé : articles marqués « au drive », prix et EAN lus sur les fiches notés. */
+  api.post('/drive/report', async (c) => {
+    const input = await readBody(c, reportSchema, z.prettifyError);
+    const author = await access.writer(c, FAMILY_ID);
+    const chosen = await enseigne();
+    if (input.enseigne !== chosen) return fail(400, `Compte rendu d’une autre enseigne que ${enseigneName(chosen)}`);
+    const items = await shopping();
+    const ids = new Set(items.map((i) => i.id));
+    const result: Omit<DriveReportResult, 'view'> = { marked: 0, prices: 0, ignored: [] };
+    for (const line of input.lines) {
+      const sent = line.status === 'added' || line.status === 'already';
+      if (!sent && line.price === null && line.ean === null) continue;
+      const link = productLink(line.url);
+      if (!link || link.enseigne !== chosen || link.id !== line.id) {
+        result.ignored.push({ name: line.name, reason: 'lien qui n’est pas une fiche de l’enseigne' });
+        continue;
+      }
+      const item = items.find((i) => i.id === line.itemId);
+      if (!item || item.done) {
+        if (sent) result.ignored.push({ name: line.name, reason: item ? 'article déjà acheté' : 'article plus dans la liste' });
+        continue;
+      }
+      const key = itemKey(item);
+      const ean = line.ean ? normalizeEan(line.ean) : null;
+      const noted = await drive.notePage(key, chosen, line.id, { price: line.price, ean });
+      if (noted?.price) result.prices++;
+      if (!sent) continue;
+      if (line.count < 1) {
+        result.ignored.push({ name: line.name, reason: 'aucun paquet au panier' });
+        continue;
+      }
+      const choice = choiceFor(await drive.choices(), key, chosen);
+      const computed = basketLine(item, choice);
+      const same = computed.product?.id === line.id;
+      const product = same ? computed.product : { id: line.id, name: line.name || itemName(item), url: link.url };
+      (await drive.putInBasket(chosen, { ...computed, product, count: line.count, per: same ? computed.per : null }, ids, author)) ?? fail(409, 'Panier plein');
+      result.marked++;
+    }
+    return c.json({ ...result, view: await view() } satisfies DriveReportResult);
   });
 
   /** Nouveau panier : plus aucun article marqué « au drive ». */

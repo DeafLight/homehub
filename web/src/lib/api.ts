@@ -51,6 +51,7 @@ import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, Sessio
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
 import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
 import type { DriveChoice, DriveProduct, DriveReadResult, DriveSettings, DriveStockHint, DriveView } from '../../../shared/drive.ts';
+import type { DriveReportResult } from '../../../shared/drive-cart.ts';
 import type { ImportPreview, ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
 /**
@@ -231,6 +232,8 @@ export type Api = {
   setInBasket(itemId: string, inBasket: boolean): Promise<DriveView>;
   /** Nouveau panier : plus aucun article marqué « au drive ». */
   newBasket(): Promise<DriveView>;
+  /** Compte rendu de l'extension « Remplir le panier » (objet collé) : lignes marquées, prix notés. */
+  sendDriveReport(report: unknown): Promise<DriveReportResult>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -388,6 +391,7 @@ export function createApi(
     setDrivePieces: (key, id, pieces) => send('PUT', '/drive/pieces', { key, id, pieces }),
     setInBasket: (itemId, inBasket) => send('PUT', `/drive/basket/${encodeURIComponent(itemId)}`, { in: inBasket }),
     newBasket: () => send('DELETE', '/drive/basket'),
+    sendDriveReport: (report) => send('POST', '/drive/report', report),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };
 }

@@ -1,6 +1,7 @@
 // Tests de la logique du drive : liens des fiches produit (identifiant tiré de l'URL), contenance lue dans le nom,
 // EAN, JSON-LD `Product` → produit, clé d'un article de la liste, paquets (arrondi de la liste), correspondance EAN ;
-// étape 2 : pièces par paquet, paquets signalés, articles du mode « Remplir le panier » et récapitulatif.
+// étape 2 : pièces par paquet, paquets signalés, articles du mode « Remplir le panier » et récapitulatif ;
+// étape 3 : total indicatif des prix vus par l'extension.
 import { describe, expect, it } from 'vitest';
 import type { ShoppingItem } from './types.ts';
 import {
@@ -21,7 +22,9 @@ import {
   enseigneOf,
   itemKey,
   itemName,
+  linePrice,
   normalizeEan,
+  packPrice,
   packFromName,
   productFromJsonLd,
   productLink,
@@ -168,7 +171,7 @@ describe('remplir le panier', () => {
   const by = { ownerId: 'alex', via: 'phone' } as const;
   const item = (id: string, label: string, menu?: ShoppingItem['menu'], done = false): ShoppingItem => ({ id, label, done, addedBy: by, addedAt: '', ...(menu && { menu }) });
   const lardons = item('1', 'Lardons · 350 g', { week: '2026-11-02', key: 'lardon', quantities: { masse: 350 }, toTaste: false, aisle: null, sources: [] });
-  const product = (id: string): DriveProduct => ({ enseigne: 'coursesu', id, url: `https://www.coursesu.com/p/x/${id}.html`, name: `Produit ${id}`, brand: null, packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'manual', seenAt: '', pieces: null });
+  const product = (id: string): DriveProduct => ({ enseigne: 'coursesu', id, url: `https://www.coursesu.com/p/x/${id}.html`, name: `Produit ${id}`, brand: null, packText: '200 g', pack: { quantity: 200, unit: 'g' }, ean: null, source: 'manual', seenAt: '', pieces: null, price: null });
   const choice = (key: string, preferred: DriveProduct | null, fallback: DriveProduct[] = []): DriveChoice => ({ key, enseigne: 'coursesu', label: key, preferred, fallback, updatedAt: '', updatedBy: by });
   const items = [lardons, item('2', 'Lessive'), item('3', 'Persil'), item('4', 'Pain', undefined, true)];
   const view = (lines: DriveView['basket'] = null): DriveView => ({
@@ -198,7 +201,22 @@ describe('remplir le panier', () => {
     expect(recap.toFill).toEqual([]);
     expect(recap.elsewhere.map((r) => r.item.id)).toEqual(['2']);
     expect(recap.packs).toBe(2);
+    expect([recap.total, recap.unpriced]).toEqual([0, 2]);
     // Panier d'une autre enseigne : ignoré.
     expect(fillRows(items, view({ ...basket, enseigne: 'autre' as 'coursesu' })).some((r) => r.line)).toBe(false);
+  });
+
+  it('prix vus par l’extension : prix d’un paquet × paquets au panier, total indicatif', () => {
+    const priced = (id: string, value: number) => ({ ...product(id), price: { value, at: '' } });
+    const line = (itemId: string, count: number, productId: string | null) => ({ itemId, key: '', label: '', product: productId ? { id: productId, name: '', url: '' } : null, count, per: null, at: '', by });
+    const withPrices: DriveView = {
+      settings: { enseigne: 'coursesu', store: null },
+      choices: [choice('lardon', priced('10', 1.95)), choice('lessive', null, [priced('20', 7.5)])],
+      basket: { enseigne: 'coursesu', startedAt: '', startedBy: by, lines: [line('1', 2, '10'), line('2', 1, '20'), line('3', 1, null)] },
+    };
+    const rows = fillRows(items, withPrices);
+    expect(rows.map((r) => linePrice(r))).toEqual([3.9, 7.5, null]);
+    expect(packPrice(rows[1], '20')?.value).toBe(7.5);
+    expect(driveRecap(rows)).toMatchObject({ total: 11.4, unpriced: 1 });
   });
 });

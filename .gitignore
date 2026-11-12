@@ -1,5 +1,7 @@
 node_modules/
 web/dist/
+# Extension « Remplir le panier » construite (npm run build:extension)
+extension/dist/
 .env
 *.log
 # Configuration locale de dev (copie de config/homehub.example.yaml)

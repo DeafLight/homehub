@@ -16,7 +16,10 @@
 // autre grandeur : 1 paquet, signalé. Un seul panier en cours (DriveBasket) : la personne le remplit dans l'appli de
 // l'enseigne et coche ici ; chaque ligne cochée est liée à un article de la liste par son identifiant, et marque cet
 // article « au drive » sans le cocher comme acheté. Récapitulatif (driveRecap) : ce qui part au drive, ce qui reste
-// à mettre au panier, ce qui s'achète ailleurs. Pas de prix.
+// à mettre au panier, ce qui s'achète ailleurs.
+//
+// Étape 3, extension « Remplir le panier » (voir drive-cart.ts) : le dernier prix d'un paquet vu sur la fiche par
+// l'extension est retenu sur le produit (`price`, indicatif) ; le récapitulatif en fait un total indicatif.
 import { ingredientKey, parseIngredient, type Unit, unitLabel } from './ingredients.ts';
 import { formatPacks, type Packs, packsFor } from './menu.ts';
 import { type Amount, dimensionOf, parsePackage } from './quantities.ts';
@@ -68,7 +71,15 @@ export type DriveProduct = {
    * contenance (« 2 oignons » contre un filet de 1 kg) ; null : pas encore demandé.
    */
   pieces: number | null;
+  /**
+   * Dernier prix d'un paquet vu sur la fiche par l'extension « Remplir le panier » (magasin de retrait choisi sur le
+   * site), indicatif ; null : jamais vu.
+   */
+  price: DrivePrice | null;
 };
+
+/** Prix d'un paquet vu sur la fiche, et quand. */
+export type DrivePrice = { value: number; at: string };
 
 /** Choix retenu pour un article chez une enseigne. */
 export type DriveChoice = {
@@ -348,12 +359,28 @@ export function basketLine(item: ShoppingItem, choice: DriveChoice | null): Pick
  */
 export function driveRecap<I extends ShoppingItem>(rows: readonly FillRow<I>[]) {
   const drive = rows.filter((r) => r.line !== null);
+  const prices = drive.map((r) => linePrice(r));
   return {
     drive,
     toFill: rows.filter((r) => r.line === null && r.status === 'ready'),
     elsewhere: rows.filter((r) => r.line === null && r.status !== 'ready'),
     packs: drive.reduce((sum, r) => sum + (r.line?.count ?? 0), 0),
+    /** Total indicatif des lignes au panier dont le prix a été vu par l'extension, et combien n'en ont pas. */
+    total: Math.round(prices.reduce<number>((sum, p) => sum + (p ?? 0), 0) * 100) / 100,
+    unpriced: prices.filter((p) => p === null).length,
   };
+}
+
+/** Prix d'un paquet du produit d'une ligne (retenu ou secours), s'il a été vu par l'extension. */
+export function packPrice(row: Pick<FillRow, 'choice'>, productId: string | null): DrivePrice | null {
+  if (!productId || !row.choice) return null;
+  return [row.choice.preferred, ...row.choice.fallback].find((p) => p?.id === productId)?.price ?? null;
+}
+
+/** Prix d'une ligne au panier : prix d'un paquet × paquets ; null si le prix n'a pas été vu. */
+export function linePrice(row: Pick<FillRow, 'choice' | 'line'>): number | null {
+  const price = row.line ? packPrice(row, row.line.product?.id ?? null) : null;
+  return price && row.line ? Math.round(price.value * row.line.count * 100) / 100 : null;
 }
 
 /**

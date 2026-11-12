@@ -1,6 +1,6 @@
 // Tests du magasin du drive : réglages, produit retenu et produits de secours (jamais pris d'office), retrait,
 // relecture du fichier ; pièces par paquet, panier en cours (lignes par article, nettoyées, nouveau panier), fichier
-// de l'étape 1 relu tel quel.
+// de l'étape 1 relu tel quel ; prix et EAN lus sur la fiche par l'extension (étape 3).
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +22,7 @@ const product = (id: string, name = `Produit ${id}`): DriveProduct => ({
   source: 'manual',
   seenAt: fixedClock().toISOString(),
   pieces: null,
+  price: null,
 });
 
 function setup() {
@@ -112,10 +113,25 @@ describe('magasin du drive', () => {
 
   it('relit un fichier de l’étape 1 (sans pièces ni panier)', async () => {
     const { path } = setup();
-    const { pieces: _pieces, ...old } = product('1');
+    const { pieces: _pieces, price: _price, ...old } = product('1');
     writeFileSync(path, JSON.stringify({ version: 1, settings: { enseigne: 'coursesu', store: null }, choices: [{ key: 'lardon', enseigne: 'coursesu', label: 'Lardons', preferred: old, fallback: [], updatedAt: '', updatedBy: by }] }));
     const store = createDriveStore({ path, clock: fixedClock });
     expect((await store.choices())[0].preferred?.pieces).toBeNull();
+    expect((await store.choices())[0].preferred?.price).toBeNull();
     expect(await store.basket()).toBeNull();
+  });
+
+  it('fiche lue par l’extension : prix noté, EAN gardé seulement s’il manquait ; il suit le produit qui change de rôle', async () => {
+    const { path, store } = setup();
+    await store.choose({ key: 'lardon', label: 'Lardons', product: product('1'), role: 'preferred' }, by);
+    expect(await store.notePage('lardon', 'coursesu', '1', { price: 2.35, ean: '2000000000015' })).toEqual({ price: true, ean: 'set' });
+    expect(await store.notePage('lardon', 'coursesu', '1', { price: null, ean: '2000000000022' })).toEqual({ price: false, ean: 'other' });
+    expect(await store.notePage('lardon', 'coursesu', '9', { price: 1, ean: null })).toBeNull();
+    const reread = createDriveStore({ path, clock: fixedClock });
+    expect((await reread.choices())[0].preferred).toMatchObject({ ean: '2000000000015', price: { value: 2.35, at: fixedClock().toISOString() } });
+    // Un autre produit retenu : l'ancien devient un secours avec son prix ; le reprendre ne l'efface pas.
+    await reread.choose({ key: 'lardon', label: 'Lardons', product: product('2'), role: 'preferred' }, by);
+    const back = await reread.choose({ key: 'lardon', label: 'Lardons', product: product('1'), role: 'preferred' }, by);
+    expect(back?.preferred?.price?.value).toBe(2.35);
   });
 });

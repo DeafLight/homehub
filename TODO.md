@@ -103,11 +103,19 @@ Jusqu'où on peut aller (conclusions de l'étude) :
       en cours gardé par le serveur, « Nouveau panier ») ; récapitulatif (ce qui part, ce qui reste à mettre au
       panier, ce qui s'achète ailleurs ; **sans prix**, ils viendront avec Drive 3) ; lignes cochées passées dans
       « Au drive » de la liste, sans être cochées comme achetées (« Reçu : tout cocher »).
-- [ ] Drive 3 : extension « Remplir le panier » (Chrome / Firefox sur ordinateur, puis Firefox Android ; pas Safari
-      iOS au départ) : appairée comme un appareil ou panier copié depuis HomeHub, ajoute les produits depuis la
-      session de la personne, à rythme humain, de préférence en cliquant le bouton « Ajouter » de la page ; **s'arrête
-      au premier captcha ou refus** ; recherche dans la page pour choisir un produit ; renvoie prix et EAN vers
-      l'historique des prix (voir « Prix »). Courses U seulement, essai réel avant d'étendre.
+- [x] Drive 3 (0.55.0) : extension « Remplir le panier » (Chrome, Edge, Firefox sur ordinateur, hors boutique ; pas
+      Safari iOS), Courses U seulement : panier **copié depuis HomeHub** (onglet « Extension » de Remplir le panier),
+      ajout des produits depuis la session de la personne, à rythme humain fixe, **en cliquant les boutons « Ajouter »
+      et « + » de la fiche** ; **s'arrête au premier captcha, refus ou page inattendue** ; produit déjà au panier non
+      rajouté, indisponible passé ; compte rendu recollé dans HomeHub (articles cochés « au drive », dernier prix et
+      EAN lus notés sur le produit, total indicatif au récapitulatif) ; essai premier produit seulement. Sélecteurs
+      isolés dans l'adaptateur, éprouvés sur une fausse fiche (`npm run extension:check`).
+- [ ] Drive 3, **essai réel** sur le site Courses U (par l'utilisateur, procédure : `docs/etude-drive.md`, section 7) ;
+      corriger les sélecteurs de `extension/src/coursesu.ts` d'après la vraie fiche.
+- [ ] Drive 3, suite : Firefox Android (extension signée, publication non listée sur addons.mozilla.org, à décider
+      après l'essai réel) ; recherche dans la page pour choisir un produit ; prix renvoyés vers un historique des prix
+      (voir « Prix ») ; appairage de l'extension comme un appareil (adresse de HomeHub choisie à l'installation, CORS
+      limité à l'extension, jeton d'appareil) si le copier-coller pèse à l'usage.
 - [ ] Article introuvable ou en rupture : il reste dans la liste classique, signalé ; produit de remplacement
       proposé, jamais choisi d'office.
 - [ ] Plus tard, si besoin : autres enseignes (un adaptateur chacune ; Leclerc incertain à cause de DataDome),

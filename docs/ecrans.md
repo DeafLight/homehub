@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.54.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.55.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -320,11 +320,33 @@ demi-écrémé · 1 L »).
 nombre de paquets et « Fiche » ; on coche à mesure qu'on remplit le panier dans l'appli de l'enseigne. Les oignons se
 comptent en pièces et le filet pèse 1 kg : HomeHub demande une fois combien de pièces il contient. Le
 récapitulatif dit ce qui part au drive (la lessive, déjà cochée), ce qui reste à mettre au panier et ce qui s'achète
-ailleurs ; pas de prix. Dans la liste, la lessive est passée dans « Au drive », pas encore cochée comme achetée.
+ailleurs, avec le prix vu par l'extension sur la fiche de la lessive et le total indicatif. Dans la liste, la lessive
+est passée dans « Au drive », pas encore cochée comme achetée. L'onglet « Extension » copie le panier pour
+l'extension « Remplir le panier » (les articles qui ont un produit retenu et ne sont pas encore cochés) et reçoit son
+compte rendu.
 
 | Remplir le panier | Récapitulatif | Au drive dans la liste |
 |---|---|---|
 | ![Remplir le panier](images/telephone-drive-panier.png) | ![Récapitulatif du panier](images/telephone-drive-recap.png) | ![Article au drive](images/telephone-drive-marque.png) |
+
+<img src="images/telephone-drive-extension.png" width="260" alt="Onglet Extension : copier le panier, recoller le compte rendu">
+
+### Extension « Remplir le panier » (ordinateur)
+
+Sur une fausse fiche du monde fictif (allure neutre « Drive d'exemple », servie à l'adresse des fiches Courses U sans
+jamais appeler le vrai site, `npm run extension:check`). Pendant le remplissage, un bandeau en bas de la page dit
+où on en est (ici le gruyère vient d'être ajouté en deux paquets, la lessive suit), avec « Arrêter ». À la fin, le
+panier du site contient les produits et le bandeau résume (un produit indisponible a été passé, le thon était déjà
+au panier). Au premier captcha, l'extension s'arrête et le dit ; la personne finit à la main. Le panneau de
+l'extension liste ce qui est parti et propose le compte rendu à recoller dans HomeHub.
+
+![Remplissage en cours](images/ordinateur-extension-ajout.png)
+
+| Panier rempli | Arrêt au captcha |
+|---|---|
+| ![Panier rempli](images/ordinateur-extension-fini.png) | ![Arrêt au captcha](images/ordinateur-extension-arret.png) |
+
+<img src="images/ordinateur-extension-panneau.png" width="300" alt="Panneau de l'extension : compte rendu à copier">
 
 ## Non capturés
 

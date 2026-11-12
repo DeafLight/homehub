@@ -122,6 +122,20 @@ Lien entre HomeHub et l'extension, sans compte de l'enseigne :
 - en retour, l'extension renvoie ce qui est parti (identifiant, EAN, prix affiché) pour marquer les lignes et alimenter
   l'historique des prix de la maison.
 
+Fait en 0.55.0 (Drive 3), Courses U seulement : extension Manifest V3 dans `extension/` (Chrome, Edge, Firefox sur
+ordinateur), installée hors boutique. Lien avec HomeHub par **copier-coller** dans les deux sens (panier préparé,
+compte rendu), sans réseau entre l'extension et HomeHub : c'est le plus simple et le plus sûr. L'appairage comme un
+appareil est remis à plus tard : il demanderait de donner à l'extension l'adresse de *ce* HomeHub (droit d'accès
+demandé à l'installation pour une adresse choisie par la personne), d'ouvrir l'API à l'origine de l'extension (CORS ;
+l'origine d'une extension Firefox change à chaque installation) et de garder un jeton d'appareil dans l'extension,
+pour un gain modeste tant que l'essai réel n'est pas fait. Méthode d'ajout : **le clic sur les boutons de la fiche**
+(« Ajouter », puis « + »), jamais l'appel direct de `Cart-AddProduct` ni des points d'entrée « partenaire ». Les
+sélecteurs de la page connectée ne sont pas connus : ils sont isolés dans un adaptateur (`extension/src/coursesu.ts`),
+à confirmer lors de l'essai réel (section 7) ; la fausse fiche du monde fictif suit les mêmes hypothèses et sert à
+éprouver la règle d'arrêt (`npm run extension:check`). Le prix d'un paquet lu dans la page (JSON-LD `offers` si le
+magasin est choisi, sinon le prix affiché) est gardé sur le produit retenu (dernier prix vu, indicatif) ; pas encore
+d'historique.
+
 Fragilité : moyenne à forte. Chaque refonte du site d'une enseigne casse l'extension ; DataDome (Leclerc, Carrefour)
 peut juger un enchaînement d'ajouts suspect même à rythme humain, d'où la règle d'arrêt. Courses U (Cloudflare,
 limiteur de débit) paraît le plus tolérant, à confirmer en vrai.
@@ -235,8 +249,43 @@ retenu, ou seulement des secours) ; un produit de contenance inconnue part au dr
 |---|---|
 | Drive 1 | Réglages : enseigne (Courses U) et magasin de retrait. Magasin `drive.json`. Sur chaque ligne de la liste, « Produit chez Courses U » : choix d'un produit en partageant ou collant le lien de sa fiche (identifiant tiré de l'URL ; la fiche partagée peut être lue une fois à la demande, `/p/` étant autorisé par `robots.txt`, comme une recette ; si Cloudflare refuse, pas de contournement : nom et contenance saisis, ou repris du stock par EAN). Choix retenu, produit de secours. Nombre de paquets affiché (arrondi au paquet de la 0.52). **Fait en 0.53.0.** |
 | Drive 2 | Grandeurs incompatibles (« combien de pièces dans ce paquet ? »), mode « Remplir le panier » : liste ordonnée par rayon, liens vers les fiches, cases à cocher, récapitulatif (ce qui part, ce qui reste à acheter ailleurs ; prix reportés à Drive 3), lignes marquées « au drive » dans la liste. **Fait en 0.54.0** (panier en cours unique, lignes liées aux articles, marque « au drive » sans cocher comme acheté). |
-| Drive 3 | Extension navigateur (ordinateur, puis Firefox Android) : appairage, lecture du panier préparé, recherche dans la page pour choisir un produit, ajout depuis la session, arrêt sur captcha, retour des prix et EAN vers l'historique des prix. |
+| Drive 3 | Extension navigateur (ordinateur, puis Firefox Android) : appairage, lecture du panier préparé, recherche dans la page pour choisir un produit, ajout depuis la session, arrêt sur captcha, retour des prix et EAN vers l'historique des prix. **Fait en 0.55.0 en partie** : extension pour ordinateur, panier copié depuis HomeHub, ajout en cliquant les boutons de la fiche à rythme fixe, arrêt au premier captcha, refus ou page inattendue, compte rendu recollé (lignes cochées « au drive », dernier prix et EAN notés sur le produit). Restent : l'essai réel (section 7), l'appairage, la recherche dans la page, l'historique des prix, Firefox Android (extension signée). |
 | Plus tard | Autres enseignes (adaptateur par enseigne), « Copier pour l'assistant Carrefour », prochain créneau affiché ; jamais de réservation ni de paiement. |
+
+## 7. Essai réel de l'extension (à faire par l'utilisateur)
+
+Rien n'a été essayé sur le vrai site : HomeHub n'ouvre jamais de session chez l'enseigne, et les tests tournent sur une
+fausse fiche. Le premier essai dit si l'adaptateur Courses U tient et si le site tolère l'enchaînement. Sur ordinateur,
+avec Chrome ou Edge :
+
+1. **Préparer** : dans HomeHub, deux ou trois articles de la liste avec un produit retenu chez Courses U (des produits
+   qu'on achètera vraiment) ; sur le site, noter ce que contient déjà le panier.
+2. **Installer** : `npm run build:extension`, puis `chrome://extensions` → mode développeur → « Charger l'extension
+   non empaquetée » → `extension/dist` (voir le README, section « Extension »).
+3. **Copier le panier** : HomeHub → Courses → Remplir le panier → onglet Extension → « Copier pour l'extension »
+   (sur un téléphone, s'envoyer le texte ; ou ouvrir HomeHub sur l'ordinateur).
+4. **Lancer un essai d'un produit** : sur www.coursesu.com, se connecter et choisir le magasin ; bouton de l'extension
+   → coller → « Lire le panier » → choisir « Essai : le premier produit » → « Remplir le panier ». Regarder : la fiche
+   s'ouvre, le bandeau HomeHub apparaît en bas, le bouton « Ajouter » est cliqué, la quantité monte jusqu'au nombre
+   de paquets, le bandeau dit « Panier rempli ». Vérifier le panier du site.
+5. **Si l'extension s'arrête** : le bandeau et le panneau disent pourquoi. Sur la fiche, ouvrir les outils de
+   développement (F12), inspecter le bouton « Ajouter », le sélecteur de quantité et son « + », le compteur du panier
+   et le prix, et noter leurs classes ou attributs (sans rien de personnel) : ce sont eux qu'il faut mettre dans
+   `SELECTORS` (`extension/src/coursesu.ts`). Les erreurs de l'extension se lisent sur sa carte dans
+   `chrome://extensions` (« Erreurs »).
+6. **Captcha ou refus** : ne pas insister. Le résoudre soi-même pour finir à la main est normal ; « Reprendre » n'est à
+   tenter qu'une fois, plus tard. Noter après combien de produits il est apparu : si le site bloque dès quelques
+   produits à ce rythme, on en reste au chemin (c), la liste à cocher.
+7. **Puis trois produits ou plus**, dont un déjà au panier (il ne doit pas être rajouté) et, si possible, un
+   indisponible (il doit être passé et signalé).
+8. **Compte rendu** : panneau de l'extension → « Copier le compte rendu » → HomeHub, même onglet Extension → coller →
+   « Marquer les lignes ». Les articles partis passent « au drive », les prix vus apparaissent dans le récapitulatif.
+9. Même essai avec **Firefox** (module temporaire, `about:debugging`), qui demande l'accès à coursesu.com au premier
+   lancement.
+
+À rapporter : ce qui a marché, la raison de chaque arrêt, les sélecteurs relevés, et si un captcha est apparu (après
+combien de produits). Firefox Android demande ensuite une extension signée par Mozilla (publication non listée sur
+addons.mozilla.org) : à décider après cet essai.
 
 ## Sources
 

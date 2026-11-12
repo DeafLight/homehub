@@ -2,12 +2,14 @@
 // ni appareil non appairé, ni tablette sans visage), lecture d'une fiche une fois à la demande (refus du site : rien
 // n'est contourné, la saisie reste possible), EAN repris du stock, produit retenu, secours, retrait ; pièces par
 // paquet et panier en cours (droits de la liste de courses, paquets calculés par le serveur, lignes des articles
-// partis de la liste ignorées, nouveau panier).
+// partis de la liste ignorées, nouveau panier) ; compte rendu de l'extension (articles marqués « au drive », prix et
+// EAN notés, lignes hors de la liste ou hors des fiches de l'enseigne laissées de côté, droits).
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { DriveChoice, DriveView } from '../shared/drive.ts';
+import { REPORT_KIND, type DriveReport, type DriveReportResult, type ReportLine } from '../shared/drive-cart.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
@@ -274,5 +276,51 @@ describe('API du drive : remplir le panier', () => {
     expect((await call('PUT', path, { from: TABLET, body: { in: false } })).status).toBe(403);
     expect((await call('DELETE', '/drive/basket', { token: await phone('lea') })).status).toBe(403);
     expect((await call('PUT', '/drive/pieces', { token: await phone('lea'), body: { key: 'oignon', id: '1', pieces: 3 } })).status).toBe(403);
+  });
+
+  describe('compte rendu de l’extension', () => {
+    const report = (lines: Partial<ReportLine>[]): DriveReport => ({
+      kind: REPORT_KIND, version: 1, enseigne: 'coursesu', at: '2026-03-10T10:00:00.000Z', stop: null,
+      lines: lines.map((l) => ({ itemId: '', id: '9990001', name: 'Lardons fumés, 2x100g', url: FICHE, status: 'added', count: 2, ean: null, price: null, note: null, ...l })),
+    });
+
+    it('marque les articles partis « au drive », note prix et EAN ; laisse de côté ce qui n’est pas parti', async () => {
+      const { call, alex, choose, lardons, id, view } = await withList();
+      await choose(lardons());
+      const res = await call('POST', '/drive/report', {
+        token: alex,
+        body: report([
+          { itemId: id('Lardons'), price: 1.95, ean: EAN, count: 3 },
+          { itemId: id('Oignons'), id: '9990010', url: OIGNON, name: 'Oignons jaunes', status: 'skipped', note: 'indisponible' },
+          { itemId: id('Lessive'), id: '9990020', url: 'https://www.coursesu.com/p/lessive-exemple/9990020.html', name: 'Lessive Clair', status: 'already', count: 1 },
+          { itemId: 'parti', status: 'added' },
+          { itemId: id('Lardons'), url: 'https://exemple.invalid/p/x/9990001.html' },
+          { itemId: id('Oignons'), status: 'waiting', count: 0 },
+        ]),
+      });
+      expect(res.status).toBe(200);
+      const result = (await res.json()) as DriveReportResult;
+      expect(result).toMatchObject({ marked: 2, prices: 1 });
+      expect(result.ignored).toEqual([
+        { name: 'Lardons fumés, 2x100g', reason: 'article plus dans la liste' },
+        { name: 'Lardons fumés, 2x100g', reason: 'lien qui n’est pas une fiche de l’enseigne' },
+      ]);
+      expect(result.view.basket?.lines).toMatchObject([
+        { itemId: id('Lardons'), key: 'lardon', product: { id: '9990001', url: FICHE }, count: 3, per: { quantity: 200, unit: 'g' } },
+        { itemId: id('Lessive'), key: 'lessive', product: { id: '9990020', name: 'Lessive Clair' }, count: 1, per: null },
+      ]);
+      expect((await view()).choices[0].preferred).toMatchObject({ ean: EAN, price: { value: 1.95 } });
+    });
+
+    it('refuse un autre format, une autre enseigne ; droits de la liste de courses', async () => {
+      const { call, alex, phone, tablet, id } = await withList();
+      const body = report([{ itemId: id('Lessive'), id: '9990020', url: 'https://www.coursesu.com/p/x/9990020.html' }]);
+      expect((await call('POST', '/drive/report', { token: alex, body: { ...body, kind: 'homehub-drive-cart' } })).status).toBe(400);
+      expect((await call('POST', '/drive/report', { token: alex, body: { ...body, enseigne: 'leclerc' } })).status).toBe(400);
+      expect((await call('POST', '/drive/report', { token: await phone('lea'), body })).status).toBe(403);
+      expect((await call('POST', '/drive/report', { body })).status).toBe(403);
+      expect((await call('POST', '/drive/report', { from: TABLET, body })).status).toBe(403);
+      expect((await call('POST', '/drive/report', { ...tablet('alex'), body })).status).toBe(200);
+    });
   });
 });

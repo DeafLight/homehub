@@ -47,6 +47,15 @@ Then open it in the built-in browser (`mcp__Claude_Browser__navigate`). Stop it 
   over time (e.g. an SVG path's `d` twice, a second apart), not by screenshots.
 - `get_page_text` / `read_page` / `javascript_tool` are more reliable than screenshots for checking values.
 - Camera requests are blocked in the browser pane (notice shown): expected, not a bug.
+- **Port 3190 already taken** (another worktree left its fictional world open): don't kill it, run with
+  `DOCS_PORT=3290` (the Chrome debugging port follows, +1).
+
+## Drive extension (« Remplir le panier »)
+`npm run extension:check` builds `extension/dist` and drives the real content script in headless Chrome on fake
+www.coursesu.com pages (requests intercepted, served by `scripts/docs-captures/fake-drive.ts`, never the real site),
+checks the stop rule (captcha, unconfirmed add, unexpected page) and reshoots `ordinateur-extension-*.png`. Run it in
+the foreground (~2 min). The real site's selectors are unknown: keep the fake page in line with `SELECTORS` in
+`extension/src/coursesu.ts`.
 
 ## Add or update a documentation capture
 In `scripts/docs-captures.ts`:

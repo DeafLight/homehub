@@ -111,8 +111,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   comparé à celui de la fiche. Le choix est **retenu** par article et par enseigne (« gruyère » → tel paquet), avec des
   produits de secours (trois au plus) qui ne sont jamais pris d'office ; tout se change ou se retire. Sous l'article,
   le produit retenu et, pour une ligne du menu dont la contenance est connue, le nombre de paquets (même arrondi que la
-  liste : « 1 × 200 g pour 160 g »). HomeHub ne cherche jamais dans le catalogue de l'enseigne, ne voit ni prix, ni
-  compte, ni créneau, ni paiement : le panier se remplit dans l'appli de l'enseigne (`drive.json`).
+  liste : « 1 × 200 g pour 160 g »). HomeHub ne cherche jamais dans le catalogue de l'enseigne, ne voit ni compte, ni
+  créneau, ni paiement : le panier se remplit dans l'appli de l'enseigne, à la main ou avec l'extension (`drive.json`).
   **Remplir le panier** (bouton des courses, ou des réglages du drive) : les articles à acheter dans l'ordre des rayons,
   chacun avec son produit retenu, le **nombre de paquets** et un bouton « Fiche » qui ouvre le produit chez l'enseigne ;
   on remplit le panier dans l'appli de l'enseigne et on **coche** ici (panier en cours gardé par le serveur, partagé
@@ -121,9 +121,17 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   pièces dans ce paquet ? »**, le retient sur le produit et calcule les paquets ; contenance inconnue, produit au poids
   ou autre grandeur : 1 paquet, signalé « à vérifier ». **Récapitulatif** : ce qui part au drive (produits et
   paquets), ce qui reste à mettre au panier, ce qui s'achète ailleurs (aucun produit retenu, ou seulement des
-  secours) ; pas de prix. Un article coché passe dans le groupe **« Au drive »** de la liste de courses, sans être
-  coché comme acheté ; « Reçu : tout cocher » le fait une fois le panier retiré, et le décocher dans « Remplir le
-  panier » le remet dans les rayons. Un article qui quitte la liste quitte aussi le panier.
+  secours), avec les prix vus par l'extension et leur **total indicatif**. Un article coché passe dans le groupe
+  **« Au drive »** de la liste de courses, sans être coché comme acheté ; « Reçu : tout cocher » le fait une fois le
+  panier retiré, et le décocher dans « Remplir le panier » le remet dans les rayons. Un article qui quitte la liste
+  quitte aussi le panier.
+  **Extension « Remplir le panier »** (Courses U, sur ordinateur ; voir la section « Extension » plus bas) :
+  l'onglet « Extension » de Remplir le panier **copie le panier** (« Copier pour l'extension » : les articles qui ont
+  un produit retenu et ne sont pas encore cochés, en petit JSON) ; dans le navigateur, sur le site de l'enseigne
+  ouvert et connecté au compte de la personne, l'extension ajoute ces produits **un par un, en cliquant le bouton
+  « Ajouter » de chaque fiche**, à rythme humain, et **s'arrête au premier captcha, refus ou page inattendue**. Son
+  **compte rendu**, recollé dans le même onglet, coche les articles partis « au drive » et note sur chaque produit
+  le prix et le code-barres lus dans la page.
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
   personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
@@ -379,6 +387,58 @@ HomeHub pour les fichiers (le manifeste de l'appli installée est relu de temps 
 Sans agenda configuré, l'agenda est d'exemple (`server/sources/sample.ts`) ; les tâches et les mots sont toujours
 réels.
 
+## Extension « Remplir le panier »
+
+Une extension de navigateur (Manifest V3, dossier `extension/`) qui remplit le panier **Courses U** depuis le
+navigateur et le compte de la personne, à partir du panier préparé par HomeHub. Étape 3 du drive, voir
+[l'étude](docs/etude-drive.md) pour le pourquoi et les règles.
+
+**Ce qu'elle fait** : on y colle le panier copié depuis HomeHub (Remplir le panier → Extension → « Copier pour
+l'extension ») ; sur l'onglet ouvert sur www.coursesu.com, connecté, magasin choisi, « Remplir le panier » ouvre chaque
+fiche à son tour, clique « Ajouter » puis « + » jusqu'au nombre de paquets, en attendant chaque fois que le site
+confirme (quantité de la fiche ou compteur du panier), puis passe à la fiche suivante après une pause fixe (1,5 s
+entre deux clics, 4 s entre deux produits). Un bandeau en bas de la page dit où elle en est, avec « Arrêter ». Un
+produit déjà au panier en quantité suffisante n'est pas rajouté ; un produit indisponible est passé et signalé. À
+la fin, le panneau de l'extension liste ce qui est parti et propose « Copier le compte rendu » (identifiant, paquets,
+EAN et prix lus dans la page), à recoller dans HomeHub pour cocher les lignes et noter les prix.
+
+**Quand elle s'arrête** : au premier captcha ou vérification anti-robots, page de refus, page de connexion, fiche
+qui n'est pas celle attendue, bouton « Ajouter » absent ou ajout que le site ne confirme pas dans les 10 s. Elle le
+dit dans le bandeau et le panneau ; la personne finit à la main (« Reprendre » repart de la fiche en cause, à sa
+demande seulement).
+
+**Ce qu'elle ne fait jamais** : résoudre ou éviter un captcha, changer d'adresse ou d'en-têtes, accélérer, appeler
+les points d'entrée internes ou « partenaire » du site, tourner sans la personne ou ailleurs que dans son onglet,
+réserver un créneau, payer. Elle ne lit ni ne garde aucun mot de passe ni jeton de l'enseigne ; elle ne garde que le
+panier en cours, dans le stockage local du navigateur. Elle n'a accès qu'au site coursesu.com et ne suit que des
+liens de fiches produit de l'enseigne (un panier collé avec un autre lien est refusé en entier). Elle ne parle pas à
+HomeHub : tout passe par copier-coller.
+
+**Installer** (hors boutique, mode développeur) :
+
+```bash
+npm run build:extension   # construit extension/dist
+```
+
+- **Chrome ou Edge** : `chrome://extensions` (ou `edge://extensions`), activer le **mode développeur**, « Charger
+  l'extension non empaquetée », choisir `extension/dist`. Elle reste installée ; après une nouvelle version, refaire
+  `npm run build:extension` puis « Actualiser » sur sa carte.
+- **Firefox** : `about:debugging#/runtime/this-firefox`, « Charger un module complémentaire temporaire… », choisir
+  `extension/dist/manifest.json`. Firefox l'enlève à sa fermeture ; à la première utilisation il demande l'accès à
+  coursesu.com. Une installation durable (et **Firefox Android**) demande une extension signée par Mozilla
+  (publication non listée sur addons.mozilla.org), pas encore faite.
+
+**Utiliser** : dans HomeHub (téléphone relié, ou ordinateur relié comme un téléphone pour pouvoir recoller le compte
+rendu), Courses → Remplir le panier → Extension → « Copier pour l'extension ». Sur l'ordinateur, ouvrir
+www.coursesu.com, se connecter, choisir le magasin ; bouton de l'extension → coller → « Lire le panier » → « Remplir
+le panier ». À la fin (ou à l'arrêt), vérifier le panier sur le site, puis « Copier le compte rendu » et le coller
+dans HomeHub (même onglet Extension, « Marquer les lignes »). Le créneau et le paiement se font sur le site.
+
+**À confirmer lors du premier essai réel** : la structure de la fiche une fois connecté (bouton « Ajouter »,
+sélecteur de quantité, compteur du panier, prix) n'a jamais été vue ; les sélecteurs sont réunis dans
+`extension/src/coursesu.ts` (`SELECTORS`) et la procédure d'essai est dans
+[l'étude, section 7](docs/etude-drive.md#7-essai-réel-de-lextension-à-faire-par-lutilisateur).
+
 ## Configuration
 
 Un fichier YAML validé, **rechargé à chaud** : le serveur le surveille et l'applique en quelques secondes, puis la
@@ -417,7 +477,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet) et panier en cours (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet et le dernier prix vu par l’extension) et panier en cours (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
@@ -482,7 +542,8 @@ shared/recipes.ts          recettes : types, limites, durées des étapes, porti
 shared/quantities.ts       quantités par dimension (masse, volume, cuillères, pièces) : somme, différence, affichage, contenance d'un paquet
 shared/menu.ts             menu de la semaine : semaines, besoins agrégés, déductions, règle de synchronisation des courses
 shared/stock-link.ts       produit du stock → ingrédient deviné (mots du nom, rayon, contenance)
-shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD Product, clé d'un article, paquets (pièces par paquet), remplir le panier, récapitulatif
+shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD Product, clé d'un article, paquets (pièces par paquet), remplir le panier, récapitulatif, prix vus
+shared/drive-cart.ts       drive : panier copié pour l'extension et son compte rendu (format, relecture, prix affichés)
 shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
@@ -491,6 +552,15 @@ web/src/
   screens/                 écrans (chargent leurs données via l'API du contexte)
   components/              composants d'affichage ; widgets/ = purement présentationnels
   lib/                     API, routeur, formats, couleurs, minuteries (logique testable sans DOM)
+extension/                 extension « Remplir le panier » (Manifest V3, construite dans extension/dist)
+  manifest.json            droits : stockage, site coursesu.com seulement
+  popup.html               panneau du bouton de l'extension
+  src/run.ts               déroulé d'un remplissage : décisions, règle d'arrêt, compte rendu (logique pure)
+  src/coursesu.ts          adaptateur Courses U : lecture de la fiche, clics « Ajouter » et « + » (sélecteurs à confirmer)
+  src/content.ts           script des pages du site : bandeau, boucle d'une fiche à l'autre
+  src/popup.ts             panneau : coller le panier, lancer, arrêter, copier le compte rendu
+scripts/build-extension.ts construit l'extension (Vite, un fichier par script)
+scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur la fausse enseigne du monde fictif
 ```
 
 - **Injection de dépendances** : le service reçoit la config, les sources et l'horloge ; l'app HTTP reçoit le
@@ -562,12 +632,13 @@ web/src/
 | `PUT /api/menu/have` | `{ week, key, have }` : « j'en ai déjà » pour un ingrédient, cette semaine ; un parent |
 | `PUT /api/menu/check` | `{ week, key, decision }` : « à vérifier au placard », `enough` (j'en ai assez), `needed` (il en faut) ou `null` (pas encore décidé) ; un parent |
 | `PUT /api/menu/pantry` | `{ names }` : les placards, jamais demandés ; un parent |
-| `GET /api/drive` | `{ settings, choices, basket }` : enseigne et magasin de retrait (`{ name, url }`), pour chaque article (`key`) le produit retenu (`preferred`, ou `null`) et ses secours (`fallback`), chacun `{ enseigne, id, url, name, brand, packText, pack, ean, source, pieces }` (`pieces` : pièces par paquet, ou `null`), et le panier en cours (`{ enseigne, startedAt, startedBy, lines }`, ou `null`), chaque ligne `{ itemId, key, label, product, count, per, at, by }` ; seulement les lignes dont l'article est encore dans la liste |
+| `GET /api/drive` | `{ settings, choices, basket }` : enseigne et magasin de retrait (`{ name, url }`), pour chaque article (`key`) le produit retenu (`preferred`, ou `null`) et ses secours (`fallback`), chacun `{ enseigne, id, url, name, brand, packText, pack, ean, source, pieces, price }` (`pieces` : pièces par paquet, ou `null` ; `price` : `{ value, at }`, dernier prix d'un paquet vu par l'extension, ou `null`), et le panier en cours (`{ enseigne, startedAt, startedBy, lines }`, ou `null`), chaque ligne `{ itemId, key, label, product, count, per, at, by }` ; seulement les lignes dont l'article est encore dans la liste |
 | `PUT /api/drive/settings` | `{ enseigne, store }` : enseigne (`coursesu` ou `null`) et magasin (`{ name, url? }`, lien sur le site de l'enseigne) ; un parent |
 | `GET /api/drive/stock?key=` | `{ hints }` : produits du stock qui ressemblent à l'article (reliés à l'ingrédient dans le menu, ou de même nom), avec code-barres et contenance |
 | `POST /api/drive/read` | `{ url }` (ou un texte qui contient le lien d'une fiche produit) → `{ read: true, product, stock }` ou `{ read: false, product, reason, refused? }` (seulement ce que dit le lien) ; `stock` : produit du stock de même code-barres. Lu une fois, rien n'est retenu ; seulement une fiche de l'enseigne choisie ; droit sur la liste de courses, vérifié avant toute lecture |
 | `PUT /api/drive/choices`, `DELETE /api/drive/choices?key=&id=` | `{ key, label, role, product: { url, name, brand?, packText?, ean?, source } }` : retenir un produit (`preferred`, l'ancien devient un secours) ou l'ajouter en secours (`fallback`) ; retrait d'un produit (`id`) ou de tout le choix ; le produit retenu retiré n'est remplacé par aucun secours ; droit sur la liste de courses |
 | `PUT /api/drive/pieces` | `{ key, id, pieces }` : pièces dans un paquet du produit `id` de l'article (`null` : oublier) ; droit sur la liste de courses |
+| `POST /api/drive/report` | compte rendu de l'extension « Remplir le panier » `{ kind: "homehub-drive-report", version: 1, enseigne, lines: [{ itemId, id, name, url, status, count, ean, price }] }` → `{ view, marked, prices, ignored }` : chaque article parti (`added`, `already`) et encore à acheter est mis au panier en cours avec ce produit et ces paquets ; prix et EAN lus notés sur le produit du choix (EAN seulement s'il manquait) ; lignes d'un article parti de la liste ou au lien hors des fiches de l'enseigne laissées de côté (`ignored`) ; droit sur la liste de courses |
 | `PUT /api/drive/basket/:itemId`, `DELETE /api/drive/basket` | `{ in }` : cocher (`true`) ou décocher un article de la liste dans le panier en cours, le serveur y met le produit retenu et le nombre de paquets (sans produit : 1 paquet) ; article déjà acheté refusé (409) ; `DELETE` : nouveau panier. Renvoient la vue du drive ; droit sur la liste de courses |
 | `PUT /api/menu/links/:code`, `DELETE …/links/:code` | `{ link }` : produit du stock relié à un ingrédient (`{ key, name, per, partial? }`, `partial` absent : deviné ; `null` : pas un ingrédient) ; retrait : redevient une proposition ; un parent |
 | `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |
@@ -608,7 +679,11 @@ npm run check     # vérification des types (server + web)
 npm run build     # compile le front dans web/dist
 npm start         # sert l'app compilée sur :3000
 npm run docs:captures   # refait les captures de docs/images (données fictives, Chrome sans fenêtre)
+npm run build:extension # construit l'extension « Remplir le panier » dans extension/dist
+npm run extension:check # essaie l'extension sur la fausse enseigne (Chrome sans fenêtre, ~2 min) et refait ses captures
 ```
+
+`DOCS_PORT=3290 npm run docs:captures` si le port 3190 est déjà pris (monde fictif d'une autre copie du dépôt).
 
 Pour tester sur la tablette en dev : `http://<ip-du-pc>:5173`.
 

@@ -1,6 +1,6 @@
 {
   "name": "homehub",
-  "version": "0.54.0",
+  "version": "0.55.0",
   "private": true,
   "type": "module",
   "description": "Tableau de bord maison affiché sur la tablette (Fully Kiosk)",
@@ -13,9 +13,11 @@
     "build": "node scripts/copy-face-models.ts && vite build",
     "dev:web": "node scripts/copy-face-models.ts && vite",
     "start": "node server/index.ts",
-    "check": "tsc --noEmit -p server && svelte-check --tsconfig web/tsconfig.json",
+    "check": "tsc --noEmit -p server && tsc --noEmit -p extension && svelte-check --tsconfig web/tsconfig.json",
     "test": "vitest run",
     "docs:captures": "npm run build && node scripts/docs-captures.ts",
+    "build:extension": "node scripts/build-extension.ts",
+    "extension:check": "npm run build:extension && node scripts/extension-check.ts",
     "postinstall": "node scripts/patch-pawnote.ts"
   },
   "dependencies": {

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "HomeHub · Remplir le panier",
+  "short_name": "Remplir le panier",
+  "version": "0.0.0",
+  "description": "Ajoute au panier Courses U, depuis ton compte et à ton rythme, les produits préparés par HomeHub. S'arrête au premier captcha ou refus. Ne paie rien, ne réserve aucun créneau.",
+  "icons": { "128": "icon.png" },
+  "action": { "default_title": "Remplir le panier", "default_popup": "popup.html", "default_icon": { "128": "icon.png" } },
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.coursesu.com/*", "https://coursesu.com/*"],
+  "content_scripts": [
+    { "matches": ["https://www.coursesu.com/*", "https://coursesu.com/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "browser_specific_settings": {
+    "gecko": { "id": "remplir-le-panier@homehub.deaflight", "strict_min_version": "128.0" },
+    "gecko_android": { "strict_min_version": "128.0" }
+  }
+}

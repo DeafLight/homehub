@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { countFlag, type DriveView, driveRecap, enseigneName, fillRows, type FillRow, formatCount, itemName, piecesUnit } from '../../../../shared/drive.ts';
+  import { countFlag, type DriveView, driveRecap, enseigneName, fillRows, type FillRow, formatCount, itemName, linePrice, packPrice, piecesUnit } from '../../../../shared/drive.ts';
+  import { cartFor, formatPrice, readReport, reportSummary } from '../../../../shared/drive-cart.ts';
   import type { ShoppingItem } from '../../../../shared/types.ts';
   import type { Api } from '../../lib/api.ts';
   import { revert } from '../../lib/checkbox.ts';
@@ -13,6 +14,9 @@
   // on coche ici (le serveur garde le panier en cours). Récapitulatif : ce qui part au drive, ce qui reste à mettre au
   // panier, ce qui s'achète ailleurs ; pas de prix. Les articles cochés sont marqués « au drive » dans les courses,
   // sans être cochés comme achetés. « Nouveau panier » retire toutes les coches (demandé deux fois).
+  // Onglet « Extension » (étape 3) : copier le panier (ce qui reste à mettre au panier avec un produit retenu) pour
+  // l'extension « Remplir le panier », puis recoller son compte rendu pour marquer les lignes et noter les prix vus ;
+  // le récapitulatif en tire un total indicatif.
   type Props = {
     api: Api;
     items: ShoppingItem[];
@@ -31,8 +35,15 @@
   const groups = $derived(byAisle(rows, (r) => itemAisle(r.item)));
   /** Récapitulatif dans l'ordre des rayons, comme la liste. */
   const recap = $derived(driveRecap(groups.flatMap((g) => g.items)));
+  /** Panier à copier pour l'extension, dans l'ordre des rayons. */
+  const cart = $derived(enseigne ? cartFor(groups.flatMap((g) => g.items), enseigne, view.settings.store?.name ?? null) : null);
+  const cartText = $derived(cart ? JSON.stringify(cart) : '');
+  const cartPacks = $derived(cart?.lines.reduce((sum, l) => sum + l.count, 0) ?? 0);
 
-  let tab = $state<'list' | 'recap'>('list');
+  let tab = $state<'list' | 'recap' | 'extension'>('list');
+  let copied = $state<'yes' | 'manual' | null>(null);
+  let reportText = $state('');
+  let reportDone = $state<string | null>(null);
   let busy = $state<string | null>(null);
   let error = $state<string | null>(null);
   let confirmNew = $state(false);
@@ -51,6 +62,31 @@
 
   const toggle = (row: FillRow, inBasket: boolean) => run(row.item.id, () => api.setInBasket(row.item.id, inBasket));
   const newBasket = () => run('new', async () => ((confirmNew = false), await api.newBasket()));
+
+  async function copyCart() {
+    try {
+      await navigator.clipboard.writeText(cartText);
+      copied = 'yes';
+    } catch {
+      // Presse-papiers refusé (adresse sans HTTPS…) : le texte est montré, à copier à la main.
+      copied = 'manual';
+    }
+  }
+
+  function sendReport() {
+    const parsed = readReport(reportText);
+    reportDone = null;
+    if (!parsed.ok) {
+      error = parsed.error;
+      return;
+    }
+    return run('report', async () => {
+      const result = await api.sendDriveReport(parsed.value);
+      reportDone = reportSummary(result);
+      reportText = '';
+      return result.view;
+    });
+  }
 </script>
 
 <div class="drive-fill">
@@ -67,6 +103,7 @@
     <div class="tabs" role="tablist">
       <button type="button" role="tab" class="btn small" class:primary={tab === 'list'} aria-selected={tab === 'list'} onclick={() => (tab = 'list')}>Liste</button>
       <button type="button" role="tab" class="btn small" class:primary={tab === 'recap'} aria-selected={tab === 'recap'} onclick={() => (tab = 'recap')}>Récapitulatif</button>
+      <button type="button" role="tab" class="btn small" class:primary={tab === 'extension'} aria-selected={tab === 'extension'} onclick={() => (tab = 'extension')}>Extension</button>
     </div>
 
     {#if error}<p class="error">{error}</p>{/if}
@@ -83,19 +120,55 @@
       {:else}
         <p class="muted">Rien à acheter.</p>
       {/each}
+    {:else if tab === 'extension'}
+      <section class="extension">
+        <p class="muted small">
+          Sur ordinateur (Chrome, Edge, Firefox) ou avec Firefox sur Android, l’extension « HomeHub · Remplir le panier » ajoute
+          ces produits à ton panier {enseigneName(enseigne)}, depuis ton compte, une fiche après l’autre. Elle s’arrête au premier
+          captcha ou refus ; tu finis à la main. Rien n’est payé, aucun créneau n’est réservé.
+        </p>
+        <h3>1. Copier le panier · {cart?.lines.length ?? 0} produit{(cart?.lines.length ?? 0) > 1 ? 's' : ''}, {cartPacks} paquet{cartPacks > 1 ? 's' : ''}</h3>
+        {#if cart && cart.lines.length > 0}
+          <p class="muted small">Les articles qui ont un produit retenu et ne sont pas encore cochés. Colle-le dans le panneau de l’extension, sur le site {enseigneName(enseigne)} ouvert et connecté.</p>
+          <div class="actions"><button type="button" class="btn primary" onclick={copyCart}><Icon name="share" size={18} /> Copier pour l’extension</button></div>
+          {#if copied === 'yes'}<p class="ok small">Copié : colle-le dans le panneau de l’extension.</p>{/if}
+          {#if copied === 'manual'}
+            <p class="flag">Copie refusée par le navigateur : sélectionne le texte ci-dessous et copie-le.</p>
+            <textarea class="json" readonly value={cartText} onfocus={(e) => e.currentTarget.select()}></textarea>
+          {/if}
+        {:else}
+          <p class="muted">Rien à envoyer : tout ce qui a un produit retenu est déjà coché.</p>
+        {/if}
+        <h3>2. Recoller le compte rendu</h3>
+        {#if readOnly}
+          <p class="muted small">Pour marquer les lignes, ouvre HomeHub sur un appareil relié (téléphone, ou ordinateur relié comme un téléphone), ou présente-toi à la tablette.</p>
+        {:else}
+          <p class="muted small">À la fin, copie le compte rendu dans le panneau de l’extension et colle-le ici : les articles partis sont cochés « au drive », les prix vus sont notés.</p>
+          <textarea class="json" bind:value={reportText} placeholder="Compte rendu copié depuis l’extension"></textarea>
+          <div class="actions"><button type="button" class="btn" disabled={busy !== null || !reportText.trim()} onclick={sendReport}>Marquer les lignes</button></div>
+          {#if reportDone}<p class="ok small">{reportDone}</p>{/if}
+        {/if}
+      </section>
     {:else}
       <section class="recap">
         <h3>Part au drive · {recap.drive.length} article{recap.drive.length > 1 ? 's' : ''}, {recap.packs} paquet{recap.packs > 1 ? 's' : ''}</h3>
         {#each recap.drive as row (row.item.id)}
+          {@const price = linePrice(row)}
           <p class="recap-row">
             <span>{itemName(row.item)} <span class="muted">· {row.line?.product?.name ?? 'sans produit retenu'}</span></span>
-            <strong>{row.line ? formatCount(row.line) : ''}</strong>
+            <strong>{row.line ? formatCount(row.line) : ''}{price !== null ? ` · ${formatPrice(price)}` : ''}</strong>
           </p>
           {#if row.changed}<p class="flag">Changé depuis : il faut maintenant {row.count ? formatCount(row.count) : 'choisir un produit'}</p>{/if}
           {#if row.count?.flag}<p class="flag">{countFlag(row.count.flag)}</p>{/if}
         {:else}
           <p class="muted">Rien de coché pour l’instant.</p>
         {/each}
+        {#if recap.total > 0}
+          <p class="recap-row total">
+            <span>Total indicatif{recap.unpriced > 0 ? ` (${recap.unpriced} sans prix)` : ''}</span>
+            <strong>{formatPrice(recap.total)}</strong>
+          </p>
+        {/if}
 
         {#if recap.toFill.length > 0}
           <h3>Reste à mettre au panier · {recap.toFill.length}</h3>
@@ -113,7 +186,7 @@
         {:else}
           <p class="muted">Rien : tout a un produit chez {enseigneName(enseigne)}.</p>
         {/each}
-        <p class="muted small">Pas de prix ici : le total, le créneau et le paiement se voient dans l’appli {enseigneName(enseigne)}. Les articles cochés sont marqués « au drive » dans les courses ; coche-les comme achetés une fois le panier retiré.</p>
+        <p class="muted small">Prix vus sur les fiches par l’extension, indicatifs : le vrai total, le créneau et le paiement se voient dans l’appli {enseigneName(enseigne)}. Les articles cochés sont marqués « au drive » dans les courses ; coche-les comme achetés une fois le panier retiré.</p>
       </section>
     {/if}
 
@@ -146,7 +219,8 @@
       <span class="name">{itemName(row.item)}{#if itemAmount(row.item)}<span class="muted">{` · ${itemAmount(row.item)}`}</span>{/if}</span>
       {#if product && row.count}
         <span class="product">{product.name}</span>
-        <span class="count">{formatCount(row.count)}</span>
+        {@const price = packPrice(row, product.id)}
+        <span class="count">{formatCount(row.count)}{#if price}<span class="muted price">{` · ${formatPrice(price.value)} le paquet`}</span>{/if}</span>
         {#if countFlag(row.count.flag) && !(unit && !readOnly)}<span class="flag">{countFlag(row.count.flag)}</span>{/if}
         {#if unit && enseigne}
           {#key product.id}
@@ -294,12 +368,21 @@
     text-decoration: none;
   }
 
-  .recap {
+  .ok {
+    color: var(--ok);
+  }
+
+  .price {
+    font-weight: 400;
+  }
+
+  .extension {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
 
+  .extension h3,
   .recap h3 {
     margin: var(--space-1) 0 0;
     font-size: 0.85rem;
@@ -307,6 +390,29 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--fg-muted);
+  }
+
+  .json {
+    width: 100%;
+    min-height: 88px;
+    padding: 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font: 0.8rem/1.3 ui-monospace, monospace;
+    box-sizing: border-box;
+  }
+
+  .recap-row.total {
+    padding-top: 6px;
+    border-top: 1px solid var(--surface-2);
+  }
+
+  .recap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .recap-row {

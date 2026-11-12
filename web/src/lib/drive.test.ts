@@ -18,6 +18,7 @@ const product = (pack: DriveProduct['pack'], packText: string | null = null): Dr
   source: 'page',
   seenAt: '',
   pieces: null,
+  price: null,
 });
 const choice = (preferred: DriveProduct | null, fallback: DriveProduct[] = []) => ({ key: 'lardon', enseigne: 'coursesu', label: 'Lardons', preferred, fallback }) as DriveChoice;
 

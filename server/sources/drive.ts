@@ -7,6 +7,9 @@
 // articles de la liste mis au panier de l'enseigne, par identifiant d'article. Une ligne dont l'article a quitté la
 // liste (retiré, ou vidé du panier une fois acheté) disparaît à l'écriture suivante ; « Nouveau panier » les retire
 // toutes. Les fichiers de l'étape 1 se lisent tels quels (pas de pièces, pas de panier).
+//
+// Étape 3 : le dernier prix d'un paquet vu par l'extension « Remplir le panier » (`price`, indicatif), et l'EAN lu sur
+// la fiche quand le produit n'en avait pas. Les fichiers des étapes 1 et 2 se lisent tels quels (pas de prix).
 import { z } from 'zod';
 import {
   DRIVE_LIMITS,
@@ -36,6 +39,7 @@ const productSchema = z.object({
   source: z.enum(['page', 'manual', 'stock']),
   seenAt: z.string(),
   pieces: z.number().int().positive().nullable().default(null),
+  price: z.object({ value: z.number().nonnegative(), at: z.string() }).nullable().default(null),
 });
 sameShape<z.infer<typeof productSchema>, DriveProduct>(true);
 
@@ -94,6 +98,11 @@ export type DriveStore = {
   forget(key: string, enseigne: Enseigne, id: string | null, by: Author): Promise<boolean>;
   /** Pièces dans un paquet d'un produit d'un choix (null : oublier). null : produit introuvable. */
   setPieces(key: string, enseigne: Enseigne, id: string, pieces: number | null, by: Author): Promise<DriveChoice | null>;
+  /**
+   * Note ce que l'extension a lu sur la fiche d'un produit d'un choix : son prix (null : rien de nouveau) et son EAN,
+   * gardé seulement si le produit n'en avait pas. Retourne ce qui a été noté, ou null si le produit est introuvable.
+   */
+  notePage(key: string, enseigne: Enseigne, id: string, seen: { price: number | null; ean: string | null }): Promise<{ price: boolean; ean: 'set' | 'same' | 'other' | null } | null>;
   /** Panier en cours, tel qu'enregistré (les lignes ne sont pas filtrées ici). */
   basket(): Promise<DriveBasket | null>;
   /**
@@ -145,7 +154,7 @@ export function createDriveStore({ path, clock }: { path: string; clock: Clock }
           }
           // Les pièces par paquet déjà dites pour ce produit le suivent quand il change de rôle.
           const known = [choice.preferred, ...choice.fallback].find((p) => p?.id === product.id);
-          product = { ...product, pieces: product.pieces ?? known?.pieces ?? null };
+          product = { ...product, pieces: product.pieces ?? known?.pieces ?? null, price: product.price ?? known?.price ?? null };
           const others = choice.fallback.filter((p) => p.id !== product.id);
           if (role === 'preferred') {
             const previous = choice.preferred && choice.preferred.id !== product.id ? [choice.preferred] : [];
@@ -193,6 +202,24 @@ export function createDriveStore({ path, clock }: { path: string; clock: Clock }
           return structuredClone(choice);
         },
         (choice) => choice !== null,
+      );
+    },
+
+    notePage(key, enseigne, id, seen) {
+      return state.update(
+        (file) => {
+          const choice = find(file, key, enseigne);
+          const product = choice && [choice.preferred, ...choice.fallback].find((p) => p?.id === id);
+          if (!product) return null;
+          if (seen.price !== null) product.price = { value: seen.price, at: clock().toISOString() };
+          let ean: 'set' | 'same' | 'other' | null = null;
+          if (seen.ean) {
+            ean = !product.ean ? 'set' : product.ean === seen.ean ? 'same' : 'other';
+            if (ean === 'set') product.ean = seen.ean;
+          }
+          return { price: seen.price !== null, ean };
+        },
+        (noted) => noted !== null && (noted.price || noted.ean === 'set'),
       );
     },
 

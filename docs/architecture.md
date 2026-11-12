@@ -36,6 +36,11 @@ flowchart LR
     cuisine["Sites de recettes<br/>(page partagée seulement)"]
     enseigne["Enseigne de drive<br/>(fiche produit partagée,<br/>lue une fois à la demande)"]
   end
+  subgraph perso["Ordinateur de la personne"]
+    extension["Navigateur + extension<br/>« Remplir le panier »<br/>(son compte chez l'enseigne)"]
+  end
+  extension -- "fiches ouvertes,<br/>boutons cliqués" --> enseigne
+  tel -. "copier-coller :<br/>panier, compte rendu" .- extension
   tablette -- HTTPS --> npm
   tel -- HTTPS --> npm
   npm --> api
@@ -255,7 +260,7 @@ classDiagram
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
 | `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
-| `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres, pièces par paquet) ; le panier en cours (articles de la liste cochés, produit et paquets mis au panier) |
+| `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres, pièces par paquet, dernier prix vu par l'extension) ; le panier en cours (articles de la liste cochés, produit et paquets mis au panier) |
 
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
@@ -350,6 +355,21 @@ s'efface dès que l'article quitte la liste (retiré, ou vidé du panier une foi
 que les lignes encore liées. Cocher (`PUT /api/drive/basket/:itemId`) : le serveur relit l'article et son produit
 retenu et calcule lui-même la ligne (rien n'est repris du front) ; une ligne dont l'article ou le produit a changé
 depuis est signalée à l'écran (« Mettre à jour »). Mêmes droits que les choix : `access.writer` sur la famille.
+
+Étape 3, **l'extension « Remplir le panier »** (`extension/`, Manifest V3, Courses U) : elle tourne dans le
+navigateur de la personne, sur le site de l'enseigne ouvert et connecté à son compte ; ni le NAS ni HomeHub ne
+touchent au site. Aucun réseau entre l'extension et HomeHub : la personne copie le panier (`cartFor`, format
+`homehub-drive-cart` de `shared/drive-cart.ts` : article, identifiant, lien de la fiche, paquets) et le colle dans
+l'extension, qui le relit (`parseCart` : refus en entier d'un lien qui n'est pas une fiche de l'enseigne) et le garde
+dans son stockage local. Le déroulé est une logique pure (`extension/src/run.ts` : décider sur la page ouverte,
+passer à la ligne suivante, s'arrêter) ; seul l'adaptateur (`extension/src/coursesu.ts`) connaît la page : JSON-LD
+`Product`, boutons « Ajouter » et « + », compteur du panier, prix, défis anti-robots (sélecteurs à confirmer lors de
+l'essai réel). Le script de page n'agit que dans l'onglet qui a reçu le remplissage (marque dans l'adresse, retenue
+pour l'onglet) et s'arrête au premier captcha, refus, page inattendue ou ajout non confirmé. Le compte rendu
+(`homehub-drive-report`), recollé dans HomeHub, part vers `POST /api/drive/report` : le serveur relit chaque ligne
+contre la liste (article encore à acheter, lien de fiche de l'enseigne), met au panier en cours le produit et les
+paquets que l'extension a vus, et note sur le produit du choix le prix (`price`, dernier vu) et l'EAN s'il manquait ;
+même droit que la liste de courses. Le récapitulatif en tire un total indicatif.
 
 **Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
 si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe
