@@ -1,0 +1,266 @@
+<!doctype html>
+<!-- Maquette statique de la proposition « retirer du stock ce qu'on cuisine » (docs/proposition-decompte-cuisine.md) :
+     le panneau « J'ai cuisiné » sur la tablette et le téléphone, puis le menu après le décompte. Monde fictif ; jetons
+     copiés de web/src/app.css. Rendue en PNG dans docs/images/maquette-decompte-cuisine.png. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette décompte cuisine</title>
+<style>
+  :root {
+    --bg: #0f1115; --surface-rail: #14171d; --surface: #181b22; --surface-1: #1f222a; --surface-2: #262a33;
+    --border-strong: #3a3f4a; --fg: #e8eaed; --fg-soft: #cfd3d9; --fg-muted: #9aa1ab;
+    --sun: #f2b84b; --rain: #5b8def; --rain-soft: #9cc3f5; --rain-bg: #1e2a3a;
+    --ok: #3fcf7f; --ok-bg: #173b2c; --ok-fg: #bfeccf; --warn: #f2b84b; --warn-bg: #3d3018; --off: #4a505c;
+    --space-1: 8px; --space-2: 16px; --space-3: 24px; --space-4: 32px; --space-6: 48px;
+    --text-label: 1rem; --text-small: 1.1rem; --text-body: 1.25rem; --text-title: 1.5rem; --text-heading: 2.25rem;
+    --radius-sm: 12px; --radius-md: 20px; --radius-lg: 24px; --radius-xl: 28px;
+    color-scheme: dark;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  body { margin: 0; background: var(--surface-rail); }
+  .planche { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); width: max-content; }
+  .row { display: flex; gap: var(--space-4); align-items: flex-start; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+  figcaption { font-size: var(--text-small); color: var(--fg-muted); max-width: 1280px; }
+  .row figure:last-child figcaption { max-width: 390px; }
+  figcaption b { color: var(--fg); }
+  .tablet { width: 1280px; height: 800px; background: var(--bg); position: relative; overflow: hidden; border-radius: var(--radius-lg); border: 2px solid var(--border-strong); }
+  .phone { width: 390px; height: 844px; background: var(--bg); position: relative; overflow: hidden; border-radius: 44px; border: 2px solid var(--border-strong); }
+
+  .card-label { margin: 0; font-size: var(--text-label); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--fg); font: inherit; font-size: var(--text-body); font-weight: 600; white-space: nowrap; }
+  .btn.small { min-height: 44px; padding: 0 16px; font-size: var(--text-small); }
+  .btn.primary { background: var(--rain); color: var(--bg); }
+  .btn.ok { background: var(--ok); color: var(--bg); }
+  .btn.suggest { box-shadow: inset 0 0 0 2px var(--rain); }
+  .btn.chosen { background: var(--rain); color: var(--bg); }
+  .btn.chosen::before { content: '✓'; }
+  .btn.link { background: none; padding: 0 8px; color: var(--rain-soft); min-height: 36px; }
+  .round { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--fg); font-size: 1.6rem; display: inline-flex; align-items: center; justify-content: center; }
+  .muted { color: var(--fg-muted); }
+  .chip { display: inline-block; padding: 2px 14px; border-radius: 999px; font-size: var(--text-small); }
+  .chip.warn { background: var(--warn-bg); color: var(--warn); }
+  .chip.ok { background: var(--ok-bg); color: var(--ok-fg); }
+  .chip.info { background: var(--rain-bg); color: var(--rain-soft); }
+
+  /* Fond : le mode cuisine, assombri sous le panneau. */
+  .kitchen { position: absolute; inset: 0; padding: 36px 72px; display: flex; flex-direction: column; gap: var(--space-4); }
+  .kitchen .top { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-title); font-weight: 600; }
+  .kitchen .step { flex: 1; background: var(--surface); border-radius: var(--radius-xl); }
+  .veil { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 78%, transparent); }
+
+  /* Panneau « J'ai cuisiné ». */
+  .panel { position: absolute; background: var(--surface); border-radius: var(--radius-xl); display: flex; flex-direction: column; box-shadow: 0 0 0 1px var(--border-strong); }
+  .tablet .panel { left: 140px; right: 140px; top: 36px; bottom: 36px; }
+  .panel header { padding: var(--space-3) var(--space-3) var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+  .panel header .titles { flex: 1; min-width: 0; }
+  .panel h2 { margin: 0; font-size: var(--text-title); }
+  .panel .sub { font-size: var(--text-small); color: var(--fg-muted); }
+  .people { display: flex; align-items: center; gap: var(--space-1); font-size: var(--text-body); }
+  .lines { flex: 1; overflow: hidden; padding: 0 var(--space-3); display: flex; flex-direction: column; }
+  .line { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--space-2); align-items: center; padding: 14px 0; border-top: 1px solid var(--surface-2); }
+  .line .what { font-size: var(--text-body); font-weight: 600; }
+  .line .what .qty { color: var(--rain-soft); font-weight: 500; }
+  .line .product { font-size: var(--text-small); color: var(--fg-muted); }
+  .line .hint { font-size: var(--text-small); color: var(--fg-soft); }
+  .line .hint b { color: var(--rain-soft); font-weight: 600; }
+  .answers { display: flex; gap: var(--space-1); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+  .stepper { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-body); font-weight: 600; }
+  .stepper .round { width: 44px; height: 44px; }
+  .untracked { padding: 12px 0; border-top: 1px solid var(--surface-2); font-size: var(--text-small); color: var(--fg-muted); display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+  .panel footer { padding: var(--space-2) var(--space-3) var(--space-3); display: flex; align-items: center; gap: var(--space-2); border-top: 1px solid var(--surface-2); }
+  .panel footer .grow { flex: 1; font-size: var(--text-small); color: var(--fg-muted); }
+
+  /* Téléphone : plein écran, lignes empilées. */
+  .phone .panel { inset: 0; border-radius: 0; box-shadow: none; background: var(--bg); }
+  .phone .panel header { padding: 52px var(--space-2) var(--space-1); flex-wrap: wrap; }
+  .phone .lines { padding: 0 var(--space-2); }
+  .phone .line { grid-template-columns: 1fr; }
+  .phone .answers { justify-content: flex-start; }
+  .phone .btn { font-size: var(--text-small); min-height: 44px; padding: 0 14px; }
+  .phone .panel footer { padding: var(--space-2); flex-wrap: wrap; }
+  .phone .panel footer .btn.primary { flex: 1; }
+
+  /* Menu après le décompte. */
+  .menu { position: absolute; inset: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: var(--space-2); }
+  .menu .head { display: flex; align-items: center; gap: var(--space-3); }
+  .menu h1 { margin: 0; font-size: var(--text-heading); }
+  .menu .cols { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); min-height: 0; }
+  .card { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); overflow: hidden; }
+  .card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1); }
+  .day { color: var(--fg-muted); font-size: var(--text-body); margin-top: 6px; }
+  .day.today { color: var(--rain-soft); font-weight: 600; }
+  .meal { background: var(--surface-2); border-radius: var(--radius-md); padding: 12px 18px; display: flex; align-items: center; gap: var(--space-2); }
+  .meal .name { flex: 1; font-size: var(--text-body); font-weight: 600; }
+  .meal.cooked { background: var(--surface-1); }
+  .meal.cooked .name { color: var(--fg-soft); }
+  .need { padding: 10px 0; border-top: 1px solid var(--surface-2); display: flex; flex-direction: column; gap: 4px; }
+  .need .what { font-size: var(--text-body); font-weight: 600; }
+  .need .what .qty { color: var(--rain-soft); font-weight: 500; }
+  .need .src { font-size: var(--text-small); color: var(--fg-muted); }
+  .aisle { color: var(--fg-muted); font-size: var(--text-body); margin-top: var(--space-1); }
+  .toast { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--surface-2); border-radius: 999px; padding: 8px 8px 8px 28px; display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-body); box-shadow: 0 0 0 1px var(--border-strong); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="planche">
+  <div class="row">
+    <figure>
+      <figcaption><b>1. Tablette, mode cuisine, après « Terminé ».</b> Une ligne par ingrédient de notre version, à l'échelle des personnes. La proposition est entourée de bleu, mais rien n'est choisi d'avance : la réponse choisie est pleine (✓). Ici trois lignes ont une réponse (le gruyère contre la proposition : paquet fini), les pâtes pas encore : elles ne bougeront pas.</figcaption>
+      <div class="tablet">
+        <div class="kitchen">
+          <div class="top"><span class="btn">‹ Fiche</span> Pâtes au thon de Sam <span class="muted">· Étape 5 / 5</span></div>
+          <div class="step"></div>
+        </div>
+        <div class="veil"></div>
+        <section class="panel">
+          <header>
+            <div class="titles">
+              <h2>J'ai cuisiné · Pâtes au thon de Sam</h2>
+              <div class="sub">Repas de vendredi 6 · <span style="color: var(--rain-soft)">changer</span> · rien ne part du stock sans ta réponse</div>
+            </div>
+            <div class="people"><button class="round">−</button> 4 pers. <button class="round">+</button></div>
+          </header>
+          <div class="lines">
+            <div class="line">
+              <div>
+                <div class="what">Pâtes <span class="qty">400 g</span></div>
+                <div class="product">Penne rigate · 500 g · 2 en stock · s'utilise en plusieurs fois</div>
+                <div class="hint">Proposé : <b>il en reste</b> (400 g sur 500 g) · pas encore de réponse, rien ne bouge</div>
+              </div>
+              <div class="answers"><span class="btn small">Paquet fini</span><span class="btn small suggest">Il en reste</span><span class="btn small">Pas utilisé</span></div>
+            </div>
+            <div class="line">
+              <div>
+                <div class="what">Thon <span class="qty">2 boîtes</span></div>
+                <div class="product">Thon au naturel · 140 g · 3 en stock</div>
+                <div class="hint">Boîtes et grammes ne se comparent pas : combien de boîtes finies ?</div>
+              </div>
+              <div class="answers"><span class="stepper"><button class="round">−</button> 2 <button class="round">+</button></span><span class="btn small chosen">Retirer 2</span><span class="btn small">Pas utilisé</span></div>
+            </div>
+            <div class="line">
+              <div>
+                <div class="what">Crème fraîche <span class="qty">20 cl</span></div>
+                <div class="product">Crème fraîche épaisse · 20 cl · 1 en stock</div>
+                <div class="hint">Proposé : <b>retirer 1</b> · <span class="chip warn">La dernière : sur la liste de courses ensuite ?</span></div>
+              </div>
+              <div class="answers"><span class="btn small chosen">Retirer 1</span><span class="btn small">Pas utilisé</span></div>
+            </div>
+            <div class="line">
+              <div>
+                <div class="what">Gruyère <span class="qty">80 g</span></div>
+                <div class="product">Gruyère râpé · 200 g · 1 en stock · paquet peut-être entamé</div>
+                <div class="hint">Proposé : <b>il en reste</b> (80 g sur 200 g)</div>
+              </div>
+              <div class="answers"><span class="btn small chosen">Paquet fini</span><span class="btn small suggest">Il en reste</span><span class="btn small">Pas utilisé</span></div>
+            </div>
+            <div class="untracked">Pas suivis dans le stock : oignon, persil <span class="btn link">Relier un produit</span></div>
+            <div class="untracked">Placards ignorés : sel, poivre, huile</div>
+          </div>
+          <footer>
+            <span class="grow">3 réponses sur 4 · le repas sera noté cuisiné</span>
+            <span class="btn">Ne rien retirer</span>
+            <span class="btn primary">Retirer du stock (3 produits)</span>
+          </footer>
+        </section>
+      </div>
+    </figure>
+    <figure>
+      <figcaption><b>2. Téléphone</b> (« Cuisiné ? » sur le menu, ou « J'ai cuisiné » sur la fiche) : mêmes lignes, empilées.</figcaption>
+      <div class="phone">
+        <section class="panel">
+          <header>
+            <div class="titles">
+              <h2>J'ai cuisiné</h2>
+              <div class="sub">Mijoté de lentilles aux carottes · jeudi 5</div>
+            </div>
+            <div class="people"><button class="round">−</button> 4 <button class="round">+</button></div>
+          </header>
+          <div class="lines">
+            <div class="line">
+              <div>
+                <div class="what">Lentilles vertes <span class="qty">300 g</span></div>
+                <div class="product">Lentilles vertes · 500 g · 1 en stock</div>
+                <div class="hint">Proposé : <b>il en reste</b></div>
+              </div>
+              <div class="answers"><span class="btn">Paquet fini</span><span class="btn chosen">Il en reste</span><span class="btn">Pas utilisé</span></div>
+            </div>
+            <div class="line">
+              <div>
+                <div class="what">Lait de coco <span class="qty">40 cl</span></div>
+                <div class="product">Lait de coco · 40 cl · 2 en stock</div>
+                <div class="hint">Proposé : <b>retirer 1</b></div>
+              </div>
+              <div class="answers"><span class="btn chosen">Retirer 1</span><span class="btn">Pas utilisé</span></div>
+            </div>
+            <div class="line">
+              <div>
+                <div class="what">Farine <span class="qty">1 c. à soupe</span></div>
+                <div class="product">Bocal à farine (recharge transvasée)</div>
+                <div class="hint">Le bocal est vide ?</div>
+              </div>
+              <div class="answers"><span class="btn">Vide</span><span class="btn suggest">Il en reste</span></div>
+            </div>
+            <div class="untracked">Pas suivis : carotte, oignon, ail <span class="btn link">Relier</span></div>
+          </div>
+          <footer>
+            <span class="btn">Ne rien retirer</span>
+            <span class="btn primary">Retirer (1)</span>
+          </footer>
+        </section>
+      </div>
+    </figure>
+  </div>
+
+  <figure>
+    <figcaption><b>3. Le menu après le décompte.</b> Le repas cuisiné sort du calcul des courses pour les ingrédients qui ont eu une réponse ; « Annuler » reste sur le repas. Le paquet de gruyère fini revient dans les courses pour les galettes de dimanche (sa coche « J'en ai assez » est effacée). Bandeau « Annuler » juste après.</figcaption>
+    <div class="tablet">
+      <div class="menu">
+        <div class="head"><span class="btn">‹ Accueil</span><div><h1>Menu de la semaine</h1><span class="muted">du 2 au 8 nov.</span></div></div>
+        <div class="cols">
+          <section class="card">
+            <div class="top"><h2 class="card-label">Recettes</h2><span class="btn small primary">+ Recette</span></div>
+            <div class="day">Jeudi 5</div>
+            <div class="meal cooked"><span class="name">Mijoté de lentilles aux carottes au Cookeo</span><span class="chip ok">✓ Cuisiné · Alex, 19 h 40</span><span class="btn small">Annuler</span></div>
+            <div class="day today">Vendredi 6 · aujourd'hui</div>
+            <div class="meal cooked"><span class="name">Pâtes au thon de Sam</span><span class="chip ok">✓ Cuisiné · Sam, 20 h 05</span><span class="btn small">Annuler</span></div>
+            <div class="day">Samedi 7</div>
+            <div class="day">Dimanche 8</div>
+            <div class="meal"><span class="name">Galettes de sarrasin du dimanche</span><span class="muted">24 galettes</span></div>
+            <div class="day">Dans la semaine, sans jour</div>
+            <div class="meal"><span class="name">Riz sauté aux légumes</span><span class="muted">4 pers.</span><span class="btn small">Cuisiné ?</span></div>
+          </section>
+          <section class="card">
+            <div class="top"><h2 class="card-label">Courses du menu</h2></div>
+            <div class="aisle">Crèmerie</div>
+            <div class="need">
+              <div class="what">Gruyère <span class="qty">80 g (1 × 200 g)</span></div>
+              <div class="src">Galettes de sarrasin du dimanche</div>
+              <div><span class="chip info">De retour : paquet fini vendredi (Pâtes au thon de Sam)</span></div>
+            </div>
+            <div class="need">
+              <div class="what">Crème fraîche <span class="qty">20 cl</span></div>
+              <div class="src">Ajoutée à la liste : plus en stock après les pâtes au thon</div>
+            </div>
+            <div class="aisle">Fruits et légumes</div>
+            <div class="need">
+              <div class="what">Poivron <span class="qty">1</span></div>
+              <div class="src">Riz sauté aux légumes</div>
+            </div>
+            <div class="need">
+              <div class="what">Carotte <span class="qty">2</span></div>
+              <div class="src">Riz sauté aux légumes · celles du mijoté ne comptent plus</div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="toast">Retiré du stock : thon × 2, crème fraîche, gruyère <span class="btn small">Annuler</span></div>
+    </div>
+  </figure>
+</div>
+</body>
+</html>
