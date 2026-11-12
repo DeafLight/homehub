@@ -101,6 +101,18 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Listes** (`/listes`) : courses et tâches de la famille, ouvertes depuis « Mes tâches » ou « Liste de courses ».
   Courses : saisie rapide, articles fréquents en un geste, articles cochés « dans le panier » jusqu'à « Vider » ;
   à acheter rangé par rayon, les lignes du menu de la semaine marquées avec leurs recettes.
+  **Drive** (bouton « Drive » des courses, tablette et téléphone) : un parent choisit l'enseigne (Courses U pour
+  l'instant) et le magasin de retrait (un nom, et si on veut le lien de sa page). Ensuite, le chariot de chaque article
+  ouvre « Produit chez Courses U » : on colle le lien de la fiche du produit, ou on la **partage** depuis le site ou
+  l'appli de l'enseigne vers HomeHub (« Relier à un article de la liste »). L'identifiant vient du lien ; la fiche est
+  lue **une fois, quand on touche « Lire la fiche »** (JSON-LD `Product` : nom, contenance, code-barres), à corriger
+  avant de retenir. Si le site refuse la lecture (anti-robots), rien n'est contourné : on saisit le nom et la contenance,
+  ou on les reprend d'un produit du stock (« Au stock : … », avec son code-barres) ; un code-barres connu au stock est
+  comparé à celui de la fiche. Le choix est **retenu** par article et par enseigne (« gruyère » → tel paquet), avec des
+  produits de secours (trois au plus) qui ne sont jamais pris d'office ; tout se change ou se retire. Sous l'article,
+  le produit retenu et, pour une ligne du menu dont la contenance est connue, le nombre de paquets (même arrondi que la
+  liste : « 1 × 200 g pour 160 g »). HomeHub ne cherche jamais dans le catalogue de l'enseigne, ne voit ni prix, ni
+  compte, ni créneau, ni paiement : le panier se remplit dans l'appli de l'enseigne (`drive.json`).
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
   personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
@@ -113,7 +125,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`
   (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`, `/m/menu`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste) ;
-  un texte copié d'une recette ou une page enregistrée (`.mhtml`), l'aperçu de l'import. Un téléphone retiré depuis la tablette perd l'accès aussitôt.
+  un texte copié d'une recette ou une page enregistrée (`.mhtml`), l'aperçu de l'import ; le lien d'une fiche produit
+  du drive (Courses U), le choix de l'article de la liste auquel le relier. Un téléphone retiré depuis la tablette perd l'accès aussitôt.
   La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
   et son système ; on le renomme en touchant son nom.
   Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code et avant de retirer un
@@ -393,7 +406,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin et produits retenus (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
@@ -444,6 +457,9 @@ server/
   sources/menus.ts         menus de la semaine (menus.json) : recettes et personnes, « j'en ai déjà », placards, produits reliés
   services/menu.ts         courses du menu : besoins, déductions (placards, stock…), synchronisation avec la liste de courses
   menu-api.ts              routes du menu de la semaine
+  sources/drive.ts         drive (drive.json) : enseigne, magasin, produit retenu et secours par article
+  sources/drive-page.ts    fiche produit d'une enseigne lue une fois à la demande (JSON-LD Product), sans contourner un refus
+  drive-api.ts             routes du drive
   sources/open-food-facts.ts  bases de produits (Open Food Facts, Open Beauty Facts, Open Products Facts)
   access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
   lists-api.ts             routes des listes, de l'appairage et des téléphones
@@ -455,6 +471,7 @@ shared/recipes.ts          recettes : types, limites, durées des étapes, porti
 shared/quantities.ts       quantités par dimension (masse, volume, cuillères, pièces) : somme, différence, affichage, contenance d'un paquet
 shared/menu.ts             menu de la semaine : semaines, besoins agrégés, déductions, règle de synchronisation des courses
 shared/stock-link.ts       produit du stock → ingrédient deviné (mots du nom, rayon, contenance)
+shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD Product, clé d'un article, paquets
 shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
@@ -534,6 +551,11 @@ web/src/
 | `PUT /api/menu/have` | `{ week, key, have }` : « j'en ai déjà » pour un ingrédient, cette semaine ; un parent |
 | `PUT /api/menu/check` | `{ week, key, decision }` : « à vérifier au placard », `enough` (j'en ai assez), `needed` (il en faut) ou `null` (pas encore décidé) ; un parent |
 | `PUT /api/menu/pantry` | `{ names }` : les placards, jamais demandés ; un parent |
+| `GET /api/drive` | `{ settings, choices }` : enseigne et magasin de retrait (`{ name, url }`), et pour chaque article (`key`) le produit retenu (`preferred`, ou `null`) et ses secours (`fallback`), chacun `{ enseigne, id, url, name, brand, packText, pack, ean, source }` |
+| `PUT /api/drive/settings` | `{ enseigne, store }` : enseigne (`coursesu` ou `null`) et magasin (`{ name, url? }`, lien sur le site de l'enseigne) ; un parent |
+| `GET /api/drive/stock?key=` | `{ hints }` : produits du stock qui ressemblent à l'article (reliés à l'ingrédient dans le menu, ou de même nom), avec code-barres et contenance |
+| `POST /api/drive/read` | `{ url }` (ou un texte qui contient le lien d'une fiche produit) → `{ read: true, product, stock }` ou `{ read: false, product, reason, refused? }` (seulement ce que dit le lien) ; `stock` : produit du stock de même code-barres. Lu une fois, rien n'est retenu ; seulement une fiche de l'enseigne choisie ; droit sur la liste de courses, vérifié avant toute lecture |
+| `PUT /api/drive/choices`, `DELETE /api/drive/choices?key=&id=` | `{ key, label, role, product: { url, name, brand?, packText?, ean?, source } }` : retenir un produit (`preferred`, l'ancien devient un secours) ou l'ajouter en secours (`fallback`) ; retrait d'un produit (`id`) ou de tout le choix ; le produit retenu retiré n'est remplacé par aucun secours ; droit sur la liste de courses |
 | `PUT /api/menu/links/:code`, `DELETE …/links/:code` | `{ link }` : produit du stock relié à un ingrédient (`{ key, name, per, partial? }`, `partial` absent : deviné ; `null` : pas un ingrédient) ; retrait : redevient une proposition ; un parent |
 | `GET /api/fitness` | programme de sport du profil du téléphone (rythme, réglages des exercices, séances, semaines, bilans) ; téléphone de la personne seulement |
 | `POST /api/fitness/sessions`, `DELETE /api/fitness/sessions/:id` | séance terminée `{ session, rpe, stopped, note, exercises: [{ family, rating, pain, reps, note }] }`, ou retirée |

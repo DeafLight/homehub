@@ -30,9 +30,10 @@ ui:
   screensaverMinutes: 0
 holidays:
   academie: Nantes
-# Le faux site de recettes (fake-recipes.ts) n'a pas d'adresse publique : autorisé nommément.
+# Le faux site de recettes (fake-recipes.ts) n'a pas d'adresse publique : autorisé nommément. Les fiches du drive
+# (fake-drive.ts) sont servies par le faux monde : autorisées aussi, pour ne jamais interroger le vrai nom.
 recipes:
-  allowedHosts: [cuisine.exemple.test]
+  allowedHosts: [cuisine.exemple.test, www.coursesu.com]
 weather:
   label: Angers
   latitude: 47.47

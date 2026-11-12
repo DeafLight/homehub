@@ -26,6 +26,8 @@ import { createOpenFoodFactsClient } from './sources/open-food-facts.ts';
 import { createStockStore } from './sources/stock.ts';
 import { createRecipeStore } from './sources/recipes.ts';
 import { createMenuStore } from './sources/menus.ts';
+import { createDriveReader } from './sources/drive-page.ts';
+import { createDriveStore } from './sources/drive.ts';
 import { createPageFetcher } from './sources/web-page.ts';
 import { createRecipeImporter } from './services/recipes.ts';
 import { createOpenMeteoWeatherSource } from './sources/open-meteo.ts';
@@ -108,9 +110,11 @@ const productBase = createOpenFoodFactsClient({ userAgent: `HomeHub/${version} (
 // Carnet de recettes ; les pages partagées sont lues avec le même User-Agent honnête (rien de la famille).
 const menus = createMenuStore({ path: join(stateDir, 'menus.json'), clock });
 const recipes = createRecipeStore({ path: join(stateDir, 'recipes.json'), photosDir: join(stateDir, 'recipes'), clock });
-const recipeImporter = createRecipeImporter({
-  fetchPage: createPageFetcher({ userAgent: `HomeHub/${version} (https://github.com/DeafLight/homehub)`, allowedHosts: () => config.current().recipes.allowedHosts }),
-});
+// Même lecteur de pages pour les recettes et les fiches produit du drive (contrôle des adresses, User-Agent honnête).
+const fetchPage = createPageFetcher({ userAgent: `HomeHub/${version} (https://github.com/DeafLight/homehub)`, allowedHosts: () => config.current().recipes.allowedHosts });
+const drive = createDriveStore({ path: join(stateDir, 'drive.json'), clock });
+const driveReader = createDriveReader({ fetchPage });
+const recipeImporter = createRecipeImporter({ fetchPage });
 const sources: Sources = {
   tasks: listsTaskSource(lists, FAMILY_ID),
   notes,
@@ -173,7 +177,7 @@ const nas = createNasService({
   startedAt,
 });
 const schoolLife = createSchoolLifeService({ household, school: sources.school, logger: console });
-const app = createApp({ config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, recipes, menus, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, recipes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

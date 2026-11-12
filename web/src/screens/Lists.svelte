@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import { FAMILY_ID } from '../../../shared/types.ts';
+  import type { DriveView } from '../../../shared/drive.ts';
+  import { FAMILY_ID, type ShoppingItem } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import DriveProductForm from '../components/drive/DriveProductForm.svelte';
+  import DriveSettingsForm from '../components/drive/DriveSettingsForm.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -14,7 +17,8 @@
   const LISTS_REFRESH_MS = 10_000;
 
   // Courses et tâches de la famille sur la tablette, ouvertes depuis un dashboard ou l'accueil : ce qui est coché ou
-  // ajouté l'est au nom de la personne reconnue devant la tablette (un enfant : ses tâches seulement).
+  // ajouté l'est au nom de la personne reconnue devant la tablette (un enfant : ses tâches seulement). Le bouton
+  // « Drive » règle l'enseigne et le magasin ; le chariot d'un article ouvre le choix de son produit chez l'enseigne.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -22,10 +26,18 @@
   const origin = $derived(back.name === 'dashboard' ? back.ownerId : null);
   const lists = createListsState(api, { refreshMs: LISTS_REFRESH_MS, guard: actor.allow });
   const me = createResource(() => api.me(), 60_000);
+  const drive = createResource(() => api.drive(), 60_000);
   onDestroy(() => {
     lists.destroy();
     me.destroy();
+    drive.destroy();
   });
+  let driveSettings = $state(false);
+  let driveItem = $state<ShoppingItem | null>(null);
+  const driveSaved = (view: DriveView) => {
+    drive.set(view);
+    driveSettings = false;
+  };
 
   /** Écriture réservée à la tablette (et aux téléphones reliés) : ailleurs, les listes sont en lecture seule. */
   const readOnly = $derived(me.data !== null && !me.data.kiosk && !me.data.device);
@@ -58,7 +70,12 @@
     {@const data = lists.data}
     <div class="columns">
       <section class="card">
-        <h2><Icon name="cart" size={28} /> Courses</h2>
+        <h2>
+          <Icon name="cart" size={28} /> Courses
+          {#if drive.data && !readOnly}
+            <button type="button" class="drive-button" onclick={() => (driveSettings = true)}>Drive{drive.data.settings.store ? ` · ${drive.data.settings.store.name}` : ''}</button>
+          {/if}
+        </h2>
         <div class="scroll">
           <ShoppingPanel
             items={data.shopping}
@@ -68,6 +85,7 @@
             onToggle={lists.setShoppingDone}
             onRemove={lists.removeShopping}
             onClear={lists.clearShopping}
+            drive={drive.data ? { view: drive.data, onProduct: (item) => (driveItem = item) } : null}
           />
         </div>
       </section>
@@ -112,7 +130,36 @@
   </div>
 {/if}
 
+{#if driveSettings && drive.data}
+  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (driveSettings = false)}>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Réglages du drive">
+      <DriveSettingsForm {api} view={drive.data} onSaved={driveSaved} onClose={() => (driveSettings = false)} />
+    </div>
+  </div>
+{/if}
+
+{#if driveItem && drive.data}
+  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (driveItem = null)}>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Produit du drive">
+      <DriveProductForm {api} item={driveItem} view={drive.data} {readOnly} onChanged={drive.refresh} onClose={() => (driveItem = null)} />
+    </div>
+  </div>
+{/if}
+
 <style>
+  .drive-button {
+    min-height: 44px;
+    margin-left: auto;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
   .stock-link {
     margin-left: auto;
   }

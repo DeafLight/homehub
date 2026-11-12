@@ -14,6 +14,8 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
+import { itemKey } from '../shared/drive.ts';
+import { DRIVE_REFUSED_URL, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
@@ -258,6 +260,19 @@ await call(A, 'PUT', `/menu/links/${DOCS_FOOD.lentilles}`, { link: { key: 'lenti
 await call(A, 'PUT', `/menu/links/${DOCS_FOOD.carottes}`, { link: { key: 'carotte', name: 'carotte', per: { quantity: 1, unit: 'kg' } } });
 await call(A, 'PUT', '/menu/have', { week: WEEK, key: 'oeuf', have: true });
 
+// Drive : Courses U et un magasin d'exemple ; produits retenus (fiches inventées, lues sur le faux site) pour le gruyère
+// (avec un secours, le grand paquet), les oignons et la lessive. Le thon reste à relier (capture du partage).
+await call(A, 'PUT', '/drive/settings', { enseigne: 'coursesu', store: { name: 'Super U Exemple', url: null } });
+for (const [label, slug, role] of [
+  ['Gruyère', 'gruyere-rape-exemple', 'preferred'],
+  ['Gruyère', 'gruyere-rape-grand-exemple', 'fallback'],
+  ['Oignon', 'oignons-jaunes-exemple', 'preferred'],
+  ['Lessive', 'lessive-liquide-exemple', 'preferred'],
+] as const) {
+  const { product } = (await call(A, 'POST', '/drive/read', { url: driveUrl(slug) })) as { product: Record<string, unknown> };
+  await call(A, 'PUT', '/drive/choices', { key: itemKey({ label }), label, role, product: { ...product, source: 'page' } });
+}
+
 // DOCS_SERVE=1 : pas de captures, le monde fictif reste ouvert sur BASE (essais à la main) jusqu'à Ctrl+C.
 if (process.env.DOCS_SERVE) {
   await call(A, 'DELETE', `/timers/${timer.id}`);
@@ -454,6 +469,20 @@ await shoot('telephone-courses', `${BASE}/m`, PHONE, { init: asPhone('alex') });
 await shoot('telephone-courses-verifier', `${BASE}/m`, PHONE, {
   init: asPhone('alex'),
   after: `[...document.querySelectorAll('.shopping li')].find((l) => l.textContent.includes('Gruyère'))?.scrollIntoView({ block: 'center' })`,
+});
+// Drive : le produit retenu du gruyère (paquets, secours) ; un lien de fiche partagé, à relier à un article, puis la
+// fiche lue ; une fiche que le site refuse (saisie, reprise du stock) ; les réglages (enseigne, magasin).
+const productOf = (name: string) =>
+  `[...document.querySelectorAll('.shopping li')].find((l) => l.textContent.includes('${name}'))?.querySelector('[aria-label^="Produit chez"]')?.click()`;
+const linkTo = (name: string) => `[...document.querySelectorAll('.link-item')].find((b) => b.textContent.includes('${name}'))?.click()`;
+const sharedThon = `${BASE}/partager?url=${encodeURIComponent(driveUrl('thon-naturel-exemple'))}`;
+await shoot('telephone-drive-produit', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: productOf('Gruyère') });
+await shoot('telephone-drive-partage', sharedThon, PHONE, { init: asPhone('alex') });
+await shoot('telephone-drive-fiche', sharedThon, PHONE, { init: asPhone('alex'), after: linkTo('Thon'), settle: 2500 });
+await shoot('telephone-drive-refus', `${BASE}/partager?url=${encodeURIComponent(DRIVE_REFUSED_URL)}`, PHONE, { init: asPhone('alex'), after: linkTo('Lait'), settle: 2500 });
+await shoot('telephone-drive-reglages', `${BASE}/m`, PHONE, {
+  init: asPhone('alex'),
+  after: `[...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith('Drive'))?.click()`,
 });
 await shoot('telephone-taches', `${BASE}/m/taches`, PHONE, { init: asPhone('lea') });
 await shoot('telephone-agenda', `${BASE}/m/agenda`, PHONE, { init: asPhone('lea') });

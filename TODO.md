@@ -90,12 +90,14 @@ Jusqu'où on peut aller (conclusions de l'étude) :
       sans magasin), CGU et `robots.txt` (Leclerc autorise l'extraction non substantielle à usage personnel ;
       Courses U et Carrefour interdisent l'extraction des bases), anti-robots (Cloudflare chez Courses U, DataDome
       chez Leclerc et Carrefour, défi 403 chez Intermarché). **Pas de contournement**, rien depuis le NAS.
-- [ ] Drive 1 : choisir l'enseigne (Courses U) et le magasin de retrait dans les réglages ; ingrédient ou article →
-      **produit de l'enseigne** en partageant ou collant le lien de sa fiche (identifiant de l'URL, fiche lue une fois
-      à la demande ou saisie ; EAN repris du stock), choisi une fois puis **retenu** (« lardons » → tel paquet chez
-      cette enseigne) ; produit de secours possible, jamais pris d'office.
-- [ ] Drive 2 : quantité en **paquets** (350 g de lardons → 2 paquets de 200 g, même arrondi au paquet que le stock
-      de la 0.52 ; grandeurs incompatibles demandées une fois) ; mode « Remplir le panier » : liste dans l'ordre des
+- [x] Drive 1 (0.53.0) : choisir l'enseigne (Courses U) et le magasin de retrait (bouton « Drive » des courses) ;
+      ingrédient ou article → **produit de l'enseigne** en partageant ou collant le lien de sa fiche (identifiant de
+      l'URL, fiche lue une fois à la demande ou saisie ; nom, contenance et EAN repris du stock), choisi une fois puis
+      **retenu** (« gruyère » → tel paquet chez cette enseigne) ; produits de secours, jamais pris d'office ; nombre de
+      paquets affiché sous l'article (arrondi au paquet de la 0.52) ; partager une fiche propose « Relier à un article
+      de la liste ».
+- [ ] Drive 2 : quantité en **paquets** pour tout le panier (déjà affichée par article depuis la 0.53 ; grandeurs
+      incompatibles, « 2 oignons » contre un filet de 1 kg, demandées une fois et retenues sur le choix) ; mode « Remplir le panier » : liste dans l'ordre des
       rayons, liens vers les fiches, cases à cocher pendant qu'on remplit le panier dans l'appli ; récapitulatif (ce
       qui part, prix estimé, ce qui reste à acheter ailleurs) ; lignes marquées dans la liste.
 - [ ] Drive 3 : extension « Remplir le panier » (Chrome / Firefox sur ordinateur, puis Firefox Android ; pas Safari

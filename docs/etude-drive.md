@@ -176,6 +176,14 @@ type DriveChoice = {
 };
 ```
 
+Ajusté en 0.53.0 (Drive 1, `shared/drive.ts`) : le produit est rangé **dans** le choix (`preferred: DriveProduct |
+null`, `fallback: DriveProduct[]`, trois secours au plus) plutôt que dans une table à part, ce qui suffit tant qu'il
+n'y a pas d'historique des prix ; `preferred` peut être vide (produit retenu retiré, aucun secours promu d'office). Le
+produit garde aussi le lien de sa fiche, la marque, la contenance écrite (`packText`, en plus de `pack`) et d'où elle
+vient (`source` : fiche lue, saisie, ou reprise du stock) ; **pas de prix** (la fiche n'en donne pas sans magasin, il
+viendra avec l'extension). Une seule enseigne pour l'instant (`coursesu`), avec un adaptateur par enseigne (domaine,
+forme du lien d'une fiche). Le magasin de retrait est un nom libre et, si on veut, le lien de sa page.
+
 Comment on trouve un produit la première fois :
 
 1. **EAN connu** (produit déjà au stock) : on cherche cet EAN chez l'enseigne ; le JSON-LD de la fiche Courses U porte
@@ -186,8 +194,9 @@ Comment on trouve un produit la première fois :
 3. Le choix est **retenu** par clé et par enseigne ; on peut le changer, ajouter un produit de secours.
 
 **Arrondi au paquet** : besoin (ex. 350 g de lardons, déjà réduit de ce qui est au stock par « j'en ai déjà ») ÷
-contenance du produit retenu (200 g) → **2 paquets**, arrondi au supérieur ; même règle que l'arrondi au paquet du
-stock prévu en 0.52 (à reprendre telle quelle une fois la 0.52 sur `main`, pas encore le cas au moment de l'étude).
+contenance du produit retenu (200 g) → **2 paquets**, arrondi au supérieur ; c'est l'arrondi au paquet de la 0.52
+(`packsFor` dans `shared/menu.ts`, « 250 g (2 × 200 g) »), repris tel quel avec la contenance du produit retenu
+(`drivePacks` dans `shared/drive.ts`, affiché dès Drive 1).
 Grandeurs incompatibles (« 2 oignons » contre un filet de 1 kg) : on demande une fois « combien de pièces dans ce
 paquet ? » et on le retient sur le choix. Produit au poids ou contenance illisible : 1 paquet, signalé.
 
@@ -213,8 +222,8 @@ paquet ? » et on le retient sur le choix. Produit au poids ou contenance illisi
 
 | Version | Contenu |
 |---|---|
-| Drive 1 | Réglages : enseigne (Courses U) et magasin de retrait. Magasin `drive.json`. Sur chaque ligne de la liste, « Produit chez Courses U » : choix d'un produit en partageant ou collant le lien de sa fiche (identifiant tiré de l'URL ; la fiche partagée peut être lue une fois à la demande, `/p/` étant autorisé par `robots.txt`, comme une recette ; si Cloudflare refuse, pas de contournement : nom et contenance saisis, ou repris du stock par EAN). Choix retenu, produit de secours. |
-| Drive 2 | Arrondi au paquet (après la 0.52), grandeurs incompatibles, mode « Remplir le panier » : liste ordonnée par rayon, liens vers les fiches, cases à cocher, récapitulatif (ce qui part, prix estimé, ce qui reste à acheter ailleurs), lignes marquées comme achetées en drive. |
+| Drive 1 | Réglages : enseigne (Courses U) et magasin de retrait. Magasin `drive.json`. Sur chaque ligne de la liste, « Produit chez Courses U » : choix d'un produit en partageant ou collant le lien de sa fiche (identifiant tiré de l'URL ; la fiche partagée peut être lue une fois à la demande, `/p/` étant autorisé par `robots.txt`, comme une recette ; si Cloudflare refuse, pas de contournement : nom et contenance saisis, ou repris du stock par EAN). Choix retenu, produit de secours. Nombre de paquets affiché (arrondi au paquet de la 0.52). **Fait en 0.53.0.** |
+| Drive 2 | Grandeurs incompatibles (« combien de pièces dans ce paquet ? »), mode « Remplir le panier » : liste ordonnée par rayon, liens vers les fiches, cases à cocher, récapitulatif (ce qui part, prix estimé, ce qui reste à acheter ailleurs), lignes marquées comme achetées en drive. |
 | Drive 3 | Extension navigateur (ordinateur, puis Firefox Android) : appairage, lecture du panier préparé, recherche dans la page pour choisir un produit, ajout depuis la session, arrêt sur captcha, retour des prix et EAN vers l'historique des prix. |
 | Plus tard | Autres enseignes (adaptateur par enseigne), « Copier pour l'assistant Carrefour », prochain créneau affiché ; jamais de réservation ni de paiement. |
 

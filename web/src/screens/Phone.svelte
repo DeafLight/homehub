@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import type { Note, Task } from '../../../shared/types.ts';
+  import { itemName } from '../../../shared/drive.ts';
+  import type { Note, ShoppingItem, Task } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
   import NoteForm from '../components/NoteForm.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import DriveProductForm from '../components/drive/DriveProductForm.svelte';
+  import DriveSettingsForm from '../components/drive/DriveSettingsForm.svelte';
   import SportPanel from '../components/fitness/SportPanel.svelte';
   import BottomSheet from '../components/phone/BottomSheet.svelte';
   import PhoneAgenda from '../components/phone/PhoneAgenda.svelte';
@@ -40,10 +43,11 @@
   // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes et, pour un adulte
   // qui a un programme, le sport. Tout ce qui est coché ou ajouté l’est au nom de ce profil. `shared` : texte reçu par
   // « Partager », qui ouvre directement l'ajout ; `sharedRecipe` : lien, texte copié d'une page ou page enregistrée
-  // reçus, qui ouvrent l'import de recette (l'ajout à une liste reste proposé pour un lien). Règles : lib/phone-app.ts ;
+  // reçus, qui ouvrent l'import de recette (l'ajout à une liste reste proposé pour un lien) ; `sharedProduct` : lien
+  // d'une fiche produit du drive, qui propose de le relier à un article de la liste. Règles : lib/phone-app.ts ;
   // onglets : components/phone/.
-  type Props = { tab: PhoneTab; shared?: string; sharedRecipe?: SharedRecipe };
-  let { tab, shared, sharedRecipe }: Props = $props();
+  type Props = { tab: PhoneTab; shared?: string; sharedRecipe?: SharedRecipe; sharedProduct?: string };
+  let { tab, shared, sharedRecipe, sharedProduct }: Props = $props();
   const sharedLink = untrack(() => (sharedRecipe?.kind === 'link' ? sharedRecipe.link : undefined));
 
   const { api, config, profiles, clock, navigate } = getAppContext();
@@ -73,6 +77,7 @@
   const holidays = createResource(() => api.holidays(), AGENDA_REFRESH_MS);
   const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
   const recipes = createResource(() => api.recipes(), RECIPES_REFRESH_MS);
+  const drive = createResource(() => api.drive(), RECIPES_REFRESH_MS);
   const routine = createResource(async () => (pairing ? (await api.routine(pairing.ownerId)).routine : null), ROUTINE_REFRESH_MS);
   // Devoirs (Pronote ou ÉcoleDirecte), en lecture seule ; le serveur les garde en cache, rafraîchis plus rarement.
   const homework = createResource(async () => (pairing ? (await api.homework(pairing.ownerId)).homework : null), HOMEWORK_REFRESH_MS);
@@ -92,6 +97,7 @@
     holidays.destroy();
     notes.destroy();
     recipes.destroy();
+    drive.destroy();
     check.destroy();
   });
 
@@ -137,7 +143,7 @@
     writing = false;
     await notes.refresh();
   }
-  let adding = $state(untrack(() => shared !== undefined && sharedRecipe === undefined));
+  let adding = $state(untrack(() => shared !== undefined && sharedRecipe === undefined && sharedProduct === undefined));
   let importing = $state(untrack(() => sharedRecipe !== undefined));
 
   function previewRecipe(found: NonNullable<typeof handoff.preview>) {
@@ -167,6 +173,17 @@
   function cancelAdd() {
     adding = false;
     if (shared !== undefined) navigate(phonePath(tab));
+  }
+
+  // Drive : réglages, produit d'un article, et lien d'une fiche reçu par « Partager » à relier à un article.
+  let driveSettings = $state(false);
+  let driveItem = $state<ShoppingItem | null>(null);
+  let linking = $state(untrack(() => sharedProduct !== undefined));
+  /** Lien partagé, lu dès qu'un article est choisi. */
+  const driveUrl = $derived(linking ? undefined : sharedProduct);
+  function closeDrive() {
+    driveItem = null;
+    if (sharedProduct !== undefined) navigate(phonePath('shopping'));
   }
 
   const TABS = phoneTabs(Boolean(member?.fitness));
@@ -231,6 +248,11 @@
           <div class="links">
             <button type="button" class="stock-link" onclick={() => navigate(PHONE_MENU_PATH)}><Icon name="calendar" size={24} /> Menu</button>
             <button type="button" class="stock-link" onclick={() => navigate(PHONE_STOCK_PATH)}><Icon name="box" size={24} /> Ce qu’il reste</button>
+            {#if drive.data}
+              <button type="button" class="stock-link wide" onclick={() => (driveSettings = true)}>
+                <Icon name="cart" size={24} /> Drive{drive.data.settings.store ? ` · ${drive.data.settings.store.name}` : drive.data.settings.enseigne ? '' : ' : choisir une enseigne'}
+              </button>
+            {/if}
           </div>
           <ShoppingPanel
             items={lists.data.shopping}
@@ -239,6 +261,7 @@
             onToggle={lists.setShoppingDone}
             onRemove={lists.removeShopping}
             onClear={lists.clearShopping}
+            drive={drive.data ? { view: drive.data, onProduct: (item) => (driveItem = item) } : null}
           />
         {:else}
           {#if routine.data}
@@ -315,6 +338,45 @@
           onCancel={cancelImport}
           other={sharedLink !== undefined ? { label: 'Ajouter à une liste', run: () => ((importing = false), (adding = true)) } : undefined}
         />
+      </BottomSheet>
+    {/if}
+
+    {#if driveSettings && drive.data}
+      <BottomSheet label="Réglages du drive" onClose={() => (driveSettings = false)}>
+        <DriveSettingsForm {api} view={drive.data} onSaved={(view) => (drive.set(view), (driveSettings = false))} onClose={() => (driveSettings = false)} />
+      </BottomSheet>
+    {/if}
+
+    {#if linking && sharedProduct}
+      <!-- Lien d'une fiche produit reçu par « Partager » : à relier à un article de la liste à acheter. -->
+      <BottomSheet label="Relier à un article de la liste" onClose={() => ((linking = false), closeDrive())}>
+        <div class="link-sheet">
+          <h2 class="sheet-title">Relier à un article de la liste</h2>
+          <p class="muted">Partagé depuis une autre appli : choisis l’article que ce produit remplit dans les courses.</p>
+          {#if drive.data && !drive.data.settings.enseigne}
+            <p class="error">Choisis d’abord une enseigne : bouton « Drive » des courses.</p>
+          {/if}
+          <div class="link-items">
+            {#each (lists.data?.shopping ?? []).filter((i) => !i.done) as item (item.id)}
+              <button type="button" class="link-item" onclick={() => ((driveItem = item), (linking = false))}>
+                <span>{itemName(item)}</span>
+                {#if item.menu}<Icon name="book" size={18} />{/if}
+              </button>
+            {:else}
+              <p class="muted">{lists.data ? 'La liste de courses est vide.' : 'Chargement de la liste…'}</p>
+            {/each}
+          </div>
+          <div class="link-actions">
+            <button type="button" class="btn" onclick={() => ((linking = false), (adding = true))}>Ajouter à une liste</button>
+            <button type="button" class="btn" onclick={() => ((linking = false), closeDrive())}>Annuler</button>
+          </div>
+        </div>
+      </BottomSheet>
+    {/if}
+
+    {#if driveItem && drive.data}
+      <BottomSheet label="Produit du drive" onClose={closeDrive}>
+        <DriveProductForm {api} item={driveItem} view={drive.data} initialUrl={driveUrl} onChanged={drive.refresh} onClose={closeDrive} />
       </BottomSheet>
     {/if}
 
@@ -404,6 +466,43 @@
     font-size: 1.05rem;
     font-weight: 600;
     text-align: left;
+  }
+
+  .stock-link.wide {
+    grid-column: 1 / -1;
+  }
+
+  .link-sheet,
+  .link-items {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .link-sheet p {
+    margin: 0;
+  }
+
+  .link-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 52px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    font-size: 1.05rem;
+    text-align: left;
+  }
+
+  .link-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .homework,

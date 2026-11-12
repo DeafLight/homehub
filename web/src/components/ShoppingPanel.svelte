@@ -1,12 +1,16 @@
 <script lang="ts">
+  import { choiceFor, type DriveView, enseigneName, itemKey } from '../../../shared/drive.ts';
   import type { ShoppingItem } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
   import { revert } from '../lib/checkbox.ts';
+  import { choiceSummary } from '../lib/drive.ts';
   import { byAisle, itemAisle } from '../lib/menu.ts';
 
   // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter (rangés par rayon) puis « dans le
   // panier » jusqu'à ce qu'on le vide. Les lignes du menu de la semaine portent le livre et leurs recettes ; elles
-  // suivent le menu tant qu'elles ne sont pas cochées ; celles « à vérifier » (paquet peut-être entamé) le disent. Tailles réglables par le parent (--list-font, --list-row).
+  // suivent le menu tant qu'elles ne sont pas cochées ; celles « à vérifier » (paquet peut-être entamé) le disent. Avec une enseigne de drive choisie, chaque article à
+  // acheter dit le produit retenu chez elle (et ses paquets), et le bouton du chariot ouvre « Produit chez … ».
+  // Tailles réglables par le parent (--list-font, --list-row).
   type Props = {
     items: ShoppingItem[];
     frequent: string[];
@@ -15,8 +19,11 @@
     onToggle(item: ShoppingItem, done: boolean): void;
     onRemove(item: ShoppingItem): void;
     onClear(): void;
+    /** Drive : produits retenus ; `onProduct` ouvre le choix du produit d'un article. */
+    drive?: { view: DriveView; onProduct(item: ShoppingItem): void } | null;
   };
-  let { items, frequent, readOnly = false, onAdd, onToggle, onRemove, onClear }: Props = $props();
+  let { items, frequent, readOnly = false, onAdd, onToggle, onRemove, onClear, drive = null }: Props = $props();
+  const enseigne = $derived(drive?.view.settings.enseigne ?? null);
 
   const toBuy = $derived(items.filter((i) => !i.done));
   const aisles = $derived(byAisle(toBuy, itemAisle));
@@ -92,8 +99,17 @@
           <span class="sources">{item.menu.sources.join(', ')}</span>
           {#if item.menu.check && !item.done}<span class="check">À vérifier : paquet peut-être entamé</span>{/if}
         {/if}
+        {#if enseigne && drive && !item.done}
+          {@const summary = choiceSummary(item, choiceFor(drive.view.choices, itemKey(item), enseigne))}
+          {#if summary}<span class="product"><Icon name="cart" size={16} /> {summary}</span>{/if}
+        {/if}
       </span>
     </label>
+    {#if enseigne && drive && !item.done && !readOnly}
+      <button type="button" class="remove" aria-label="Produit chez {enseigneName(enseigne)} : {item.label}" onclick={() => drive.onProduct(item)}>
+        <Icon name="cart" size={22} />
+      </button>
+    {/if}
     {#if !readOnly}
       <button type="button" class="remove" aria-label="Retirer {item.label}" onclick={() => onRemove(item)}>
         <Icon name="close" size={22} />
@@ -212,6 +228,14 @@
     display: block;
     font-size: 0.8em;
     color: var(--fg-muted);
+  }
+
+  .product {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8em;
+    color: var(--rain-soft);
   }
 
   .check {

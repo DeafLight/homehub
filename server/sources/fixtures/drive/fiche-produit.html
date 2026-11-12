@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Fiche produit inventée pour les tests : elle imite la forme d'une fiche d'enseigne (JSON-LD Product avec `mpn` =
+     identifiant de l'enseigne et `sku` = EAN-13). Produit, marque et code-barres fictifs (préfixe 2, réservé à
+     l'usage interne : aucun vrai produit ne le porte). -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Lardons fumés Ferme des Coteaux, 2x100g | Exemple</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Frais"}]}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "Product",
+  "name": "Lardons fum&eacute;s Ferme des Coteaux, 2x100g",
+  "mpn": "9990001",
+  "sku": "2000000000015",
+  "brand": { "@type": "Brand", "name": "Ferme des Coteaux" },
+  "image": ["https://images.exemple.test/lardons.jpg"],
+  "offers": { "@type": "Offer", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" }
+}
+</script>
+</head>
+<body><h1>Lardons fumés</h1></body>
+</html>

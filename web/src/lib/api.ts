@@ -50,6 +50,7 @@ import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
 import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
+import type { DriveChoice, DriveProduct, DriveReadResult, DriveSettings, DriveStockHint, DriveView } from '../../../shared/drive.ts';
 import type { ImportPreview, ImportResult, Recipe, RecipeContent, RecipeDraft, RecipeSummary, RereadResult } from '../../../shared/recipes.ts';
 
 /**
@@ -212,6 +213,26 @@ export type Api = {
   setStockLink(code: string, link: StockLink | null): Promise<void>;
   /** Oublier la décision : le produit est de nouveau proposé. */
   forgetStockLink(code: string): Promise<void>;
+  /** Drive : enseigne, magasin de retrait et produits retenus pour les articles de la liste. */
+  drive(): Promise<DriveView>;
+  /** Enseigne et magasin : un parent. */
+  saveDriveSettings(settings: { enseigne: DriveSettings['enseigne']; store: { name: string; url: string | null } | null }): Promise<DriveView>;
+  /** Produits du stock qui ressemblent à un article (EAN et contenance à reprendre). */
+  driveStock(key: string): Promise<{ hints: DriveStockHint[] }>;
+  /** Lire une fiche produit partagée, une fois (rien n'est retenu) ; `stock` : même EAN au stock. */
+  readDriveProduct(url: string): Promise<DriveReadResult & { stock: DriveStockHint | null }>;
+  /** Retenir un produit pour un article, ou l'ajouter en secours. */
+  chooseDriveProduct(input: DriveChoiceInput): Promise<DriveChoice>;
+  /** Retirer un produit d'un choix (`id`), ou tout le choix. */
+  forgetDriveProduct(key: string, id?: string): Promise<void>;
+};
+
+/** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
+export type DriveChoiceInput = {
+  key: string;
+  label: string;
+  role?: 'preferred' | 'fallback';
+  product: Pick<DriveProduct, 'url' | 'name' | 'brand' | 'packText' | 'ean' | 'source'>;
 };
 
 export type Credentials = { token?: string | null; kioskKey?: string | null; actor?: string | null };
@@ -352,6 +373,12 @@ export function createApi(
     setPantry: (names) => send('PUT', '/menu/pantry', { names }),
     setStockLink: (code, link) => send('PUT', `/menu/links/${encodeURIComponent(code)}`, { link }),
     forgetStockLink: (code) => send('DELETE', `/menu/links/${encodeURIComponent(code)}`),
+    drive: () => request('/drive'),
+    saveDriveSettings: (settings) => send('PUT', '/drive/settings', settings),
+    driveStock: (key) => request(`/drive/stock?key=${encodeURIComponent(key)}`),
+    readDriveProduct: (url) => send('POST', '/drive/read', { url }),
+    chooseDriveProduct: (input) => send('PUT', '/drive/choices', input),
+    forgetDriveProduct: (key, id) => send('DELETE', `/drive/choices?key=${encodeURIComponent(key)}${id ? `&id=${encodeURIComponent(id)}` : ''}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
   };
 }

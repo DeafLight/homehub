@@ -81,30 +81,31 @@ type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
 const typesOf = (node: Json) => [node['@type']].flat().map((t) => String(t).replace(/^https?:\/\/schema\.org\//u, ''));
 
-/** Premier nœud `Recipe` d'un document JSON-LD (tableaux, `@graph`, `mainEntity` parcourus). */
-function findRecipe(node: unknown, depth = 0): Json | null {
+/** Premier nœud d'un type schema.org d'un document JSON-LD (tableaux, `@graph`, `mainEntity` parcourus). */
+function findNode(node: unknown, type: string, depth = 0): Json | null {
   if (depth > 6) return null;
   if (Array.isArray(node)) {
     for (const item of node) {
-      const found = findRecipe(item, depth + 1);
+      const found = findNode(item, type, depth + 1);
       if (found) return found;
     }
     return null;
   }
   if (!isObject(node)) return null;
-  if (typesOf(node).includes('Recipe')) return node;
+  if (typesOf(node).includes(type)) return node;
   for (const key of ['@graph', 'mainEntity', 'mainEntityOfPage', 'itemListElement', 'item']) {
-    const found = findRecipe(node[key], depth + 1);
+    const found = findNode(node[key], type, depth + 1);
     if (found) return found;
   }
   return null;
 }
 
-function jsonLdRecipe(html: string): Json | null {
+/** Premier nœud JSON-LD d'un type schema.org (`Recipe`, `Product`…) dans une page, ou null. */
+export function jsonLdNode(html: string, type: string): Json | null {
   for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/giu)) {
     const raw = match[1].trim().replace(/^<!\[CDATA\[|\]\]>$/gu, '').trim();
     try {
-      const found = findRecipe(JSON.parse(raw));
+      const found = findNode(JSON.parse(raw), type);
       if (found) return found;
     } catch {
       // bloc illisible (virgule en trop…) : on passe au suivant
@@ -112,6 +113,8 @@ function jsonLdRecipe(html: string): Json | null {
   }
   return null;
 }
+
+const jsonLdRecipe = (html: string) => jsonLdNode(html, 'Recipe');
 
 // --- Microdata (sites plus anciens) ---
 

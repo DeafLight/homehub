@@ -8,6 +8,7 @@
   import { watchIdle } from './lib/idle.ts';
   import { sharedText } from './lib/lists.ts';
   import { sharedRecipe } from './lib/recipes.ts';
+  import { sharedProductLink } from './lib/drive.ts';
   import { HOME_PATH, returnsHomeWhenIdle, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
@@ -110,10 +111,16 @@
 {:else if router.route.name === 'share'}
   <!-- Reçu par « Partager » (share_target du manifeste, POST renvoyé ici en GET par le serveur) : un lien ouvre
        l'import de recette (ou, au choix, l'ajout à une liste) ; un texte copié d'une recette ou une page enregistrée,
-       l'aperçu de l'import ; un autre texte, l'ajout prérempli. -->
+       l'aperçu de l'import ; le lien d'une fiche produit d'une enseigne de drive, le choix de l'article à relier ;
+       un autre texte, l'ajout prérempli. -->
   {@const params = new URLSearchParams(location.search)}
-  {@const found = sharedRecipe(params)}
-  <Phone tab={found ? 'recipes' : 'tasks'} shared={sharedText(params)} sharedRecipe={found ?? undefined} />
+  {@const product = sharedProductLink(params)}
+  {@const found = product ? null : sharedRecipe(params)}
+  {#if product}
+    <Phone tab="shopping" shared={sharedText(params)} sharedProduct={product} />
+  {:else}
+    <Phone tab={found ? 'recipes' : 'tasks'} shared={sharedText(params)} sharedRecipe={found ?? undefined} />
+  {/if}
 {:else if router.route.name === 'pair'}
   <Pair />
 {:else if router.route.name === 'week'}

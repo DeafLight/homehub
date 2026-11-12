@@ -1,9 +1,10 @@
 // Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte (emploi du temps, devoirs,
 // notes, absences et retards, messagerie du compte Famille), faux temps réel Irigo,
 // fausses bases de produits (Open Food Facts et ses sœurs), calendrier scolaire d'exemple, faux site de
-// recettes (fake-recipes.ts).
+// recettes (fake-recipes.ts), fausse enseigne de drive (fake-drive.ts).
 // Aucune connexion réelle à l'école ni à Irigo ; la météo (Open-Meteo) et les horaires GTFS restent les vrais.
 import { readFileSync } from 'node:fs';
+import { DRIVE_HOST, fakeDriveSite } from './fake-drive.ts';
 import { fakeRecipeSite, RECIPE_HOST } from './fake-recipes.ts';
 
 /** Jeudi 5 novembre 2026, 07:35 (heure locale) : cours du jour, routine du matin, bandeau du bus. */
@@ -191,6 +192,7 @@ export function installFakeSources(): void {
     if (url.hostname in PRODUCT_BASES) return fakeProductBase(url);
     if (url.hostname === 'data.education.gouv.fr') return fakeSchoolCalendar();
     if (url.hostname === RECIPE_HOST) return fakeRecipeSite(url);
+    if (url.hostname === DRIVE_HOST) return fakeDriveSite(url);
     return realFetch(input, init);
   }) as typeof fetch;
   process.env.ECOLEDIRECTE_IDENTIFIANT = 'docs';

@@ -17,6 +17,7 @@ import { createRoutinePlanStore } from './sources/routine-plans.ts';
 import { createFitnessStore } from './sources/fitness.ts';
 import { createRecipeStore } from './sources/recipes.ts';
 import { createMenuStore } from './sources/menus.ts';
+import { createDriveStore } from './sources/drive.ts';
 import { createStockStore } from './sources/stock.ts';
 import { createSourceStatus } from './sources/source-status.ts';
 import { buildGtfsIndex, unzip } from './sources/gtfs.ts';
@@ -60,6 +61,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
     fitness: createFitnessStore({ path: join(dir, 'fitness.json'), clock: fixedClock }),
     recipes: createRecipeStore({ path: join(dir, 'recipes.json'), photosDir: join(dir, 'recipes'), clock: fixedClock }),
     menus: createMenuStore({ path: join(dir, 'menus.json'), clock: fixedClock }),
+    drive: createDriveStore({ path: join(dir, 'drive.json'), clock: fixedClock }),
     transitSettings,
     holidaySettings: createHolidaySettingsStore({ path: join(dir, 'holiday-settings.json'), clock: fixedClock, config }),
     gtfs: { index: async () => index },

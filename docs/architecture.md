@@ -34,6 +34,7 @@ flowchart LR
     off["Open Food Facts,<br/>Beauty, Products<br/>(produits)"]
     edu["data.education.gouv.fr<br/>(vacances scolaires)"]
     cuisine["Sites de recettes<br/>(page partagée seulement)"]
+    enseigne["Enseigne de drive<br/>(fiche produit partagée,<br/>lue une fois à la demande)"]
   end
   tablette -- HTTPS --> npm
   tel -- HTTPS --> npm
@@ -71,8 +72,8 @@ flowchart TB
     menuS["services/menu.ts<br/>courses du menu, synchronisées avec la liste"]
   end
   subgraph sources["Sources (server/sources/)"]
-    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock),<br/>web-page + recipe-page (sans cache : copie dans recipes)"]
-    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness, recipes, menus"]
+    distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock),<br/>web-page + recipe-page (sans cache : copie dans recipes),<br/>drive-page (sans cache : copie dans drive)"]
+    locales["Locales, fichiers JSON (json-file.ts)<br/>lists, notes, routines, routine-plans,<br/>timers, devices, pins, faces,<br/>transit-settings, stock, fitness, recipes, menus, drive"]
     cache["refreshing-cache.ts<br/>rafraîchit, garde la dernière valeur"]
     status["source-status.ts<br/>dernier succès ou erreur"]
   end
@@ -254,6 +255,7 @@ classDiagram
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
 | `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
+| `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres) |
 
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
 | `pins.json` | codes PIN et code parent (empreintes) |
@@ -324,6 +326,19 @@ change et que les paquets sûrs suffisent, ou qu'un paquet plein ne suffirait pl
 sans être scanné est rattrapé par la même vérification. Quand un produit est relié à l'ingrédient et que les unités se
 comparent, la ligne porte les paquets à acheter (`packs`, « 250 g (2 × 200 g) »), sur la marque `menu` de la liste de
 courses comme dans le menu.
+
+Le **drive** (étape 1, voir [l'étude](etude-drive.md)) : aucune enseigne n'ouvre d'API ; HomeHub ne fait que retenir,
+pour chaque article de la liste (clé de l'ingrédient, ou du libellé pour un produit hors recettes), un produit de
+l'enseigne choisie. Le produit vient du lien de sa fiche, collé ou partagé (`/partager` le reconnaît et propose
+« Relier à un article de la liste ») ; l'identifiant est tiré de l'URL (`shared/drive.ts`, un adaptateur par
+enseigne : domaine et forme des liens). La fiche est lue une fois, quand la personne le demande, par le même lecteur
+de pages que les recettes (`sources/drive-page.ts` : seulement une fiche produit de l'enseigne, redirection hors
+fiche refusée, JSON-LD `Product`, ni prix ni image) ; un refus du site (anti-robots, 403) est rapporté tel quel et la
+personne saisit le produit, ou reprend le nom, la contenance et le code-barres d'un produit du stock. Jamais de
+recherche dans le catalogue de l'enseigne. Tout le monde lit `GET /api/drive` ; régler l'enseigne et le magasin : un
+parent (`access.parent`) ; lire une fiche et retenir un produit : le droit d'écrire sur la liste de courses
+(`access.writer` sur la famille), vérifié avant toute lecture. Un secours n'est jamais pris d'office, même quand le
+produit retenu est retiré. Le nombre de paquets reprend l'arrondi de la liste (`packsFor`).
 
 **Adresse de la tablette** : c'est l'adresse de la connexion. `X-Real-IP` / `X-Forwarded-For` ne la remplacent que
 si la connexion vient d'un proxy de confiance (`trustedProxies`, aucun par défaut). Une connexion locale directe

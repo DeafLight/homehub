@@ -1,7 +1,7 @@
 # Écrans
 
-Captures de HomeHub 0.52.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
-faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, calendrier
+Captures de HomeHub 0.53.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
 
@@ -88,7 +88,9 @@ Conditions actuelles en grand (seule carte sans étiquette), vent, humidité, so
 ### Listes
 
 Courses et tâches de la famille ; tâches en retard en rouge, tâches qui reviennent. Les courses à acheter sont rangées
-par rayon ; une ligne du menu de la semaine porte un livre et ses recettes d'origine.
+par rayon ; une ligne du menu de la semaine porte un livre et ses recettes d'origine. Avec une enseigne de drive
+choisie (bouton « Drive · Super U Exemple »), chaque article a un chariot pour choisir son produit chez l'enseigne, et
+le produit retenu s'affiche sous l'article (ici les oignons).
 
 ![Listes](images/tablette-listes.png)
 
@@ -289,6 +291,24 @@ peut-être entamé ».
 | ![Menu](images/telephone-menu.png) | ![Ajouter une recette](images/telephone-menu-ajout.png) | ![Stock et ingrédients](images/telephone-menu-stock.png) |
 
 <img src="images/telephone-menu-placard.png" width="260" alt="À vérifier au placard, vu par un enfant"> <img src="images/telephone-courses-verifier.png" width="260" alt="Liste de courses : gruyère à vérifier, arrondi au paquet">
+
+### Drive du téléphone
+
+Bouton « Drive » de l'onglet Courses : un parent choisit l'enseigne (Courses U) et le magasin de retrait. Le chariot
+d'un article ouvre « Produit chez Courses U » : le produit retenu pour le gruyère (contenance, code-barres, « 1 ×
+200 g pour 160 g »), un secours (le grand paquet) qu'on peut prendre à sa place mais jamais pris d'office, et le lien
+d'une autre fiche à coller. Partager une fiche depuis l'appli de l'enseigne propose « Relier à un article de la liste »
+; l'article choisi, la fiche est lue une fois (nom, contenance, code-barres) et se corrige avant d'être retenue. Quand
+le site refuse la lecture, rien n'est contourné : on saisit le produit, ou on le reprend du stock (« Au stock : Lait
+demi-écrémé · 1 L »).
+
+| Réglages | Produit retenu | Fiche partagée |
+|---|---|---|
+| ![Réglages du drive](images/telephone-drive-reglages.png) | ![Produit retenu et secours](images/telephone-drive-produit.png) | ![Relier à un article](images/telephone-drive-partage.png) |
+
+| Fiche lue | Site qui refuse la lecture |
+|---|---|
+| ![Fiche lue](images/telephone-drive-fiche.png) | ![Site qui refuse la lecture](images/telephone-drive-refus.png) |
 
 ## Non capturés
 
