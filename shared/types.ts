@@ -537,6 +537,21 @@ export type ShoppingMenuMark = {
   packs?: { count: number; per: { quantity: number; unit: Unit } };
 };
 
+/**
+ * Part fraîche d'un repas tardif du menu, pas encore sur la liste : elle la rejoint d'elle-même le jour `day`
+ * (« À acheter plus tard »), ou plus tôt avec « Acheter maintenant ».
+ */
+export type ShoppingLater = {
+  week: string;
+  key: string;
+  /** « Crème fraîche · 20 cl ». */
+  label: string;
+  /** Jour où l'acheter (AAAA-MM-JJ). */
+  day: string;
+  aisle: string | null;
+  sources: string[];
+};
+
 export type Repeat ={ every: number; unit: 'day' | 'week' };
 
 /** Tâche de la famille, pour un membre ou pour FAMILY_ID. */
@@ -561,6 +576,8 @@ export type Lists = {
   tasks: ListTask[];
   /** Articles souvent achetés et absents de la liste, du plus fréquent au moins fréquent. */
   frequent: string[];
+  /** Frais du menu à acheter plus tard (absent : pas de menu relié). */
+  later?: ShoppingLater[];
 };
 
 /** Téléphone appairé : il agit au nom d'un seul profil. */

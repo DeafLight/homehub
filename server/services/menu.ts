@@ -1,7 +1,8 @@
 // Menu de la semaine côté serveur : la vue d'une semaine (recettes, courses calculées, stock à relier) et la
 // synchronisation de la liste de courses. Les règles sont dans shared/menu.ts ; ici, on rassemble les magasins
 // (menu, carnet, stock, listes). La synchronisation tourne après chaque changement qui la concerne (menu, placards,
-// coches, liens, stock, recettes), et au premier passage d'une nouvelle semaine. « S'utilise en plusieurs fois » est
+// coches, liens, stock, recettes), et au premier passage d'un nouveau jour (les frais d'un repas tardif rejoignent la
+// liste le jour où les acheter ; une nouvelle semaine remplace les lignes de la précédente). « S'utilise en plusieurs fois » est
 // la valeur du lien, ou devinée d'après les recettes du carnet quand le lien ne la donne pas.
 import {
   addWeeks,
@@ -11,6 +12,7 @@ import {
   desiredLines,
   labelKey,
   largestNeeds,
+  laterLines,
   manualKeys,
   type MenuRecipe,
   type MenuStockProduct,
@@ -27,7 +29,8 @@ import {
 import type { Recipe } from '../../shared/recipes.ts';
 import type { Quantities } from '../../shared/quantities.ts';
 import { guessPartial, guessStockLink, type KnownIngredient } from '../../shared/stock-link.ts';
-import type { Author, ShoppingItem, ShoppingMenuMark, StockData } from '../../shared/types.ts';
+import { localDay } from '../../shared/dates.ts';
+import type { Author, ShoppingItem, ShoppingLater, ShoppingMenuMark, StockData } from '../../shared/types.ts';
 import type { ListsStore } from '../sources/lists.ts';
 import type { MenuData, MenuStore } from '../sources/menus.ts';
 import type { RecipeStore } from '../sources/recipes.ts';
@@ -38,15 +41,17 @@ export type MenuService = {
   view(week: string): Promise<MenuView>;
   /** Fait suivre la liste de courses ; renvoie le nombre de lignes changées. */
   sync(by: Author): Promise<number>;
-  /** Synchronise si la semaine a changé depuis la dernière fois (ou au démarrage). */
-  refreshIfNewWeek(): Promise<void>;
+  /** Synchronise si le jour a changé depuis la dernière fois (ou au démarrage). */
+  refreshIfNewDay(): Promise<void>;
+  /** Frais des semaines actives qui attendent « À acheter plus tard », par jour d'achat. */
+  later(): Promise<ShoppingLater[]>;
   /** Une ligne du menu retirée à la main : « j'en ai déjà » pour sa semaine, puis synchronisation. */
   lineRemoved(item: ShoppingItem, by: Author): Promise<void>;
 };
 
 const SYSTEM: Author = { ownerId: null, via: 'tablet' };
 
-type Snapshot = { menu: MenuData; recipes: Recipe[]; stock: StockData; current: string };
+type Snapshot = { menu: MenuData; recipes: Recipe[]; stock: StockData; current: string; today: string };
 
 /** Ingrédients connus du carnet (notre version de chaque recette), un par clé. */
 function knownIngredients(recipes: readonly Recipe[]): KnownIngredient[] {
@@ -56,11 +61,12 @@ function knownIngredients(recipes: readonly Recipe[]): KnownIngredient[] {
 }
 
 export function createMenuService({ menus, recipes, stock, lists, clock }: { menus: MenuStore; recipes: RecipeStore; stock: StockStore; lists: ListsStore; clock: Clock }): MenuService {
-  let syncedWeek: string | null = null;
+  let syncedDay: string | null = null;
 
   async function snapshot(): Promise<Snapshot> {
     const [menu, all, stockData] = await Promise.all([menus.data(), recipes.all(), stock.data()]);
-    return { menu, recipes: all, stock: stockData, current: weekOf(clock()) };
+    const now = clock();
+    return { menu, recipes: all, stock: stockData, current: weekOf(now), today: localDay(now) };
   }
 
   const recipeLookup = (all: readonly Recipe[]) => {
@@ -99,14 +105,15 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     for (const week of activeWeeks(snap)) {
       const needs = aggregateNeeds(snap.menu.weeks[week], recipeOf);
       const checks = new Map(Object.entries(snap.menu.checks[week] ?? {}));
-      result.set(week, planNeeds(needs, { pantry, have: new Set(snap.menu.have[week] ?? []), manual, bought: boughtFor(shopping, cleared, week), stock: pool, checks, packs }));
+      const later = { today: snap.today, advanced: new Set(snap.menu.now[week] ?? []) };
+      result.set(week, planNeeds(needs, { pantry, have: new Set(snap.menu.have[week] ?? []), manual, bought: boughtFor(shopping, cleared, week), stock: pool, checks, packs, later }));
     }
     return result;
   }
 
   async function sync(by: Author): Promise<number> {
     const snap = await snapshot();
-    syncedWeek = snap.current;
+    syncedDay = snap.today;
     return lists.syncMenu((shopping, cleared) => {
       const desired: DesiredLine[] = [];
       for (const [week, lines] of plans(snap, shopping, cleared)) desired.push(...desiredLines(lines, week));
@@ -179,8 +186,15 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
       };
     },
 
-    async refreshIfNewWeek() {
-      if (syncedWeek !== weekOf(clock())) await sync(SYSTEM);
+    async refreshIfNewDay() {
+      if (syncedDay !== localDay(clock())) await sync(SYSTEM);
+    },
+
+    async later() {
+      const snap = await snapshot();
+      const { shopping } = await lists.lists();
+      const cleared = await lists.cleared();
+      return [...plans(snap, shopping, cleared)].flatMap(([week, lines]) => laterLines(lines, week)).sort((a, b) => a.day.localeCompare(b.day));
     },
 
     async lineRemoved(item, by) {

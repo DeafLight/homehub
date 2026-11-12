@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import type { DriveView } from '../../../shared/drive.ts';
+  import { localDay } from '../../../shared/dates.ts';
   import { FAMILY_ID, type ShoppingItem } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import BackButton from '../components/BackButton.svelte';
@@ -21,6 +22,7 @@
   // ajouté l'est au nom de la personne reconnue devant la tablette (un enfant : ses tâches seulement). Le bouton
   // « Drive » règle l'enseigne et le magasin ; le chariot d'un article ouvre le choix de son produit chez l'enseigne ;
   // « Remplir le panier » ouvre la liste à cocher pendant qu'on remplit le panier dans l'appli de l'enseigne.
+  // Les frais du menu « À acheter plus tard » s'avancent d'un geste (un parent reconnu).
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -92,6 +94,9 @@
             onRemove={lists.removeShopping}
             onClear={lists.clearShopping}
             drive={drive.data ? { view: drive.data, onProduct: (item) => (driveItem = item) } : null}
+            later={data.later ?? []}
+            today={localDay(clock.now)}
+            onNow={lists.buyNow}
           />
         </div>
       </section>

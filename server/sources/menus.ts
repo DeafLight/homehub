@@ -1,6 +1,6 @@
 // Menu de la semaine (menus.json dans le dossier d'état) : les recettes de chaque semaine (lundi), les coches
 // « j'en ai déjà » de chaque semaine, les décisions « à vérifier au placard » (j'en ai assez / il en faut) de chaque
-// semaine, les placards toujours ignorés, et les liens entre produits du stock et ingrédients, confirmés une fois puis
+// semaine, les ingrédients frais avancés à la main (« Acheter maintenant ») de chaque semaine, les placards toujours ignorés, et les liens entre produits du stock et ingrédients, confirmés une fois puis
 // retenus par produit (avec « s'utilise en plusieurs fois », absent : deviné). Les semaines passées restent lisibles
 // quelques mois (MENU_LIMITS.weeksKept), puis sont oubliées avec leurs coches et leurs décisions.
 import { randomUUID } from 'node:crypto';
@@ -38,6 +38,8 @@ const fileSchema = z.object({
   have: z.record(z.string(), z.array(z.string())),
   /** Semaine → clé → décision « à vérifier au placard ». */
   checks: z.record(z.string(), z.record(z.string(), z.enum(CHECK_DECISIONS))).default({}),
+  /** Semaine → clés des frais avancés (« Acheter maintenant ») : pas d'attente « À acheter plus tard ». */
+  now: z.record(z.string(), z.array(z.string())).default({}),
   /** Noms des placards ; null : jamais réglés (DEFAULT_PANTRY). */
   pantry: z.array(z.string()).nullable(),
   /** Code-barres → ingrédient, ou null : « pas un ingrédient » (plus proposé). */
@@ -49,6 +51,7 @@ export type MenuData = {
   weeks: Record<string, MenuEntry[]>;
   have: Record<string, string[]>;
   checks: Record<string, Record<string, CheckDecision>>;
+  now: Record<string, string[]>;
   pantry: string[];
   links: Record<string, StockLink | null>;
 };
@@ -66,6 +69,8 @@ export type MenuStore = {
   setHave(week: string, key: string, have: boolean): Promise<void>;
   /** Décision « à vérifier au placard » ; null : l'oublier (de nouveau à vérifier). */
   setCheck(week: string, key: string, decision: CheckDecision | null): Promise<void>;
+  /** Frais avancé (« Acheter maintenant ») ou remis à plus tard. */
+  setNow(week: string, key: string, now: boolean): Promise<void>;
   setPantry(names: string[]): Promise<string[]>;
   /** Lien d'un produit (null : pas un ingrédient) ; `undefined` : oublier la décision (de nouveau proposé). */
   setLink(code: string, link: StockLink | null | undefined): Promise<void>;
@@ -75,10 +80,10 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
   const state = createJsonFile<MenusFile>({
     path,
     schema: fileSchema,
-    initial: () => ({ version: 1, weeks: {}, have: {}, checks: {}, pantry: null, links: {} }),
+    initial: () => ({ version: 1, weeks: {}, have: {}, checks: {}, now: {}, pantry: null, links: {} }),
     beforeSave(draft) {
       const oldest = addWeeks(weekOf(clock()), -MENU_LIMITS.weeksKept);
-      for (const record of [draft.weeks, draft.have]) {
+      for (const record of [draft.weeks, draft.have, draft.now]) {
         for (const week of Object.keys(record)) if (week < oldest || record[week].length === 0) delete record[week];
       }
       for (const week of Object.keys(draft.checks)) if (week < oldest || Object.keys(draft.checks[week]).length === 0) delete draft.checks[week];
@@ -96,7 +101,7 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
   return {
     async data() {
       const file = await state.read();
-      return { weeks: file.weeks, have: file.have, checks: file.checks, pantry: file.pantry ?? DEFAULT_PANTRY, links: file.links };
+      return { weeks: file.weeks, have: file.have, checks: file.checks, now: file.now, pantry: file.pantry ?? DEFAULT_PANTRY, links: file.links };
     },
 
     addEntry(week, entry, by) {
@@ -139,6 +144,15 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
         if (have) keys.add(key);
         else keys.delete(key);
         file.have[week] = [...keys];
+      });
+    },
+
+    setNow(week, key, now) {
+      return state.update((file) => {
+        const keys = new Set(file.now[week] ?? []);
+        if (now) keys.add(key);
+        else keys.delete(key);
+        file.now[week] = [...keys];
       });
     },
 

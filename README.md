@@ -98,6 +98,14 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   marqué « à vérifier : paquet peut-être entamé » (en cas de doute, on achète). **Arrondi au paquet** : quand un
   produit est relié et que les unités se comparent, la ligne dit combien de paquets acheter (« 250 g (2 × 200 g) »),
   dans les courses du menu comme sur la liste. Le stock n'est jamais décompté quand on cuisine.
+  **Frais à acheter plus tard** : les produits frais (fruits et légumes, boucherie, poissonnerie, crèmerie,
+  boulangerie, sauf ce qui se garde bien : oignon, ail, pomme de terre, carotte, citron, beurre, œufs, fromages à
+  pâte dure…) d'un repas prévu plus de 3 jours après aujourd'hui ne vont pas tout de suite sur la liste : ils
+  attendent dans **« À acheter plus tard »** (menu et liste de courses, tablette et téléphone), avec le jour où les
+  acheter (3 jours avant le repas), puis rejoignent la liste d'eux-mêmes ce jour-là. Un repas sans jour : tout de
+  suite. Un même ingrédient d'un repas tôt et d'un repas tard : seule la part du repas tardif attend (ce qu'on a déjà
+  couvre d'abord les premiers repas). **Acheter maintenant** (un parent) l'avance pour la semaine, « Plus tard » le
+  remet en attente. Le drive (« Remplir le panier ») ne prend que ce qui est sur la liste.
 
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
@@ -481,7 +489,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet et le dernier prix vu par l’extension) et panier en cours (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet et le dernier prix vu par l’extension) et panier en cours (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
@@ -599,7 +607,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ windows, members }` ; enregistrer : `{ windows, members }`, un parent |
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
-| `GET /api/lists` | `{ shopping, tasks, frequent }` |
+| `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |
 | `PUT /api/notes/:id/seen` | marque un mot vu (droit d'écriture sur son destinataire ; un mot à la famille : un parent) |
 | `POST /api/lists/shopping`, `PUT`/`DELETE …/shopping/:id`, `POST …/shopping/clear` | courses (écriture) |
@@ -636,9 +644,10 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent (ses notes partent avec elle) |
 | `GET /api/recipes/:id/notes`, `POST …/notes` | `{ notes }` : notes de la famille (lecture ouverte) ; `{ text }` (1 000 caractères au plus, 100 notes par recette, 409 au-delà) : tout membre identifié, enfants compris ; un appareil non appairé ne fait que lire |
 | `PATCH /api/recipes/:id/notes/:note`, `DELETE …` | `{ text?, resolved? }` : texte modifié, note résolue ou rouverte ; retrait ; son auteur ou un parent |
-| `GET /api/menu?week=<lundi>` | menu d'une semaine (par défaut la semaine en cours) : `{ week, current, editable, entries, plan, pantry, stock, ingredients }` ; `plan` : chaque ingrédient, ce qu'il faut, ce qui en est déduit et pourquoi (`buy`, `pantry`, `have`, `manual`, `bought`, `stock`), `check` (paquet peut-être entamé : `ask`, `enough`, `needed`) et `packs` (paquets à acheter) ; `stock` : produits avec `partial` (s'utilise en plusieurs fois) et `partialGuessed` |
+| `GET /api/menu?week=<lundi>` | menu d'une semaine (par défaut la semaine en cours) : `{ week, current, editable, entries, plan, pantry, stock, ingredients }` ; `plan` : chaque ingrédient, ce qu'il faut, ce qui en est déduit et pourquoi (`buy`, `later`, `pantry`, `have`, `manual`, `bought`, `stock`), `later` (parts fraîches qui attendent, par jour d'achat), `advanced` (avancé à la main), `check` (paquet peut-être entamé : `ask`, `enough`, `needed`) et `packs` (paquets à acheter) ; `stock` : produits avec `partial` (s'utilise en plusieurs fois) et `partialGuessed` |
 | `POST /api/menu/entries`, `PUT`/`DELETE …/entries/:id` | `{ week, recipeId, people, day }` ; modification `{ people, day }` ; un parent ; semaines passées ou trop lointaines refusées ; la liste de courses suit |
 | `PUT /api/menu/have` | `{ week, key, have }` : « j'en ai déjà » pour un ingrédient, cette semaine ; un parent |
+| `PUT /api/menu/now` | `{ week, key, now }` : « Acheter maintenant » (`true`) un ingrédient frais qui attendait, ou le remettre à plus tard (`false`) ; un parent |
 | `PUT /api/menu/check` | `{ week, key, decision }` : « à vérifier au placard », `enough` (j'en ai assez), `needed` (il en faut) ou `null` (pas encore décidé) ; un parent |
 | `PUT /api/menu/pantry` | `{ names }` : les placards, jamais demandés ; un parent |
 | `GET /api/drive` | `{ settings, choices, basket }` : enseigne et magasin de retrait (`{ name, url }`), pour chaque article (`key`) le produit retenu (`preferred`, ou `null`) et ses secours (`fallback`), chacun `{ enseigne, id, url, name, brand, packText, pack, ean, source, pieces, price }` (`pieces` : pièces par paquet, ou `null` ; `price` : `{ value, at }`, dernier prix d'un paquet vu par l'extension, ou `null`), et le panier en cours (`{ enseigne, startedAt, startedBy, lines }`, ou `null`), chaque ligne `{ itemId, key, label, product, count, per, at, by }` ; seulement les lignes dont l'article est encore dans la liste |

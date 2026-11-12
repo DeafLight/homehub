@@ -24,6 +24,7 @@ import { createMenuStore } from './sources/menus.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createRecipeStore } from './sources/recipes.ts';
 import { createStockStore } from './sources/stock.ts';
+import type { Clock } from './sources/types.ts';
 import { connectedFrom, fixedClock } from './testing.ts';
 
 const TABLET = '192.168.1.50';
@@ -36,7 +37,7 @@ const GRUYERE = '3000000000106';
 
 type CallOptions = { from?: string; token?: string; actor?: string; body?: unknown };
 
-async function setup() {
+async function setup(clock: Clock = fixedClock) {
   const config = createConfigStore(
     parseConfig({
       members: [
@@ -53,12 +54,12 @@ async function setup() {
   const recipes = createRecipeStore({ path: join(dir, 'recipes.json'), photosDir: join(dir, 'recipes'), clock: fixedClock });
   const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
   const stock = createStockStore({ path: join(dir, 'stock.json'), clock: fixedClock });
-  const menus = createMenuStore({ path: join(dir, 'menus.json'), clock: fixedClock });
+  const menus = createMenuStore({ path: join(dir, 'menus.json'), clock });
   const notes = createNotesStore({ path: join(dir, 'notes.json'), clock: fixedClock });
-  const service = createMenuService({ menus, recipes, stock, lists, clock: fixedClock });
+  const service = createMenuService({ menus, recipes, stock, lists, clock });
   const api = createRouter();
   api.route('/', createListsApi({ household: createHousehold(config), lists, notes, access, menu: service }));
-  api.route('/', createMenuApi({ menus, service, recipes, access, clock: fixedClock }));
+  api.route('/', createMenuApi({ menus, service, recipes, access, clock }));
 
   const by = { ownerId: 'alex', via: 'phone' } as const;
   const addRecipe = async (title: string, servings: number, lines: string[]) =>
@@ -85,10 +86,11 @@ async function setup() {
   const alex = await phone('alex');
   const view = async (week = WEEK) => (await (await call('GET', `/menu?week=${week}`)).json()) as MenuView;
   const shopping = async () => ((await (await call('GET', '/lists')).json()) as Lists).shopping;
+  const later = async () => ((await (await call('GET', '/lists')).json()) as Lists).later ?? [];
   const labels = async () => (await shopping()).map((s) => s.label);
   const add = (recipeId: string, people?: number, day: string | null = null) =>
     call('POST', '/menu/entries', { token: alex, body: { week: WEEK, recipeId, people, day } });
-  return { call, phone, tablet, alex, view, shopping, labels, add, mijote, pates, gratin, lists, stock, recipes, by };
+  return { call, phone, tablet, alex, view, shopping, later, labels, add, mijote, pates, gratin, lists, stock, recipes, by };
 }
 
 describe('API du menu : droits', () => {
@@ -298,3 +300,53 @@ describe('API du menu : paquet peut-être entamé', () => {
   });
 });
 
+
+describe('API du menu : frais à acheter plus tard', () => {
+  // Horloge réglable : lundi 2 novembre, puis les jours suivants.
+  const at = (day: number) => new Date(2026, 10, day, 18, 0);
+
+  it('les frais d’un repas tardif attendent à part, puis rejoignent la liste le jour venu', async () => {
+    let now = at(2);
+    const { add, labels, later, view, gratin } = await setup(() => new Date(now));
+    await add(gratin.id, 4, '2026-11-07');
+    // Samedi 7 : courgettes à acheter mercredi 4 ; le gruyère se garde, il est sur la liste tout de suite.
+    expect(await labels()).toEqual(['Gruyère · 150 g']);
+    expect(await later()).toEqual([{ week: WEEK, key: 'courgette', label: 'Courgette · 2', day: '2026-11-04', aisle: 'Fruits et légumes', sources: ['Gratin'] }]);
+    expect((await view()).plan.find((l) => l.key === 'courgette')).toMatchObject({ status: 'later', later: [{ day: '2026-11-04' }] });
+    now = at(3);
+    expect(await later()).toHaveLength(1);
+    now = at(4);
+    expect(await labels()).toEqual(['Gruyère · 150 g', 'Courgette · 2']);
+    expect(await later()).toEqual([]);
+  });
+
+  it('« Acheter maintenant » : un parent, la ligne arrive tout de suite ; « Plus tard » la remet en attente', async () => {
+    const { call, phone, add, labels, later, view, gratin, alex } = await setup();
+    await add(gratin.id, 4, '2026-11-07');
+    const body = { week: WEEK, key: 'courgette', now: true };
+    expect((await call('PUT', '/menu/now', { token: await phone('lea'), body })).status).toBe(403);
+    expect((await call('PUT', '/menu/now', { token: alex, body })).status).toBe(204);
+    expect(await labels()).toContain('Courgette · 2');
+    expect(await later()).toEqual([]);
+    expect((await view()).plan.find((l) => l.key === 'courgette')).toMatchObject({ status: 'buy', advanced: true });
+    expect((await call('PUT', '/menu/now', { token: alex, body: { ...body, now: false } })).status).toBe(204);
+    expect(await labels()).not.toContain('Courgette · 2');
+    expect(await later()).toHaveLength(1);
+    expect((await call('PUT', '/menu/now', { token: alex, body: { ...body, week: '2026-10-26' } })).status).toBe(400);
+  });
+
+  it('une ligne cochée n’est pas touchée ; la part tardive arrive sur une nouvelle ligne', async () => {
+    let now = at(2);
+    const { call, alex, add, shopping, later, mijote } = await setup(() => new Date(now));
+    await add(mijote.id, 4, '2026-11-02');
+    await add(mijote.id, 4, '2026-11-08');
+    const lait = (await shopping()).find((s) => s.menu?.key === 'lait')!;
+    expect(lait.label).toBe('Lait · 50 cl');
+    expect((await later()).map((l) => [l.key, l.label, l.day])).toEqual([['lait', 'Lait · 50 cl', '2026-11-05']]);
+    await call('PUT', `/lists/shopping/${lait.id}`, { token: alex, body: { done: true } });
+    now = at(5);
+    const after = (await shopping()).filter((s) => s.menu?.key === 'lait');
+    expect(after.find((s) => s.id === lait.id)).toMatchObject({ label: 'Lait · 50 cl', done: true });
+    expect(after.filter((s) => !s.done).map((s) => s.label)).toEqual(['Lait · 50 cl']);
+  });
+});

@@ -125,6 +125,7 @@
   const setPeople = (entry: MenuViewEntry, people: number) => run(() => api.updateMenuEntry(entry.id, { people }));
   const setHave = (line: PlanLine, have: boolean) => run(() => api.setMenuHave(view.data!.week, line.key, have));
   const setCheck = (line: PlanLine, decision: CheckDecision | null) => run(() => api.setMenuCheck(view.data!.week, line.key, decision));
+  const setNow = (line: PlanLine, now: boolean) => run(() => api.setMenuNow(view.data!.week, line.key, now));
   const link = (product: MenuStockProduct, value: StockLink | null) => run(() => api.setStockLink(product.code, value));
   const forget = (product: MenuStockProduct) => run(() => api.forgetStockLink(product.code));
   async function savePantry(names: string[]) {
@@ -195,6 +196,7 @@
             {busy}
             onHave={setHave}
             onCheck={setCheck}
+            onNow={setNow}
           />
         </div>
         <p class="pantry muted">

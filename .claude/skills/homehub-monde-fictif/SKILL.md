@@ -48,7 +48,8 @@ Then open it in the built-in browser (`mcp__Claude_Browser__navigate`). Stop it 
 - `get_page_text` / `read_page` / `javascript_tool` are more reliable than screenshots for checking values.
 - Camera requests are blocked in the browser pane (notice shown): expected, not a bug.
 - **Port 3190 already taken** (another worktree left its fictional world open): don't kill it, run with
-  `DOCS_PORT=3290` (the Chrome debugging port follows, +1).
+  `DOCS_PORT=3290` (the Chrome debugging port follows, +1). The script now refuses to start when the port already
+  answers: it used to write its data into the other session's fictional world.
 
 ## Drive extension (« Remplir le panier »)
 `npm run extension:check` builds `extension/dist` and drives the real content script in headless Chrome on fake

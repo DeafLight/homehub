@@ -1,10 +1,10 @@
 <script lang="ts">
   import { choiceFor, type DriveView, enseigneName, itemKey } from '../../../shared/drive.ts';
-  import type { ShoppingItem } from '../../../shared/types.ts';
+  import type { ShoppingItem, ShoppingLater } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
   import { revert } from '../lib/checkbox.ts';
   import { basketMark, choiceSummary } from '../lib/drive.ts';
-  import { byAisle, itemAisle } from '../lib/menu.ts';
+  import { buyDayLabel, byAisle, itemAisle, laterByDay } from '../lib/menu.ts';
 
   // Liste de courses : saisie rapide, articles fréquents en un geste, à acheter (rangés par rayon) puis « dans le
   // panier » jusqu'à ce qu'on le vide. Les lignes du menu de la semaine portent le livre et leurs recettes ; elles
@@ -12,7 +12,9 @@
   // acheter dit le produit retenu chez elle (et ses paquets), et le bouton du chariot ouvre « Produit chez … ». Les
   // articles mis au panier en cours du drive (mode « Remplir le panier ») passent dans « Au drive » : ils ne sont pas
   // achetés pour autant ; « Reçu : tout cocher » les coche une fois le panier retiré (décocher reste possible).
-  // Tailles réglables par le parent (--list-font, --list-row).
+  // Les frais d'un repas tardif du menu attendent dans « À acheter plus tard », avec le jour où les acheter : ils
+  // rejoignent la liste d'eux-mêmes ce jour-là ; « Acheter maintenant » (un parent) les avance. Ils ne sont pas sur la
+  // liste : le drive ne les prend pas. Tailles réglables par le parent (--list-font, --list-row).
   type Props = {
     items: ShoppingItem[];
     frequent: string[];
@@ -23,8 +25,13 @@
     onClear(): void;
     /** Drive : produits retenus ; `onProduct` ouvre le choix du produit d'un article. */
     drive?: { view: DriveView; onProduct(item: ShoppingItem): void } | null;
+    /** Frais du menu à acheter plus tard ; `today` (AAAA-MM-JJ) pour « Demain » ; `onNow` absent : pas de bouton. */
+    later?: ShoppingLater[];
+    today?: string;
+    onNow?: (item: ShoppingLater) => void;
   };
-  let { items, frequent, readOnly = false, onAdd, onToggle, onRemove, onClear, drive = null }: Props = $props();
+  let { items, frequent, readOnly = false, onAdd, onToggle, onRemove, onClear, drive = null, later = [], today = '', onNow }: Props = $props();
+  const laterGroups = $derived(laterByDay(later));
   const enseigne = $derived(drive?.view.settings.enseigne ?? null);
 
   const toBuy = $derived(items.filter((i) => !i.done));
@@ -76,8 +83,31 @@
       {/each}
     </ul>
   {:else}
-    <p class="empty">{atDrive.length > 0 ? 'Rien d’autre à acheter.' : 'Rien à acheter.'}</p>
+    <p class="empty">{atDrive.length > 0 ? 'Rien d’autre à acheter.' : later.length > 0 ? 'Rien à acheter pour l’instant.' : 'Rien à acheter.'}</p>
   {/each}
+
+  {#if later.length > 0}
+    <div class="basket-head">
+      <span><Icon name="calendar" size={18} /> À acheter plus tard · {later.length}</span>
+    </div>
+    {#each laterGroups as group (group.day)}
+      <h3 class="aisle">{buyDayLabel(group.day, today)}</h3>
+      <ul class="items later">
+        {#each group.items as item (`${item.week}|${item.key}|${item.day}`)}
+          <li>
+            <span class="label">
+              {item.label}
+              <span class="menu" title="Menu de la semaine"><Icon name="book" size={18} /></span>
+              <span class="sources">{item.sources.join(', ')}</span>
+            </span>
+            {#if onNow && !readOnly}
+              <button type="button" class="clear now" aria-label="Acheter maintenant : {item.label}" onclick={() => onNow(item)}>Acheter maintenant</button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/each}
+  {/if}
 
   {#if atDrive.length > 0}
     <div class="basket-head">
@@ -315,6 +345,26 @@
     font-size: var(--list-font, 1.3rem);
     color: var(--fg-muted);
     border: 0;
+  }
+
+  /* À acheter plus tard : pas de case à cocher, le texte en retrait jusqu'au jour venu. */
+  .later li {
+    min-height: var(--list-row, 58px);
+    font-size: var(--list-font, 1.3rem);
+    color: var(--fg-soft);
+  }
+
+  .later .label {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 0;
+  }
+
+  .now {
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 0.9rem;
   }
 
   .basket-head span {

@@ -268,7 +268,7 @@ classDiagram
 | `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
 | `recipe-notes.json` | notes de la famille sur les recettes (texte, auteur, date ; modifiée, résolue par qui et quand) ; à part du carnet pour qu'une note ne touche pas notre version, retirées avec leur recette |
-| `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
+| `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », frais avancés (`now`, « Acheter maintenant »), placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
 | `drive.json` | drive : enseigne et magasin de retrait ; par article (clé) et par enseigne, le produit retenu et ses secours (identifiant, lien de la fiche, nom, contenance, code-barres, pièces par paquet, dernier prix vu par l'extension) ; le panier en cours (articles de la liste cochés, produit et paquets mis au panier) |
 
 | `devices.json` | téléphones reliés (empreinte du jeton seulement) |
@@ -313,12 +313,23 @@ entre la vérification et la connexion (rebinding DNS) n'est pas couvert.
 Le **menu de la semaine** : tout le monde le lit, seul un parent le modifie (recettes, « j'en ai déjà », placards,
 produits reliés), sur la tablette (parent reconnu) ou depuis son téléphone. Ses courses rejoignent `lists.json` par
 une règle de synchronisation (`shared/menu.ts`) appliquée après chaque changement du menu, du stock ou du carnet, et
-au premier affichage d'une nouvelle semaine : une ligne ouverte marquée `menu` suit le calcul (mise à jour ou
+au premier affichage d'un nouveau jour (`refreshIfNewDay`) : une ligne ouverte marquée `menu` suit le calcul (mise à jour ou
 retirée) ; une ligne cochée, ou vidée (gardée dans `cleared` pour sa semaine), compte comme achetée et n'est jamais
 touchée, seul le complément revient sur une nouvelle ligne ; une ligne ajoutée à la main pour le même ingrédient
 l'emporte ; retirer une ligne du menu vaut « j'en ai déjà » pour sa semaine. Ce qu'il faut est déduit dans cet ordre :
 placards, « j'en ai déjà », ligne à la main, déjà acheté, puis stock (partagé entre les semaines, la plus proche
 d'abord). Le stock n'est jamais décompté quand on cuisine.
+
+**Frais à acheter plus tard** : chaque besoin garde ses parts jour de repas par jour de repas (`parts`). Une part
+fraîche (`isFresh` : rayon deviné ou choisi parmi Fruits et légumes, Boucherie, Poissonnerie, Crèmerie, Boulangerie,
+moins une courte liste de produits qui se gardent) dont le jour d'achat (`FRESH.days` = 3 jours avant le repas) est
+après aujourd'hui attend : elle n'entre pas dans les lignes voulues (`desiredLines`), donc ni sur la liste ni au drive.
+Les déductions (acheté, stock) s'appliquent au besoin entier et couvrent d'abord les premiers repas : ce qui reste à
+acheter revient aux parts les plus tardives. La synchronisation tournant à chaque nouveau jour, une part rejoint la
+liste d'elle-même le jour venu, sur la ligne ouverte de son ingrédient (ou une nouvelle, si celle-ci est cochée).
+« Acheter maintenant » range la clé dans `menus.json` (`now`, par semaine ; `PUT /api/menu/now`, un parent) : plus
+rien n'attend pour cet ingrédient cette semaine. `GET /api/lists` renvoie les parts qui attendent (`later`) à côté de
+la liste.
 
 Le stock sait qu'un paquet est entré et pas encore sorti, pas combien il en reste. D'où la règle du **paquet
 peut-être entamé** : un produit relié qui s'utilise en plusieurs fois (attribut `partial` du lien ; absent, valeur

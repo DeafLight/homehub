@@ -28,6 +28,14 @@
 //
 // Arrondi au paquet (packsFor) : quand un produit est relié à l'ingrédient et que les unités se comparent, la ligne
 // dit combien de paquets acheter (« 250 g (2 × 200 g) »).
+//
+// Frais à acheter plus tard (laterParts, planNeeds) : un produit frais (rayon Fruits et légumes, Boucherie,
+// Poissonnerie, Crèmerie ou Boulangerie, sauf ce qui se garde bien : oignon, pomme de terre, carotte, beurre, œufs, parmesan…)
+// d'un repas prévu plus de FRESH.days jours après aujourd'hui n'est pas encore mis sur la liste : il attend « À acheter
+// plus tard », avec le jour où l'acheter (jour du repas − FRESH.days), puis rejoint la liste de lui-même ce jour-là
+// (la synchronisation tourne à chaque nouveau jour). Un repas sans jour : tout de suite, comme avant. Un même
+// ingrédient d'un repas tôt et d'un repas tard : seule la part du repas tardif attend ; ce qu'on a déjà (acheté, en
+// stock) couvre d'abord les premiers repas. « Acheter maintenant » avance tout l'ingrédient pour la semaine.
 import { localDay } from './dates.ts';
 import { guessAisle, ingredientKey, parseIngredient } from './ingredients.ts';
 import {
@@ -42,7 +50,7 @@ import {
   subtractQuantities,
 } from './quantities.ts';
 import { type RecipeContent, scaleFactor } from './recipes.ts';
-import type { Author, ShoppingMenuMark } from './types.ts';
+import type { Author, ShoppingLater, ShoppingMenuMark } from './types.ts';
 
 export const MENU_LIMITS = { entries: 40, people: 50, pantry: 60, name: 80, weeksAhead: 4, weeksKept: 12 } as const;
 
@@ -67,6 +75,9 @@ export type MenuRecipe = Pick<RecipeContent, 'title' | 'servings' | 'servingsUni
 
 export type NeedSource = { recipeId: string; title: string; count: number };
 
+/** Ce qu'apportent à un ingrédient les recettes d'un même jour (null : sans jour). */
+export type NeedPart = { day: string | null; quantities: Quantities; toTaste: boolean; sources: NeedSource[] };
+
 /** Un ingrédient de la semaine, toutes recettes confondues. */
 export type Need = {
   key: string;
@@ -79,6 +90,8 @@ export type Need = {
   /** Facultatif dans toutes ses recettes. */
   optional: boolean;
   sources: NeedSource[];
+  /** Le même besoin, jour de repas par jour de repas (pour savoir ce qui peut s'acheter plus tard). */
+  parts: NeedPart[];
 };
 
 // --- Semaines ---
@@ -96,6 +109,12 @@ export function weekOf(date: Date): string {
 export function addWeeks(week: string, count: number): string {
   const d = dayOf(week);
   return localDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7 * count));
+}
+
+/** Jour décalé de `count` jours (AAAA-MM-JJ). */
+export function addDays(day: string, count: number): string {
+  const d = dayOf(day);
+  return localDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + count));
 }
 
 /** Les sept jours d'une semaine. */
@@ -128,6 +147,12 @@ export const labelKey = (label: string) => ingredientKey(parseIngredient(label).
 
 const capitalize = (text: string) => (text ? text[0].toUpperCase() + text.slice(1) : text);
 
+function addSource(sources: NeedSource[], recipeId: string, title: string, count = 1) {
+  const source = sources.find((s) => s.recipeId === recipeId);
+  if (source) source.count += count;
+  else sources.push({ recipeId, title, count });
+}
+
 /**
  * Ingrédients d'une semaine : chaque recette mise à l'échelle de ses personnes (portions de notre version, sinon
  * telle quelle), puis regroupés par clé. Une plage (« 2 à 3 ») compte pour sa borne haute : mieux vaut en avoir assez.
@@ -145,20 +170,26 @@ export function aggregateNeeds(entries: readonly MenuEntry[], recipeOf: (id: str
       if (!key) continue;
       let need = needs.get(key);
       if (!need) {
-        need = { key, name: capitalize(line.name), aisle: line.aisle ?? guessAisle(key), quantities: {}, toTaste: false, optional: true, sources: [] };
+        need = { key, name: capitalize(line.name), aisle: line.aisle ?? guessAisle(key), quantities: {}, toTaste: false, optional: true, sources: [], parts: [] };
         needs.set(key, need);
+      }
+      let part = need.parts.find((p) => p.day === entry.day);
+      if (!part) {
+        part = { day: entry.day, quantities: {}, toTaste: false, sources: [] };
+        need.parts.push(part);
       }
       const amount = line.quantityMax ?? line.quantity;
       if (amount !== null && line.unit !== null) {
-        need.quantities = addQuantities(need.quantities, scaleQuantities(quantitiesOf(amount, line.unit), factor));
-      } else need.toTaste = true;
+        const scaled = scaleQuantities(quantitiesOf(amount, line.unit), factor);
+        need.quantities = addQuantities(need.quantities, scaled);
+        part.quantities = addQuantities(part.quantities, scaled);
+      } else need.toTaste = part.toTaste = true;
       need.optional &&= line.optional;
       // Un ingrédient cité deux fois dans la même recette ne compte qu'une fois la recette.
       if (seen.has(key)) continue;
       seen.add(key);
-      const source = need.sources.find((s) => s.recipeId === entry.recipeId);
-      if (source) source.count++;
-      else need.sources.push({ recipeId: entry.recipeId, title: recipe.title, count: 1 });
+      addSource(need.sources, entry.recipeId, recipe.title);
+      addSource(part.sources, entry.recipeId, recipe.title);
     }
   }
   return [...needs.values()];
@@ -184,6 +215,53 @@ export function largestNeeds(recipes: Iterable<Pick<MenuRecipe, 'ingredients'>>)
     }
   }
   return largest;
+}
+
+// --- Frais à acheter plus tard ---
+
+/**
+ * Frais : rayons de ce qui se garde peu, et délai entre l'achat et le repas. Un repas prévu plus de `days` jours après
+ * aujourd'hui : ses produits frais s'achètent `days` jours avant lui.
+ */
+export const FRESH = { days: 3, aisles: ['Fruits et légumes', 'Boucherie', 'Poissonnerie', 'Crèmerie', 'Boulangerie'] } as const;
+
+/** Produits de ces rayons qui se gardent bien : achetés tout de suite, comme le reste. */
+const KEEPS_WELL = /^(oignon|echalote|ail|pomme-de-terre|patate|courge|butternut|potiron|chataigne|carotte|navet|citron|orange|beurre|oeuf|parmesan|gruyere|emmental|comte)(-|$)/u;
+
+/** Un ingrédient frais, d'après sa clé et son rayon (deviné, ou choisi dans notre version). */
+export const isFresh = (key: string, aisle: string | null) => aisle !== null && (FRESH.aisles as readonly string[]).includes(aisle) && !KEEPS_WELL.test(key);
+
+/** Jour où acheter les produits frais d'un repas. */
+export const freshBuyDay = (mealDay: string) => addDays(mealDay, -FRESH.days);
+
+/** Ce qui attend pour un jour d'achat : quantités, recettes. */
+export type Waiting = { day: string; quantities: Quantities; toTaste: boolean; sources: NeedSource[] };
+
+/**
+ * Parts d'un ingrédient qui peuvent attendre (frais d'un repas dont le jour d'achat est après `today`), par jour
+ * d'achat croissant ; et ce qui est à acheter tout de suite : s'il le faut sans quantité, et ses recettes.
+ */
+export function laterParts(need: Need, today: string): { waiting: Waiting[]; nowToTaste: boolean; nowSources: NeedSource[] } {
+  const result = { waiting: [] as Waiting[], nowToTaste: false, nowSources: [] as NeedSource[] };
+  const fresh = isFresh(need.key, need.aisle);
+  for (const part of need.parts) {
+    const day = fresh && part.day ? freshBuyDay(part.day) : null;
+    if (day === null || day <= today) {
+      result.nowToTaste ||= part.toTaste;
+      for (const s of part.sources) addSource(result.nowSources, s.recipeId, s.title, s.count);
+      continue;
+    }
+    let waiting = result.waiting.find((w) => w.day === day);
+    if (!waiting) {
+      waiting = { day, quantities: {}, toTaste: false, sources: [] };
+      result.waiting.push(waiting);
+    }
+    waiting.quantities = addQuantities(waiting.quantities, part.quantities);
+    waiting.toTaste ||= part.toTaste;
+    for (const s of part.sources) addSource(waiting.sources, s.recipeId, s.title, s.count);
+  }
+  result.waiting.sort((a, b) => a.day.localeCompare(b.day));
+  return result;
 }
 
 // --- Ce qu'on a déjà ---
@@ -219,9 +297,18 @@ export type HaveState = {
   checks: ReadonlyMap<string, CheckDecision>;
   /** Contenances des produits reliés à chaque clé (en stock ou non), pour l'arrondi au paquet. */
   packs: ReadonlyMap<string, readonly Amount[]>;
+  /**
+   * Frais à acheter plus tard : aujourd'hui (AAAA-MM-JJ), et les clés avancées à la main (« Acheter maintenant »)
+   * pour cette semaine. Absent : tout s'achète tout de suite (semaine passée).
+   */
+  later?: { today: string; advanced: ReadonlySet<string> };
 };
 
-export type PlanStatus = 'buy' | 'pantry' | 'have' | 'manual' | 'bought' | 'stock';
+/** « later » : rien à acheter tout de suite, tout attend « À acheter plus tard ». */
+export type PlanStatus = 'buy' | 'later' | 'pantry' | 'have' | 'manual' | 'bought' | 'stock';
+
+/** Part d'un ingrédient frais à acheter plus tard : à partir de `day`, pour les recettes `sources`. */
+export type LaterPart = { day: string; buy: Quantities; buyToTaste: boolean; packs: Packs | null; sources: NeedSource[] };
 
 /**
  * Stock trouvé pour une ligne : `quantities`, ce que les paquets sûrs couvrent ; `enough` false, il en manque ; null,
@@ -246,6 +333,10 @@ export type PlanLine = Need & {
   check: CheckState | null;
   /** Paquets à acheter (ligne « buy » seulement, produit relié et unités qui se comparent). */
   packs: Packs | null;
+  /** Parts fraîches qui attendent, par jour d'achat (sur une ligne « buy » : en plus de ce qui s'achète maintenant). */
+  later: LaterPart[];
+  /** Des parts auraient attendu, mais « Acheter maintenant » les a avancées. */
+  advanced: boolean;
 };
 
 /** Ce qui reste à acheter pour chaque ingrédient d'une semaine (le stock du `state` est consommé au passage). */
@@ -260,6 +351,8 @@ export function planNeeds(needs: readonly Need[], state: HaveState): PlanLine[] 
       bought: null,
       check: null,
       packs: null,
+      later: [],
+      advanced: false,
       ...extra,
     });
     if (inPantry(need.key, state.pantry)) return line('pantry');
@@ -300,7 +393,29 @@ export function planNeeds(needs: readonly Need[], state: HaveState): PlanLine[] 
       if (enough === true) return line('stock', { stock, bought, check });
     }
     if (isEmpty(rest) && !toTaste) return line(bought ? 'bought' : 'stock', { stock, bought });
-    return line('buy', { buy: rest, buyToTaste: isEmpty(rest), stock, bought, check, packs: packsFor(rest, state.packs.get(need.key)) });
+    const sizes = state.packs.get(need.key);
+    const all = (extra: Partial<PlanLine> = {}) => line('buy', { buy: rest, buyToTaste: isEmpty(rest), stock, bought, check, packs: packsFor(rest, sizes), ...extra });
+    const split = state.later ? laterParts(need, state.later.today) : null;
+    if (!split || split.waiting.length === 0) return all();
+    if (state.later!.advanced.has(need.key)) return all({ advanced: true });
+
+    // Ce qu'on a déjà couvre d'abord les premiers repas : ce qui reste à acheter revient aux derniers.
+    const waitingTotal = split.waiting.reduce<Quantities>((sum, w) => addQuantities(sum, w.quantities), {});
+    const now = subtractQuantities(rest, waitingTotal).rest;
+    let left = subtractQuantities(rest, now).rest;
+    const later: LaterPart[] = [];
+    for (const w of [...split.waiting].reverse()) {
+      const take = subtractQuantities(left, subtractQuantities(left, w.quantities).rest).rest;
+      left = subtractQuantities(left, take).rest;
+      later.unshift({ day: w.day, buy: take, buyToTaste: false, packs: packsFor(take, sizes), sources: w.sources });
+    }
+    // Sans quantité (« persil ») et seulement pour des repas tardifs : à acheter pour le premier d'entre eux.
+    const nowToTaste = toTaste && split.nowToTaste;
+    const tasteFor = toTaste && !split.nowToTaste ? split.waiting.findIndex((w) => w.toTaste) : -1;
+    if (tasteFor >= 0) later[tasteFor].buyToTaste = isEmpty(later[tasteFor].buy);
+    const waiting = later.filter((l, i) => !isEmpty(l.buy) || i === tasteFor);
+    if (isEmpty(now) && !nowToTaste) return line('later', { stock, bought, check, later: waiting });
+    return line('buy', { buy: now, buyToTaste: isEmpty(now), sources: split.nowSources, stock, bought, check, packs: packsFor(now, sizes), later: waiting });
   });
 }
 
@@ -366,6 +481,22 @@ export function desiredLines(plan: readonly PlanLine[], week: string): DesiredLi
         ...(l.packs && { packs: l.packs }),
       },
     }));
+}
+
+/** Parts fraîches d'une semaine qui attendent « À acheter plus tard » (liste de courses), par jour d'achat. */
+export function laterLines(plan: readonly PlanLine[], week: string): ShoppingLater[] {
+  return plan
+    .flatMap((l) =>
+      l.later.map((part) => ({
+        week,
+        key: l.key,
+        label: shoppingLabel(l.optional ? `${l.name} (facultatif)` : l.name, part.buy, part.packs),
+        day: part.day,
+        aisle: l.aisle,
+        sources: part.sources.map(sourceLabel),
+      })),
+    )
+    .sort((a, b) => a.day.localeCompare(b.day));
 }
 
 type ShoppingLike = { id: string; label: string; done: boolean; menu?: ShoppingMenuMark };

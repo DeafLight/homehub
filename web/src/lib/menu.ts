@@ -1,11 +1,11 @@
 // Affichage du menu de la semaine (tablette et téléphone) : semaines et jours en toutes lettres, recettes rangées
-// par jour, courses rangées par rayon avec ce qu'on a déjà (et ce qui est à vérifier au placard), et la liste de
-// courses rangée par rayon elle aussi. Les calculs (agrégation, stock, paquet peut-être entamé, arrondi au paquet)
+// par jour, courses rangées par rayon avec ce qu'on a déjà (et ce qui est à vérifier au placard), les frais d'un
+// repas tardif « À acheter plus tard » rangés par jour d'achat, et la liste de courses rangée par rayon elle aussi. Les calculs (agrégation, stock, paquet peut-être entamé, arrondi au paquet)
 // sont faits par le serveur avec shared/menu.ts ; ici, seulement la présentation.
-import { formatPacks, labelKey, type MenuViewEntry, type PlanLine, sourceLabel, weekDays } from '../../../shared/menu.ts';
+import { formatPacks, labelKey, type LaterPart, type MenuViewEntry, type PlanLine, sourceLabel, weekDays } from '../../../shared/menu.ts';
 import { guessAisle, type Unit } from '../../../shared/ingredients.ts';
 import { formatQuantities, isEmpty } from '../../../shared/quantities.ts';
-import type { ShoppingItem } from '../../../shared/types.ts';
+import type { ShoppingItem, ShoppingLater } from '../../../shared/types.ts';
 import { parseDay } from './lists.ts';
 
 const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric' });
@@ -69,17 +69,44 @@ export function byAisle<T>(items: readonly T[], aisleOf: (item: T) => string | n
 /** Rayon d'un article de la liste : celui du menu, sinon deviné d'après son libellé (« Yaourts nature » → Crèmerie). */
 export const itemAisle = (item: Pick<ShoppingItem, 'label' | 'menu'>) => item.menu?.aisle ?? guessAisle(labelKey(item.label));
 
+/** Part fraîche qui attend, avec sa ligne. */
+export type LaterRow = { line: PlanLine; part: LaterPart };
+
 /**
  * Courses du menu : ce qui est à vérifier au placard (encore dans les courses tant qu'on n'a pas décidé), ce qu'il
- * reste à acheter, par rayon, puis ce qu'on a déjà (ou qui est sur la liste à la main).
+ * reste à acheter, par rayon, les frais à acheter plus tard (par jour d'achat), puis ce qu'on a déjà (ou qui est sur
+ * la liste à la main).
  */
-export function planGroups(plan: readonly PlanLine[]): { toCheck: PlanLine[]; toBuy: AisleGroup<PlanLine>[]; covered: PlanLine[] } {
+export function planGroups(plan: readonly PlanLine[]): { toCheck: PlanLine[]; toBuy: AisleGroup<PlanLine>[]; later: LaterRow[]; covered: PlanLine[] } {
   const toCheck = (l: PlanLine) => l.status === 'buy' && l.check === 'ask';
   return {
     toCheck: plan.filter(toCheck),
     toBuy: byAisle(plan.filter((l) => l.status === 'buy' && !toCheck(l)), (l) => l.aisle),
-    covered: plan.filter((l) => l.status !== 'buy'),
+    later: plan.flatMap((line) => line.later.map((part) => ({ line, part }))).sort((a, b) => a.part.day.localeCompare(b.part.day)),
+    covered: plan.filter((l) => l.status !== 'buy' && l.status !== 'later'),
   };
+}
+
+/** Quantité d'une part qui attend : « 20 cl », « 400 g (2 × 200 g) », rien pour « persil ». */
+export function laterAmount(part: LaterPart): string {
+  const amount = formatQuantities(part.buy);
+  return part.packs && amount ? `${amount} (${formatPacks(part.packs)})` : amount;
+}
+
+/** Jour d'achat en clair : « Demain », sinon « Jeudi 19 ». */
+export const buyDayLabel = (day: string, today: string) => {
+  const tomorrow = parseDay(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return parseDay(day).getTime() === tomorrow.getTime() ? 'Demain' : dayLabel(day);
+};
+
+export type LaterGroup = { day: string; items: ShoppingLater[] };
+
+/** Frais à acheter plus tard de la liste de courses, par jour d'achat (dans l'ordre). */
+export function laterByDay(items: readonly ShoppingLater[]): LaterGroup[] {
+  const groups = new Map<string, ShoppingLater[]>();
+  for (const item of [...items].sort((a, b) => a.day.localeCompare(b.day))) groups.set(item.day, [...(groups.get(item.day) ?? []), item]);
+  return [...groups.entries()].map(([day, list]) => ({ day, items: list }));
 }
 
 const products = (names: string[]) => names.join(', ');
@@ -105,12 +132,15 @@ export function lineStatus(line: PlanLine): string | null {
       return 'Déjà sur la liste';
     case 'bought':
       return 'Acheté';
+    case 'later':
+      return 'À acheter plus tard';
     case 'stock':
       if (line.check === 'enough') return `Assez au placard (${products(line.stock?.opened ?? [])})`;
       return `En stock (${products(line.stock?.products ?? [])})`;
     case 'buy': {
       if (line.check === 'ask') return `Paquet peut-être entamé (${products(line.stock?.opened ?? [])})`;
       if (line.check === 'needed') return 'Vérifié : il en faut';
+      if (line.advanced && !line.stock && !line.bought) return 'Avancé : à acheter maintenant';
       if (!line.stock) return line.bought ? `Déjà acheté : ${formatQuantities(line.bought.quantities)}` : null;
       if (line.stock.enough === null) return `En stock, à vérifier (${products(line.stock.products)})`;
       if (isEmpty(line.stock.quantities)) return `En stock, pas assez (${products(line.stock.products)})`;

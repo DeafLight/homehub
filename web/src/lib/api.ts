@@ -218,6 +218,8 @@ export type Api = {
   setMenuHave(week: string, key: string, have: boolean): Promise<void>;
   /** « À vérifier au placard » : « J'en ai assez », « Il en faut », ou oublier la décision (`null`). */
   setMenuCheck(week: string, key: string, decision: CheckDecision | null): Promise<void>;
+  /** Frais d'un repas tardif : « Acheter maintenant » (true) ou remis à plus tard (false). */
+  setMenuNow(week: string, key: string, now: boolean): Promise<void>;
   setPantry(names: string[]): Promise<{ names: string[] }>;
   /** Relier un produit du stock à un ingrédient, ou `null` : « pas un ingrédient ». */
   setStockLink(code: string, link: StockLink | null): Promise<void>;
@@ -388,6 +390,7 @@ export function createApi(
     removeMenuEntry: (id) => send('DELETE', `/menu/entries/${encodeURIComponent(id)}`),
     setMenuHave: (week, key, have) => send('PUT', '/menu/have', { week, key, have }),
     setMenuCheck: (week, key, decision) => send('PUT', '/menu/check', { week, key, decision }),
+    setMenuNow: (week, key, now) => send('PUT', '/menu/now', { week, key, now }),
     setPantry: (names) => send('PUT', '/menu/pantry', { names }),
     setStockLink: (code, link) => send('PUT', `/menu/links/${encodeURIComponent(code)}`, { link }),
     forgetStockLink: (code) => send('DELETE', `/menu/links/${encodeURIComponent(code)}`),

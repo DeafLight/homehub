@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.56.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.57.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -112,6 +112,13 @@ faut », le gruyère reste dans les courses, arrondi au paquet (« 160 g (1 × 2
 les produits du stock à relier aux ingrédients.
 
 ![Menu de la semaine](images/tablette-menu.png)
+
+La semaine prochaine : riz sauté lundi, poulet aux courgettes mercredi. Leurs produits frais ne sont pas encore sur la
+liste : ils attendent dans **« À acheter plus tard »**, rangés par jour d'achat (trois jours avant le repas : petits pois
+vendredi, poulet, courgettes, crème et persil dimanche) ; « Acheter maintenant » les met tout de suite sur la liste. Le
+riz, l'oignon et la carotte, qui se gardent, y sont déjà.
+
+![Frais à acheter plus tard](images/tablette-menu-plus-tard.png)
 
 ### Stock
 
@@ -295,7 +302,8 @@ de personnes, jour), la règle ou la retire d'un geste (croix, « Annuler » que
 modifier : « À vérifier au placard » s'affiche, sans les boutons. « Stock » propose de relier un produit à un
 ingrédient : deviné d'après le nom et la contenance, confirmé une fois, puis retenu ; « S'utilise en plusieurs fois »
 est deviné (« deviné ») et se change d'une case. Sur la liste de courses, la ligne du gruyère dit « À vérifier : paquet
-peut-être entamé ».
+peut-être entamé ». Les frais d'un repas tardif attendent « À acheter plus tard », dans le menu comme en bas de la
+liste de courses, par jour d'achat (« Demain », « Dimanche 8 »), avec « Acheter maintenant » pour un parent.
 
 
 | Menu | Ajouter une recette | Stock et ingrédients |
@@ -303,6 +311,8 @@ peut-être entamé ».
 | ![Menu](images/telephone-menu.png) | ![Ajouter une recette](images/telephone-menu-ajout.png) | ![Stock et ingrédients](images/telephone-menu-stock.png) |
 
 <img src="images/telephone-menu-placard.png" width="260" alt="À vérifier au placard, vu par un enfant"> <img src="images/telephone-courses-verifier.png" width="260" alt="Liste de courses : gruyère à vérifier, arrondi au paquet">
+
+<img src="images/telephone-menu-plus-tard.png" width="260" alt="Menu de la semaine prochaine : frais à acheter plus tard"> <img src="images/telephone-courses-plus-tard.png" width="260" alt="Liste de courses : à acheter plus tard, par jour">
 
 ### Drive du téléphone
 

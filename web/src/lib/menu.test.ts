@@ -1,7 +1,7 @@
 // Tests de l'affichage du menu : semaines et jours, recettes par jour, rayons, ce qu'on a déjà en clair.
 import { describe, expect, it } from 'vitest';
 import type { MenuViewEntry, PlanLine } from '../../../shared/menu.ts';
-import { byAisle, dayLabel, entriesByDay, itemAisle, lineAmount, lineSources, lineStatus, parsePantry, peopleLabel, planGroups, weekLabel, weekRange } from './menu.ts';
+import { buyDayLabel, byAisle, dayLabel, entriesByDay, itemAisle, laterAmount, laterByDay, lineAmount, lineSources, lineStatus, parsePantry, peopleLabel, planGroups, weekLabel, weekRange } from './menu.ts';
 
 const W = '2026-11-09';
 const entry = (id: string, day: string | null): MenuViewEntry => ({
@@ -32,6 +32,9 @@ const line = (over: Partial<PlanLine>): PlanLine => ({
   bought: null,
   check: null,
   packs: null,
+  parts: [],
+  later: [],
+  advanced: false,
   ...over,
 });
 
@@ -104,6 +107,30 @@ describe('courses du menu', () => {
     expect(groups.toCheck.map((l) => l.key)).toEqual(['gruyere']);
     expect(groups.toBuy.flatMap((g) => g.items.map((l) => l.key))).toEqual(['lait', 'beurre']);
     expect(groups.covered.map((l) => l.key)).toEqual(['oeuf']);
+  });
+
+  it('frais à acheter plus tard : par jour d’achat, à part de ce qu’on a déjà', () => {
+    const part = (day: string, volume: number) => ({ day, buy: { volume }, buyToTaste: false, packs: null, sources: [{ recipeId: 'b', title: 'Galettes', count: 1 }] });
+    const waiting = line({ key: 'creme', status: 'later', buy: {}, later: [part('2026-11-12', 200)] });
+    const both = line({ key: 'lait', later: [part('2026-11-11', 500)] });
+    const groups = planGroups([waiting, both, line({ key: 'sel', status: 'pantry' })]);
+    expect(groups.later.map((r) => [r.line.key, r.part.day])).toEqual([
+      ['lait', '2026-11-11'],
+      ['creme', '2026-11-12'],
+    ]);
+    expect(groups.toBuy.flatMap((g) => g.items.map((l) => l.key))).toEqual(['lait']);
+    expect(groups.covered.map((l) => l.key)).toEqual(['sel']);
+    expect(laterAmount(part('2026-11-12', 200))).toBe('20 cl');
+    expect(laterAmount({ ...part('2026-11-12', 2000), packs: { count: 2, per: { quantity: 1, unit: 'l' } } })).toBe('2 l (2 × 1 l)');
+    expect(lineSources(groups.later[0].part)).toBe('Galettes');
+    expect(lineStatus(line({ advanced: true }))).toBe('Avancé : à acheter maintenant');
+    expect(buyDayLabel('2026-11-10', W)).toBe('Demain');
+    expect(buyDayLabel('2026-11-12', W)).toBe('Jeudi 12');
+    const item = (key: string, day: string) => ({ week: W, key, label: key, day, aisle: null, sources: [] });
+    expect(laterByDay([item('a', '2026-11-12'), item('b', '2026-11-10'), item('c', '2026-11-12')]).map((g) => [g.day, g.items.map((i) => i.key)])).toEqual([
+      ['2026-11-10', ['b']],
+      ['2026-11-12', ['a', 'c']],
+    ]);
   });
 
   it('placards saisis en une ligne', () => {

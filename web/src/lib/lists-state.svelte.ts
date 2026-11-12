@@ -1,7 +1,7 @@
 // Listes affichées par la tablette et le téléphone : chargées et rafraîchies, avec les actions qui les modifient.
 // Les cases cochées changent tout de suite ; après chaque action on relit les listes (tâche suivante d'une tâche
 // qui revient, ajout d'un autre appareil entre-temps).
-import { FAMILY_ID, type Lists, type ListTask, type ShoppingItem } from '../../../shared/types.ts';
+import { FAMILY_ID, type Lists, type ListTask, type ShoppingItem, type ShoppingLater } from '../../../shared/types.ts';
 import type { NewTask } from '../../../shared/types.ts';
 import { type Api, ApiError } from './api.ts';
 import { createResource } from './resource.svelte.ts';
@@ -16,6 +16,8 @@ export type ListsState = {
   setShoppingDone(item: ShoppingItem, done: boolean): Promise<void>;
   removeShopping(item: ShoppingItem): Promise<void>;
   clearShopping(): Promise<void>;
+  /** Frais du menu qui attendaient : « Acheter maintenant » (un parent). */
+  buyNow(item: ShoppingLater): Promise<void>;
   addTask(task: NewTask): Promise<void>;
   setTaskDone(task: ListTask, done: boolean): Promise<void>;
   removeTask(task: ListTask): Promise<void>;
@@ -88,6 +90,14 @@ export function createListsState(api: Api, { refreshMs, guard = async () => true
           FAMILY_ID,
           () => api.clearShopping(),
           (data) => ({ ...data, shopping: data.shopping.filter((s) => !s.done) }),
+        ),
+      ),
+    buyNow: (item) =>
+      quiet(
+        run(
+          FAMILY_ID,
+          () => api.setMenuNow(item.week, item.key, true),
+          (data) => ({ ...data, later: data.later?.filter((l) => l.week !== item.week || l.key !== item.key) }),
         ),
       ),
     addTask: (task) => run(task.ownerId, () => api.addTask(task)),

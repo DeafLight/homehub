@@ -1,9 +1,10 @@
 // Routes des listes (courses, tâches) et des mots. Lecture ouverte comme le reste de l'API ; écriture : téléphones
 // appairés (pour leur profil) et tablette (pour la personne reconnue), un parent partout (famille comprise), un enfant
 // sur son profil seulement. Les lignes du menu de la semaine arrivent d'elles-mêmes sur la liste de courses
-// (services/menu.ts) ; en retirer une à la main vaut « j'en ai déjà » pour sa semaine.
+// (services/menu.ts) ; en retirer une à la main vaut « j'en ai déjà » pour sa semaine. Les frais d'un repas tardif
+// attendent à part (`later`), jusqu'au jour où les acheter.
 import { z } from 'zod';
-import { FAMILY_ID } from '../shared/types.ts';
+import { FAMILY_ID, type Lists } from '../shared/types.ts';
 import type { Access } from './access.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
@@ -42,9 +43,10 @@ export function createListsApi({ household, lists, notes, access, menu }: ListsA
   const taskOwner = async (id: string) => (await lists.lists()).tasks.find((t) => t.id === id)?.ownerId ?? fail(404, 'Tâche inconnue');
 
   api.get('/lists', async (c) => {
-    // Nouvelle semaine : les lignes du menu de la semaine passée laissent la place à celles de la nouvelle.
-    await menu?.refreshIfNewWeek();
-    return c.json(await lists.lists());
+    // Nouveau jour : les frais attendus rejoignent la liste ; nouvelle semaine : les lignes de la passée s'en vont.
+    if (!menu) return c.json(await lists.lists());
+    await menu.refreshIfNewDay();
+    return c.json({ ...(await lists.lists()), later: await menu.later() } satisfies Lists);
   });
 
   api.post('/lists/shopping', async (c) => {

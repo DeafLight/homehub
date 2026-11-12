@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
+  import { localDay } from '../../../shared/dates.ts';
   import { itemName } from '../../../shared/drive.ts';
   import type { Note, ShoppingItem, Task } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
@@ -268,6 +269,9 @@
             onRemove={lists.removeShopping}
             onClear={lists.clearShopping}
             drive={drive.data ? { view: drive.data, onProduct: (item) => (driveItem = item) } : null}
+            later={lists.data.later ?? []}
+            today={localDay(clock.now)}
+            onNow={member?.parent ? lists.buyNow : undefined}
           />
         {:else}
           {#if routine.data}

@@ -121,6 +121,8 @@ process.on('exit', () => {
 // --- Serveur : lancé à DOCS_NOW ; relancé plus loin à d'autres instants (vacances scolaires), même dossier d'état.
 let server: ChildProcess | undefined;
 async function startServer(now = DOCS_NOW): Promise<void> {
+  // Port déjà pris (captures d'une autre copie du dépôt) : s'arrêter, sinon on écrirait dans son monde fictif.
+  if (!server && (await fetch(`${BASE}/api/health`).then(() => true, () => false))) throw new Error(`port ${PORT} déjà occupé par un autre serveur HomeHub : attendre qu'il s'arrête`);
   if (server && server.exitCode === null && server.signalCode === null) await new Promise((r) => {
     server!.once('exit', r);
     server!.kill();
@@ -568,6 +570,30 @@ const fakeDetector = `globalThis.BarcodeDetector = class {
   async detect() { return [{ rawValue: '${DOCS_PRODUCTS.pates}', format: 'ean_13' }]; }
 };`;
 await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeDetector, camera: true, wait: 4000 });
+
+// Frais à acheter plus tard : deux repas de la semaine prochaine, ajoutés en dernier (les autres captures gardent la
+// liste sans eux). Riz sauté lundi 9 : les petits pois attendent vendredi 6 (« Demain ») ; poulet aux courgettes
+// mercredi 11 : poulet, courgettes, crème et persil attendent dimanche 8 ; le riz, l'oignon et la carotte (qui se
+// gardent) rejoignent la liste tout de suite.
+const LATER_SHOTS = ['telephone-courses-plus-tard', 'telephone-menu-plus-tard', 'tablette-menu-plus-tard'];
+if (!only || LATER_SHOTS.some((name) => only.test(name))) {
+  const poulet = (await call(A, 'POST', '/recipes', {
+    content: {
+      title: 'Poulet aux courgettes',
+      servings: 4,
+      ingredients: ['4 blancs de poulet', '3 courgettes', '20 cl de crème fraîche', '1 oignon', '250 g de riz', 'Persil'].map((text) => ({ text })),
+      steps: ['Dorer le poulet en morceaux avec l’oignon.', 'Ajouter les courgettes en dés, cuire 15 minutes.', 'Verser la crème, parsemer de persil ; servir avec le riz.'].map((text) => ({ text })),
+    },
+  })) as { id: string };
+  const NEXT = '2026-11-09';
+  await call(A, 'POST', '/menu/entries', { week: NEXT, recipeId: recipeId('Riz sauté'), people: 4, day: '2026-11-09' });
+  await call(A, 'POST', '/menu/entries', { week: NEXT, recipeId: poulet.id, people: 4, day: '2026-11-11' });
+}
+const laterHead = `[...document.querySelectorAll('.basket-head')].find((h) => h.textContent.includes('plus tard'))?.scrollIntoView({ block: 'start' })`;
+await shoot('telephone-courses-plus-tard', `${BASE}/m`, PHONE, { init: asPhone('alex'), after: laterHead });
+const nextWeekLater = `[...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Semaine suivante')?.click(); setTimeout(() => document.querySelector('section.later')?.scrollIntoView({ block: 'start' }), 800)`;
+await shoot('telephone-menu-plus-tard', `${BASE}/m/menu`, PHONE, { init: asPhone('alex'), after: nextWeekLater });
+await shoot('tablette-menu-plus-tard', `${BASE}/menu`, TABLET, { after: nextWeekLater });
 
 // --- Vacances scolaires (calendrier d'exemple, zone B) : serveur et navigateur relancés à d'autres dates, même état.
 // Lundi 7 décembre : la puce annonce les vacances de Noël ; lundi 21 décembre : vacances, plus de bus ni de cours,

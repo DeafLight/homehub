@@ -1,6 +1,6 @@
 // Tests du menu de la semaine : semaines, agrégation des recettes à l'échelle, ce qu'on a déjà (placards, coche,
-// ligne à la main, déjà acheté, stock, paquet peut-être entamé à vérifier au placard), l'arrondi au paquet et la
-// synchronisation avec la liste de courses, cas limites compris.
+// ligne à la main, déjà acheté, stock, paquet peut-être entamé à vérifier au placard), l'arrondi au paquet, les frais
+// d'un repas tardif à acheter plus tard et la synchronisation avec la liste de courses, cas limites compris.
 import { describe, expect, it } from 'vitest';
 import {
   addWeeks,
@@ -8,8 +8,12 @@ import {
   boughtFor,
   desiredLines,
   type HaveState,
+  addDays,
+  freshBuyDay,
   inPantry,
+  isFresh,
   isWeek,
+  laterLines,
   largestNeeds,
   manualKeys,
   type MenuEntry,
@@ -353,5 +357,97 @@ describe('liste de courses', () => {
       expect(ops.add.find((l) => l.menu.key === 'lentille')?.label).toBe('Lentille · 150 g');
       expect(ops.remove).toEqual([]);
     });
+  });
+});
+
+describe('frais à acheter plus tard', () => {
+  // Lundi 9 novembre : un repas du jeudi 12 (achat lundi) est tout proche, un repas du dimanche 15 (achat jeudi) attend.
+  const today = W;
+  const later = (over: { today?: string; advanced?: string[] } = {}) => ({ later: { today: over.today ?? today, advanced: new Set(over.advanced ?? []) } });
+  const byKey = (lines: ReturnType<typeof planNeeds>) => new Map(lines.map((l) => [l.key, l]));
+
+  it('frais d’après le rayon, sauf ce qui se garde bien ; acheté trois jours avant le repas', () => {
+    expect(isFresh('lait', 'Crèmerie')).toBe(true);
+    expect(isFresh('courgette', 'Fruits et légumes')).toBe(true);
+    expect(isFresh('poulet', 'Boucherie')).toBe(true);
+    expect(isFresh('oignon', 'Fruits et légumes')).toBe(false);
+    expect(isFresh('oignon-rouge', 'Fruits et légumes')).toBe(false);
+    expect(isFresh('pomme-de-terre', 'Fruits et légumes')).toBe(false);
+    expect(isFresh('beurre-demi-sel', 'Crèmerie')).toBe(false);
+    expect(isFresh('pate', 'Épicerie')).toBe(false);
+    expect(isFresh('lait-de-coco', 'Épicerie')).toBe(false);
+    expect(isFresh('truc', null)).toBe(false);
+    expect(freshBuyDay('2026-11-15')).toBe('2026-11-12');
+    expect(addDays('2026-11-30', 2)).toBe('2026-12-02');
+  });
+
+  it('repas tardif : ses frais attendent, le reste est sur la liste tout de suite', () => {
+    const plan = byKey(planNeeds(aggregateNeeds([entry('pates', 4, '2026-11-15')], recipeOf), state(later())));
+    expect(plan.get('lait')).toMatchObject({ status: 'later', buy: {}, later: [{ day: '2026-11-12', buy: { volume: 200 }, buyToTaste: false }] });
+    expect(plan.get('persil')).toMatchObject({ status: 'later', later: [{ day: '2026-11-12', buy: {}, buyToTaste: true }] });
+    expect(plan.get('oignon')).toMatchObject({ status: 'buy', later: [] });
+    expect(plan.get('pate')?.status).toBe('buy');
+    const lines = [...plan.values()];
+    expect(desiredLines(lines, W).map((l) => l.menu.key)).toEqual(['pate', 'oignon']);
+    expect(laterLines(lines, W)).toEqual([
+      { week: W, key: 'lait', label: 'Lait · 20 cl', day: '2026-11-12', aisle: 'Crèmerie', sources: ['Pâtes au thon'] },
+      { week: W, key: 'persil', label: 'Persil', day: '2026-11-12', aisle: 'Fruits et légumes', sources: ['Pâtes au thon'] },
+    ]);
+  });
+
+  it('repas proche ou sans jour : tout de suite, comme avant ; semaine passée : rien n’attend', () => {
+    const near = byKey(planNeeds(aggregateNeeds([entry('pates', 4, '2026-11-12'), entry('gratin', 4)], recipeOf), state(later())));
+    expect(near.get('lait')).toMatchObject({ status: 'buy', buy: { volume: 200 }, later: [] });
+    expect(near.get('courgette')).toMatchObject({ status: 'buy', later: [] });
+    const past = byKey(planNeeds(aggregateNeeds([entry('pates', 4, '2026-11-15')], recipeOf), state()));
+    expect(past.get('lait')?.status).toBe('buy');
+  });
+
+  it('le jour venu, la part qui attendait rejoint la liste', () => {
+    const entries = [entry('pates', 4, '2026-11-15')];
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state(later({ today: '2026-11-11' })))).get('lait')?.status).toBe('later');
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state(later({ today: '2026-11-12' })))).get('lait')).toMatchObject({ status: 'buy', buy: { volume: 200 } });
+  });
+
+  it('même ingrédient tôt et tard : seule la part du repas tardif attend, avec ses recettes', () => {
+    const entries = [entry('pates', 4, '2026-11-09'), entry('galettes', 12, '2026-11-15')];
+    const lait = byKey(planNeeds(aggregateNeeds(entries, recipeOf), state(later()))).get('lait')!;
+    expect(lait).toMatchObject({ status: 'buy', buy: { volume: 200 }, later: [{ day: '2026-11-12', buy: { volume: 500 } }] });
+    expect(lait.sources.map((s) => s.title)).toEqual(['Pâtes au thon']);
+    expect(lait.later[0].sources.map((s) => s.title)).toEqual(['Galettes']);
+    // Persil sans quantité pour le repas de lundi : tout de suite, rien n'attend.
+    const persil = byKey(planNeeds(aggregateNeeds([entry('pates', 4, '2026-11-09'), entry('pates', 4, '2026-11-15')], recipeOf), state(later()))).get('persil')!;
+    expect(persil).toMatchObject({ status: 'buy', buyToTaste: true, later: [] });
+  });
+
+  it('ce qu’on a déjà couvre d’abord les premiers repas', () => {
+    const entries = [entry('pates', 4, '2026-11-09'), entry('galettes', 12, '2026-11-15')];
+    // Les 20 cl du lundi déjà achetés : il ne reste que la part de dimanche, qui attend.
+    const bought = new Map([['lait', { quantities: { volume: 200 }, toTaste: false }]]);
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state({ bought, ...later() }))).get('lait')).toMatchObject({ status: 'later', later: [{ buy: { volume: 500 } }] });
+    // 30 cl en stock : lundi couvert, 10 cl de dimanche aussi ; 40 cl attendent.
+    const stock = stockPool([{ name: 'Lait', count: 1, link: { key: 'lait', name: 'lait', per: { quantity: 30, unit: 'cl' } } }]);
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state({ stock, ...later() }))).get('lait')).toMatchObject({ status: 'later', later: [{ buy: { volume: 400 } }] });
+    // Deux repas tardifs : le plus proche est couvert en premier.
+    const two = [entry('pates', 4, '2026-11-13'), entry('galettes', 12, '2026-11-15')];
+    const stock2 = stockPool([{ name: 'Lait', count: 1, link: { key: 'lait', name: 'lait', per: { quantity: 30, unit: 'cl' } } }]);
+    expect(byKey(planNeeds(aggregateNeeds(two, recipeOf), state({ stock: stock2, ...later() }))).get('lait')?.later).toMatchObject([{ day: '2026-11-12', buy: { volume: 400 } }]);
+    const both = byKey(planNeeds(aggregateNeeds(two, recipeOf), state(later()))).get('lait')!;
+    expect(both.later.map((l) => [l.day, l.buy])).toEqual([
+      ['2026-11-10', { volume: 200 }],
+      ['2026-11-12', { volume: 500 }],
+    ]);
+  });
+
+  it('« Acheter maintenant » avance tout l’ingrédient pour la semaine ; arrondi au paquet de la part qui attend', () => {
+    const entries = [entry('pates', 4, '2026-11-09'), entry('galettes', 12, '2026-11-15')];
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state(later({ advanced: ['lait'] })))).get('lait')).toMatchObject({ status: 'buy', buy: { volume: 700 }, later: [], advanced: true });
+    const packs = new Map([['lait', [{ quantity: 1, unit: 'l' as const }]]]);
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state({ packs, ...later() }))).get('lait')).toMatchObject({ packs: { count: 1 }, later: [{ packs: { count: 1 } }] });
+  });
+
+  it('« j’en ai déjà » et les placards passent avant : rien n’attend', () => {
+    const entries = [entry('pates', 4, '2026-11-15')];
+    expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state({ have: new Set(['lait']), ...later() }))).get('lait')).toMatchObject({ status: 'have', later: [] });
   });
 });
