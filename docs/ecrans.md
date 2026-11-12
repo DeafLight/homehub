@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.57.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.58.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -122,7 +122,7 @@ riz, l'oignon et la carotte, qui se gardent, y sont déjà.
 
 ### Stock
 
-Produits en stock (± 1, « Épuisé »), avec sous chacun la dernière entrée et la dernière sortie (quand, et qui :
+Produits en stock (± 1, « Épuisé » sur chacun, même s'il n'en reste qu'un), avec sous chacun la dernière entrée et la dernière sortie (quand, et qui :
 Alex et Léa par leur téléphone, « anonyme » pour un scan sur la tablette sans personne de reconnu ; un produit épuisé ne dit que quand et par qui il l'a été), contenants de la maison (bocal rechargé, étiquette à imprimer), réglage de la
 liste de courses pour un produit épuisé.
 
@@ -229,7 +229,7 @@ En tête de l'onglet Agenda ; la toucher ouvre le détail.
 ### Stock du téléphone
 
 « Ce qu'il reste à la maison », en haut de l'onglet Courses : pour le voir au magasin. Recherche, produits en stock
-ou épuisés, ± 1 et « Épuisé » ; ni date ni auteur dans la liste, ils restent dans la fiche du produit ; plus bas, les
+ou épuisés, ± 1 et « Épuisé » sur chaque produit ; ni date ni auteur dans la liste, ils restent dans la fiche du produit ; plus bas, les
 contenants en lecture seule.
 
 <img src="images/telephone-stock.png" alt="Stock du téléphone" width="260">

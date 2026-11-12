@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { StockEntry } from '../../../../shared/types.ts';
-  import { filterStock, lastMarksLine, productSubtitle, type StockFilter, stockCounts } from '../../lib/stock.ts';
+  import { canExhaust, filterStock, lastMarksLine, productSubtitle, type StockFilter, stockCounts } from '../../lib/stock.ts';
   import Icon from '../Icon.svelte';
 
   // Inventaire de la page Stock : filtres (en stock, épuisés, tout), puis un produit par ligne avec sa quantité à
-  // corriger à la main. Sur le téléphone, une ligne compacte et sans date ni auteur (dans la fiche du produit).
+  // corriger à la main et « Épuisé » (tout sortir, même s'il n'en reste qu'un). Sur le téléphone, une ligne compacte
+  // et sans date ni auteur (dans la fiche du produit).
   type Props = {
     items: StockEntry[];
     filter: StockFilter;
@@ -51,9 +52,8 @@
           <span class="count">{entry.quantity}</span>
           <button type="button" class="round" aria-label="Un de plus" disabled={busy} onclick={() => onPlus(entry)}><Icon name="plus" size={22} /></button>
         </span>
-        {#if entry.quantity > 1}
-          <button type="button" class="btn small" disabled={busy} onclick={() => onExhaust(entry)}>Épuisé</button>
-        {/if}
+        <!-- Sur chaque produit, même seul (le stock tombe à 0) ; grisé une fois épuisé. -->
+        <button type="button" class="btn small" disabled={busy || !canExhaust(entry)} onclick={() => onExhaust(entry)}>Épuisé</button>
       {:else}
         <span class="count">{entry.quantity}</span>
       {/if}

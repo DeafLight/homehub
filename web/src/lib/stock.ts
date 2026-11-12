@@ -112,6 +112,9 @@ export function stockCounts(items: Pick<StockEntry, 'quantity'>[]): Record<Stock
   return { in: inStock, out: items.length - inStock, all: items.length };
 }
 
+/** « Épuisé » proposé sur chaque produit de la liste, actif dès qu'il en reste un (grisé à 0, comme « − »). */
+export const canExhaust = (entry: Pick<StockEntry, 'quantity'>) => entry.quantity > 0;
+
 /** Sous-titre d'un produit de l'inventaire : marque, contenance, rayon ; sinon une invitation à compléter la fiche. */
 export const productSubtitle = (product: Product) => [productDetail(product.current), product.current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche';
 

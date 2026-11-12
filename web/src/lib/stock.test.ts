@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../../../shared/types.ts';
 import {
+  canExhaust,
   containerState,
   filterStock,
   infoDiff,
@@ -107,6 +108,12 @@ describe('inventaire du stock', () => {
     expect(filterStock(items, 'all', '  ÉPI ').map((i) => i.product.current.name)).toEqual(['Pâtes']);
     expect(filterStock(items, 'out', 'pâtes')).toEqual([]);
     expect(stockCounts(items)).toEqual({ in: 2, out: 1, all: 3 });
+  });
+
+  it('« Épuisé » actif sur un produit seul comme sur plusieurs, grisé à 0', () => {
+    expect(canExhaust({ quantity: 1 })).toBe(true);
+    expect(canExhaust({ quantity: 3 })).toBe(true);
+    expect(canExhaust({ quantity: 0 })).toBe(false);
   });
 
   it('sous-titre d’un produit et état d’un contenant', () => {
