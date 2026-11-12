@@ -64,11 +64,13 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Les deux donnent un **aperçu** à corriger avant d'enregistrer ; la source garde le lien s'il est connu et l'origine
   (« texte collé », « page enregistrée »). **Relire la page** reprend ce que la page donne de nouveau (des étapes manquées à
   l'import) sans écraser ce que notre version a modifié. **Notre version** se modifie (portions par défaut, ingrédients, quantités,
-  étapes, astuces) et c'est elle qui sert ; la source reste visible telle que lue. Chaque ingrédient est analysé
-  (quantité, unité, nom ; « 2 à 3 », « ½ », « une pincée de », « facultatif ») : les quantités suivent les portions
-  choisies, la ligne d'origine est toujours gardée, et une correction à la main (**Ajuster**) l'emporte. Fiche : photo,
-  temps, portions ±, ingrédients, étapes numérotées avec le mode Cookeo et un minuteur en un geste pour chaque durée
-  (« 15 minutes », « 1 h 30 »). **Mode cuisine** (tablette) : une étape à la fois en grand, l'écran reste allumé, pas
+  étapes, astuces) et c'est elle qui sert ; la source reste visible telle que lue. Ingrédients et étapes s'y rangent en
+  **groupes** (« Pour la pâte », « Cuisson ») : créer, renommer, monter ou retirer un groupe (ses lignes rejoignent le
+  groupe d'avant), y ranger une ligne ou l'en sortir ; l'ordre est gardé, et menus, courses et notes suivent. Chaque
+  ingrédient est analysé (quantité, unité, nom ; « 2 à 3 », « ½ », « une pincée de », « facultatif ») : les quantités
+  suivent les portions choisies, la ligne d'origine est toujours gardée, et une correction à la main (**Ajuster**)
+  l'emporte. Fiche : photo, temps, portions ±, ingrédients, étapes numérotées avec le mode Cookeo et un minuteur en
+  un geste pour chaque durée (« 15 minutes », « 1 h 30 »). **Mode cuisine** (tablette) : une étape à la fois en grand, l'écran reste allumé, pas
   de retour à l'accueil. Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
   ou qui a ajouté la recette ; retirer : un parent. **Notes de la famille** sur la fiche (tablette et téléphone, sous
   les ingrédients) : chacun laisse une note signée et datée (« moins salé la prochaine fois », « Tom n'aime pas les

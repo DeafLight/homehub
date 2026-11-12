@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.58.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.59.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -197,8 +197,9 @@ importe un lien, le texte collé d'une page ou une page enregistrée (`.mhtml`),
 
 ![Recettes](images/tablette-recettes.png)
 
-Fiche des galettes, importées par Léa : notre version, avec son astuce et une ligne corrigée à la main (le beurre,
-plus bas). Portions ± (les quantités suivent), étapes numérotées, minuteur en un geste pour chaque durée trouvée dans
+Fiche des galettes, importées par Léa : notre version, avec son astuce, une ligne corrigée à la main (le beurre,
+plus bas) et ses ingrédients et étapes rangés en groupes (« Pour la pâte », « Cuisson »). Portions ± (les quantités
+suivent), étapes numérotées, minuteur en un geste pour chaque durée trouvée dans
 le texte ; « Voir la source » montre la recette telle que lue, et là « Relire la page » reprend ce que la page donne de
 nouveau (des étapes manquées à l'import) sans écraser notre version ; la fiche le propose aussi quand il lui manque
 ses étapes ou ses ingrédients. Sous les ingrédients, les **notes de la famille** : chacune signée (bordure à la
@@ -276,11 +277,15 @@ Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barre
 
 Onglet Recettes : le carnet en liste, la fiche en une colonne, notre version à modifier (ici par Léa, qui a ajouté
 les galettes : chaque ligne d'ingrédient analysée, « Ajuster » pour corriger quantité, unité ou nom, « corrigé » quand
-c'est fait). Une page partagée sans recette lisible (un billet de blog) propose la saisie à la main, lien gardé ; un
+c'est fait). Les groupes se gèrent sur place : le titre d'un groupe se renomme (le nom d'un autre groupe les
+réunit), ↑ le monte, × le retire (ses lignes rejoignent le groupe d'avant) ; chaque ligne choisit son groupe, une ligne
+qui monte au-delà du premier rang de son groupe passe dans celui d'avant, et « Groupe » en crée un nouveau, où vont
+aussi les lignes ajoutées. Une page partagée sans recette lisible (un billet de blog) propose la saisie à la main,
+lien gardé ; un
 lien partagé peut aussi aller sur une liste. Les notes des galettes vues par Léa : la sienne se résout, se modifie ou
 se retire ; celle d'Alex se lit seulement ; la note résolue, dépliée, se rouvre.
 
-<img src="images/telephone-recette-notes.png" alt="Notes de la famille sur une recette" width="260">
+<img src="images/telephone-recette-notes.png" alt="Notes de la famille sur une recette" width="260"> <img src="images/telephone-recette-groupes.png" alt="Groupes des étapes dans notre version" width="260">
 
 | Carnet | Fiche | Notre version | Lien partagé |
 |---|---|---|---|

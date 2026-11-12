@@ -211,8 +211,8 @@ await call('', 'POST', '/stock/out', { code: DOCS_PRODUCTS.riz, all: true });
 await call(L, 'POST', '/stock/out', { code: DOCS_PRODUCTS.lait });
 
 // Carnet de recettes : trois recettes importées du faux site (cuisine.exemple.test), une saisie à la main ; notre
-// version des galettes modifiée (astuce, beurre demi-sel corrigé à la main).
-type Imported = { recipe: { id: string; ours: { ingredients: { text: string }[] } & Record<string, unknown> } };
+// version des galettes modifiée (astuce, beurre demi-sel corrigé à la main, ingrédients et étapes rangés en groupes).
+type Imported = { recipe: { id: string; ours: { ingredients: { text: string }[]; steps: { text: string }[] } & Record<string, unknown> } };
 const lentilles = ((await call(A, 'POST', '/recipes/import', { url: recipeUrl('mijote-lentilles-cookeo') })) as Imported).recipe;
 const galettes = ((await call(L, 'POST', '/recipes/import', { url: recipeUrl('galettes-sarrasin') })) as Imported).recipe;
 await call(A, 'POST', '/recipes/import', { url: `Regarde ça : ${recipeUrl('riz-saute-legumes')}` });
@@ -220,9 +220,12 @@ await call(A, 'PUT', `/recipes/${galettes.id}`, {
   content: {
     ...galettes.ours,
     ingredients: [
-      ...galettes.ours.ingredients.map((l) => (l.text.startsWith('Beurre') ? { ...l, text: 'Beurre demi-sel pour la poêle', name: 'beurre demi-sel', manual: true } : l)),
-      { text: '50 g de gruyère râpé' },
+      ...galettes.ours.ingredients.map((l) =>
+        l.text.startsWith('Beurre') ? { ...l, text: 'Beurre demi-sel pour la poêle', name: 'beurre demi-sel', manual: true, section: 'Pour la cuisson' } : { ...l, section: 'Pour la pâte' },
+      ),
+      { text: '50 g de gruyère râpé', section: 'Pour la cuisson' },
     ],
+    steps: galettes.ours.steps.map((s, i) => ({ ...s, section: i < 3 ? 'La pâte, la veille' : 'Cuisson' })),
     tips: 'La pâte est meilleure préparée la veille. Garniture du dimanche : jambon, emmental et un œuf au plat.',
   },
 });
@@ -486,6 +489,11 @@ await shoot('telephone-recette-notes', `${BASE}/m/recette/${galettes.id}`, PHONE
 await shoot('telephone-recette-modifier', `${BASE}/m/recette/${galettes.id}/modifier`, PHONE, {
   init: asPhone('lea'),
   after: `[...document.querySelectorAll('h2, h3, legend, span, p')].find((e) => e.textContent.trim() === 'Ingrédients')?.scrollIntoView()`,
+});
+// Groupes des étapes dans notre version : titres modifiables, choix du groupe de chaque étape, nouveau groupe.
+await shoot('telephone-recette-groupes', `${BASE}/m/recette/${galettes.id}/modifier`, PHONE, {
+  init: asPhone('lea'),
+  after: `[...document.querySelectorAll('h2')].find((e) => e.textContent.trim() === 'Étapes')?.scrollIntoView()`,
 });
 await shoot('telephone-recette-partage', `${BASE}/partager?text=${encodeURIComponent(`Super recette ${BLOG_URL}`)}`, PHONE, {
   init: asPhone('alex'),

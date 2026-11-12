@@ -210,6 +210,26 @@ describe('API des recettes : saisie à la main et notre version', () => {
     expect(saved.updatedBy).toEqual({ ownerId: 'alex', via: 'phone' });
   });
 
+  it('les groupes de notre version se modifient : identifiants gardés, source intacte, relecture qui ne les écrase pas', async () => {
+    const { call, phone, tablet } = await setup();
+    const token = await phone('lea');
+    const { recipe } = (await (await importAs(call, { token })).json()) as { recipe: Recipe };
+    const ours = structuredClone(recipe.ours);
+    ours.ingredients = ours.ingredients.map((line, i) => ({ ...line, section: i < 2 ? '  Pour la pâte ' : 'Garniture' }));
+    ours.steps = ours.steps.map((step, i) => ({ ...step, section: i === 0 ? 'Pâte' : null }));
+    // Un autre enfant ne range rien dans la recette de Léa.
+    expect((await call('PUT', `/recipes/${recipe.id}`, { ...tablet('tom'), body: { content: ours } })).status).toBe(403);
+    const saved = (await (await call('PUT', `/recipes/${recipe.id}`, { token, body: { content: ours } })).json()) as Recipe;
+    expect(saved.ours.ingredients.map((l) => l.id)).toEqual(recipe.ours.ingredients.map((l) => l.id));
+    expect(saved.ours.steps.map((s) => s.id)).toEqual(recipe.ours.steps.map((s) => s.id));
+    expect(saved.ours.ingredients.map((l) => l.section)).toEqual(recipe.ours.ingredients.map((_, i) => (i < 2 ? 'Pour la pâte' : 'Garniture')));
+    expect(saved.ours.ingredients.map((l) => l.key)).toEqual(recipe.ours.ingredients.map((l) => l.key));
+    expect(saved.source?.content).toEqual(recipe.source?.content);
+    const reread = (await (await call('POST', `/recipes/${recipe.id}/reread`, { token })).json()) as RereadResult;
+    expect(reread.kept).toContain('ingrédients');
+    expect(reread.recipe.ours.ingredients[0].section).toBe('Pour la pâte');
+  });
+
   it('refuse une version sans titre', async () => {
     const { call, phone } = await setup();
     const res = await call('POST', '/recipes', { token: await phone('alex'), body: { content: { ...content, title: ' ' } } });

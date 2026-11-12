@@ -52,9 +52,10 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 
       à proposer, ingrédient par ingrédient, et annulable).
 - [ ] Drive : remplir le panier d'une enseigne depuis la liste de courses (étude faite, voir « Drive » ci-dessous).
-- [ ] Suites du carnet : modifier les groupes d'ingrédients et d'étapes (« Pour la pâte ») dans notre version ;
-      photo à changer ou à prendre ; doublons par titre (même recette sur deux sites) ; Jow : ses CGU interdisent
-      l'extraction, n'importer que ce qu'on partage soi-même (c'est le cas) et ne rien republier.
+- [x] Groupes du carnet : dans notre version, créer, renommer, monter, retirer un groupe d'ingrédients ou d'étapes
+      (« Pour la pâte »), y ranger une ligne ou l'en sortir, ordre et identifiants gardés.
+- [ ] Suites du carnet : photo à changer ou à prendre ; doublons par titre (même recette sur deux sites) ; Jow : ses
+      CGU interdisent l'extraction, n'importer que ce qu'on partage soi-même (c'est le cas) et ne rien republier.
 - [ ] Vérifier en conditions réelles : partager depuis Marmiton, Jow et Moulinex sur un vrai téléphone ; lecture
       des quantités sur une dizaine de recettes (corriger les règles de `shared/ingredients.ts` au besoin).
       Premier essai (mycookeo.fr) : aucune étape, le JSON-LD n'en donnait pas ; corrigé en 0.49.2 (étapes lues sous
