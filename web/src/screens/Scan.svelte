@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
-  import type { Container, Product, ProductInfo, StockMovementResult } from '../../../shared/types.ts';
+  import { localDay } from '../../../shared/dates.ts';
+  import { asksDate, whichLot } from '../../../shared/expiry.ts';
+  import type { Container, LotChange, LotView, Product, ProductInfo, StockMovementResult } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
   import ScanDialog from '../components/stock/ScanDialog.svelte';
@@ -18,6 +20,7 @@
     type Facing,
     type Flash,
     markUndone,
+    noteLot,
     noteShoppingAdded,
     readManualCode,
     refillContainer,
@@ -32,18 +35,23 @@
   // Scanner du stock (tablette : bouton Scanner ; téléphone : onglet Courses). Deux modes : « Ranger les courses »
   // (entrées) et « Jeté / épuisé » (sorties). À chaque code lu : un bip, un éclair, et le scanner attend qu'on retire
   // le produit avant d'en lire un autre (lib/scan-gate.ts) : pas de double comptage. Chaque mouvement s'annule.
+  // Date de péremption : jamais demandée d'office ; la ligne d'une entrée porte « Date ? » (produit frais ou déjà daté),
+  // qu'on touche quand on veut pour ouvrir le pavé. Une sortie prend le lot à la date la plus proche, sauf « Lequel ? ».
   // Règles du journal et des bandeaux : lib/scan.ts ; caméra : lib/barcode-camera.ts ; affichage : components/stock/Scan*.
   // `back` : page de la tablette à laquelle revenir ; null sur le téléphone.
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
-  type OutOptions = { refill?: string; remaining?: number };
+  type OutOptions = { refill?: string; remaining?: number; lotId?: string };
 
   /** Tablette : sans lecture ni toucher pendant ce temps, retour à la page d'origine (la caméra s'éteint). */
   const IDLE_CLOSE_MS = 3 * 60_000;
   const ERROR_SHOW_MS = 5000;
 
-  const { api, actor, config, navigate, router } = getAppContext();
+  const { api, actor, clock, config, navigate, router } = getAppContext();
+  const today = $derived(localDay(clock.now));
+  /** Dernière date donnée pendant ce passage (« Même date que le précédent »). */
+  let previousDate = $state<string | null>(null);
   /** Sur le téléphone (pas de page de la tablette où revenir) ; fixé à l'ouverture. */
   const phone = untrack(() => back === null);
 
@@ -130,7 +138,7 @@
       const found = await api.scan(code);
       if (found.kind === 'container') await onContainer(found.container);
       else if (found.kind === 'unknown') ask('Produit inconnu', 'Décris-le pour le garder en mémoire', { kind: 'unknown', code, suggestion: found.suggestion, baseError: found.baseError });
-      else await onProduct(found.product, found.quantity);
+      else await onProduct(found.product, found.quantity, found.lots);
     } catch (err) {
       beep('error');
       show('error', 'Pas enregistré', (err as Error).message);
@@ -139,19 +147,45 @@
     }
   }
 
-  async function onProduct(product: Product, quantity: number) {
+  async function onProduct(product: Product, quantity: number, lots: LotView[] = []) {
     const name = product.current.name;
     const info = productDetail(product.current);
     if (mode === 'in') {
       const result = await api.stockIn(product.code);
       entries = addEntry(entries, entryOf(result, 'in', product.code));
-      show('ok', name, `+1 · ${stockText(result.quantity)}`, info);
+      const date = result.product && asksDate(result.product) && !result.lot?.date ? ' · Date ? (dans la liste)' : '';
+      show('ok', name, `+1 · ${stockText(result.quantity)}${date}`, info);
       return;
     }
     const container = refillContainer(product, containers);
+    const which = whichLot(lots);
     if (container) ask(name, 'Transvasé ou épuisé ?', { kind: 'out-choice', product, container }, info);
     else if (quantity === 0) ask(name, 'Pas en stock : entrée oubliée ?', { kind: 'forgotten', product, remaining: 0 }, info);
+    else if (which) ask(name, 'Lequel est jeté ?', { kind: 'which', product, ...which }, info);
     else await takeOut(product, {});
+  }
+
+  /** Date donnée au lot d'une entrée (pavé) : retenue pour « Même date que le précédent ». */
+  async function saveLot(entry: ScanEntry, change: LotChange) {
+    const lot = entry.lot;
+    if (!lot) return;
+    await act(async () => {
+      const saved = await api.setLot(lot.id, change);
+      entries = noteLot(entries, entry.id, saved.lot, saved.product, change.split ? change.split.count : null);
+      previousDate = change.split?.date ?? change.date ?? previousDate;
+      closeDialog();
+    });
+  }
+
+  /** « Ne plus demander » la date pour ce produit. */
+  async function neverAsk(entry: ScanEntry) {
+    const product = entry.product;
+    if (!product) return;
+    await act(async () => {
+      const saved = await api.setProductPreferences(product.code, { askDate: false });
+      entries = renameProduct(entries, saved);
+      closeDialog();
+    });
   }
 
   async function takeOut(product: Product, options: OutOptions) {
@@ -337,6 +371,7 @@
         {nameOf}
         onSheet={(product) => (dialog = { kind: 'sheet', product })}
         onRefill={(entry) => (dialog = { kind: 'pick-container', entry, name: '' })}
+        onDate={(entry) => (dialog = { kind: 'date', entry })}
         onUndo={undo}
       />
     </aside>
@@ -361,6 +396,10 @@
     entries = renameProduct(entries, product);
   }}
   onRefill={refill}
+  {today}
+  {previousDate}
+  onLotSave={saveLot}
+  onNeverAsk={neverAsk}
 />
 
 <style>

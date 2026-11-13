@@ -169,6 +169,16 @@ Reste :
 - [x] « Épuisé » sur chaque produit de la page Stock, même s'il n'en reste qu'un (grisé une fois épuisé, 0.58.0).
 - [x] Produit sans code-barres (marché, vrac, fait maison) : nom, rayon, quantité avec unité, sur la tablette et le
       téléphone ; identifiant interne, rien envoyé à la base ; ensuite comme les autres (menu, épuisé, quantité) (0.61.0).
+- [x] Dates de péremption (0.64.0, [proposition](docs/proposition-peremption.md)) : lots datés (DLC ou DDM), pastille
+      « Date ? » non bloquante au scan et pavé de date, sortie du lot le plus proche (FEFO, « Lequel ? » s'il y en a un
+      passé), filtre « À consommer » (« Jeté », « Encore bon »), produits jetés périmés ce mois-ci.
+- [x] Dates estimées par rayon pour les frais sans date imprimée, durée corrigeable par produit ; réglage des seuils et
+      des durées (tablette, un parent, enregistré à chaque changement) (0.64.0).
+- [x] Carte « À consommer » sur l'accueil de la tablette et le dashboard d'un parent (DLC passées ou urgentes) (0.64.0).
+- [x] Menu : « À cuisiner d'abord » (recettes du carnet qui utilisent ce qui arrive à date) et avertissement quand le
+      stock finit (DLC) avant le repas, « Avancer le repas » (0.64.0).
+- [ ] Dates de péremption, plus tard : lire la date toute seule (codes 2D GS1 avec date sur les produits frais, ou OCR
+      de la date imprimée), à décider avec le moteur OCR des tickets ; rappel par notification (avec Web Push).
 - [ ] Plus tard, en option : renvoyer une correction à Open Food Facts avec le compte de l'utilisateur, seulement à
       sa demande.
 - [x] Relier un produit scanné à un ingrédient de recette (0.51.0, deviné puis confirmé une fois) (« Lardons fumés

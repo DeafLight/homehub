@@ -639,6 +639,12 @@ export type Product = {
   baseReadAt: string | null;
   /** Catégories Open Food Facts copiées à la lecture de la base (« en:milks »…) ; null : jamais copiées. */
   categories: string[] | null;
+  /** Type de date imprimée, retenu au premier choix ; null : deviné d'après le rayon (voir shared/expiry.ts). */
+  dateKind: DateKind | null;
+  /** Demander la date au scan : oui (date déjà donnée une fois), non (« Ne plus demander »), null : d'après le rayon. */
+  askDate: boolean | null;
+  /** Jours que tient le produit sans date imprimée (corrige la durée du rayon) ; null : celle du rayon. */
+  keepDays: number | null;
 };
 
 /** Contenant de la maison (bidon de lessive, bocal à farine…), avec son étiquette à code-barres. */
@@ -664,13 +670,66 @@ export type StockEntry = {
   lastOut: StockMark | null;
   /** Part restante du paquet entamé (¼ · ½ · ¾), notée en cuisinant ; null : inconnue. */
   opened: number | null;
+  /** Lots (unités entrées ensemble ou de même date), la date la plus proche d'abord ; leur somme fait `quantity`. */
+  lots: LotView[];
+  /** Le lot le plus urgent (null : aucun lot daté ni estimé). */
+  expiry: LotView | null;
 };
+
+/** DLC « à consommer jusqu'au » (à ne plus manger après), DDM « de préférence avant » (encore consommable). */
+export type DateKind = 'dlc' | 'ddm';
+
+/** Lot du stock : des unités d'un même produit avec la même date (ou sans date), tel que gardé dans stock.json. */
+export type StockLot = {
+  id: string;
+  /** Unités (plus de zéro : un lot vide disparaît). */
+  count: number;
+  /** Entrée (ISO 8601) : départ d'une date estimée, et ordre de sortie à date égale. */
+  in: string;
+  /** Date imprimée (AAAA-MM-JJ), ou null : pas donnée. */
+  date: string | null;
+  /** Type de la date ; null : celui du produit. */
+  kind: DateKind | null;
+  /** « Encore bon » : la date reste, l'alerte se tait pour ce lot. */
+  dismissed: boolean;
+};
+
+/** Niveau d'un lot : date passée, urgente (DLC dans 2 jours), bientôt, plus tard, ou sans date. */
+export type ExpiryLevel = 'passed' | 'urgent' | 'soon' | 'later' | 'none';
+
+/** Lot vu par l'écran : sa date (imprimée ou estimée d'après le rayon), son type et son niveau aujourd'hui. */
+export type LotView = StockLot & {
+  /** Date à retenir : imprimée, sinon estimée (entrée + durée du rayon ou du produit), sinon null. */
+  due: string | null;
+  estimated: boolean;
+  /** Type effectif : celui du lot, sinon celui du produit, sinon deviné d'après le rayon. */
+  dateKind: DateKind;
+  level: ExpiryLevel;
+};
+
+/** Seuils (en jours) et durées par rayon des dates de péremption ; réglables (Stock, « Dates de péremption »). */
+export type ExpirySettings = {
+  /** DLC « bientôt » : dans ce nombre de jours ou moins. */
+  soonDlcDays: number;
+  /** DLC « urgente » (accueil, menu) : dans ce nombre de jours ou moins. */
+  urgentDlcDays: number;
+  /** DDM « bientôt ». */
+  soonDdmDays: number;
+  /** Jours que tient un produit sans date, par rayon (absent : pas d'estimation). */
+  defaults: Record<string, number>;
+};
+
+/** Produit qui arrive à date, pour l'accueil et le dashboard d'un parent : rien de personnel, aucun auteur. */
+export type ExpiringItem = { code: string; name: string; due: string; level: 'passed' | 'urgent'; count: number };
+
+/** Résumé des dates (GET /api/stock/expiring) : DLC passées ou urgentes ; produits jetés périmés ce mois-ci. */
+export type ExpiringSummary = { items: ExpiringItem[]; thrownThisMonth: number };
 
 /** Entrée ou sortie du stock, pour l'historique d'un produit. `count` : unités ; pour « adjust », la nouvelle quantité. */
 export type StockMovement = StockMark & {
   id: string;
-  /** « opened » : paquet entamé, part restante notée en cuisinant (aucun paquet ne sort). */
-  kind: 'in' | 'out' | 'refill' | 'adjust' | 'container-empty' | 'opened';
+  /** « opened » : paquet entamé, part restante notée en cuisinant (aucun paquet ne sort) ; « date » : date d'un lot ajoutée, changée, ou « Encore bon ». */
+  kind: 'in' | 'out' | 'refill' | 'adjust' | 'container-empty' | 'opened' | 'date';
   count: number;
   price: number | null;
   forgotten: boolean;
@@ -679,6 +738,8 @@ export type StockMovement = StockMark & {
   reason: string | null;
   /** Part restante notée (mouvement « opened », ou sortie suivie d'un paquet entamé), sinon null. */
   opened: number | null;
+  /** Unités sorties d'un lot dont la date était passée (« Jeté (périmé) »). */
+  expired: number;
 };
 
 export type StockData = {
@@ -691,11 +752,13 @@ export type StockData = {
 export type StockSettings = {
   /** Produit épuisé : l'ajouter à la liste de courses sans demander (sauf réglage du produit). */
   autoShop: boolean;
+  /** Seuils et durées des dates de péremption (absent du fichier : valeurs par défaut). */
+  expiry: ExpirySettings;
 };
 
 /** Ce qu'est un code-barres scanné. */
 export type ScanLookup =
-  | { kind: 'product'; code: string; product: Product; quantity: number }
+  | { kind: 'product'; code: string; product: Product; quantity: number; lots: LotView[] }
   | { kind: 'container'; code: string; container: Container }
   /** Inconnu partout : à saisir ; `suggestion` : ce que la base sait quand même (sans nom). */
   | { kind: 'unknown'; code: string; suggestion: Partial<ProductInfo> | null; baseError: boolean };
@@ -710,6 +773,8 @@ export type StockMovementResult = StockMark & {
   container: Container | null;
   /** Sortie d'un produit qu'on n'avait pas en stock : l'entrée avait été oubliée. */
   forgotten: boolean;
+  /** Lot touché : celui où l'entrée est rangée, ou celui d'où la sortie est partie (null : aucun). */
+  lot: LotView | null;
   shopping: ShoppingOutcome;
   /** Libellé proposé (ou ajouté) à la liste de courses. */
   shoppingLabel: string | null;
@@ -724,10 +789,22 @@ export type ProductRecheck = { current: ProductInfo; base: ProductInfo | null; d
 export type NewTask = { label: string; ownerId: string; due: string | null; repeat: Repeat | null };
 
 /** Sortie du stock (POST /api/stock/out) : tout d'un coup, transvasée dans un contenant, ou entrée oubliée. */
-export type StockOutOptions = { all?: boolean; refill?: string | null; remaining?: number };
+export type StockOutOptions = { all?: boolean; refill?: string | null; remaining?: number; lotId?: string | null };
 
-/** Préférences d'un produit : liste de courses d'office (null : réglage du stock), contenant habituel. */
-export type ProductPreferences = { autoShop?: boolean | null; refill?: string | null };
+/** Préférences d'un produit : liste de courses d'office (null : réglage du stock), contenant habituel, dates. */
+export type ProductPreferences = {
+  autoShop?: boolean | null;
+  refill?: string | null;
+  dateKind?: DateKind | null;
+  askDate?: boolean | null;
+  keepDays?: number | null;
+};
+
+/**
+ * Changement d'un lot (PUT /api/stock/lots/:id) : sa date et son type, « Encore bon », ou `split` : `count` unités
+ * du lot à une autre date (« 2 pots à une autre date… »).
+ */
+export type LotChange = { date?: string | null; kind?: DateKind | null; dismissed?: boolean; split?: { count: number; date: string | null } };
 
 /** Analyse d'un visage par la tablette : empreinte, et scores contre une photo (`real`) ou un écran (`live`). */
 export type FaceReadingInput = { embedding: number[]; real: number; live: number };

@@ -1,7 +1,7 @@
 // Tests des règles du scanner : journal du passage, bandeau après une sortie, saisie à la main, caméra en panne.
 import { describe, expect, it } from 'vitest';
-import type { Container, Product, StockMovementResult } from '../../../shared/types.ts';
-import { addEntry, afterOut, cameraProblem, entryOf, entrySubtitle, MAX_ENTRIES, markUndone, noteShoppingAdded, pendingEntry, readManualCode, refillContainer, renameProduct } from './scan.ts';
+import type { Container, LotView, Product, StockMovementResult } from '../../../shared/types.ts';
+import { addEntry, afterOut, cameraProblem, entryDateChip, entryOf, noteLot, entrySubtitle, MAX_ENTRIES, markUndone, noteShoppingAdded, pendingEntry, readManualCode, refillContainer, renameProduct } from './scan.ts';
 
 const product = (over: Partial<Product> = {}): Product => ({
   code: '3560070446117',
@@ -13,6 +13,9 @@ const product = (over: Partial<Product> = {}): Product => ({
   conflict: null,
   baseReadAt: null,
   categories: null,
+  dateKind: null,
+  askDate: null,
+  keepDays: null,
   ...over,
 });
 
@@ -26,6 +29,7 @@ const result = (over: Partial<StockMovementResult> = {}): StockMovementResult =>
   quantity: 2,
   container: null,
   forgotten: false,
+  lot: null,
   shopping: 'none',
   shoppingLabel: null,
   ...over,
@@ -42,7 +46,28 @@ describe('journal du scanner', () => {
       line: 'Rangé · 2 en stock',
       mark: { at: '2026-11-10T08:00:00Z', by: { ownerId: 'alex', via: 'tablet' } },
       undone: false,
+      lot: null,
     });
+  });
+
+  it('pastille de date d’une entrée : « Date ? » pour un produit frais, sa date, ou « pas de date »', () => {
+    const lot: LotView = { id: 'l1', count: 4, in: '2026-11-05T08:00:00Z', date: null, kind: null, dismissed: false, due: null, estimated: false, dateKind: 'dlc', level: 'none' };
+    const fresh = product({ current: { ...product().current, category: 'Crèmerie' } });
+    const entry = { ...entryOf(result({ product: fresh, lot }), 'in', fresh.code) };
+    expect(entryDateChip(entry)).toEqual({ label: 'Date ?', tone: 'ask' });
+    expect(entryDateChip({ ...entry, product: product() })).toEqual({ label: 'pas de date', tone: 'muted' });
+    expect(entryDateChip({ ...entry, product: product({ askDate: true }) })?.label).toBe('Date ?');
+    expect(entryDateChip({ ...entry, product: { ...fresh, askDate: false } })?.label).toBe('pas de date');
+    const dated = { ...lot, date: '2026-11-07', due: '2026-11-07', level: 'urgent' as const };
+    expect(entryDateChip({ ...entry, lot: dated })).toEqual({ label: 'DLC 7/11', tone: 'warn' });
+    expect(entryDateChip({ ...entry, kind: 'out' })).toBeNull();
+    // Deux pots sur quatre à une autre date : l'entrée garde les deux autres.
+    const [split] = noteLot([entry], entry.id, { ...dated, id: 'l2', count: 2 }, fresh, 2);
+    expect(split.lot).toMatchObject({ id: 'l1', count: 2 });
+    expect(noteLot([entry], entry.id, dated, fresh, null)[0].lot?.date).toBe('2026-11-07');
+    // Sortie d'un lot daté : on dit lequel.
+    expect(entryOf(result({ lot: dated, quantity: 1 }), 'out', 'x').line).toBe('Jeté · celui du 7/11 · 1 en stock');
+    expect(afterOut(result({ lot: dated, quantity: 1 }), 'Yaourts').flash.detail).toBe('1 en stock · sorti : celui du 7/11');
   });
 
   it('libellés : jeté, entrée oubliée, transvasé, contenant vidé, ajouté aux courses', () => {

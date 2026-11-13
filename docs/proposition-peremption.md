@@ -1,6 +1,7 @@
 # Proposition : dates de péremption du stock
 
-Proposition seulement (12/11/2026), rien n'est développé. But : noter les dates des produits rangés sans ralentir
+Proposition du 12/11/2026, **développée en 0.64.0** avec les décisions du 13/11/2026 (section 9) ; ce qui s'en
+écarte est dit dans `docs/architecture.md` (stock, lots datés). But : noter les dates des produits rangés sans ralentir
 le scan, puis repérer ce qui arrive à date ou l'a dépassée, et aider à le cuisiner avant de le jeter.
 
 Maquette statique (thème de `web/src/app.css`, monde fictif, jeudi 5 novembre) : [maquette-peremption.html](maquette-peremption.html).
@@ -216,16 +217,18 @@ type Lot = {
 5. **Pistes** : date lue dans les codes GS1 (dès qu'on a des paquets réels qui en portent) ; OCR ou vision, avec le
    moteur des tickets ; « Jeté (périmé) » compté et chiffré avec les prix.
 
-## 9. Questions à trancher
+## 9. Questions tranchées (décisions du 13/11/2026)
 
-1. **Pastille ou pavé d'office** pour les produits frais au scan ? (proposé : pastille, réglage pour le pavé)
-2. **Seuils** : DLC bientôt 5 j, urgent 2 j, DDM 30 j, notification à 18 h : ça convient ?
-3. **Accueil** : carte « À consommer » visible de tous sur la tablette (pas d'auteur ni de profil) : d'accord ? Et sur
-   le dashboard d'un parent en plus, ou non ?
-4. **Durées par rayon** : faut-il des dates estimées, avec ces valeurs, ou seulement des dates saisies ?
-5. **Sortie** : prendre d'office le lot à la date la plus proche (FEFO), sans demander, sauf lot passé ?
-6. **DDM passée** : la montrer (gris) ou la taire complètement ?
-7. **« Jeté (périmé) »** compté dès l'étape 1, ou plus tard avec les prix ?
-8. **Menu** : une DLC avant le repas remet l'ingrédient dans les courses (proposé), ou seulement un avertissement ?
-9. **Lecture automatique** : regarder tout de suite si vos produits frais ont des codes 2D avec date (essai réel au
-   scanner), ou attendre le choix du moteur OCR des tickets ?
+1. **Au scan** : une pastille « Date ? » non bloquante, jamais le pavé d'office ; elle apparaît pour les rayons frais
+   et pour les produits déjà datés une fois. « Ne plus demander » la retire pour ce produit.
+2. **Seuils** : DLC bientôt ≤ 5 j, urgente ≤ 2 j, DDM bientôt ≤ 30 j. Pas de notification (pas d'heure à régler) :
+   Web Push reste sur la feuille de route.
+3. **Carte « À consommer »** : sur l'accueil de la tablette et aussi sur le dashboard d'un parent.
+4. **Dates estimées par rayon**, avec un écran de réglage des durées et des seuils (enregistré à chaque changement) ;
+   la durée se corrige par produit sur sa fiche.
+5. **Sortie** : le lot à la date la plus proche (FEFO) d'office, sans demander, sauf s'il y a un lot passé (« Lequel ? »).
+6. **DDM passée** : montrée en gris.
+7. **« Jeté (périmé) »** compté dès cette version : « 3 produits jetés (périmés) ce mois-ci ».
+8. **Menu** : une DLC avant le repas donne seulement un avertissement (« Le stock finit samedi (DLC) », avec « Avancer
+   le repas à samedi » quand c'est dans la semaine) ; la carte « À cuisiner d'abord » propose les recettes du carnet.
+9. **Lecture automatique** (codes GS1 avec date, OCR) : on attend ; la case reste ouverte dans `TODO.md`.

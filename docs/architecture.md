@@ -249,6 +249,8 @@ classDiagram
   Timer ..> Author
   Product "1" --> "*" ProductVersion : stock.json
   Product "1" --> "*" Movement
+  Product "1" --> "*" StockLot : lots datés
+  Movement ..> StockLot : entrée, sortie (taken)
   Movement ..> ProductVersion : en vigueur à sa date
   Product ..> Container
   Movement ..> Author
@@ -266,7 +268,7 @@ classDiagram
 | `routines.json` | étapes cochées du jour, jours de suite |
 | `routine-plans.json` | étapes et heures des routines |
 | `timers.json` | minuteurs en cours |
-| `stock.json` | produits (copie de la base et versions corrigées), quantités, mouvements, contenants |
+| `stock.json` | produits (copie de la base et versions corrigées), quantités et lots datés, mouvements, contenants, réglages (liste de courses d'office, seuils et durées des dates de péremption) |
 | `recipes.json`, `recipes/` | carnet de recettes : notre version, la version lue et son adresse ; photos (une par recette) |
 | `recipe-notes.json` | notes de la famille sur les recettes (texte, auteur, date ; modifiée, résolue par qui et quand) ; à part du carnet pour qu'une note ne touche pas notre version, retirées avec leur recette |
 | `menus.json` | menus par semaine (recettes, personnes, jour ; 12 semaines gardées), « j'en ai déjà », décisions « à vérifier au placard », frais avancés (`now`, « Acheter maintenant »), placards, produits du stock reliés aux ingrédients (et s'ils s'utilisent en plusieurs fois) |
@@ -360,6 +362,28 @@ change et que les paquets sûrs suffisent, ou qu'un paquet plein ne suffirait pl
 sans être scanné est rattrapé par la même vérification. Quand un produit est relié à l'ingrédient et que les unités se
 comparent, la ligne porte les paquets à acheter (`packs`, « 250 g (2 × 200 g) »), sur la marque `menu` de la liste de
 courses comme dans le menu.
+
+Les **dates de péremption** (0.64.0, voir [la proposition](proposition-peremption.md)) : la quantité d'un produit
+est faite de **lots** (`stock[code].lots` : `{ id, count, date, kind, at, dismissed }`, `kind` DLC ou DDM, `date`
+nulle quand rien n'est imprimé). La quantité reste écrite à côté et vaut toujours la somme des lots. Un ancien
+`stock.json`, sans `lots`, se lit sans migration : un seul lot sans date, d'identifiant `<code>-0`, réécrit au premier
+changement. Une entrée rejoint le lot du même jour sans date, ou celui de même date et même type ; sinon un nouveau
+lot. Une sortie prend le lot **FEFO** (date la plus proche d'abord, les lots sans date en dernier, à égalité le plus
+ancien), ou celui que la personne a choisi (`lotId`, « Lequel ? » quand il y a un lot passé) ; le mouvement garde ce
+qu'il a pris (`taken`) et combien d'unités étaient périmées (`expired` : lot passé, date imprimée, pas « Encore bon »,
+hors transvasement), pour « jetés (périmés) ce mois-ci ». Le décompte « J'ai cuisiné » sort lui aussi les lots les
+plus proches, sans jamais compter de « jeté », et son annulation les remet. Annuler une entrée retire ses unités de son lot, annuler une
+sortie remet les lots pris ; changer une date (`PUT /api/stock/lots/:id`, mouvement `date`) garde les lots d'avant.
+
+Écart avec la proposition : la **date estimée** (produit sans date imprimée d'un rayon frais) n'est jamais écrite.
+Elle se calcule à la lecture (`shared/expiry.ts` : jour d'entrée du lot + durée du produit, sinon celle de son rayon
+dans les réglages) ; changer une durée change donc toutes les dates estimées d'un coup, et une date saisie la
+remplace. Les niveaux (`passed`, `urgent`, `soon`, `later`) se calculent de même avec les seuils du réglage ; une date
+estimée ne monte jamais au-dessus de « bientôt » et ne va pas sur l'accueil, une DDM passée reste grise. La carte
+« À consommer » (`GET /api/stock/expiring`) ne lit que les DLC imprimées passées ou urgentes, sans auteur : rien de
+personnel sur la tablette. Le menu (`services/menu.ts`) croise les mêmes lots avec les produits reliés aux
+ingrédients : recettes du carnet « à cuisiner d'abord » et avertissement quand le stock finit (DLC) avant le repas,
+sans changer les courses.
 
 Le **drive** (étape 1, voir [l'étude](etude-drive.md)) : aucune enseigne n'ouvre d'API ; HomeHub ne fait que retenir,
 pour chaque article de la liste (clé de l'ingrédient, ou du libellé pour un produit hors recettes), un produit de

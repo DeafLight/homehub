@@ -6,6 +6,7 @@
   import DetailLink from '../components/DetailLink.svelte';
   import HolidayChip from '../components/HolidayChip.svelte';
   import SettingsMenu from '../components/SettingsMenu.svelte';
+  import ExpiringCard from '../components/stock/ExpiringCard.svelte';
   import TransitBoard from '../components/widgets/TransitBoard.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { eventLine, formatLongDate, formatTime, greeting, pluralize, profileHeadline } from '../lib/format.ts';
@@ -36,7 +37,8 @@
   const me = $derived(actor.current ? summaries.get(actor.current.id) : undefined);
 </script>
 
-<!-- Accueil, piste A (docs/design.md) : à gauche l'heure et des cartes de même facture (météo, famille, passages) ;
+<!-- Accueil, piste A (docs/design.md) : à gauche l'heure et des cartes de même facture (météo, famille, à consommer,
+     passages) ;
      à droite « Qui est là ? » et, en bas, la barre d'actions Minuteur · Scanner · Réglages. -->
 <div class="home">
   <section class="ambient">
@@ -124,6 +126,8 @@
             {/if}
           </div>
         {/if}
+        <!-- DLC passées ou urgentes du stock (rien de personnel) ; absente sinon. -->
+        <ExpiringCard />
         {#if transit.data && transit.data.stops.length > 0}
           <div class="tile">
             <span class="card-label">Prochains passages</span>

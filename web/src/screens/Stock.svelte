@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import type { Container, Product, StockEntry, StockMovementResult } from '../../../shared/types.ts';
+  import { localDay } from '../../../shared/dates.ts';
+  import type { Container, LotView, Product, StockEntry, StockMovementResult } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
   import ContainerLabelDialog from '../components/stock/ContainerLabelDialog.svelte';
   import ContainersList from '../components/stock/ContainersList.svelte';
+  import DatePad from '../components/stock/DatePad.svelte';
+  import ExpirySettingsDialog from '../components/stock/ExpirySettingsDialog.svelte';
   import LooseForm from '../components/stock/LooseForm.svelte';
   import Modal from '../components/stock/Modal.svelte';
   import ProductSheet from '../components/stock/ProductSheet.svelte';
@@ -13,14 +16,17 @@
   import { getAppContext } from '../lib/context.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { PHONE_SCAN_PATH, type PageRoute, detailPath, phonePath } from '../lib/route.ts';
-  import type { StockFilter } from '../lib/stock.ts';
+  import { type StockFilter, thrownText } from '../lib/stock.ts';
+  import { takeStockFilter } from '../lib/stock-opening.ts';
 
   // Stock de la maison (tablette ; depuis Listes ou le scanner) : ce qu'on a, ce qui est épuisé, les contenants et
   // leur étiquette, et le réglage de la liste de courses. Les quantités se corrigent ici à la main (inventaire), et
   // un produit sans code-barres (marché, vrac, fait maison) s'ajoute par son nom et sa quantité (aussi au téléphone).
   // Sur le téléphone (`back` : null), pour voir au magasin ce qu'il reste : les produits, sans date ni auteur (dans leur
-  // fiche), et les contenants en lecture. La page garde les données et les appels ; l'affichage est dans
-  // components/stock/ (StockList, ContainersList, ContainerLabelDialog).
+  // fiche), et les contenants en lecture. Dates de péremption : filtre « À consommer », date d'un lot (pavé),
+  // « Jeté » / « Encore bon », produits jetés périmés ce mois-ci, et (tablette) le réglage des seuils et des durées.
+  // La page garde les données et les appels ; l'affichage est dans components/stock/ (StockList, ContainersList,
+  // ContainerLabelDialog, DatePad, ExpirySettingsDialog).
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
@@ -29,15 +35,18 @@
   const phone = untrack(() => back === null);
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
   const stock = createResource(() => api.stock(), 60_000);
+  const expiring = createResource(() => api.expiring(), 60_000);
   const me = createResource(() => api.me(), 60_000);
   onDestroy(() => {
     stock.destroy();
+    expiring.destroy();
     me.destroy();
   });
+  const today = $derived(localDay(clock.now));
 
   const readOnly = $derived(me.data !== null && !me.data.kiosk && !me.data.device);
 
-  let filter = $state<StockFilter>('in');
+  let filter = $state<StockFilter>(takeStockFilter() ?? 'in');
   let search = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -45,7 +54,9 @@
     | { kind: 'sheet'; product: Product; quantity: number }
     | { kind: 'shop'; code: string; label: string }
     | { kind: 'label'; container: Container }
-    | { kind: 'loose' };
+    | { kind: 'loose' }
+    | { kind: 'date'; entry: StockEntry; lot: LotView }
+    | { kind: 'expiry' };
   let dialog = $state<Dialog | null>(null);
 
   /** Lance une modification (bouton occupé, erreur affichée), puis relit le stock ; vrai si elle a réussi. */
@@ -60,7 +71,7 @@
       return false;
     } finally {
       busy = false;
-      await stock.refresh();
+      await Promise.all([stock.refresh(), expiring.refresh()]);
     }
   }
 
@@ -73,6 +84,15 @@
   const exhaust = (entry: StockEntry) => run(async () => proposeShopping(await api.stockOut(entry.product.code, { all: true })));
   const emptyContainer = (container: Container) => run(async () => proposeShopping(await api.emptyContainer(container.id)));
   const setAutoShop = (autoShop: boolean) => run(async () => void (await api.saveStockSettings({ autoShop })));
+  /** « Jeté » sur un lot passé : tout ce lot sort (compté périmé), puis la proposition de courses habituelle. */
+  const throwLot = (entry: StockEntry, lot: LotView) => run(async () => proposeShopping(await api.stockOut(entry.product.code, { all: true, lotId: lot.id })));
+  const keepLot = (lot: LotView) => run(async () => void (await api.setLot(lot.id, { dismissed: true })));
+  const saveLot = (lot: LotView, change: Parameters<typeof api.setLot>[1]) =>
+    run(async () => {
+      await api.setLot(lot.id, change);
+      dialog = null;
+    });
+  const lotsOf = (code: string) => stock.data?.items.find((i) => i.product.code === code)?.lots ?? null;
   const addContainer = (name: string) =>
     run(async () => {
       dialog = { kind: 'label', container: await api.addContainer(name) };
@@ -115,6 +135,11 @@
           onPlus={plus}
           onMinus={minus}
           onExhaust={exhaust}
+          {today}
+          thrown={expiring.data?.thrownThisMonth ?? null}
+          onDate={(entry, lot) => (dialog = { kind: 'date', entry, lot })}
+          onThrow={throwLot}
+          onKeep={(_, lot) => keepLot(lot)}
         />
       </section>
 
@@ -140,6 +165,14 @@
             <button type="button" class:on={data.settings.autoShop} disabled={busy || readOnly} onclick={() => setAutoShop(true)}>L’ajouter d’office aux courses</button>
           </div>
           <p class="muted small">Chaque produit peut avoir son propre réglage (toucher son nom).</p>
+        </section>
+        <section class="card">
+          <h2 class="card-label">Dates de péremption</h2>
+          <p class="muted small">
+            DLC urgente dans {data.settings.expiry.urgentDlcDays} j, bientôt dans {data.settings.expiry.soonDlcDays} j · DDM bientôt dans {data.settings.expiry.soonDdmDays} j. Sans date imprimée : estimée d’après le rayon.
+          </p>
+          {#if expiring.data}<p class="small">{thrownText(expiring.data.thrownThisMonth)}</p>{/if}
+          <div><button type="button" class="btn small" onclick={() => (dialog = { kind: 'expiry' })}><Icon name="settings" size={20} /> Régler</button></div>
         </section>{/if}
       </div>
     </div>
@@ -156,7 +189,9 @@
       quantity={d.quantity}
       opened={stock.data?.items.find((i) => i.product.code === d.product.code)?.opened ?? null}
       containers={stock.data?.containers ?? []}
-
+      lots={lotsOf(d.product.code)}
+      expiry={stock.data?.settings.expiry ?? null}
+      {readOnly}
       onChange={(product) => {
         dialog = { ...d, product };
         void stock.refresh();
@@ -177,6 +212,13 @@
       onCancel={() => (dialog = null)}
     />
   </Modal>
+{:else if dialog?.kind === 'date'}
+  {@const d = dialog}
+  <Modal label="Date de péremption" onClose={() => (dialog = null)}>
+    <DatePad title={d.entry.product.current.name} lot={d.lot} {today} {busy} onSave={(change) => saveLot(d.lot, change)} onSkip={() => (dialog = null)} />
+  </Modal>
+{:else if dialog?.kind === 'expiry' && stock.data}
+  <ExpirySettingsDialog settings={stock.data.settings.expiry} onSaved={() => void stock.refresh()} onClose={() => (dialog = null)} />
 {:else if dialog?.kind === 'shop'}
   {@const d = dialog}
   <Modal label="Liste de courses" locked>
@@ -277,6 +319,10 @@
     gap: var(--space-3);
     min-height: 0;
     overflow-y: auto;
+  }
+
+  .side > :global(*) {
+    flex-shrink: 0;
   }
 
   .chips {

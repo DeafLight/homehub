@@ -1,8 +1,9 @@
 // Libellés du stock (logique pure, testée) : fiche d'un produit, provenance, quantités, saisie d'un produit sans
-// code-barres.
+// code-barres, filtre « À consommer » (une ligne par lot qui arrive à date).
 import { isLooseCode } from '../../../shared/barcode.ts';
+import { toConsume } from '../../../shared/expiry.ts';
 import { formatLoose, isCounted, looseAmount } from '../../../shared/loose.ts';
-import type { Author, Container, Product, ProductInfo, StockEntry, StockMark, StockMovement } from '../../../shared/types.ts';
+import type { Author, Container, LotView, Product, ProductInfo, StockEntry, StockMark, StockMovement } from '../../../shared/types.ts';
 import { estimateLabel } from '../../../shared/cook.ts';
 import { dayDiff, formatTime } from './format.ts';
 
@@ -89,10 +90,13 @@ export function lastMarksLine(entry: { quantity: number; lastIn: StockMark | nul
 }
 
 /**
- * Ce qu'a été un mouvement : « Rangé (+ 2) », « Jeté », « Transvasé », « Inventaire : 3 », « Contenant vidé » ; un
- * décompte « J'ai cuisiné » : « Cuisiné : Pâtes au thon (− 2) », « Cuisiné : Gratin · il en reste ½ ».
+ * Ce qu'a été un mouvement : « Rangé (+ 2) », « Jeté », « Jeté · périmé », « Transvasé », « Inventaire : 3 »,
+ * « Contenant vidé », « Date changée » ; un décompte « J'ai cuisiné » : « Cuisiné : Pâtes au thon (− 2) »,
+ * « Cuisiné : Gratin · il en reste ½ ».
  */
-export function movementLabel(m: Pick<StockMovement, 'kind' | 'count' | 'forgotten'> & Partial<Pick<StockMovement, 'reason' | 'opened'>>): string {
+export function movementLabel(
+  m: Pick<StockMovement, 'kind' | 'count' | 'forgotten'> & Partial<Pick<StockMovement, 'reason' | 'opened' | 'expired'>>,
+): string {
   const left = m.opened !== null && m.opened !== undefined ? ` · il en reste ${estimateLabel(m.opened)}` : '';
   if (m.reason) {
     if (m.kind === 'container-empty') return `${m.reason} · contenant vidé`;
@@ -107,31 +111,69 @@ export function movementLabel(m: Pick<StockMovement, 'kind' | 'count' | 'forgott
       // Zéro unité : seule la contenance d'un produit sans code-barres a changé (« il reste 800 g »).
       if (m.count === 0) return 'Quantité changée';
       return m.count > 1 ? `Rangé (+ ${m.count})` : 'Rangé';
-    case 'out':
-      return m.forgotten ? 'Jeté · entrée oubliée' : m.count > 1 ? `Jeté (− ${m.count})` : 'Jeté';
+    case 'out': {
+      const expired = m.expired ? ' · périmé' : '';
+      return m.forgotten ? 'Jeté · entrée oubliée' : `${m.count > 1 ? `Jeté (− ${m.count})` : 'Jeté'}${expired}`;
+    }
     case 'refill':
       return 'Transvasé';
     case 'adjust':
       return `Inventaire : ${m.count}`;
     case 'container-empty':
       return 'Contenant vidé';
+    case 'date':
+      return 'Date changée';
   }
 }
 
-export type StockFilter = 'in' | 'out' | 'all';
+/** « En stock », « À consommer » (lots qui arrivent à date ou l'ont dépassée), « Épuisés », « Tout ». */
+export type StockFilter = 'in' | 'expiring' | 'out' | 'all';
+
+const matches = (product: Product, search: string) => {
+  const query = search.trim().toLocaleLowerCase('fr');
+  return !query || `${product.current.name} ${product.current.brand ?? ''}`.toLocaleLowerCase('fr').includes(query);
+};
 
 /** Produits à afficher : en stock, épuisés ou tous, puis ceux dont le nom ou la marque contient la recherche. */
-export function filterStock<T extends Pick<StockEntry, 'product' | 'quantity'>>(items: T[], filter: StockFilter, search: string): T[] {
+export function filterStock<T extends Pick<StockEntry, 'product' | 'quantity'>>(items: T[], filter: Exclude<StockFilter, 'expiring'>, search: string): T[] {
   const base = filter === 'in' ? items.filter((i) => i.quantity > 0) : filter === 'out' ? items.filter((i) => i.quantity === 0) : items;
-  const query = search.trim().toLocaleLowerCase('fr');
-  return query ? base.filter((i) => `${i.product.current.name} ${i.product.current.brand ?? ''}`.toLocaleLowerCase('fr').includes(query)) : base;
+  return base.filter((i) => matches(i.product, search));
 }
 
-/** Nombre de produits derrière chaque filtre. */
-export function stockCounts(items: Pick<StockEntry, 'quantity'>[]): Record<StockFilter, number> {
-  const inStock = items.filter((i) => i.quantity > 0).length;
-  return { in: inStock, out: items.length - inStock, all: items.length };
+/**
+ * Ligne de la liste : un produit et la pastille de date à montrer (le lot le plus urgent) ; dans « À consommer »,
+ * une ligne par lot qui arrive à date, avec `part` (« 1 sur 2 ») quand le produit a d'autres unités.
+ */
+export type StockRow<T> = { entry: T; lot: LotView | null; part: string | null };
+
+/** Lots à consommer, la date la plus proche d'abord. */
+export function expiringRows<T extends Pick<StockEntry, 'product' | 'quantity' | 'lots'>>(items: T[], search = ''): StockRow<T>[] {
+  const rows: StockRow<T>[] = [];
+  for (const entry of items) {
+    if (entry.quantity === 0 || !matches(entry.product, search)) continue;
+    for (const lot of entry.lots.filter(toConsume)) rows.push({ entry, lot, part: lot.count < entry.quantity ? `${lot.count} sur ${entry.quantity}` : null });
+  }
+  return rows.sort((a, b) => (a.lot?.due ?? '').localeCompare(b.lot?.due ?? '') || a.entry.product.current.name.localeCompare(b.entry.product.current.name, 'fr'));
 }
+
+/** Lignes d'un filtre. */
+export function stockRows<T extends Pick<StockEntry, 'product' | 'quantity' | 'lots' | 'expiry'>>(items: T[], filter: StockFilter, search: string): StockRow<T>[] {
+  if (filter === 'expiring') return expiringRows(items, search);
+  return filterStock(items, filter, search).map((entry) => ({ entry, lot: entry.quantity > 0 ? entry.expiry : null, part: null }));
+}
+
+/** Nombre de lignes derrière chaque filtre. */
+export function stockCounts(items: Pick<StockEntry, 'product' | 'quantity' | 'lots'>[]): Record<StockFilter, number> {
+  const inStock = items.filter((i) => i.quantity > 0).length;
+  return { in: inStock, expiring: expiringRows(items).length, out: items.length - inStock, all: items.length };
+}
+
+/** Premier lot sans date imprimée d'un produit (« Ajouter une date ») ; null s'ils sont tous datés. */
+export const undatedLot = (entry: Pick<StockEntry, 'lots'>) => entry.lots.find((l) => l.date === null) ?? null;
+
+/** « 3 produits jetés (périmés) ce mois-ci », « Rien de jeté périmé ce mois-ci ». */
+export const thrownText = (count: number) =>
+  count === 0 ? 'Rien de jeté périmé ce mois-ci' : `${count} produit${count > 1 ? 's' : ''} jeté${count > 1 ? 's' : ''} (périmé${count > 1 ? 's' : ''}) ce mois-ci`;
 
 /** « Épuisé » proposé sur chaque produit de la liste, actif dès qu'il en reste un (grisé à 0, comme « − »). */
 export const canExhaust = (entry: Pick<StockEntry, 'quantity'>) => entry.quantity > 0;
@@ -150,8 +192,25 @@ export function productSubtitle(product: Product): string {
   return [productDetail(current), current.category].filter(Boolean).join(' · ') || 'Toucher pour compléter la fiche';
 }
 
-/** Rayons proposés pour un produit saisi à la main. */
-export const STOCK_CATEGORIES = ['Frais', 'Épicerie', 'Boissons', 'Surgelés', 'Fruits et légumes', 'Entretien', 'Hygiène', 'Bébé', 'Animaux'];
+/**
+ * Rayons proposés pour un produit saisi à la main ; les rayons frais (Crèmerie, Boucherie…) donnent une date par
+ * défaut (DLC) et une durée sans date (voir shared/expiry.ts).
+ */
+export const STOCK_CATEGORIES = [
+  'Frais',
+  'Crèmerie',
+  'Boucherie',
+  'Poissonnerie',
+  'Boulangerie',
+  'Fruits et légumes',
+  'Épicerie',
+  'Boissons',
+  'Surgelés',
+  'Entretien',
+  'Hygiène',
+  'Bébé',
+  'Animaux',
+];
 
 /** Quantité tapée (« 1,2 », « 0.5 », « 6 ») ; null si ce n'est pas un nombre positif. */
 export function parseAmount(text: string): number | null {

@@ -1,16 +1,19 @@
 <script lang="ts">
-  import type { Container, Product, ProductInfo } from '../../../../shared/types.ts';
+  import { shortDay } from '../../../../shared/expiry.ts';
+  import type { Container, LotChange, Product, ProductInfo } from '../../../../shared/types.ts';
   import { pendingEntry, type ScanDialog, type ScanEntry, type ScanMode } from '../../lib/scan.ts';
   import Icon from '../Icon.svelte';
+  import DatePad from './DatePad.svelte';
   import Modal from './Modal.svelte';
   import ProductForm from './ProductForm.svelte';
   import ProductSheet from './ProductSheet.svelte';
   import ShopPrompt from './ShopPrompt.svelte';
 
   // Questions du scanner, une à la fois : produit inconnu à décrire, transvasé ou épuisé, entrée oubliée, liste de
-  // courses, fiche du produit, contenant où il a été transvasé. Les réponses remontent à Scan.svelte, qui parle au
-  // serveur ; seuls les champs de la question (nombre restant, nom d'un nouveau contenant) se modifient ici.
-  type OutOptions = { refill?: string; remaining?: number };
+  // courses, fiche du produit, contenant où il a été transvasé, date d'un lot rangé, lot à jeter. Les réponses
+  // remontent à Scan.svelte, qui parle au serveur ; seuls les champs de la question (nombre restant, nom d'un nouveau
+  // contenant) se modifient ici.
+  type OutOptions = { refill?: string; remaining?: number; lotId?: string };
   type Props = {
     /** Question ouverte (rien si null). */
     dialog: ScanDialog | null;
@@ -26,8 +29,28 @@
     onSheetChange: (product: Product) => void;
     /** Transvasé dans un contenant existant (`containerId`) ou à créer (`name`). */
     onRefill: (entry: ScanEntry, target: { containerId: string } | { name: string }) => void;
+    /** Aujourd'hui (AAAA-MM-JJ) et la dernière date donnée pendant ce passage. */
+    today: string;
+    previousDate: string | null;
+    onLotSave: (entry: ScanEntry, change: LotChange) => void;
+    onNeverAsk: (entry: ScanEntry) => void;
   };
-  let { dialog = $bindable(), mode, busy, containers, onClose, onOut, onDescribe, onShopDone, onSheetChange, onRefill }: Props = $props();
+  let {
+    dialog = $bindable(),
+    mode,
+    busy,
+    containers,
+    onClose,
+    onOut,
+    onDescribe,
+    onShopDone,
+    onSheetChange,
+    onRefill,
+    today,
+    previousDate,
+    onLotSave,
+    onNeverAsk,
+  }: Props = $props();
 
   function pickContainer(entry: ScanEntry, container: Container) {
     if (entry.id) onRefill(entry, { containerId: container.id });
@@ -90,6 +113,34 @@
   {@const d = dialog}
   <Modal label="Fiche du produit" {onClose} wide>
     <ProductSheet product={d.product} quantity={null} {containers} onChange={onSheetChange} {onClose} />
+  </Modal>
+{:else if dialog?.kind === 'date' && dialog.entry.lot}
+  {@const d = dialog}
+  {@const lot = dialog.entry.lot}
+  <Modal label="Date de péremption" {onClose}>
+    <DatePad
+      title={d.entry.title}
+      {lot}
+      {today}
+      previous={previousDate}
+      {busy}
+      onSave={(change) => onLotSave(d.entry, change)}
+      onSkip={onClose}
+      onNeverAsk={d.entry.product?.askDate === false ? undefined : () => onNeverAsk(d.entry)}
+    />
+  </Modal>
+{:else if dialog?.kind === 'which'}
+  {@const d = dialog}
+  <Modal label="Lequel est jeté ?" locked>
+    <h2>{d.product.current.name} : lequel ?</h2>
+    <p class="dialog-text">Il y en a deux dates différentes, et l’un est périmé.</p>
+    <div class="dialog-actions">
+      <button type="button" class="btn primary" disabled={busy} onclick={() => onOut(d.product, { lotId: d.expired.id })}>
+        <Icon name="trash" size={22} /> Le périmé (du {shortDay(d.expired.due as string)})
+      </button>
+      <button type="button" class="btn" disabled={busy} onclick={() => onOut(d.product, { lotId: d.other.id })}>Celui du {shortDay(d.other.due as string)}</button>
+      <button type="button" class="btn" onclick={onClose}>Annuler</button>
+    </div>
   </Modal>
 {:else if dialog?.kind === 'pick-container'}
   {@const d = dialog}

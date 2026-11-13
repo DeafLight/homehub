@@ -1,17 +1,17 @@
 // Règles du stock, sans HTTP : ce qu'est un code scanné (contenant, produit connu relu dans la base quand sa fiche
 // est ancienne, ou inconnu), relecture de la base, mouvements avec leur suite sur la liste de courses (produit épuisé :
 // ajouté d'office ou proposé ; annulé : l'article ajouté repart), produits sans code-barres (jamais cherchés dans la
-// base). Le magasin garde l'état ; ce service décide.
+// base), dates de péremption des lots. Le magasin garde l'état ; ce service décide.
 import { isContainerCode, isLooseCode } from '../../shared/barcode.ts';
 import { type LooseUnit, looseStock } from '../../shared/loose.ts';
-import type { Author, Product, ProductInfo, ProductRecheck, ScanLookup, ShoppingItem, ShoppingOutcome, StockMovementResult } from '../../shared/types.ts';
+import type { Author, LotChange, LotView, Product, ProductInfo, ProductRecheck, ScanLookup, ShoppingItem, ShoppingOutcome, StockMovementResult } from '../../shared/types.ts';
 import type { ListsStore } from '../sources/lists.ts';
 import type { ProductBase } from '../sources/open-food-facts.ts';
-import { type BaseReading, needsBaseRead, shoppingLabel, type StockStore } from '../sources/stock.ts';
+import { type BaseReading, type InDate, needsBaseRead, shoppingLabel, type StockStore } from '../sources/stock.ts';
 import type { Clock } from '../sources/types.ts';
 
 /** Refus métier, traduit en réponse par la couche HTTP. */
-export type StockRefusal = { refused: 'unknown-product' | 'unknown-container' | 'base-unreachable' | 'not-in-base' | 'newer-movement' | 'no-movement' };
+export type StockRefusal = { refused: 'unknown-product' | 'unknown-container' | 'unknown-lot' | 'base-unreachable' | 'not-in-base' | 'newer-movement' | 'no-movement' };
 
 export type StockService = {
   /** null : étiquette de contenant inconnue. */
@@ -19,8 +19,10 @@ export type StockService = {
   /** null : produit inconnu. */
   recheck(code: string): Promise<ProductRecheck | null>;
   acceptBase(code: string): Promise<Product | StockRefusal>;
-  stockIn(code: string, count: number, price: number | null, by: Author): Promise<StockMovementResult | StockRefusal>;
-  stockOut(code: string, options: { all: boolean; refill: string | null; remaining: number }, by: Author): Promise<StockMovementResult | StockRefusal>;
+  stockIn(code: string, count: number, price: number | null, by: Author, dated?: InDate): Promise<StockMovementResult | StockRefusal>;
+  stockOut(code: string, options: { all: boolean; refill: string | null; remaining: number; lotId?: string | null }, by: Author): Promise<StockMovementResult | StockRefusal>;
+  /** Date d'un lot (ou une partie à une autre date), « Encore bon ». */
+  setLot(lotId: string, change: LotChange, by: Author): Promise<{ product: Product; lot: LotView; quantity: number } | StockRefusal>;
   emptyContainer(id: string, by: Author): Promise<StockMovementResult | StockRefusal>;
   undo(movementId: string): Promise<{ quantity: number } | StockRefusal>;
   /** « Oui » à la proposition : sur la liste de courses ; `always` : d'office la prochaine fois. */
@@ -71,7 +73,11 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
   }
 
   /** Mouvement sans suite sur la liste de courses (entrée, inventaire). */
-  const plainMovement = ({ movementId, at, quantity }: { movementId: string; at: string; quantity: number }, product: Product, by: Author): StockMovementResult => ({
+  const plainMovement = (
+    { movementId, at, quantity, lot = null }: { movementId: string; at: string; quantity: number; lot?: LotView | null },
+    product: Product,
+    by: Author,
+  ): StockMovementResult => ({
     movementId,
     at,
     by,
@@ -79,6 +85,7 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
     quantity,
     container: null,
     forgotten: false,
+    lot,
     shopping: 'none',
     shoppingLabel: null,
   });
@@ -104,7 +111,7 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
         }
       }
       if (!product) return { kind: 'unknown', code, suggestion: null, baseError: false };
-      return { kind: 'product', code, product, quantity: await stock.quantity(code) };
+      return { kind: 'product', code, product, quantity: await stock.quantity(code), lots: await stock.lots(code) };
     },
 
     async recheck(code) {
@@ -134,17 +141,24 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
       return product.conflict ? ((await stock.resolveConflict(code, 'base')) as Product) : product;
     },
 
-    async stockIn(code, count, price, by) {
+    async stockIn(code, count, price, by, dated) {
       const product = await stock.product(code);
       if (!product) return refuse('unknown-product');
-      return plainMovement(await stock.add(product.code, count, price, by), product, by);
+      const result = await stock.add(product.code, count, price, by, dated);
+      // La fiche a pu changer (type de date retenu, « Date ? » désormais demandée).
+      return plainMovement(result, (await stock.product(product.code)) ?? product, by);
     },
 
-    async stockOut(code, { all, refill, remaining }, by) {
+    async setLot(lotId, change, by) {
+      const result = await stock.setLot(lotId, change, by);
+      return result ? { product: result.product, lot: result.lot, quantity: result.quantity } : refuse('unknown-lot');
+    },
+
+    async stockOut(code, { all, refill, remaining, lotId = null }, by) {
       const product = await stock.product(code);
       if (!product) return refuse('unknown-product');
       if (refill && !(await stock.data()).containers.some((ct) => ct.id === refill)) return refuse('unknown-container');
-      const result = await stock.remove(product.code, { all, refill, remaining }, by);
+      const result = await stock.remove(product.code, { all, refill, remaining, lotId }, by);
       const shopping = await shoppingFor(product.code, result.exhausted, result.autoShop, result.movementId, by);
       return {
         movementId: result.movementId,
@@ -154,6 +168,7 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
         quantity: result.quantity,
         container: result.container,
         forgotten: result.forgotten,
+        lot: result.lot,
         ...shopping,
       };
     },
@@ -171,6 +186,7 @@ export function createStockService({ stock, productBase, lists, clock, logger = 
         quantity: productCode ? await stock.quantity(productCode) : 0,
         container: result.container,
         forgotten: false,
+        lot: null,
         ...shopping,
       };
     },

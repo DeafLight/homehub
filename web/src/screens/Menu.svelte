@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
+  import { localDay } from '../../../shared/dates.ts';
+  import { type MealWarning, shiftDay } from '../../../shared/expiry.ts';
   import { addWeeks, type CheckDecision, type MenuStockProduct, type MenuViewEntry, type PlanLine, type StockLink } from '../../../shared/menu.ts';
   import { FAMILY_ID } from '../../../shared/types.ts';
   import BackButton from '../components/BackButton.svelte';
   import Icon from '../components/Icon.svelte';
+  import CookFirst from '../components/menu/CookFirst.svelte';
   import MenuDays from '../components/menu/MenuDays.svelte';
   import MenuEntryForm from '../components/menu/MenuEntryForm.svelte';
   import MenuNeeds from '../components/menu/MenuNeeds.svelte';
@@ -30,10 +33,13 @@
   // la ligne disparaît tout de suite, « Annuler » la rend pendant quelques secondes, puis le serveur la retire.
   // « Cuisiné ? » sur un repas (toute la famille, comme le stock) ouvre le panneau « J'ai cuisiné » ; un repas cuisiné
   // s'annule d'ici tant que sa semaine est ouverte. Une ligne discrète rappelle les repas passés pas encore notés.
+  // Dates de péremption : « À cuisiner d'abord » (recettes qui utilisent ce qui arrive à date) en tête des recettes,
+  // et l'avertissement d'un stock (DLC) qui finit avant le repas dans les courses (shared/expiry.ts).
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
-  const { api, actor, config, navigate, router } = getAppContext();
+  const { api, actor, clock, config, navigate, router } = getAppContext();
+  const today = $derived(localDay(clock.now));
   const phone = untrack(() => back === null);
   const pairing = phone ? loadPairing() : null;
   const member = config.members.find((m) => m.id === pairing?.ownerId);
@@ -153,6 +159,11 @@
     if (await run(() => api.setPantry(names))) dialog = null;
   }
 
+  /** Un jour de la semaine affichée, ou null. */
+  const inWeek = (day: string) => (view.data && day >= view.data.week && day < addWeeks(view.data.week, 1) ? day : null);
+  const addCooked = (recipeId: string, day: string | null) => run(() => api.addMenuEntry(view.data!.week, recipeId, undefined, day));
+  /** « Avancer le repas » au jour où le stock finit. */
+  const advance = (w: MealWarning) => (w.entryId ? run(() => api.updateMenuEntry(w.entryId as string, { day: w.due })) : undefined);
   const openRecipe = (entry: MenuViewEntry) => navigate(phone ? phoneRecipePath(entry.recipeId) : recipePath(entry.recipeId));
   const proposals = $derived(view.data?.stock.filter((p) => !p.decided).length ?? 0);
 </script>
@@ -195,6 +206,17 @@
           <p class="reminder"><Icon name="chef" size={20} /> {reminderText(uncookedPast(data))}</p>
         {/if}
         <div class="scroll">
+          {#if data.expiry.cookFirst.length}
+            <CookFirst
+              items={data.expiry.cookFirst}
+              {today}
+              {editable}
+              {busy}
+              tonight={inWeek(today)}
+              tomorrow={inWeek(shiftDay(today, 1))}
+              onAdd={addCooked}
+            />
+          {/if}
           {#if shown.length === 0 && !editable}
             <p class="muted">{data.editable ? 'Aucune recette au menu.' : 'Pas de menu cette semaine-là.'}</p>
           {:else}
@@ -232,6 +254,10 @@
             onHave={setHave}
             onCheck={setCheck}
             onNow={setNow}
+            warnings={data.expiry.warnings}
+            {today}
+            canAdvance={(w) => inWeek(w.due) !== null && w.due >= today}
+            onAdvance={advance}
           />
         </div>
         <p class="pantry muted">

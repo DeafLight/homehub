@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { type MealWarning, mealWarningText, nearDay } from '../../../../shared/expiry.ts';
   import type { CheckDecision, PlanLine } from '../../../../shared/menu.ts';
   import { dayLabel, laterAmount, lineAmount, lineSources, lineStatus, planGroups } from '../../lib/menu.ts';
 
@@ -8,6 +9,8 @@
   // En tête, « À vérifier au placard » : un paquet peut-être entamé comblerait le manque ; tant qu'on n'a pas décidé
   // (« J'en ai assez » / « Il en faut »), la ligne reste dans les courses. « À acheter plus tard » : les frais d'un repas
   // tardif, avec le jour où ils rejoindront la liste ; « Acheter maintenant » les avance (« Plus tard » les remet).
+  // Dates de péremption : un ingrédient dont le stock (DLC) finit avant le repas porte un avertissement (« Le stock
+  // finit samedi (DLC) ») et « Avancer à samedi » ; la ligne n'est pas rachetée pour autant.
   type Props = {
     plan: PlanLine[];
     editable: boolean;
@@ -17,8 +20,14 @@
     onHave: (line: PlanLine, have: boolean) => void;
     onCheck: (line: PlanLine, decision: CheckDecision | null) => void;
     onNow: (line: PlanLine, now: boolean) => void;
+    /** Stock qui finit avant le repas, par ingrédient ; `canAdvance` : la date tombe dans la semaine affichée. */
+    warnings?: MealWarning[];
+    today?: string;
+    canAdvance?: (w: MealWarning) => boolean;
+    onAdvance?: (w: MealWarning) => void;
   };
-  let { plan, editable, empty, busy, onHave, onCheck, onNow }: Props = $props();
+  let { plan, editable, empty, busy, onHave, onCheck, onNow, warnings = [], today = '', canAdvance = () => false, onAdvance }: Props = $props();
+  const warningOf = $derived(new Map(warnings.map((w) => [w.key, w])));
 
   const groups = $derived(planGroups(plan));
   /** Frais qui attendent, par jour d'achat. */
@@ -31,6 +40,16 @@
     }, []),
   );
 </script>
+
+{#snippet warning(line: PlanLine)}
+  {@const w = warningOf.get(line.key)}
+  {#if w}
+    <span class="chip warn">{mealWarningText(w, today)}</span>
+    {#if editable && onAdvance && w.entryId && canAdvance(w)}
+      <button type="button" class="link-btn" disabled={busy} onclick={() => onAdvance(w)}>Avancer le repas à {nearDay(w.due, today, false)}</button>
+    {/if}
+  {/if}
+{/snippet}
 
 {#if plan.length === 0}
   <p class="muted">{empty}</p>
@@ -48,6 +67,7 @@
                 <span class="amount">{lineAmount(line)}</span>
                 <span class="sources">{lineSources(line)}</span>
                 <span class="chip warn">{lineStatus(line)}</span>
+                {@render warning(line)}
               </div>
               {#if editable}
                 <div class="decide">
@@ -72,6 +92,7 @@
               <span class="amount">{lineAmount(line)}</span>
               <span class="sources">{lineSources(line)}</span>
               {#if status}<span class="chip" class:warn={line.stock?.enough === null}>{status}</span>{/if}
+              {@render warning(line)}
             </div>
             {#if editable && line.advanced}
               <button type="button" class="btn small" disabled={busy} onclick={() => onNow(line, false)}>Plus tard</button>
@@ -121,6 +142,7 @@
               <span class="name">{line.name}</span>
               <span class="amount">{lineAmount(line)}</span>
               <span class="chip ok">{lineStatus(line)}</span>
+              {@render warning(line)}
             </div>
             {#if editable && line.status === 'have'}
               <button type="button" class="btn small" disabled={busy} onclick={() => onHave(line, false)}>À acheter</button>
@@ -209,6 +231,16 @@
   .chip.warn {
     background: var(--warn-bg);
     color: var(--sun);
+  }
+
+  .link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--rain-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    text-decoration: underline;
   }
 
   /* À vérifier au placard : encadré discret, la ligne reste dans les courses tant qu'on n'a pas décidé. */

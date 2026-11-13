@@ -7,6 +7,7 @@
   import DetailLink from '../components/DetailLink.svelte';
   import HolidayChip from '../components/HolidayChip.svelte';
   import FocusDashboard from '../components/FocusDashboard.svelte';
+  import ExpiringCard from '../components/stock/ExpiringCard.svelte';
   import CommuteCard from '../components/widgets/CommuteCard.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
   import SchoolLifeCard from '../components/widgets/SchoolLifeCard.svelte';
@@ -36,6 +37,8 @@
    * ne montre rien aux autres), et si elle a un programme de sport.
    */
   const sport = $derived(actor.current?.id === ownerId && config.members.some((m) => m.id === ownerId && m.fitness));
+  /** Dashboard d'un parent : la carte « À consommer » du stock (familiale, sans auteur) en tête de la colonne du milieu. */
+  const parent = $derived(config.members.some((m) => m.id === ownerId && m.parent));
   const dashboard = createResource(() => api.dashboard(ownerId), DASHBOARD_REFRESH_MS);
   onDestroy(dashboard.destroy);
 
@@ -193,10 +196,11 @@
                 <UpcomingList events={data.upcoming} now={clock.now} />
               {/if}
             {/snippet}
-            {#if schoolLifeData}
-              <!-- Parent reconnu : la vie scolaire des enfants en tête de la colonne du milieu. -->
+            {#if schoolLifeData || parent}
+              <!-- Parent : ce qui arrive à date dans le stock, puis (reconnu) la vie scolaire des enfants, en tête de la colonne du milieu. -->
               <div class="column">
-                <SchoolLifeCard life={schoolLifeData} {profiles} now={clock.now} onOpen={() => (schoolLifeOpen = true)} />
+                {#if parent}<ExpiringCard compact />{/if}
+                {#if schoolLifeData}<SchoolLifeCard life={schoolLifeData} {profiles} now={clock.now} onOpen={() => (schoolLifeOpen = true)} />{/if}
                 {@render middle()}
               </div>
             {:else}

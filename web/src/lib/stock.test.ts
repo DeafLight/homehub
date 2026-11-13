@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { looseCode } from '../../../shared/barcode.ts';
-import type { Product } from '../../../shared/types.ts';
+import type { Product, LotView } from '../../../shared/types.ts';
 import {
   canExhaust,
   containerState,
@@ -17,6 +17,9 @@ import {
   scanMoment,
   scannerLabel,
   stockCounts,
+  stockRows,
+  thrownText,
+  undatedLot,
   stockText,
 } from './stock.ts';
 
@@ -30,6 +33,9 @@ const product = (over: Partial<Product['current']> = {}, versionCount = 1): Prod
   conflict: null,
   baseReadAt: null,
   categories: null,
+  dateKind: null,
+  askDate: null,
+  keepDays: null,
 });
 
 describe('libellés du stock', () => {
@@ -101,9 +107,9 @@ describe('quand et qui a scanné', () => {
 
 describe('inventaire du stock', () => {
   const items = [
-    { product: product({ name: 'Purée de pomme', brand: 'Marque' }), quantity: 2 },
-    { product: product({ name: 'Lessive', brand: null }), quantity: 0 },
-    { product: product({ name: 'Pâtes', brand: 'Épi' }), quantity: 1 },
+    { product: product({ name: 'Purée de pomme', brand: 'Marque' }), quantity: 2, lots: [], expiry: null },
+    { product: product({ name: 'Lessive', brand: null }), quantity: 0, lots: [], expiry: null },
+    { product: product({ name: 'Pâtes', brand: 'Épi' }), quantity: 1, lots: [], expiry: null },
   ];
 
   it('filtre en stock, épuisés ou tout, puis par nom ou marque', () => {
@@ -111,7 +117,36 @@ describe('inventaire du stock', () => {
     expect(filterStock(items, 'out', '').map((i) => i.product.current.name)).toEqual(['Lessive']);
     expect(filterStock(items, 'all', '  ÉPI ').map((i) => i.product.current.name)).toEqual(['Pâtes']);
     expect(filterStock(items, 'out', 'pâtes')).toEqual([]);
-    expect(stockCounts(items)).toEqual({ in: 2, out: 1, all: 3 });
+    expect(stockCounts(items)).toEqual({ in: 2, expiring: 0, out: 1, all: 3 });
+  });
+
+  it('« À consommer » : une ligne par lot qui arrive à date, la plus proche d’abord, « 1 sur 2 »', () => {
+    const lot = (id: string, due: string | null, count: number, level: LotView['level']): LotView => ({
+      id,
+      count,
+      in: '2026-11-01T08:00:00Z',
+      date: due,
+      kind: 'dlc',
+      dismissed: false,
+      due,
+      estimated: false,
+      dateKind: 'dlc',
+      level,
+    });
+    const creme = { product: product({ name: 'Crème fraîche' }), quantity: 2, lots: [lot('c1', '2026-11-04', 1, 'passed'), lot('c2', '2026-11-20', 1, 'later')], expiry: null };
+    const jambon = { product: product({ name: 'Jambon' }), quantity: 1, lots: [lot('j1', '2026-11-05', 1, 'urgent')], expiry: null };
+    const pates = { product: product({ name: 'Pâtes' }), quantity: 1, lots: [lot('p1', null, 1, 'none')], expiry: null };
+    const rows = stockRows([jambon, pates, creme], 'expiring', '');
+    expect(rows.map((r) => [r.entry.product.current.name, r.lot?.id, r.part])).toEqual([
+      ['Crème fraîche', 'c1', '1 sur 2'],
+      ['Jambon', 'j1', null],
+    ]);
+    expect(stockCounts([jambon, pates, creme]).expiring).toBe(2);
+    expect(undatedLot(pates)?.id).toBe('p1');
+    expect(undatedLot(jambon)).toBeNull();
+    expect(thrownText(0)).toBe('Rien de jeté périmé ce mois-ci');
+    expect(thrownText(3)).toBe('3 produits jetés (périmés) ce mois-ci');
+    expect(movementLabel({ kind: 'out', count: 1, forgotten: false, expired: 1 })).toBe('Jeté · périmé');
   });
 
   it('« Épuisé » actif sur un produit seul comme sur plusieurs, grisé à 0', () => {

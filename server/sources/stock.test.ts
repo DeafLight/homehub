@@ -182,3 +182,130 @@ describe('décompte « J’ai cuisiné »', () => {
     expect(await s.undoCook('c1')).toEqual({ undone: [], kept: ['111'], shoppingIds: [] });
   });
 });
+
+describe('lots et dates de péremption', () => {
+  const yaourt = { name: 'Yaourts nature', brand: null, quantity: '4 x 125 g', category: 'Crèmerie' };
+  const lotsOf = async (s: ReturnType<typeof store>, code = '111') => (await s.data()).items.find((i) => i.product.code === code)?.lots ?? [];
+
+  it('regroupe les scans sans date du même jour, sépare les dates différentes', async () => {
+    const s = store();
+    await s.saveManual('111', yaourt);
+    await s.add('111', 1, null, by);
+    await s.add('111', 1, null, by);
+    await s.add('111', 2, null, by, { date: '2026-11-09', kind: 'dlc' });
+    const lots = await lotsOf(s);
+    expect(lots.map((l) => [l.count, l.date])).toEqual([
+      [2, '2026-11-09'],
+      [2, null],
+    ]);
+    expect((await s.product('111'))?.askDate).toBe(true); // daté une fois : « Date ? » ensuite
+    expect(await s.quantity('111')).toBe(4);
+  });
+
+  it('sort le lot à la date la plus proche, compte « jeté (périmé) » et rend la sortie en annulant', async () => {
+    const s = store();
+    await s.saveManual('111', yaourt);
+    await s.add('111', 1, null, by, { date: '2026-11-20' });
+    await s.add('111', 1, null, by, { date: '2026-11-01' }); // passée (aujourd'hui : 2 novembre)
+    const out = await s.remove('111', {}, by);
+    expect(out.lot?.date).toBe('2026-11-01');
+    expect((await s.movements('111'))[0].expired).toBe(1);
+    expect((await s.expiring()).thrownThisMonth).toBe(1);
+    expect((await lotsOf(s)).map((l) => l.date)).toEqual(['2026-11-20']);
+    expect((await s.undo(out.movementId)).ok).toBe(true);
+    expect((await lotsOf(s)).map((l) => l.date)).toEqual(['2026-11-01', '2026-11-20']);
+    expect((await s.expiring()).thrownThisMonth).toBe(0);
+  });
+
+  it('sort un lot choisi, pas compté jeté quand il n’est pas passé', async () => {
+    const s = store();
+    await s.saveManual('111', yaourt);
+    await s.add('111', 1, null, by, { date: '2026-11-01' });
+    const { lot } = await s.add('111', 1, null, by, { date: '2026-11-20' });
+    const out = await s.remove('111', { lotId: lot?.id }, by);
+    expect(out.lot?.date).toBe('2026-11-20');
+    expect((await s.movements('111'))[0].expired).toBe(0);
+    // « Jeté » d'un lot entier : seulement ce lot.
+    await s.add('111', 2, null, by, { date: '2026-11-25' });
+    const passed = (await lotsOf(s)).find((l) => l.date === '2026-11-01');
+    await s.remove('111', { all: true, lotId: passed?.id }, by);
+    expect((await lotsOf(s)).map((l) => [l.count, l.date])).toEqual([[2, '2026-11-25']]);
+    expect((await s.movements('111'))[0].expired).toBe(1);
+  });
+
+  it('date un lot après coup, le découpe, « Encore bon », et l’entrée s’annule encore', async () => {
+    const s = store();
+    await s.saveManual('111', yaourt);
+    const added = await s.add('111', 4, null, by);
+    const id = added.lot?.id as string;
+    const dated = await s.setLot(id, { date: '2026-11-09', kind: 'dlc' }, by);
+    expect(dated?.lot).toMatchObject({ date: '2026-11-09', dateKind: 'dlc', level: 'later' });
+    const split = await s.setLot(id, { split: { count: 1, date: '2026-11-03' } }, by);
+    expect(split?.lot).toMatchObject({ count: 1, date: '2026-11-03', level: 'urgent' });
+    expect((await lotsOf(s)).map((l) => l.count)).toEqual([1, 3]);
+    const good = await s.setLot(split?.lot.id as string, { dismissed: true }, by);
+    expect(good?.lot.level).toBe('later');
+    // Les dates données ensuite n'empêchent pas d'annuler l'entrée.
+    expect((await s.undo(added.movementId)).ok).toBe(true);
+    expect(await s.quantity('111')).toBe(0);
+    expect(await s.setLot('inconnu', { date: null }, by)).toBeNull();
+  });
+
+  it('« J’ai cuisiné » prend les lots les plus proches, sans les compter jetés, et l’annulation les rend', async () => {
+    const s = store();
+    await s.saveManual('111', yaourt);
+    await s.add('111', 2, null, by, { date: '2026-11-20' });
+    await s.add('111', 1, null, by, { date: '2026-11-01' }); // passée : cuisinée quand même, pas « jetée »
+    await s.cook('c1', 'Cuisiné : Gâteau au yaourt', [{ code: '111', remove: 2, opened: null, container: null }], by);
+    expect((await lotsOf(s)).map((l) => [l.count, l.date])).toEqual([[1, '2026-11-20']]);
+    expect((await s.movements('111'))[0]).toMatchObject({ kind: 'out', count: 2, expired: 0 });
+    expect((await s.expiring()).thrownThisMonth).toBe(0);
+    await s.undoCook('c1');
+    expect((await lotsOf(s)).map((l) => [l.count, l.date])).toEqual([
+      [1, '2026-11-01'],
+      [2, '2026-11-20'],
+    ]);
+  });
+
+  it('lit un ancien fichier sans lots : un lot sans date, qu’on peut dater', async () => {
+    const path = tempPath();
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: 1,
+        products: { '111': { versions: [{ ...yaourt, from: NOW.toISOString(), source: 'manual', base: null }], image: null, autoShop: null, refill: null, conflict: null, baseReadAt: null } },
+        stock: { '111': { quantity: 3, updatedAt: '2026-10-30T10:00:00.000Z' } },
+        movements: [],
+        containers: [],
+        nextContainer: 1,
+        settings: { autoShop: false },
+      }),
+    );
+    const s = createStockStore({ path, clock: fixedClock });
+    const data = await s.data();
+    expect(data.settings.expiry.soonDlcDays).toBe(5);
+    const [lot] = data.items[0].lots;
+    expect(lot).toMatchObject({ count: 3, date: null, due: '2026-11-06', estimated: true }); // Crèmerie : 7 jours
+    await s.setLot(lot.id, { date: '2026-11-04' }, by);
+    expect((await lotsOf(s)).map((l) => [l.count, l.date])).toEqual([[3, '2026-11-04']]);
+    await s.remove('111', {}, by);
+    expect(await s.quantity('111')).toBe(2);
+  });
+
+  it('résume les DLC passées ou urgentes pour l’accueil, sans auteur', async () => {
+    const s = store();
+    await s.saveManual('111', yaourt);
+    await s.saveManual('222', { ...pasta, category: 'Épicerie' });
+    await s.add('111', 1, null, by, { date: '2026-11-03' });
+    await s.add('222', 1, null, by, { date: '2026-11-01' }); // DDM passée : pas sur l'accueil
+    expect(await s.expiring()).toEqual({ items: [{ code: '111', name: 'Yaourts nature', due: '2026-11-03', level: 'urgent', count: 1 }], thrownThisMonth: 0 });
+  });
+
+  it('garde les réglages des dates à part du réglage des courses', async () => {
+    const s = store();
+    await s.saveSettings({ expiry: { soonDlcDays: 4, urgentDlcDays: 1, soonDdmDays: 20, defaults: { Boulangerie: 3 } } });
+    const saved = await s.saveSettings({ autoShop: true });
+    expect(saved).toEqual({ autoShop: true, expiry: { soonDlcDays: 4, urgentDlcDays: 1, soonDdmDays: 20, defaults: { Boulangerie: 3 } } });
+  });
+});

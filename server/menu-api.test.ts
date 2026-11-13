@@ -375,3 +375,28 @@ describe('API du menu : frais à acheter plus tard', () => {
     expect(after.filter((s) => !s.done).map((s) => s.label)).toEqual(['Lait · 50 cl']);
   });
 });
+
+describe('API du menu : dates de péremption', () => {
+  it('« À cuisiner d’abord » et stock (DLC) qui finit avant le repas, sans le racheter', async () => {
+    const { call, alex, add, labels, view, stock, by, mijote } = await setup();
+    await stock.saveManual(GRUYERE, { name: 'Gruyère râpé', brand: null, quantity: '200 g', category: 'Crèmerie' });
+    await stock.saveManual(LAIT, { name: 'Lait demi-écrémé', brand: null, quantity: '1 L', category: 'Crèmerie' });
+    // Aujourd'hui : lundi 2 novembre. Gruyère jusqu'à mercredi 4 (urgent) ; lait jusqu'à jeudi 5.
+    await stock.add(GRUYERE, 1, null, by, { date: '2026-11-04', kind: 'dlc' });
+    await stock.add(LAIT, 2, null, by, { date: '2026-11-05', kind: 'dlc' });
+    await call('PUT', `/menu/links/${GRUYERE}`, { token: alex, body: { link: { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' }, partial: false } } });
+    await call('PUT', `/menu/links/${LAIT}`, { token: alex, body: { link: { key: 'lait', name: 'lait', per: { quantity: 1, unit: 'l' }, partial: false } } });
+    const first = await view();
+    expect(first.expiry.cookFirst.map((c) => [c.title, c.uses.map((u) => u.key)])).toEqual([
+      ['Gratin', ['gruyere']],
+      ['Mijoté', ['lait']],
+    ]);
+    // Mijoté prévu samedi : le lait finit jeudi. Avertissement seulement, la ligne reste couverte par le stock.
+    await add(mijote.id, 4, '2026-11-07');
+    const after = await view();
+    expect(after.expiry.cookFirst.map((c) => c.title)).toEqual(['Gratin']);
+    expect(after.expiry.warnings).toEqual([{ key: 'lait', product: 'Lait demi-écrémé', due: '2026-11-05', mealDay: '2026-11-07', recipeId: mijote.id, entryId: after.entries[0].id }]);
+    expect(await labels()).not.toContain('Lait · 50 cl');
+    expect((await view('2026-10-26')).expiry).toEqual({ cookFirst: [], warnings: [] });
+  });
+});

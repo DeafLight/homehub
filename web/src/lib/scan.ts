@@ -1,8 +1,10 @@
 // Règles du scanner du stock, sans navigateur : le journal du passage (une ligne par mouvement, annulée, convertie en
-// transvasement), le bandeau qui suit une sortie, la saisie du code à la main et le message d'une caméra en panne.
-// Scan.svelte ne garde que la caméra, les appels au serveur et l'affichage.
+// transvasement), le bandeau qui suit une sortie, la saisie du code à la main, le message d'une caméra en panne, et la
+// pastille de date d'une entrée (« Date ? », jamais bloquante). Scan.svelte ne garde que la caméra, les appels au
+// serveur et l'affichage.
 import { normalizeProductCode, validProductCode } from '../../../shared/barcode.ts';
-import type { Container, Product, StockMark, StockMovementResult } from '../../../shared/types.ts';
+import { asksDate, lotTone, shortDay, shortLotLabel } from '../../../shared/expiry.ts';
+import type { Container, LotView, Product, StockMark, StockMovementResult } from '../../../shared/types.ts';
 import type { BeepKind } from './beep.ts';
 import { cameraError } from './face.ts';
 import { productDetail, stockText } from './stock.ts';
@@ -23,6 +25,8 @@ export type ScanEntry = {
   /** Quand et par qui (null : pas encore enregistré). */
   mark: StockMark | null;
   undone: boolean;
+  /** Lot où l'entrée est rangée (pour lui donner une date), ou d'où la sortie est partie. */
+  lot: LotView | null;
 };
 
 /** Question posée à l'écran ; la caméra ne lit plus rien tant qu'elle est ouverte. */
@@ -32,7 +36,11 @@ export type ScanDialog =
   | { kind: 'forgotten'; product: Product; remaining: number }
   | { kind: 'shop'; code: string; label: string }
   | { kind: 'sheet'; product: Product }
-  | { kind: 'pick-container'; entry: ScanEntry; name: string };
+  | { kind: 'pick-container'; entry: ScanEntry; name: string }
+  /** « Date ? » touchée : le pavé de date du lot rangé. */
+  | { kind: 'date'; entry: ScanEntry }
+  /** Plusieurs lots et le premier à sortir est passé : lequel est jeté ? */
+  | { kind: 'which'; product: Product; expired: LotView; other: LotView };
 
 /** Taille du journal du passage. */
 export const MAX_ENTRIES = 40;
@@ -41,9 +49,10 @@ export const MAX_ENTRIES = 40;
 export function entryOf(result: StockMovementResult, kind: ScanEntry['kind'], code: string): ScanEntry {
   // Contenant vidé : son nom en titre, ce qu'il contenait en dessous.
   const name = (kind === 'empty' ? result.container?.name : null) ?? result.product?.current.name ?? result.container?.name ?? code;
+  const which = result.lot?.date && result.quantity > 0 ? ` · celui du ${shortDay(result.lot.date)}` : '';
   const lines: Record<ScanEntry['kind'], string> = {
     in: `Rangé · ${stockText(result.quantity)}`,
-    out: result.forgotten ? `Jeté · entrée oubliée, ${stockText(result.quantity).toLowerCase()}` : `Jeté · ${stockText(result.quantity)}`,
+    out: result.forgotten ? `Jeté · entrée oubliée, ${stockText(result.quantity).toLowerCase()}` : `Jeté${which} · ${stockText(result.quantity)}`,
     refill: `Transvasé dans ${result.container?.name ?? 'le contenant'} · emballage jeté`,
     empty: `Contenant vidé${result.product ? ` · c’était ${result.product.current.name}, ${stockText(result.quantity).toLowerCase()}` : ''}`,
   };
@@ -57,7 +66,27 @@ export function entryOf(result: StockMovementResult, kind: ScanEntry['kind'], co
     line: `${lines[kind]}${shopping}`,
     mark: { at: result.at, by: result.by },
     undone: false,
+    lot: result.lot,
   };
+}
+
+/** Pastille de date d'une entrée : « Date ? » (produit qui en a l'habitude), sa date, ou « pas de date ». */
+export type DateChip = { label: string; tone: 'ask' | 'bad' | 'warn' | 'muted' };
+
+export function entryDateChip(entry: ScanEntry): DateChip | null {
+  if (entry.kind !== 'in' || entry.undone || !entry.product || !entry.lot) return null;
+  const label = entry.lot.date ? shortLotLabel(entry.lot) : null;
+  if (label) return { label, tone: lotTone(entry.lot) };
+  return asksDate(entry.product) ? { label: 'Date ?', tone: 'ask' } : { label: 'pas de date', tone: 'muted' };
+}
+
+/** Date donnée à un lot (ou partie à une autre date : le lot de l'entrée garde le reste) ; fiche à jour partout. */
+export function noteLot(entries: ScanEntry[], entryId: string, lot: LotView, product: Product, split: number | null): ScanEntry[] {
+  return entries.map((e) => {
+    const withProduct = e.code === product.code ? { ...e, product } : e;
+    if (e.id !== entryId) return withProduct;
+    return { ...withProduct, lot: split !== null && e.lot ? { ...e.lot, count: e.lot.count - split } : lot };
+  });
 }
 
 /** Le plus récent en tête, `MAX_ENTRIES` au plus. */
@@ -81,7 +110,7 @@ export function entrySubtitle(entry: ScanEntry): string {
 
 /** Ligne encore à faire (« C'était une recharge » sur un produit pas encore sorti) : pas d'identifiant de mouvement. */
 export function pendingEntry(product: Product): ScanEntry {
-  return { id: '', kind: 'out', code: product.code, product, title: product.current.name, line: '', mark: null, undone: false };
+  return { id: '', kind: 'out', code: product.code, product, title: product.current.name, line: '', mark: null, undone: false, lot: null };
 }
 
 /** Contenant où le produit est d'habitude transvasé, s'il existe encore. */
@@ -92,7 +121,8 @@ export function afterOut(result: StockMovementResult, name: string, info = ''): 
   if (result.shopping === 'propose' && result.product && result.shoppingLabel) {
     return { flash: { tone: 'ask', title: name, detail: 'Épuisé', info }, dialog: { kind: 'shop', code: result.product.code, label: result.shoppingLabel } };
   }
-  const detail = result.container && !result.product ? 'Contenant vide' : result.container ? `Dans ${result.container.name}` : stockText(result.quantity);
+  const which = result.lot?.date && result.quantity > 0 && !result.container ? ` · sorti : celui du ${shortDay(result.lot.date)}` : '';
+  const detail = result.container && !result.product ? 'Contenant vide' : result.container ? `Dans ${result.container.name}` : `${stockText(result.quantity)}${which}`;
   return { flash: { tone: 'ok', title: name, detail: result.shopping === 'added' ? `${detail} · ajouté à la liste de courses` : detail, info }, dialog: null };
 }
 

@@ -4,10 +4,13 @@
 // code-barres (vrac, marché, fait maison) s'ajoute par son nom et sa quantité, puis passe par les mêmes routes.
 // Le mouvement garde qui l'a fait quand on le sait (personne reconnue juste avant, ou profil du téléphone). Les règles
 // (base de produits, liste de courses) sont dans services/stock.ts ; ici, validation, droits et réponses.
+// Dates de péremption : date facultative à l'entrée, date d'un lot après coup (mêmes droits que le stock), résumé
+// sans auteur pour l'accueil ; seuils et durées par rayon réglés par un parent.
 import { z } from 'zod';
 import { isContainerCode, isLooseCode, isStockCode } from '../shared/barcode.ts';
+import { EXPIRY_LIMITS, isDay } from '../shared/expiry.ts';
 import { LOOSE_UNITS, validLooseAmount } from '../shared/loose.ts';
-import type { ScanLookup, StockMovement, StockMovementResult } from '../shared/types.ts';
+import type { ExpiringSummary, ScanLookup, StockMovement, StockMovementResult } from '../shared/types.ts';
 import type { Access } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { createStockService, isRefusal, type StockRefusal } from './services/stock.ts';
@@ -39,16 +42,44 @@ const infoSchema = z.object({
   category: optionalField,
 });
 const code = z.string().refine(isStockCode, 'code-barres sur 13 chiffres attendu');
-const inSchema = z.object({ code, count: z.number().int().min(1).max(99).default(1), price: z.number().min(0).max(10_000).nullish() });
+const day = z.string().refine(isDay, 'date AAAA-MM-JJ attendue');
+const dateKind = z.enum(['dlc', 'ddm']);
+const inSchema = z.object({
+  code,
+  count: z.number().int().min(1).max(99).default(1),
+  price: z.number().min(0).max(10_000).nullish(),
+  date: day.nullish(),
+  kind: dateKind.nullish(),
+});
 const outSchema = z.object({
   code,
   all: z.boolean().default(false),
   refill: z.string().nullish(),
   remaining: z.number().int().min(0).max(99).default(0),
+  lotId: z.string().min(1).nullish(),
+});
+const lotSchema = z.object({
+  date: day.nullable().optional(),
+  kind: dateKind.nullable().optional(),
+  dismissed: z.boolean().optional(),
+  split: z.object({ count: z.number().int().min(1).max(99), date: day.nullable() }).optional(),
+});
+const threshold = z.number().int().min(0).max(EXPIRY_LIMITS.threshold);
+const expirySchema = z.object({
+  soonDlcDays: threshold,
+  urgentDlcDays: threshold,
+  soonDdmDays: z.number().int().min(0).max(EXPIRY_LIMITS.keep),
+  defaults: z.record(z.string().trim().min(1).max(FIELD_MAX), z.number().int().min(1).max(EXPIRY_LIMITS.keep)).refine((d) => Object.keys(d).length <= 40, 'trop de rayons'),
 });
 const undoSchema = z.object({ movementId: z.string().min(1) });
 const shopSchema = z.object({ code, always: z.boolean().default(false) });
-const prefsSchema = z.object({ autoShop: z.boolean().nullable().optional(), refill: z.string().nullable().optional() });
+const prefsSchema = z.object({
+  autoShop: z.boolean().nullable().optional(),
+  refill: z.string().nullable().optional(),
+  dateKind: dateKind.nullable().optional(),
+  askDate: z.boolean().nullable().optional(),
+  keepDays: z.number().int().min(1).max(EXPIRY_LIMITS.keep).nullable().optional(),
+});
 const conflictSchema = z.object({ take: z.enum(['mine', 'base']) });
 const containerSchema = z.object({ name: z.string().trim().min(1).max(FIELD_MAX) });
 const settingsSchema = z.object({ autoShop: z.boolean() });
@@ -77,6 +108,9 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
   const knownProduct = async (value: string) => (await stock.product(value)) ?? fail(404, 'Produit inconnu');
 
   api.get('/stock', async (c) => c.json(await stock.data()));
+
+  /** DLC passées ou urgentes (accueil, dashboard d'un parent), produits jetés périmés ce mois-ci : sans auteur. */
+  api.get('/stock/expiring', async (c) => c.json<ExpiringSummary>(await stock.expiring()));
 
   /** Ce qu'est un code scanné : contenant de la maison, produit connu (copie locale, relue dans la base si ancienne), ou inconnu. */
   api.get('/stock/scan/:code', async (c) => {
@@ -146,15 +180,22 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
   api.post('/stock/in', async (c) => {
     const input = await readBody(c, inSchema);
     const author = await access.appliance(c);
-    const result = await service.stockIn(input.code, input.count, input.price ?? null, author);
+    const result = await service.stockIn(input.code, input.count, input.price ?? null, author, { date: input.date ?? null, kind: input.kind ?? null });
     return c.json<StockMovementResult>(orRefuse(result, { 'unknown-product': [404, UNKNOWN_TO_ENTER] }), 201);
   });
 
   api.post('/stock/out', async (c) => {
-    const { code: value, all, refill, remaining } = await readBody(c, outSchema);
+    const { code: value, all, refill, remaining, lotId } = await readBody(c, outSchema);
     const author = await access.appliance(c);
-    const result = await service.stockOut(value, { all, refill: refill ?? null, remaining }, author);
+    const result = await service.stockOut(value, { all, refill: refill ?? null, remaining, lotId: lotId ?? null }, author);
     return c.json<StockMovementResult>(orRefuse(result, { 'unknown-product': [404, UNKNOWN_TO_ENTER], 'unknown-container': [400, 'Contenant inconnu'] }));
+  });
+
+  /** Date d'un lot (« Date ? » au scanner, ou après coup), type DLC / DDM, « Encore bon », partie à une autre date. */
+  api.put('/stock/lots/:id', async (c) => {
+    const change = await readBody(c, lotSchema);
+    const author = await access.appliance(c);
+    return c.json(orRefuse(await service.setLot(c.req.param('id'), change, author), { 'unknown-lot': [404, 'Lot inconnu (sorti entre-temps ?)'] }));
   });
 
   /** Annuler (scan en double, mauvais mode) : le dernier mouvement du produit seulement. */
@@ -202,9 +243,16 @@ export function createStockApi({ stock, productBase, lists, access, clock, logge
   });
 
   api.put('/stock/settings', async (c) => {
-    const settings = await readBody(c, settingsSchema);
+    const { autoShop } = await readBody(c, settingsSchema);
     await access.appliance(c);
-    return c.json(await stock.saveSettings(settings));
+    return c.json(await stock.saveSettings({ autoShop }));
+  });
+
+  /** Seuils et durées par rayon des dates de péremption : un parent. */
+  api.put('/stock/settings/expiry', async (c) => {
+    const expiry = await readBody(c, expirySchema);
+    await access.parent(c, 'Réglage réservé aux parents');
+    return c.json(await stock.saveSettings({ expiry }));
   });
 
   return api;

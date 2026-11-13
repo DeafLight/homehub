@@ -294,3 +294,31 @@ describe('API du stock', () => {
     expect((await call('PUT', `/stock/loose/${created.json.product!.code}`, { amount: 1, unit: 'kg' }, OTHER)).status).toBe(403);
   });
 });
+
+describe('API du stock : dates de péremption', () => {
+  it('date à l’entrée ou après coup, résumé de l’accueil, et réglages réservés aux parents', async () => {
+    const { call, sessions } = setup({ [COMPOTE]: compote });
+    await call('GET', `/stock/scan/${COMPOTE}`);
+    const added = await call<StockMovementResult>('POST', '/stock/in', { code: COMPOTE, date: '2026-11-03', kind: 'dlc' });
+    expect(added.json.lot).toMatchObject({ date: '2026-11-03', level: 'urgent' });
+    expect((await call('POST', '/stock/in', { code: COMPOTE, date: '2026-02-30' })).status).toBe(400);
+
+    const plain = await call<StockMovementResult>('POST', '/stock/in', { code: COMPOTE });
+    const lotId = plain.json.lot?.id as string;
+    const dated = await call<{ lot: { date: string } }>('PUT', `/stock/lots/${lotId}`, { date: '2026-11-20' });
+    expect(dated.json.lot.date).toBe('2026-11-20');
+    expect((await call('PUT', `/stock/lots/${lotId}`, { date: '2026-11-20' }, OTHER)).status).toBe(403);
+    expect((await call('PUT', '/stock/lots/inconnu', { date: null })).status).toBe(404);
+
+    const summary = await call<{ items: { name: string }[] }>('GET', '/stock/expiring', undefined, OTHER);
+    expect(summary.json.items.map((i) => i.name)).toEqual(['Purée de pomme']);
+    expect(JSON.stringify(summary.json)).not.toContain('ownerId');
+
+    const expiry = { soonDlcDays: 4, urgentDlcDays: 1, soonDdmDays: 20, defaults: { Boulangerie: 3 } };
+    expect((await call('PUT', '/stock/settings/expiry', expiry)).status).toBe(403); // personne de reconnu
+    const { token } = sessions.open('alex', 10);
+    const saved = await call<StockData['settings']>('PUT', '/stock/settings/expiry', expiry, TABLET, { 'X-Actor-Session': token });
+    expect(saved.json.expiry).toEqual(expiry);
+    expect((await call<StockData['settings']>('PUT', '/stock/settings', { autoShop: true })).json).toEqual({ autoShop: true, expiry });
+  });
+});

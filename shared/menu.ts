@@ -42,6 +42,7 @@
 // ingrédient d'un repas tôt et d'un repas tard : seule la part du repas tardif attend ; ce qu'on a déjà (acheté, en
 // stock) couvre d'abord les premiers repas. « Acheter maintenant » avance tout l'ingrédient pour la semaine.
 import { localDay } from './dates.ts';
+import type { CookFirst, MealWarning } from './expiry.ts';
 import { guessAisle, ingredientKey, parseIngredient } from './ingredients.ts';
 import {
   addQuantities,
@@ -658,4 +659,9 @@ export type MenuView = {
   stock: MenuStockProduct[];
   /** Ingrédients du carnet, pour choisir à la main à quoi relier un produit. */
   ingredients: { key: string; name: string }[];
+  /**
+   * Dates de péremption (semaine en cours ou à venir) : recettes du carnet à cuisiner d'abord, et ingrédients dont le
+   * stock (DLC) finit avant le repas qui les utilise (un avertissement : la ligne n'est pas rachetée).
+   */
+  expiry: { cookFirst: CookFirst[]; warnings: MealWarning[] };
 };

@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.63.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.64.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -19,7 +19,9 @@ Chrome est cherché aux emplacements habituels ; sinon `CHROME=<chemin>`. Pour e
 ### Accueil
 
 Horloge, météo, prochains passages aux arrêts suivis, prochain événement de la famille ; à droite, « Qui est là ? »
-avec le prochain rendez-vous et les mots non lus de chacun. En bas, un minuteur en cours.
+avec le prochain rendez-vous et les mots non lus de chacun. Carte **« À consommer »** : le pot de crème fraîche
+passé d'hier et le jambon à finir aujourd'hui (DLC passées ou urgentes seulement) ; touchée, elle ouvre le stock sur
+« À consommer ». En bas, un minuteur en cours.
 
 ![Accueil](images/tablette-accueil.png)
 
@@ -57,7 +59,8 @@ Un jour férié compte comme un jour de vacances pour l'école. Mercredi 11 nove
 
 Alex reconnu devant la tablette : en tête de la colonne du milieu, la vie scolaire de Léa (dernière note, un retard
 à justifier, une absence) et les messages non lus de l'établissement. Rien de tout cela sur l'accueil, sur le
-dashboard d'un enfant, ni quand personne n'est reconnu.
+dashboard d'un enfant, ni quand personne n'est reconnu. Au-dessus, la carte « À consommer », comme sur l'accueil
+(sur le dashboard d'un parent seulement).
 
 ![Dashboard d'Alex avec la vie scolaire](images/tablette-dashboard-parent.png)
 
@@ -127,6 +130,13 @@ avec « Annuler », et un bandeau résume ce qui est parti (« coquillettes (il 
 quelques secondes ; le thon et la pâte, déjà là, ne sont plus dans les courses.
 
 ![Repas noté cuisiné depuis le menu](images/tablette-menu-cuisine.png)
+**Dates de péremption** : en tête des recettes, **« À cuisiner d'abord »** propose les recettes du carnet qui ne sont
+pas au menu et utilisent un produit dont la date arrive (la quiche pour le jambon d'aujourd'hui et le gruyère, le
+gâteau pour les yaourts de lundi), avec « Ce soir », « Demain » ou « Ajouter ». Le gruyère finit samedi (DLC) alors
+que les galettes sont dimanche : « Le stock finit samedi (DLC) » et « Avancer le repas à samedi » ; il n'est pas
+racheté pour autant.
+
+![Menu : à cuisiner d'abord et avertissement DLC](images/tablette-menu-peremption.png)
 
 ### Stock
 
@@ -141,6 +151,19 @@ liste de courses pour un produit épuisé.
 
 ![Produit sans code-barres](images/tablette-stock-sans-code-barres.png)
 
+**Dates de péremption** : chaque produit daté porte la pastille de sa date la plus proche. Le filtre **« À
+consommer »** montre une ligne par lot qui arrive à date, la plus proche d'abord : la crème passée d'hier (1 pot sur
+2, l'autre est bon jusqu'au 20) avec « Jeté » et « Encore bon », le jambon d'aujourd'hui, les yaourts de lundi, les
+biscottes à consommer de préférence avant le 30 (DDM) ; en bas, le pot de crème déjà jeté périmé ce mois-ci.
+
+![Stock : à consommer](images/tablette-stock-a-consommer.png)
+
+« Régler », dans la carte « Dates de péremption » : seuils (DLC urgente, bientôt, DDM bientôt) et durées par rayon
+pour les produits sans date imprimée (date estimée, montrée « ≈ »). Chaque changement s'enregistre aussitôt ; un
+parent seulement (cadenas sinon).
+
+![Réglage des dates de péremption](images/tablette-stock-dates-reglage.png)
+
 ### Scanner
 
 Mode « Jeté / épuisé » : le paquet de café scanné est d'habitude transvasé dans le bocal, d'où la question ; le
@@ -149,6 +172,14 @@ leur auteur, chacun annulable. (Sans caméra
 dans Chrome sans fenêtre : codes saisis à la main.)
 
 ![Scanner](images/tablette-scanner.png)
+
+**Dates de péremption** : des yaourts rangés, déjà datés une fois, portent la pastille « Date ? » ; le scan continue
+sans elle. Touchée, elle ouvre le pavé : DLC ou DDM, jour puis mois (ici 09/11, « lundi 9 novembre 2026 · dans 4
+jours »), une partie à une autre date, « Ne plus demander » pour ce produit.
+
+| Pastille « Date ? » | Pavé de date |
+|---|---|
+| ![Pastille Date ?](images/tablette-scanner-peremption.png) | ![Pavé de date](images/tablette-scanner-date.png) |
 
 ### Sport
 
@@ -253,12 +284,12 @@ En tête de l'onglet Agenda ; la toucher ouvre le détail.
 ### Stock du téléphone
 
 « Ce qu'il reste à la maison », en haut de l'onglet Courses : pour le voir au magasin. Recherche, produits en stock
-ou épuisés, ± 1 et « Épuisé » sur chaque produit ; ni date ni auteur dans la liste, ils restent dans la fiche du produit ; plus bas, les
-contenants en lecture seule.
+ou épuisés, ± 1 et « Épuisé » sur chaque produit ; ni heure ni auteur dans la liste, ils restent dans la fiche du produit ; plus bas, les
+contenants en lecture seule. Les dates de péremption s'y voient (pastille courte, filtre « À consommer »).
 
-| Stock | Produit sans code-barres |
-|---|---|
-| <img src="images/telephone-stock.png" alt="Stock du téléphone" width="260"> | <img src="images/telephone-stock-sans-code-barres.png" alt="Fiche des pommes du marché" width="260"> |
+| Stock | À consommer | Produit sans code-barres |
+|---|---|---|
+| <img src="images/telephone-stock.png" alt="Stock du téléphone" width="260"> | <img src="images/telephone-stock-a-consommer.png" alt="Stock du téléphone : à consommer" width="260"> | <img src="images/telephone-stock-sans-code-barres.png" alt="Fiche des pommes du marché" width="260"> |
 
 Le bouton + ajoute un produit sans code-barres, comme sur la tablette. Sa fiche (ici des pommes du marché, 1,2 kg)
 dit d'où il vient, se met à jour avec **Modifier la quantité** (« il reste 800 g », racheté) et garde l'historique.

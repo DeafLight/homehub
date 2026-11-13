@@ -1,26 +1,31 @@
 <script lang="ts">
   import { isLooseCode } from '../../../../shared/barcode.ts';
   import { looseAmount } from '../../../../shared/loose.ts';
-  import type { Container, Product, ProductRecheck, StockMovement } from '../../../../shared/types.ts';
+  import type { Container, ExpirySettings, LotView, Product, ProductRecheck, StockMovement } from '../../../../shared/types.ts';
   import { getAppContext } from '../../lib/context.ts';
   import { infoDiff, looseText, markLine, movementLabel, productDetail, productSubtitle, provenance, stockText } from '../../lib/stock.ts';
   import LooseForm from './LooseForm.svelte';
+  import ProductDates from './ProductDates.svelte';
   import ProductForm from './ProductForm.svelte';
 
   // Fiche d'un produit (scanner, stock) : ce qu'on en sait et d'où ça vient ; « Ce n'est pas ça ? » → Revérifier
   // (relecture de la base, différences à accepter ou non) ou Corriger (notre version) ; conflit avec la base à
   // trancher ; réglages (liste de courses d'office, contenant où on le transvase). Sans code-barres : pas de base à
-  // relire, mais sa quantité se change ici (« il reste 800 g », racheté).
+  // relire, mais sa quantité se change ici (« il reste 800 g », racheté). Dates de péremption : ProductDates.svelte.
   type Props = {
     product: Product;
     quantity: number | null;
     /** Part restante du paquet entamé, notée en cuisinant (null : inconnue). */
     opened?: number | null;
     containers: Container[];
+    /** Lots du produit et réglages des dates (absents au scanner : seulement les réglages du produit). */
+    lots?: LotView[] | null;
+    expiry?: ExpirySettings | null;
+    readOnly?: boolean;
     onChange: (product: Product) => void;
     onClose: () => void;
   };
-  let { product, quantity, opened = null, containers, onChange, onClose }: Props = $props();
+  let { product, quantity, opened = null, containers, lots = null, expiry = null, readOnly = false, onChange, onClose }: Props = $props();
 
   const { api, clock, config } = getAppContext();
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
@@ -165,6 +170,8 @@
       <button type="button" class="btn small" disabled={busy} onclick={() => (mode = 'correct')}>Corriger</button>
     </div>
   </section>{/if}
+
+  <ProductDates {product} {lots} {expiry} {readOnly} {onChange} />
 
   <section>
     <h3 class="card-label">Épuisé : liste de courses</h3>

@@ -146,6 +146,8 @@ export const DOCS_UNKNOWN = '3000000000076';
  * rien de reconnaissable dans son nom : il est proposé d'après sa catégorie Open Food Facts.
  */
 export const DOCS_FOOD = { lentilles: '3000000000083', carottes: '3000000000090', gruyere: '3000000000106', thon: '3000000000113' } as const;
+/** Produits frais datés (dates de péremption) : yaourts, crème fraîche, jambon, et des biscottes (DDM). */
+export const DOCS_FRESH = { yaourts: '3000000000120', creme: '3000000000137', jambon: '3000000000144', biscottes: '3000000000151' } as const;
 /** Catégories inventées dans la forme d'Open Food Facts (de la plus large à la plus précise). */
 const categories = (...tags: string[]) => tags;
 const PRODUCT_BASES: Record<string, Record<string, Record<string, string | string[]>>> = {
@@ -163,6 +165,10 @@ const PRODUCT_BASES: Record<string, Record<string, Record<string, string | strin
       quantity: '140 g',
       categories_tags: categories('en:seafood', 'en:fishes', 'en:canned-fishes', 'en:tunas', 'en:canned-tunas'),
     },
+    [DOCS_FRESH.yaourts]: { product_name_fr: 'Yaourts nature', brands: 'Ferme des Coteaux', quantity: '4 x 125 g', categories_tags: categories('en:dairies', 'en:yogurts') },
+    [DOCS_FRESH.creme]: { product_name_fr: 'Crème fraîche épaisse', brands: 'Laiterie du Val', quantity: '20 cl', categories_tags: categories('en:dairies', 'en:creams') },
+    [DOCS_FRESH.jambon]: { product_name_fr: 'Jambon blanc', brands: 'Charcuterie du Val', quantity: '4 tranches', categories_tags: categories('en:meats', 'en:hams') },
+    [DOCS_FRESH.biscottes]: { product_name_fr: 'Biscottes complètes', brands: 'Moulin d’Anjou', quantity: '300 g' },
   },
   'world.openbeautyfacts.org': {
     [DOCS_PRODUCTS.shampooing]: { product_name_fr: 'Shampooing doux', brands: 'Bain de Loire', quantity: '250 ml' },

@@ -7,8 +7,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 
 ![Accueil de la tablette](docs/images/tablette-accueil.png)
 
-- **Accueil** : grande horloge, météo, prochain événement de la famille, et « Qui est là ? » pour choisir son profil.
-- **Dashboard par profil** (`/p/<id>`) : prochaine activité, tâches à cocher, semaine, mot de la famille.
+- **Accueil** : grande horloge, météo, prochain événement de la famille, et « Qui est là ? » pour choisir son profil ;
+  carte **« À consommer »** quand une DLC du stock est passée ou urgente (voir Stock).
+- **Dashboard par profil** (`/p/<id>`) : prochaine activité, tâches à cocher, semaine, mot de la famille (et, pour un
+  parent, la carte « À consommer »).
   Un rail à gauche ramène à l'accueil ou passe directement à un autre profil.
 - **Famille** : un profil commun (`/p/famille`) pour l'agenda partagé et la liste de courses.
 - **Semaine détaillée** (`/semaine`) : ouverte depuis « Prochaine activité », « Cette semaine », les frises du jour et le
@@ -39,8 +41,15 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
     le produit reste dans le contenant ; le choix est retenu par produit (« Transvasé dans Bocal à café » proposé
     d'office, « Épuisé » toujours possible). L'étiquette du contenant (code-barres interne, préfixe 29), scannée en
     mode « Jeté / épuisé », le déclare vide.
+  - **Dates de péremption** : une entrée porte une pastille de date, sans jamais arrêter le scan. « **Date ?** » pour
+    les rayons frais (frais, crèmerie, boucherie, poissonnerie, boulangerie, fruits et légumes) et les produits déjà
+    datés une fois ; « pas de date » (discret) pour les autres. La toucher ouvre un **pavé** : DLC (« À consommer
+    jusqu'au ») ou DDM (« De préférence avant »), jour puis mois (l'année se devine : la prochaine fois que ce jour
+    arrive), « Mois et année seuls » (DDM), « Même date que le précédent », une partie à une autre date, « Ne plus
+    demander » pour ce produit. En sortie, le lot à la date la plus proche part d'office (FEFO) ; s'il y a un lot
+    passé, « Lequel ? » (le périmé est compté « jeté (périmé) »).
 - **Stock** (`/stock`, depuis le scanner ou la page Listes ; `/m/stock` sur le téléphone, depuis l'onglet Courses, pour
-  voir au magasin ce qu'il reste, sans date ni auteur, contenants en lecture seule) : produits en stock, épuisés ou tous, recherche ; ± 1 et
+  voir au magasin ce qu'il reste, avec les dates de péremption mais sans historique ni auteur, contenants en lecture seule) : produits en stock, épuisés ou tous, recherche ; ± 1 et
   « Épuisé » à la main sur chaque produit, même s'il n'en reste qu'un (pour le stock déjà là ou un oubli) ; sous chaque produit, la dernière entrée et la dernière
   sortie (« Rangé hier à 18:20 (Léa) · sorti aujourd'hui à 07:30 (anonyme) »), et pour un produit épuisé seulement
   quand et par qui (« Épuisé aujourd'hui à 07:30 (anonyme) ») ; fiche de chaque produit : historique
@@ -56,6 +65,16 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Contenants de la maison : ajout, renommage, retrait, « Vide », **étiquette à imprimer**. Écriture depuis la tablette
   (sans reconnaissance du visage : la caméra sert au scan ; au nom de la personne reconnue s'il y en a une) ou un
   téléphone relié. Prix : facultatifs, pas encore saisis (lecture des tickets à venir).
+  **Dates de péremption** : le stock d'un produit est fait de **lots** (une date et son type, DLC ou DDM, ou pas de
+  date) ; une pastille dit la plus proche (« DLC lundi 9 · dans 4 j » : orange bientôt ou urgente, rouge passée, gris
+  pour une DDM passée ou une date estimée « ≈ »). Filtre **« À consommer »** : une ligne par lot qui arrive à date, la
+  plus proche d'abord, avec « Jeté » (compté périmé) et « Encore bon » (une DLC demande confirmation) ; « 3 produits
+  jetés (périmés) ce mois-ci ». Sans date imprimée, une **date estimée** d'après le rayon (boulangerie et poissonnerie
+  2 j, boucherie 3 j, frais et fruits et légumes 5 j, crèmerie 7 j), corrigeable par produit sur sa fiche (« Se garde
+  … jours ») ; jamais rouge ni sur l'accueil. Réglage des seuils (DLC urgente 2 j, bientôt 5 j, DDM bientôt 30 j) et
+  des durées par rayon sur la page Stock de la tablette, enregistré à chaque changement, réservé aux parents. La
+  carte « À consommer » de l'accueil et du dashboard d'un parent montre les DLC passées ou urgentes (deux noms au
+  plus) et ouvre ce filtre. Pas de notification pour l'instant.
 - **Recettes** (`/recettes` sur la tablette, par le bouton de l'accueil ou du bandeau des profils ; onglet Recettes
   du téléphone, `/m/recettes`) : le carnet de la famille. On partage une recette depuis son téléphone (Marmiton, Jow,
   Cookeo, ou tout site qui publie ses recettes au format schema.org) : HomeHub lit la page (titre, portions,
@@ -121,6 +140,11 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   qu'un autre repas demande encore, et le « J'en ai assez » du placard ; les produits épuisés sont proposés, ensemble,
   pour la liste de courses. Repas passés pas encore notés : une ligne discrète sur l'accueil (« 1 repas passé :
   cuisiné ? », un nombre, rien de personnel) et dans le menu.
+  **Dates de péremption** : le décompte prend les lots les plus proches (sans les compter « jetés ») ; « **À cuisiner
+  d'abord** » propose les recettes du carnet (pas encore au menu) qui utilisent un produit relié dont la date arrive
+  (urgente ou bientôt), avec « Ce soir », « Demain » ou « Ajouter » ; un ingrédient dont le stock finit (DLC) avant le
+  repas porte « Le stock finit samedi (DLC) », et « Avancer le repas à samedi » quand ce jour est dans la semaine
+  affichée ; la ligne n'est pas rachetée pour autant.
   **Frais à acheter plus tard** : les produits frais (fruits et légumes, boucherie, poissonnerie, crèmerie,
   boulangerie, sauf ce qui se garde bien : oignon, ail, pomme de terre, carotte, citron, beurre, œufs, fromages à
   pâte dure…) d'un repas prévu plus de 3 jours après aujourd'hui ne vont pas tout de suite sur la liste : ils
@@ -662,13 +686,16 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/faces/diagnose` | `{ embedding, real, live }` → `{ verdict, scores, rules }` : verdict détaillé, sans session ni apprentissage (tablette seulement) |
 | `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
 | `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire ; prises anormalement uniformes refusées (422) |
-| `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité (et `opened` : part restante du paquet entamé, ou `null`), contenants, réglage par défaut |
+| `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité (et `opened` : part restante du paquet entamé, ou `null`), leurs lots (`lots` : `{ id, count, date, kind, estimated, level, dismissed }`, du plus proche) et le plus proche (`expiry`), contenants, réglages (`autoShop`, `expiry` : seuils et durées par rayon) |
+| `GET /api/stock/expiring` | `{ items, thrownThisMonth }` : DLC passées ou urgentes à date imprimée (carte « À consommer »), unités jetées périmées ce mois-ci ; sans auteur |
+| `PUT /api/stock/lots/:id` | `{ date?, kind?, dismissed?, split? }` : date d'un lot (`null` : retirée), DLC ou DDM (retenu par produit), « Encore bon », ou `split: { count, date }` (une partie à une autre date) ; annulable (tablette ou téléphone relié) |
+| `PUT /api/stock/settings/expiry` | `{ urgentDlcDays, soonDlcDays, soonDdmDays, defaults }` : seuils et durées par rayon (en jours, `null` : pas d'estimation) ; un parent |
 | `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` (tablette ou téléphone relié) |
 | `PUT /api/stock/products/:code` | `{ name, brand, quantity, category }` : produit inconnu décrit, ou corrigé (notre version l'emporte) |
 | `GET /api/stock/products/:code/movements` | historique d'un produit, du plus récent : `{ at, by, kind, count, price, forgotten, undone, reason, opened }` (`reason` : recette cuisinée ; `opened` : part restante du paquet entamé, mouvement `opened`) |
 | `POST /api/stock/products/:code/recheck`, `…/accept-base`, `…/conflict` | relit la base (différences) ; prend sa version ; tranche un désaccord (`{ take: "mine" \| "base" }`) |
-| `PATCH /api/stock/products/:code` | `{ autoShop, refill }` : liste de courses d'office (`null` : réglage par défaut), contenant habituel |
-| `POST /api/stock/in`, `/out` | entrée (`{ code, count?, price? }`) ; sortie (`{ code, all?, refill?, remaining? }`, avec la proposition de liste de courses) ; la réponse donne `at` et `by` (qui a scanné) |
+| `PATCH /api/stock/products/:code` | `{ autoShop, refill, dateKind, askDate, keepDays }` : liste de courses d'office (`null` : réglage par défaut), contenant habituel, DLC ou DDM d'habitude, pastille « Date ? » (`false` : ne plus demander), durée de garde (date estimée ; `null` : celle du rayon) |
+| `POST /api/stock/in`, `/out` | entrée (`{ code, count?, price?, date?, kind? }`) ; sortie (`{ code, all?, refill?, remaining?, lotId? }`, le lot le plus proche d'office, avec la proposition de liste de courses) ; la réponse donne `at`, `by` (qui a scanné) et `lot` (le lot touché) |
 | `POST /api/stock/undo` | `{ movementId }` : annule le dernier mouvement d'un produit ou d'un contenant (409 sinon) |
 | `POST /api/stock/shopping` | `{ code, always? }` : sur la liste de courses ; `always` : d'office la prochaine fois |
 | `POST /api/stock/containers`, `PATCH`/`DELETE …/:id`, `POST …/:id/empty` | contenants : ajout, renommage, retrait, déclaré vide |
@@ -686,7 +713,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent (ses notes partent avec elle) |
 | `GET /api/recipes/:id/notes`, `POST …/notes` | `{ notes }` : notes de la famille (lecture ouverte) ; `{ text }` (1 000 caractères au plus, 100 notes par recette, 409 au-delà) : tout membre identifié, enfants compris ; un appareil non appairé ne fait que lire |
 | `PATCH /api/recipes/:id/notes/:note`, `DELETE …` | `{ text?, resolved? }` : texte modifié, note résolue ou rouverte ; retrait ; son auteur ou un parent |
-| `GET /api/menu?week=<lundi>` | menu d'une semaine (par défaut la semaine en cours) : `{ week, current, editable, entries, plan, pantry, stock, ingredients }` ; `plan` : chaque ingrédient, ce qu'il faut, ce qui en est déduit et pourquoi (`buy`, `later`, `pantry`, `have`, `manual`, `bought`, `stock`), `later` (parts fraîches qui attendent, par jour d'achat), `advanced` (avancé à la main), `check` (paquet peut-être entamé : `ask`, `enough`, `needed`) et `packs` (paquets à acheter) ; `stock` : produits avec `partial` (s'utilise en plusieurs fois) et `partialGuessed` |
+| `GET /api/menu?week=<lundi>` | menu d'une semaine (par défaut la semaine en cours) : `{ week, current, editable, entries, plan, pantry, stock, ingredients }` ; `plan` : chaque ingrédient, ce qu'il faut, ce qui en est déduit et pourquoi (`buy`, `later`, `pantry`, `have`, `manual`, `bought`, `stock`), `later` (parts fraîches qui attendent, par jour d'achat), `advanced` (avancé à la main), `check` (paquet peut-être entamé : `ask`, `enough`, `needed`) et `packs` (paquets à acheter) ; `stock` : produits avec `partial` (s'utilise en plusieurs fois) et `partialGuessed` ; `expiry` : `cookFirst` (recettes du carnet à cuisiner d'abord) et `warnings` (stock qui finit avant le repas, DLC) |
 | `POST /api/menu/entries`, `PUT`/`DELETE …/entries/:id` | `{ week, recipeId, people, day }` ; modification `{ people, day }` ; un parent ; semaines passées ou trop lointaines refusées ; la liste de courses suit |
 | `PUT /api/menu/have` | `{ week, key, have }` : « j'en ai déjà » pour un ingrédient, cette semaine ; un parent |
 | `PUT /api/menu/now` | `{ week, key, now }` : « Acheter maintenant » (`true`) un ingrédient frais qui attendait, ou le remettre à plus tard (`false`) ; un parent |

@@ -17,7 +17,7 @@ import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAV
 import { itemKey } from '../shared/drive.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
+import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
@@ -215,6 +215,25 @@ for (const loose of [
   { name: 'Radis', category: 'Fruits et légumes', amount: 1, unit: 'botte' },
   { name: 'Soupe de potiron maison', category: 'Frais', amount: 1, unit: 'l' },
 ]) await call(A, 'POST', '/stock/loose', loose);
+// Dates de péremption (aujourd'hui : jeudi 5 novembre) : yaourts jusqu'à lundi 9, jambon jusqu'à aujourd'hui, deux pots
+// de crème fraîche (l'un passé d'hier, l'autre du 20), des biscottes de préférence avant le 30 ; un pot de crème
+// périmé du 2 déjà jeté ce mois-ci (« 1 produit jeté (périmé) »). Les pommes, radis et la soupe (sans date) ont une
+// date estimée d'après leur rayon.
+for (const code of Object.values(DOCS_FRESH)) await call(A, 'GET', `/stock/scan/${code}`);
+for (const [code, category] of [[DOCS_FRESH.yaourts, 'Crèmerie'], [DOCS_FRESH.creme, 'Crèmerie'], [DOCS_FRESH.jambon, 'Boucherie'], [DOCS_FRESH.biscottes, 'Épicerie']] as const) {
+  const { product } = (await call(A, 'GET', `/stock/scan/${code}`)) as { product: { current: Record<string, unknown> } };
+  const { name, brand, quantity } = product.current;
+  await call(A, 'PUT', `/stock/products/${code}`, { name, brand, quantity, category });
+}
+await call(A, 'POST', '/stock/in', { code: DOCS_FRESH.creme, count: 1, date: day(-3), kind: 'dlc' });
+await call(A, 'POST', '/stock/out', { code: DOCS_FRESH.creme });
+for (const [code, count, date, kind] of [
+  [DOCS_FRESH.yaourts, 4, day(4), 'dlc'],
+  [DOCS_FRESH.jambon, 2, day(0), 'dlc'],
+  [DOCS_FRESH.creme, 1, day(-1), 'dlc'],
+  [DOCS_FRESH.creme, 1, day(15), 'dlc'],
+  [DOCS_FRESH.biscottes, 1, day(25), 'ddm'],
+] as const) await call(L, 'POST', '/stock/in', { code, count, date, kind });
 
 // Carnet de recettes : trois recettes importées du faux site (cuisine.exemple.test), une saisie à la main ; notre
 // version des galettes modifiée (astuce, beurre demi-sel corrigé à la main, ingrédients et étapes rangés en groupes).
@@ -463,6 +482,13 @@ await shoot('tablette-seance-cote', `${BASE}/seance/p/alex`, TABLET, {
   after: `for (let i = 0; i < 7; i++) ${click('Passer')}`,
   settle: 18_600,
 });
+// Dates de péremption : le filtre « À consommer » (tablette, téléphone d'Alex) et le réglage des seuils et des durées.
+const stockFilter = (label: string) => `[...document.querySelectorAll('.filters button')].find((b) => b.textContent.startsWith('${label}'))?.click()`;
+await shoot('tablette-stock-a-consommer', `${BASE}/stock`, TABLET, { after: stockFilter('À consommer') });
+await shoot('tablette-stock-dates-reglage', `${BASE}/stock`, TABLET, {
+  after: `[...document.querySelectorAll('h2')].find((h) => h.textContent === 'Dates de péremption')?.scrollIntoView({ block: 'center' }); ${click('Régler')}`,
+});
+await shoot('telephone-stock-a-consommer', `${BASE}/m/stock`, PHONE, { init: asPhone('alex'), after: stockFilter('À consommer') });
 // Scanner (pas de caméra sans fenêtre : codes saisis à la main) : un produit rangé, puis le café, transvasé d'habitude.
 const typeCode = (code: string) => `{
   const input = document.querySelector('input[placeholder="Code-barres à la main"]');
@@ -663,6 +689,35 @@ if (!only || only.test('cuisine-decompte') || only.test('menu-cuisine')) {
   await call(A, 'DELETE', `/menu/links/${DOCS_PRODUCTS.pates}`);
   await call(A, 'DELETE', `/menu/links/${DOCS_FOOD.thon}`);
 }
+
+// Dates de péremption au menu (ajoutées en dernier, les autres captures du carnet et du menu restent sans elles) : une
+// quiche lorraine et un gâteau au yaourt au carnet, la crème, le jambon et les yaourts reliés à leurs ingrédients ;
+// « À cuisiner d'abord » les propose. Le gruyère finit samedi 7 (DLC) : les galettes de dimanche portent un avertissement.
+// Puis le scanner : un pot de yaourts rangé, déjà daté une fois, porte la pastille « Date ? » ; touchée, le pavé.
+const EXPIRY_SHOTS = ['tablette-menu-peremption', 'tablette-scanner-peremption', 'tablette-scanner-date'];
+if (!only || EXPIRY_SHOTS.some((name) => only.test(name))) {
+  for (const [title, ingredients, steps] of [
+    ['Quiche lorraine', ['1 pâte brisée', '200 g de jambon', '3 œufs', '20 cl de crème fraîche', '100 g de gruyère râpé'],
+      ['Étaler la pâte dans le moule.', 'Battre les œufs avec la crème, ajouter le jambon et le gruyère.', 'Verser sur la pâte, cuire 35 minutes à 180 °C.']],
+    ['Gâteau au yaourt', ['1 pot de yaourt nature', '3 œufs', '2 pots de farine', '1 pot de sucre', '1/2 pot d’huile'],
+      ['Mélanger le yaourt, le sucre et les œufs.', 'Ajouter la farine puis l’huile.', 'Cuire 30 minutes à 180 °C.']],
+  ] as const) {
+    await call(A, 'POST', '/recipes', { content: { title, servings: 4, ingredients: ingredients.map((text) => ({ text })), steps: steps.map((text) => ({ text })) } });
+  }
+  await call(A, 'PUT', `/menu/links/${DOCS_FRESH.creme}`, { link: { key: 'creme-fraiche', name: 'crème fraîche', per: { quantity: 20, unit: 'cl' } } });
+  await call(A, 'PUT', `/menu/links/${DOCS_FRESH.jambon}`, { link: { key: 'jambon', name: 'jambon', per: { quantity: 4, unit: 'piece' } } });
+  await call(A, 'PUT', `/menu/links/${DOCS_FRESH.yaourts}`, { link: { key: 'yaourt-nature', name: 'yaourt nature', per: { quantity: 4, unit: 'pot' } } });
+  const items = ((await call(A, 'GET', '/stock')) as { items: { product: { code: string }; lots: { id: string }[] }[] }).items;
+  const gruyereLot = items.find((i) => i.product.code === DOCS_FOOD.gruyere)!.lots[0];
+  await call(A, 'PUT', `/stock/lots/${gruyereLot.id}`, { date: day(2), kind: 'dlc' });
+}
+await shoot('tablette-menu-peremption', `${BASE}/menu`, TABLET);
+await shoot('tablette-scanner-peremption', `${BASE}/scanner`, TABLET, { after: typeCode(DOCS_FRESH.yaourts) });
+await shoot('tablette-scanner-date', `${BASE}/scanner`, TABLET, {
+  settle: 2500,
+  after: `(async () => { ${typeCode(DOCS_FRESH.yaourts)} ${pause} document.querySelector('.date-chip')?.click(); ${pause} ${pause}
+    for (const d of '0911') { [...document.querySelectorAll('.keys button')].find((b) => b.textContent.trim() === d)?.click(); ${pause} } })()`,
+});
 
 // --- Vacances scolaires (calendrier d'exemple, zone B) : serveur et navigateur relancés à d'autres dates, même état.
 // Lundi 7 décembre : la puce annonce les vacances de Noël ; lundi 21 décembre : vacances, plus de bus ni de cours,

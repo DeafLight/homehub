@@ -32,6 +32,11 @@ import type {
   ProductInfo,
   ProductRecheck,
   ScanLookup,
+  DateKind,
+  ExpiringSummary,
+  ExpirySettings,
+  LotChange,
+  LotView,
   StockData,
   StockMovement,
   StockMovementResult,
@@ -159,7 +164,7 @@ export type Api = {
   acceptBase(code: string): Promise<Product>;
   resolveConflict(code: string, take: 'mine' | 'base'): Promise<Product>;
   setProductPreferences(code: string, prefs: ProductPreferences): Promise<Product>;
-  stockIn(code: string, count?: number, price?: number | null): Promise<StockMovementResult>;
+  stockIn(code: string, count?: number, price?: number | null, dated?: { date: string | null; kind: DateKind | null }): Promise<StockMovementResult>;
   /** Produit sans code-barres (vrac, marché, fait maison), entré aussitôt au stock. */
   addLooseProduct(input: NewLooseProduct): Promise<StockMovementResult>;
   /** Nouvelle quantité d'un produit sans code-barres. */
@@ -174,7 +179,13 @@ export type Api = {
   renameContainer(id: string, name: string): Promise<Container>;
   removeContainer(id: string): Promise<void>;
   emptyContainer(id: string): Promise<StockMovementResult>;
-  saveStockSettings(settings: StockSettings): Promise<StockSettings>;
+  saveStockSettings(settings: Pick<StockSettings, 'autoShop'>): Promise<StockSettings>;
+  /** Seuils et durées par rayon des dates de péremption (un parent). */
+  saveExpirySettings(expiry: ExpirySettings): Promise<StockSettings>;
+  /** Date d'un lot, type, « Encore bon », partie à une autre date. */
+  setLot(id: string, change: LotChange): Promise<{ product: Product; lot: LotView; quantity: number }>;
+  /** DLC passées ou urgentes (accueil, dashboard d'un parent), jetés périmés ce mois-ci. */
+  expiring(): Promise<ExpiringSummary>;
   fitness(): Promise<FitnessState>;
   addFitnessSession(report: SessionReport): Promise<FitnessState>;
   removeFitnessSession(id: string): Promise<FitnessState>;
@@ -373,7 +384,7 @@ export function createApi(
     acceptBase: (code) => send('POST', `/stock/products/${encodeURIComponent(code)}/accept-base`),
     resolveConflict: (code, take) => send('POST', `/stock/products/${encodeURIComponent(code)}/conflict`, { take }),
     setProductPreferences: (code, prefs) => send('PATCH', `/stock/products/${encodeURIComponent(code)}`, prefs),
-    stockIn: (code, count = 1, price = null) => send('POST', '/stock/in', { code, count, price }),
+    stockIn: (code, count = 1, price = null, dated) => send('POST', '/stock/in', { code, count, price, ...dated }),
     addLooseProduct: (input) => send('POST', '/stock/loose', input),
     setLooseAmount: (code, amount, unit) => send('PUT', `/stock/loose/${encodeURIComponent(code)}`, { amount, unit }),
     stockOut: (code, options = {}) => send('POST', '/stock/out', { code, ...options }),
@@ -385,6 +396,9 @@ export function createApi(
     removeContainer: (id) => send('DELETE', `/stock/containers/${encodeURIComponent(id)}`),
     emptyContainer: (id) => send('POST', `/stock/containers/${encodeURIComponent(id)}/empty`),
     saveStockSettings: (settings) => send('PUT', '/stock/settings', settings),
+    saveExpirySettings: (expiry) => send('PUT', '/stock/settings/expiry', expiry),
+    setLot: (id, change) => send('PUT', `/stock/lots/${encodeURIComponent(id)}`, change),
+    expiring: () => request('/stock/expiring'),
     fitness: () => request('/fitness'),
     addFitnessSession: (report) => send('POST', '/fitness/sessions', report),
     removeFitnessSession: (id) => send('DELETE', `/fitness/sessions/${encodeURIComponent(id)}`),

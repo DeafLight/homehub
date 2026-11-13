@@ -6,6 +6,8 @@
 // la valeur du lien, ou devinée d'après les recettes du carnet quand le lien ne la donne pas. Un repas noté cuisiné sort
 // du calcul pour ses ingrédients qui ont eu une réponse (voir shared/menu.ts) ; le paquet entamé dont on sait ce qui
 // reste compte pour cette part. Le panneau « J'ai cuisiné » prend ici les produits reliés et les contenants (cookContext).
+// Dates de péremption : recettes à cuisiner d'abord et DLC qui finit avant un repas, d'après les liens confirmés
+// (shared/expiry.ts).
 import {
   addWeeks,
   aggregateNeeds,
@@ -36,6 +38,7 @@ import type { Recipe } from '../../shared/recipes.ts';
 import type { Quantities } from '../../shared/quantities.ts';
 import { guessPartial, guessStock, type KnownIngredient } from '../../shared/stock-link.ts';
 import { localDay } from '../../shared/dates.ts';
+import { cookFirst, expiringIngredients, mealWarnings } from '../../shared/expiry.ts';
 import type { Author, ShoppingItem, ShoppingLater, ShoppingMenuMark, StockData } from '../../shared/types.ts';
 import type { ListsStore } from '../sources/lists.ts';
 import type { MenuData, MenuStore } from '../sources/menus.ts';
@@ -153,6 +156,24 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     return products.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr'));
   }
 
+  /** Dates de péremption d'une semaine : d'après les produits en stock reliés (liens confirmés seulement). */
+  function expiryOf(snap: Snapshot, entries: MenuData['weeks'][string]): MenuView['expiry'] {
+    const linkOf = (code: string) => snap.menu.links[code] ?? null;
+    const products = snap.stock.items.filter((i) => i.quantity > 0).map((i) => ({ code: i.product.code, name: i.product.current.name, lots: i.lots }));
+    const keysOf = (r: Recipe) => r.ours.ingredients.map((l) => l.key).filter((k): k is string => !!k);
+    const byId = new Map(snap.recipes.map((r) => [r.id, r]));
+    const found = cookFirst(
+      snap.recipes.map((r) => ({ id: r.id, title: r.ours.title, keys: keysOf(r) })),
+      expiringIngredients(products, linkOf),
+      new Set(entries.map((e) => e.recipeId)),
+    );
+    const meals = entries.map((e) => {
+      const recipe = byId.get(e.recipeId);
+      return { entryId: e.id, recipeId: e.recipeId, day: e.day, keys: recipe ? keysOf(recipe) : [] };
+    });
+    return { cookFirst: found, warnings: [...mealWarnings(meals, products, linkOf, snap.today).values()] };
+  }
+
   return {
     sync,
 
@@ -200,6 +221,7 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
         pantry: snap.menu.pantry,
         stock: stockProducts(snap, new Set(plan.map((l) => l.key))),
         ingredients: knownIngredients(snap.recipes),
+        expiry: week >= snap.current ? expiryOf(snap, entries) : { cookFirst: [], warnings: [] },
       };
     },
 

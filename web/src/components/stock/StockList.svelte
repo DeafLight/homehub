@@ -1,12 +1,15 @@
 <script lang="ts">
-  import type { StockEntry } from '../../../../shared/types.ts';
+  import type { LotView, StockEntry } from '../../../../shared/types.ts';
   import { estimateLabel } from '../../../../shared/cook.ts';
-  import { canExhaust, filterStock, lastMarksLine, productSubtitle, type StockFilter, stockCounts } from '../../lib/stock.ts';
+  import { canExhaust, lastMarksLine, productSubtitle, type StockFilter, stockCounts, stockRows, thrownText } from '../../lib/stock.ts';
   import Icon from '../Icon.svelte';
+  import ExpiryPill from './ExpiryPill.svelte';
 
-  // Inventaire de la page Stock : filtres (en stock, épuisés, tout), puis un produit par ligne avec sa quantité à
-  // corriger à la main et « Épuisé » (tout sortir, même s'il n'en reste qu'un). Sur le téléphone, une ligne compacte
-  // et sans date ni auteur (dans la fiche du produit).
+  // Inventaire de la page Stock : filtres (en stock, à consommer, épuisés, tout), puis un produit par ligne avec sa
+  // quantité à corriger à la main et « Épuisé » (tout sortir, même s'il n'en reste qu'un). La pastille de date (le
+  // lot le plus urgent) se touche pour corriger la date. « À consommer » : une ligne par lot qui arrive à date, la plus
+  // proche d'abord ; sur un lot passé, « Jeté » (ce lot-là) et « Encore bon » (l'alerte se tait ; demandé deux fois
+  // pour une DLC). Sur le téléphone, une ligne compacte et sans auteur (dans la fiche du produit).
   type Props = {
     items: StockEntry[];
     filter: StockFilter;
@@ -20,35 +23,68 @@
     onPlus: (entry: StockEntry) => void;
     onMinus: (entry: StockEntry) => void;
     onExhaust: (entry: StockEntry) => void;
+    /** Aujourd'hui (AAAA-MM-JJ). */
+    today: string;
+    /** Produits jetés périmés ce mois-ci (null : pas encore lu). */
+    thrown: number | null;
+    onDate: (entry: StockEntry, lot: LotView) => void;
+    onThrow: (entry: StockEntry, lot: LotView) => void;
+    onKeep: (entry: StockEntry, lot: LotView) => void;
   };
-  let { items, filter = $bindable(), search, phone, readOnly, busy, now, nameOf, onOpen, onPlus, onMinus, onExhaust }: Props = $props();
+  let { items, filter = $bindable(), search, phone, readOnly, busy, now, nameOf, onOpen, onPlus, onMinus, onExhaust, today, thrown, onDate, onThrow, onKeep }: Props = $props();
 
   const counts = $derived(stockCounts(items));
-  const shown = $derived(filterStock(items, filter, search));
+  const rows = $derived(stockRows(items, filter, search));
   const FILTERS: { filter: StockFilter; label: string }[] = [
     { filter: 'in', label: 'En stock' },
+    { filter: 'expiring', label: 'À consommer' },
     { filter: 'out', label: 'Épuisés' },
     { filter: 'all', label: 'Tout' },
   ];
+  /** « Encore bon » touché une fois sur une DLC passée : on redemande. */
+  let confirmKeep = $state<string | null>(null);
+
+  function keep(entry: StockEntry, lot: LotView) {
+    if (lot.dateKind === 'dlc' && !lot.estimated && confirmKeep !== lot.id) {
+      confirmKeep = lot.id;
+      return;
+    }
+    confirmKeep = null;
+    onKeep(entry, lot);
+  }
 </script>
 
 <div class="filters" class:phone role="tablist" aria-label="Produits affichés">
   {#each FILTERS as f (f.filter)}
-    <button type="button" role="tab" aria-selected={filter === f.filter} class:on={filter === f.filter} onclick={() => (filter = f.filter)}>{f.label} · {counts[f.filter]}</button>
+    {#if f.filter !== 'expiring' || counts.expiring > 0 || filter === 'expiring'}
+      <button type="button" role="tab" aria-selected={filter === f.filter} class:on={filter === f.filter} class:warn={f.filter === 'expiring'} onclick={() => (filter = f.filter)}
+        >{f.label} · {counts[f.filter]}</button
+      >
+    {/if}
   {/each}
 </div>
 <ul class="list" class:phone>
-  {#each shown as entry (entry.product.code)}
+  {#each rows as { entry, lot, part } (`${entry.product.code}-${filter === 'expiring' ? lot?.id : ''}`)}
     {@const product = entry.product}
     {@const marks = phone ? '' : lastMarksLine(entry, now, nameOf)}
+    {@const passed = filter === 'expiring' && lot?.level === 'passed'}
     <li class:empty={entry.quantity === 0}>
       <button type="button" class="name" onclick={() => onOpen(entry)}>
-        <strong>{product.current.name}{#if product.conflict}<span class="flag" title="La base dit autre chose">!</span>{/if}</strong>
+        <strong>{product.current.name}{#if part}<span class="part"> · {part}</span>{/if}{#if product.conflict}<span class="flag" title="La base dit autre chose">!</span>{/if}</strong>
         <span>{productSubtitle(product)}{entry.opened !== null && entry.quantity > 0 ? ` · entamé, il en reste ${estimateLabel(entry.opened)}` : ''}</span>
-
         {#if marks}<span class="marks">{marks}</span>{/if}
       </button>
-      {#if !readOnly}
+      {#if lot?.due}
+        <span class="date"><ExpiryPill {lot} {today} short={phone} onclick={readOnly ? undefined : () => onDate(entry, lot)} /></span>
+      {/if}
+      {#if passed && lot && !readOnly}
+        <span class="lot-actions">
+          <button type="button" class="btn small" disabled={busy} onclick={() => onThrow(entry, lot)}>Jeté</button>
+          <button type="button" class="btn small" class:confirm={confirmKeep === lot.id} disabled={busy} onclick={() => keep(entry, lot)}>
+            {confirmKeep === lot.id ? 'Sûr ? Encore bon' : 'Encore bon'}
+          </button>
+        </span>
+      {:else if !readOnly}
         <span class="qty">
           <button type="button" class="round" aria-label="Un de moins" disabled={busy || entry.quantity === 0} onclick={() => onMinus(entry)}><Icon name="minus" size={22} /></button>
           <span class="count">{entry.quantity}</span>
@@ -66,12 +102,17 @@
         Rien pour l’instant : scanne les courses en les rangeant (« Ranger les courses »).
       {:else if search}
         Aucun produit ne correspond.
+      {:else if filter === 'expiring'}
+        Rien n’arrive à date.
       {:else}
         Aucun produit ici.
       {/if}
     </li>
   {/each}
 </ul>
+{#if filter === 'expiring' && thrown !== null}
+  <p class="thrown">{thrownText(thrown)}</p>
+{/if}
 
 <style>
   .filters {
@@ -95,6 +136,43 @@
     background: var(--rain);
     color: var(--bg);
     font-weight: 600;
+  }
+
+  .filters button.warn {
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+
+  .filters button.warn.on {
+    background: var(--warn);
+    color: var(--bg);
+  }
+
+  .part {
+    color: var(--fg-muted);
+    font-size: var(--text-small);
+    font-weight: 400;
+  }
+
+  .date {
+    display: flex;
+    flex: none;
+  }
+
+  .lot-actions {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .lot-actions .confirm {
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+
+  .thrown {
+    margin: 0;
+    color: var(--fg-muted);
+    font-size: var(--text-small);
   }
 
   .list {
@@ -240,6 +318,16 @@
 
   .list.phone li > .count {
     grid-row: 1 / span 2;
+  }
+
+  .list.phone .date {
+    grid-column: 1;
+  }
+
+  .list.phone .lot-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    flex-direction: column;
   }
 
   .list.phone .round {
