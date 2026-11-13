@@ -422,7 +422,9 @@ documentation communautaire de l'API (non officielle) : à vérifier dans les jo
 Il peut aussi venir de **Pronote** (compte parent), avec `pronote: <prénom de l'enfant>` sur le profil, par
 [Pawnote](https://github.com/LiterateInk/Pawnote), bibliothèque non officielle qui imite l'application mobile.
 Pawnote 1.6.2 ne suit pas Pronote 2026 : `scripts/patch-pawnote.ts` le corrige à chaque `npm install` et fait
-échouer l'installation si la version change. La connexion se fait par jeton, comme l'application :
+échouer l'installation si la version change. Pronote 2026 ne donne plus non plus le genre des périodes, sans lequel
+les notes reviennent vides : `server/sources/pronote.ts` le remet (depuis la 0.65.1). Le journal du conteneur note le
+nombre de notes reçues pour chaque enfant (« Pronote : 3 note(s) de … »), sans leur contenu. La connexion se fait par jeton, comme l'application :
 1. dans Pronote, bouton « QR code de l'application » en haut de la page, choisir un code PIN, faire une capture
    d'écran du QR code (valable 10 min) ;
 2. sur un PC : `node scripts/pronote-pair.ts <capture.png> [prénom]` (demande le PIN, vérifie l'emploi du temps,

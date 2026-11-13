@@ -168,7 +168,8 @@ export function toGrade(g: pawnote.Grade): SchoolGrade | null {
     date: localDay(g.date),
     value,
     outOf: g.outOf.kind === pawnote.GradeKind.Grade ? g.outOf.points : null,
-    ...(g.comment.trim() && { title: g.comment.trim() }),
+    // Pronote omet le commentaire quand il est vide.
+    ...(g.comment?.trim() && { title: g.comment.trim() }),
     ...(g.coefficient !== 1 && { coefficient: g.coefficient }),
     ...(average && { classAverage: average }),
   };
@@ -204,15 +205,21 @@ export function toMessage(d: pawnote.Discussion): SchoolMessage {
   };
 }
 
+/** Genre d'une période dans les requêtes Pronote (« G »), le même pour toutes. */
+const PERIOD_KIND = 2;
+
 /**
  * Période d'un onglet à lire : celle qui contient aujourd'hui et couvre le plus de jours (l'année plutôt que le
  * trimestre, quand l'établissement la propose), sinon celle par défaut ; null si l'onglet est fermé au compte.
+ * Pronote 2026 ne donne plus le genre des périodes (General.ListePeriodes sans « G ») : sans lui, la requête des notes
+ * revient vide, sans erreur. On le remet.
  */
 export function periodFor(tab: pawnote.Tab | undefined, now: Date): pawnote.Period | null {
   if (!tab) return null;
   const span = (p: pawnote.Period) => p.endDate.getTime() - p.startDate.getTime();
   const current = tab.periods.filter((p) => p.startDate <= now && now <= p.endDate).sort((a, b) => span(b) - span(a));
-  return current[0] ?? tab.defaultPeriod ?? null;
+  const period = current[0] ?? tab.defaultPeriod;
+  return period ? { ...period, kind: period.kind ?? PERIOD_KIND } : null;
 }
 
 /** Pawnote attend un `fetcher` : celui par défaut n'a pas de délai maximal. */
@@ -328,6 +335,8 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
     return session;
   }
 
+  const gradeCounts = new Map<string, number>();
+
   // Clé : enfant et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
   // Devoirs chargés avec l'emploi du temps (une seule connexion, le jeton change à chacune) ; leur échec (onglet
   // fermé par l'établissement...) n'empêche pas d'afficher les cours.
@@ -362,6 +371,11 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
         };
         const now = clock();
         const grades = await part('notes', () => session.grades(child, now));
+        // Diagnostic discret : le nombre de notes reçues, sans leur contenu, noté quand il change.
+        if (grades && gradeCounts.get(prenom) !== grades.length) {
+          gradeCounts.set(prenom, grades.length);
+          logger.log(`Pronote : ${grades.length} note(s) de ${prenom} sur la période en cours.`);
+        }
         const attendance = await part('absences et retards', () => session.attendance(child, now));
         const messages = await part('messages', () => session.messages());
         return { courses, homework, life: { grades, attendance, messages: messages && { service: 'Pronote', items: messages } } };

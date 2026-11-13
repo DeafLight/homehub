@@ -177,6 +177,14 @@ describe('createPronoteSource', () => {
     expect(logger.errors).toEqual([expect.stringContaining('onglet Notes fermé')]);
   });
 
+  it('note le nombre de notes reçues (sans leur contenu) quand il change', async () => {
+    const { source, logger } = setup();
+    const lines: string[] = [];
+    logger.log = (message: string) => void lines.push(message);
+    await source.lifeFor!('helo');
+    expect(lines).toEqual(['Pronote : 1 note(s) de heloise sur la période en cours.']);
+  });
+
   it('garde le nouveau jeton même si l’enfant est introuvable', async () => {
     const { source, store } = setup();
     await expect(source.coursesFor('zoe', RANGE)).rejects.toThrow('introuvable');
@@ -306,6 +314,23 @@ describe('vie scolaire Pronote', () => {
     expect(periodFor(tab([t1, t2]), NOW)?.id).toBe('T1');
     expect(periodFor(tab([t2], t2), NOW)?.id).toBe('T2');
     expect(periodFor(undefined, NOW)).toBeNull();
+  });
+
+  it('Pronote 2026 : rend son genre (2) à une période qui n’en a plus, sinon les notes reviennent vides', () => {
+    // Pronote 2026 ne met plus de « G » dans General.ListePeriodes : Pawnote lit alors un genre absent, et la requête
+    // DernieresNotes, sans genre de période, renvoie une liste vide, sans erreur.
+    const t1 = { id: 'T1', name: 'Trimestre 1', kind: undefined, startDate: new Date(2026, 8, 1), endDate: new Date(2026, 10, 30) } as unknown as Period;
+    const t2 = { ...t1, id: 'T2', name: 'Trimestre 2', startDate: new Date(2026, 11, 1), endDate: new Date(2027, 1, 28) } as Period;
+    const tab = { location: 198, periods: [t1, t2], defaultPeriod: t2 } as Tab;
+    expect(periodFor(tab, NOW)).toEqual({ ...t1, kind: 2 });
+    expect(periodFor({ ...tab, periods: [t2] }, NOW)).toEqual({ ...t2, kind: 2 });
+    // Un genre donné par Pronote est gardé tel quel.
+    expect(periodFor({ ...tab, periods: [{ ...t1, kind: 3 }] }, NOW)?.kind).toBe(3);
+  });
+
+  it('accepte une note sans commentaire (champ absent de la réponse)', () => {
+    const grade = { id: 'g', value: value(9), outOf: value(10), date: new Date(2026, 10, 10), subject, coefficient: 1 } as unknown as Grade;
+    expect(toGrade(grade)).toEqual({ id: 'g', subject: 'Mathématiques', date: '2026-11-10', value: '9', outOf: 10 });
   });
 });
 
