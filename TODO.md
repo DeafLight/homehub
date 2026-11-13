@@ -257,7 +257,7 @@ Petite appli Android TV maison, installée par `adb`, qui se connecte à HomeHub
 port ouvert sur la télé). La télé est un écran partagé : rien de personnel n'y apparaît, sauf à la demande de la
 personne depuis son propre téléphone.
 
-- [ ] Plan de l'appli (`docs/appli-tele.md`) : architecture, outils à installer, mise en place sur la télé, ordre.
+- [x] Plan de l'appli (`docs/appli-tele.md`) : architecture, outils à installer, mise en place sur la télé, ordre.
 - [ ] 1. Message vocal sans couper la vidéo : son du programme baissé pendant le message, bandeau « Message d'Alex ».
 - [ ] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0).
 - [ ] 3. Alerte du minuteur de cuisine sur la télé.

@@ -1,7 +1,7 @@
 <!-- Plan de l'appli Android TV « HomeHub TV », compagnon de HomeHub : architecture, outils, mise en place sur la télé,
      mise à jour, ordre des fonctions. À valider avant tout code. -->
 
-# HomeHub TV — appli Android TV (plan, à valider)
+# HomeHub TV — appli Android TV (plan validé le 14 novembre 2026)
 
 Une petite appli installée sur la télé du salon (Android TV 10, installée hors du Play Store par `adb`). Elle reste
 connectée à HomeHub et affiche ou fait entendre ce qu'il lui envoie **par-dessus ce qui passe, sans le couper**.
@@ -147,9 +147,9 @@ Les commandes exactes iront dans le README de `tv-app/` (avec des adresses d'exe
 ## 5. Mise à jour
 
 - Même clé de signature à chaque version, sinon `adb install -r` refuse et il faut désinstaller (et réappairer).
-  **Clé dédiée** (`homehub-tv.jks`) générée une fois, **gardée hors du dépôt** (gestionnaire de mots de passe ou dépôt
-  privé de config du NAS, chiffrée) ; son chemin et ses mots de passe passent par `tv-app/keystore.properties`, ignoré
-  par git.
+  **Clé dédiée** (`homehub-tv.jks`) générée une fois, **gardée hors du dépôt**, dans le dossier de l'utilisateur
+  Windows (`%USERPROFILE%\.homehub-tv\`, avec `keystore.properties` qui donne ses mots de passe) ; une copie de sauvegarde
+  dans le dépôt privé de config du NAS. Perdre la clé n'est pas grave : il faut désinstaller l'appli et la réappairer.
 - Mise à jour : `gradlew assembleRelease` puis `adb connect <ip>:5555` et `adb install -r …\homehub-tv.apk`. L'appairage
   et l'adresse sont conservés. Un petit script `tv-app/installer.ps1` enchaîne les trois.
 - L'appli montre sa version dans l'écran d'appairage et l'envoie au serveur ; la page des appareils de la tablette
@@ -208,10 +208,12 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 - **Fait** quand la version est taguée en local **et essayée sur la vraie télé** avec toi : message vocal pendant
   Netflix, YouTube et la télé en direct (le son baisse-t-il ?), télé en veille.
 
-## Questions pour toi
+## Décisions (14 novembre 2026)
 
-1. Sous-dossier `tv-app/` dans ce dépôt public (proposé) ou dépôt séparé ?
-2. Appairage par code affiché sur la télé et tapé sur la tablette (proposé) : d'accord ?
-3. Où garder la clé de signature de l'appli (gestionnaire de mots de passe, dépôt privé de config) ?
-4. L'ordre des étapes, et le classement des idées 9 à 16.
-5. D'accord pour installer les outils listés plus haut (≈ 1 Go à télécharger), au moment de la première version ?
+1. Code dans le sous-dossier `tv-app/` de ce dépôt.
+2. Appairage par code affiché sur la télé et tapé sur la tablette.
+3. Clé de signature dans `%USERPROFILE%\.homehub-tv\`, copie de sauvegarde dans le dépôt privé de config du NAS.
+4. Ordre : celui proposé ; les idées restantes se choisissent ensuite dans `TODO.md`.
+5. Outils installés au moment de la première version.
+6. Attente longue plutôt que WebSocket : zéro dépendance, reprise sans perte par numéro d'événement, proxy sans réglage.
+   Une WebSocket ne se justifierait que pour des échanges continus (parler en direct, curseur de volume).
