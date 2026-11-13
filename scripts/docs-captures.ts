@@ -657,10 +657,12 @@ await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('al
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
-  const tablet = await openTarget(`${BASE}/`, TABLET);
+  // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
+  // ferait passer la tablette pour un téléphone, qui n'écoute pas les demandes (« Tablette injoignable »).
+  const tablet = await openTarget(`${BASE}/`, TABLET, `localStorage.removeItem('homehub.phone');`);
   await sleep(3000);
   const phone = await openTarget(`${BASE}/m/camera`, PHONE, asPhone('alex'));
   for (let i = 0; i < 40; i++) {
@@ -671,6 +673,17 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(1500);
   await phone.capture('telephone-camera');
   await tablet.capture('tablette-camera-direct');
+  // Alex parle (faux micro de Chrome) : la tablette sonne, puis joue sa voix et affiche « Alex parle ».
+  await phone.evaluate(`[...document.querySelectorAll('.camera button')].find((b) => b.textContent.trim() === 'Parler')?.click()`);
+  for (let i = 0; i < 20; i++) {
+    await sleep(500);
+    const talking = await tablet.evaluate(`!!document.querySelector('.live.talk') && document.querySelector('audio')?.srcObject?.getAudioTracks().length === 1`);
+    if (talking.result?.value) break;
+    if (i === 19) console.warn('Voix d’Alex absente sur la tablette');
+  }
+  await sleep(1000);
+  await phone.capture('telephone-camera-parler');
+  await tablet.capture('tablette-camera-parle');
   await phone.close();
   await tablet.close();
   await send('Browser.resetPermissions');

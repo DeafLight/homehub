@@ -137,12 +137,15 @@ holidays:
 #   live       : l'onglet existe (false : la coupe partout)
 #   banner     : bandeau sur la tablette pendant la diffusion
 #   audio      : le son de la tablette aussi (Fully Kiosk : Enable Microphone Access)
+#   talk       : le parent peut parler (bouton Parler), sa voix sort de la tablette ; bandeau « Alex parle »
+#                toujours affiché pendant ce temps (Fully Kiosk : Autoplay Audio, voir le README)
 #   maxMinutes : la diffusion s'arrête d'elle-même au bout de ce temps (1 à 120)
 #   stun, turn : relais pour regarder hors de la maison (4G), voir le README ; secret TURN dans HOMEHUB_TURN_SECRET
 # camera:
 #   live: true
 #   banner: true
 #   audio: true
+#   talk: true
 #   maxMinutes: 10
 #   stun: [stun:maison.example.org:3478]
 #   turn: [turn:maison.example.org:3478?transport=udp, turn:maison.example.org:3478?transport=tcp]

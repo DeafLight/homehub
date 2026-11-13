@@ -1,5 +1,6 @@
-// Sons du scanner, synthétisés (rien à télécharger) : un bip clair quand un code est lu, deux notes quand il faut
-// répondre à une question (produit inconnu, recharge…), une note grave en cas d'erreur. Le téléphone vibre aussi.
+// Sons synthétisés (rien à télécharger). Scanner : un bip clair quand un code est lu, deux notes quand il faut
+// répondre à une question (produit inconnu, recharge…), une note grave en cas d'erreur ; le téléphone vibre aussi.
+// Séance guidée : bips de décompte. Tablette : carillon juste avant la voix d'un parent (caméra en direct).
 // Le navigateur n'autorise le son qu'après un geste : `unlockAudio` est appelé au toucher (bouton Scanner, modes).
 
 let context: AudioContext | null = null;
@@ -13,10 +14,10 @@ export function unlockAudio() {
   }
 }
 
-function tone(ctx: AudioContext, frequency: number, start: number, duration: number, volume = 0.25) {
+function tone(ctx: AudioContext, frequency: number, start: number, duration: number, volume = 0.25, type: OscillatorType = 'square') {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  osc.type = 'square';
+  osc.type = type;
   osc.frequency.value = frequency;
   gain.gain.setValueAtTime(volume, ctx.currentTime + start);
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
@@ -55,4 +56,20 @@ export function cue(kind: 'tick' | 'go' | 'rest' | 'side') {
     tone(context, 990, 0, 0.15, 0.25);
     tone(context, 660, 0.18, 0.3, 0.25);
   }
+}
+
+/** Durée du carillon de la tablette, jusqu'à ce que la voix du parent démarre. */
+export const CHIME_MS = 900;
+
+/**
+ * Carillon de la tablette quand un parent se met à parler (deux notes douces qui descendent, façon sonnette) ; se
+ * résout à la fin, même sans son (navigateur qui le refuse sans geste : la voix démarre quand même).
+ */
+export function chime(): Promise<void> {
+  unlockAudio();
+  if (context) {
+    tone(context, 1319, 0, 0.45, 0.3, 'sine');
+    tone(context, 988, 0.35, 0.55, 0.3, 'sine');
+  }
+  return new Promise((resolve) => setTimeout(resolve, CHIME_MS));
 }

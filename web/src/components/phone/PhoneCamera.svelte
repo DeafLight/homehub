@@ -7,6 +7,8 @@
   // Onglet Caméra (parents) : la caméra de face de la tablette en direct, avec le son. La diffusion démarre à
   // l'ouverture de l'onglet et s'arrête en le quittant ou quand la page est masquée (écran éteint, autre appli) ;
   // elle reprend au retour sur la page. La tablette affiche un bandeau tant qu'on regarde (sauf réglage contraire).
+  // Bouton Parler (si `camera.talk`) : le micro part vers la tablette, qui sonne puis joue la voix et affiche « Alex
+  // parle » ; pendant ce temps le son de la tablette est coupé ici (pas d'écho), il revient en arrêtant.
   type Props = { api: Api; bannerShown: boolean };
   let { api, bannerShown }: Props = $props();
 
@@ -14,10 +16,28 @@
   let stream = $state<MediaStream | null>(null);
   let video = $state<HTMLVideoElement>();
   let muted = $state(false);
+  let talkBusy = $state(false);
+  let talkError = $state<string | null>(null);
   let viewer: LiveViewer | null = null;
+
+  const talking = $derived(view.phase === 'live' && view.talking);
+
+  async function toggleTalk() {
+    if (!viewer || talkBusy) return;
+    talkBusy = true;
+    talkError = null;
+    try {
+      await viewer.talk(!talking);
+    } catch (err) {
+      talkError = (err as Error).message;
+    } finally {
+      talkBusy = false;
+    }
+  }
 
   function start() {
     viewer?.stop();
+    talkError = null;
     if (typeof RTCPeerConnection === 'undefined') {
       view = { phase: 'error', message: 'Ce navigateur ne sait pas recevoir la vidéo en direct (WebRTC).' };
       return;
@@ -80,12 +100,22 @@
     <div class="bar">
       <span class="live-dot" aria-hidden="true"></span> En direct
       {#if view.audio}
-        <button type="button" class="btn sound" aria-pressed={!muted} onclick={() => (muted = !muted)}>
-          <Icon name={muted ? 'mute' : 'volume'} size={22} />
-          {muted ? 'Activer le son' : 'Couper le son'}
+        <button type="button" class="btn sound" aria-pressed={!muted} disabled={talking} onclick={() => (muted = !muted)}>
+          <Icon name={muted || talking ? 'mute' : 'volume'} size={22} />
+          {talking ? 'Son coupé' : muted ? 'Activer le son' : 'Couper le son'}
         </button>
       {/if}
     </div>
+    {#if view.talk}
+      <button type="button" class="btn talk" class:on={talking} aria-pressed={talking} disabled={talkBusy} onclick={toggleTalk}>
+        <Icon name="mic" size={24} />
+        {talking ? 'Arrêter de parler' : 'Parler'}
+      </button>
+      {#if talking}
+        <p class="talking" role="status">La tablette sonne puis diffuse ta voix, avec ton prénom en haut de l’écran. Le son de la tablette est coupé ici pendant ce temps.</p>
+      {/if}
+      {#if talkError}<p class="error" role="alert">{talkError}</p>{/if}
+    {/if}
   {/if}
 
   <p class="muted">
@@ -172,6 +202,31 @@
 
   .sound {
     margin-left: auto;
+  }
+
+  .sound:disabled {
+    opacity: 0.6;
+  }
+
+  .talk {
+    justify-content: center;
+    padding: 14px 18px;
+    font-weight: 600;
+  }
+
+  .talk.on {
+    border-color: var(--danger-fg);
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+
+  .talking {
+    margin: 0;
+    color: var(--fg-muted);
+  }
+
+  p.error {
+    margin: 0;
   }
 
   .muted {

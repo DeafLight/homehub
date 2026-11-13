@@ -1,6 +1,7 @@
 // Routes de la caméra en direct. Le téléphone d'un parent (jamais la tablette, jamais un enfant) ouvre une diffusion,
 // envoie son offre et ses candidats, attend la réponse ; la page de la tablette (reconnue comme telle) attend les
-// demandes et répond. Chaque appel du téléphone revérifie qu'il est toujours celui d'un parent.
+// demandes et répond. Le téléphone annonce aussi quand le parent parle (`talk`, refusé si `camera.talk` est coupé).
+// Chaque appel du téléphone revérifie qu'il est toujours celui d'un parent.
 import type { Context } from 'hono';
 import { z } from 'zod';
 import type { Access } from './access.ts';
@@ -24,6 +25,7 @@ const byeSchema = z.object({ kind: z.literal('bye'), reason: z.string().trim().m
 const phoneSignalSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('offer'), sdp: z.string().min(1).max(SDP_MAX) }),
   z.object({ kind: z.literal('candidate'), candidate: candidateSchema }),
+  z.object({ kind: z.literal('talk'), on: z.boolean() }),
   byeSchema,
 ]);
 const tabletSignalSchema = z.discriminatedUnion('kind', [

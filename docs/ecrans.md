@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.65.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.66.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -287,6 +287,14 @@ masquée. Pendant ce temps, la tablette affiche le bandeau « Caméra en direct 
 <img src="images/telephone-camera.png" alt="Onglet Caméra du téléphone d'Alex, en direct" width="260">
 
 ![Accueil de la tablette avec le bandeau Caméra en direct](images/tablette-camera-direct.png)
+
+Alex appuie sur « Parler » (ici le faux micro de Chrome) : la tablette sonne un court carillon, puis joue sa voix et
+affiche « Alex parle », même si le bandeau de la caméra est désactivé. Sur le téléphone, le son de la tablette est
+coupé tant qu'Alex parle (pas d'écho) ; « Arrêter de parler » le rétablit.
+
+<img src="images/telephone-camera-parler.png" alt="Onglet Caméra du téléphone d'Alex, en train de parler" width="260">
+
+![Accueil de la tablette avec le bandeau Alex parle](images/tablette-camera-parle.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 

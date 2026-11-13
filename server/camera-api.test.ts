@@ -1,5 +1,6 @@
 // Tests des routes de la caméra en direct : réservée au téléphone d'un parent (ni enfant, ni tablette, ni appareil
-// non appairé), la tablette seule écoute et répond, messages validés, fermeture sans erreur d'une diffusion finie.
+// non appairé), la tablette seule écoute et répond, messages validés, fermeture sans erreur d'une diffusion finie ;
+// le parent parle (signal `talk` relayé, refusé si `camera.talk` est coupé, jamais depuis le téléphone d'un enfant).
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -88,7 +89,7 @@ describe('API caméra en direct : échange complet', () => {
     const res = await call('POST', '/camera/sessions', { token: alex });
     expect(res.status).toBe(201);
     const session = (await res.json()) as CameraSession;
-    expect(session).toMatchObject({ audio: true, maxSeconds: 600, iceServers: [] });
+    expect(session).toMatchObject({ audio: true, talk: true, maxSeconds: 600, iceServers: [] });
 
     expect((await call('POST', `/camera/sessions/${session.id}/signal`, { token: alex, body: { kind: 'offer', sdp: 'v=0' } })).status).toBe(204);
     expect((await call('POST', `/camera/sessions/${session.id}/signal`, { token: alex, body: { kind: 'answer', sdp: 'v=0' } })).status).toBe(400);
@@ -109,5 +110,33 @@ describe('API caméra en direct : échange complet', () => {
     expect((await call('DELETE', `/camera/sessions/${session.id}`, { token: alex })).status).toBe(204);
     const bye = (await (await tabletListens('2')).json()) as CameraMessages;
     expect(bye.messages.map((m) => m.signal.kind)).toEqual(['bye']);
+  });
+});
+
+describe('API caméra en direct : parler', () => {
+  async function opened(camera: unknown = {}) {
+    const s = await setup(camera);
+    await s.tabletListens();
+    const session = (await (await s.call('POST', '/camera/sessions', { token: s.alex })).json()) as CameraSession;
+    const talk = (on: unknown, token = s.alex) => s.call('POST', `/camera/sessions/${session.id}/signal`, { token, body: { kind: 'talk', on } });
+    return { ...s, session, talk };
+  }
+
+  it('le parent parle : relayé à la tablette', async () => {
+    const { session, talk, tabletListens, lea } = await opened();
+    expect(session.talk).toBe(true);
+    expect((await talk(true)).status).toBe(204);
+    expect((await talk('oui')).status).toBe(400);
+    expect((await talk(false, lea)).status).toBe(403);
+    const tablet = (await (await tabletListens('1')).json()) as CameraMessages;
+    expect(tablet.messages.map((m) => m.signal)).toEqual([{ kind: 'talk', on: true }]);
+  });
+
+  it('camera.talk coupé : refusé', async () => {
+    const { session, talk } = await opened({ talk: false });
+    expect(session.talk).toBe(false);
+    const res = await talk(true);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: expect.stringContaining('camera.talk') });
   });
 });

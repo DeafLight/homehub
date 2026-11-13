@@ -1,13 +1,14 @@
 // Tests de la signalisation de la caméra en direct : identifiants TURN, ouverture (désactivée, tablette absente,
 // une par téléphone, nombre maximal), échange offre / réponse / candidats, page de tablette qui prend la diffusion et
 // celles qui sont congédiées, fins (téléphone, tablette, durée, téléphone ou tablette partis, réglage coupé), attente
-// interrompue, page de tablette qui redémarre.
+// interrompue, page de tablette qui redémarre ; parole du parent relayée à la tablette, refusée quand le réglage la
+// coupe, arrêtée si on le coupe pendant qu'il parle.
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from '../config.ts';
 import { HttpError } from '../http.ts';
 import { NOW } from '../testing.ts';
-import { CAMERA_DISABLED, GONE_MS, iceServersFor, MAX_SESSIONS, SESSION_ENDED, TABLET_OFFLINE, createLiveCamera, turnCredentials } from './live-camera.ts';
+import { CAMERA_DISABLED, GONE_MS, iceServersFor, MAX_SESSIONS, SESSION_ENDED, TABLET_OFFLINE, TALK_DISABLED, createLiveCamera, turnCredentials } from './live-camera.ts';
 
 const rulesOf = (camera: unknown = {}) => parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def', parent: true }], camera }).camera;
 
@@ -67,12 +68,12 @@ describe('caméra en direct : ouverture', () => {
   });
 
   it('annonce le parent à la tablette, avec les serveurs et le son', async () => {
-    const { live } = setup({ audio: false, maxMinutes: 5 }, undefined);
+    const { live } = setup({ audio: false, talk: false, maxMinutes: 5 }, undefined);
     await listen(live);
     const session = live.open(ALEX);
-    expect(session).toMatchObject({ audio: false, maxSeconds: 300, iceServers: [] });
+    expect(session).toMatchObject({ audio: false, talk: false, maxSeconds: 300, iceServers: [] });
     const { messages } = await listen(live, TAB, 0);
-    expect(messages).toEqual([{ seq: 1, session: session.id, signal: { kind: 'start', viewerId: 'alex', viewerName: 'Alex', iceServers: [], audio: false } }]);
+    expect(messages).toEqual([{ seq: 1, session: session.id, signal: { kind: 'start', viewerId: 'alex', viewerName: 'Alex', iceServers: [], audio: false, talk: false } }]);
     expect(live.viewers()).toEqual(['Alex']);
   });
 
@@ -221,5 +222,49 @@ describe('caméra en direct : fins', () => {
     setRules({ live: false });
     live.sweep();
     expect(live.viewers()).toEqual([]);
+  });
+});
+
+describe('caméra en direct : le parent parle', () => {
+  async function started(options: unknown = {}) {
+    const s = setup(options);
+    await listen(s.live);
+    const session = s.live.open(ALEX);
+    s.live.tabletSignal(TAB, session.id, { kind: 'answer', sdp: 'r' });
+    return { ...s, id: session.id };
+  }
+
+  it('« parle » puis « ne parle plus » arrivent à la tablette, une fois chacun', async () => {
+    const { live, id } = await started();
+    live.phoneSignal(id, ALEX.deviceId, { kind: 'talk', on: true });
+    live.phoneSignal(id, ALEX.deviceId, { kind: 'talk', on: true });
+    expect(live.talkers()).toEqual(['Alex']);
+    live.phoneSignal(id, ALEX.deviceId, { kind: 'talk', on: false });
+    expect(live.talkers()).toEqual([]);
+    const { messages } = await listen(live, TAB, 1);
+    expect(messages.map((m) => m.signal)).toEqual([
+      { kind: 'talk', on: true },
+      { kind: 'talk', on: false },
+    ]);
+  });
+
+  it('réglage coupé : refusé, et rien n’arrive à la tablette', async () => {
+    const { live, id } = await started({ talk: false });
+    expect(refusal(() => live.phoneSignal(id, ALEX.deviceId, { kind: 'talk', on: true }))).toEqual({ status: 403, message: TALK_DISABLED });
+    // S'arrêter reste permis (sans effet : il ne parlait pas).
+    expect(refusal(() => live.phoneSignal(id, ALEX.deviceId, { kind: 'talk', on: false }))).toBeNull();
+    const { messages } = await listen(live, TAB, 1);
+    expect(messages).toEqual([]);
+  });
+
+  it('réglage coupé pendant qu’il parle : la tablette se tait, la diffusion continue', async () => {
+    const { live, id, setRules } = await started();
+    live.phoneSignal(id, ALEX.deviceId, { kind: 'talk', on: true });
+    setRules({ talk: false });
+    live.sweep();
+    expect(live.talkers()).toEqual([]);
+    expect(live.viewers()).toEqual(['Alex']);
+    const { messages } = await listen(live, TAB, 3);
+    expect(messages.map((m) => m.signal)).toEqual([{ kind: 'talk', on: false }]);
   });
 });

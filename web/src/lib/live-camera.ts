@@ -1,12 +1,16 @@
 // Caméra en direct, côté navigateur. La tablette (`createLiveHost`) attend les demandes des parents et répond à
 // chacune par une connexion WebRTC qui envoie sa caméra de face (et son micro si `camera.audio`), prise au partage de
 // l'appareil sans l'ouvrir deux fois. Le téléphone (`createLiveViewer`) ouvre une diffusion, envoie son offre et
-// montre ce qu'il reçoit ; il ferme la diffusion en partant. Les messages passent par le serveur (signalisation),
+// montre ce qu'il reçoit ; il ferme la diffusion en partant. Le parent peut parler (`camera.talk`) : la piste audio
+// du téléphone est prévue dès l'offre (vide tant qu'il ne parle pas, le micro y est branché au bouton Parler, sans
+// renégocier) ; pendant qu'il parle, le son reçu de la tablette est coupé (pas d'écho). La tablette joue la voix après
+// un carillon et l'annonce (bandeau « Alex parle »). Les messages passent par le serveur (signalisation),
 // l'image et le son vont directement d'un appareil à l'autre, ou par le relais TURN hors de la maison.
 import type { CameraMessage, CameraSession, IceCandidate, IceServer } from '../../../shared/camera.ts';
 import type { Api } from './api.ts';
 import { ApiError } from './api.ts';
 import { cameraShare } from './camera-share.ts';
+import { chime as doorChime } from './beep.ts';
 import { cameraError, FRONT_CAMERA } from './face.ts';
 
 export type PeerFactory = (config: RTCConfiguration) => RTCPeerConnection;
@@ -56,6 +60,14 @@ type HostPeer = {
   viewerName: string;
   iceServers: IceServer[];
   audio: boolean;
+  /** Le parent a le droit de parler (`camera.talk` à l'ouverture) ; sinon sa piste audio est ignorée. */
+  talk: boolean;
+  /** Voix reçue du téléphone (piste muette tant qu'il ne parle pas). */
+  voice: MediaStream | null;
+  /** Il parle, carillon passé : on joue sa voix et on l'annonce. */
+  talking: boolean;
+  /** Numéro du dernier « parle / ne parle plus » (un arrêt pendant le carillon l'emporte). */
+  talkTicket: number;
   pc?: RTCPeerConnection;
   media?: HostMedia;
   /** Candidats arrivés avant l'offre. */
@@ -64,28 +76,39 @@ type HostPeer = {
 
 export type LiveHost = { stop(): void };
 
+/** Parent qui parle à la tablette : sa voix à jouer (null tant que la piste n'est pas arrivée). */
+export type Talker = { session: string; name: string; voice: MediaStream | null };
+
 /**
  * Tablette : écoute les demandes et diffuse. `onViewers` : prénoms des parents qui regardent (bandeau), à chaque
- * changement. `client` : identifiant de cette page (plusieurs pages de tablette peuvent écouter).
+ * changement ; `onTalkers` : ceux qui parlent, avec leur voix, après le carillon (`chime`). `client` : identifiant de
+ * cette page (plusieurs pages de tablette peuvent écouter).
  */
 export function createLiveHost({
   api,
   client,
   createPeer,
   media = frontMedia,
+  chime = doorChime,
   onViewers,
+  onTalkers = () => {},
 }: {
   api: Pick<Api, 'tabletCameraMessages' | 'sendTabletCameraSignal'>;
   client: string;
   createPeer: PeerFactory;
   media?: (audio: boolean) => Promise<HostMedia>;
+  chime?: () => Promise<void>;
   onViewers: (names: string[]) => void;
+  onTalkers?: (talkers: Talker[]) => void;
 }): LiveHost {
   const peers = new Map<string, HostPeer>();
   const abort = new AbortController();
   let after: number | null = null;
 
-  const changed = () => onViewers([...peers.values()].map((p) => p.viewerName));
+  const changed = () => {
+    onViewers([...peers.values()].map((p) => p.viewerName));
+    onTalkers([...peers].filter(([, p]) => p.talking).map(([session, p]) => ({ session, name: p.viewerName, voice: p.voice })));
+  };
   const send = (session: string, signal: Parameters<Api['sendTabletCameraSignal']>[2]) =>
     api.sendTabletCameraSignal(client, session, signal).catch(() => {});
 
@@ -106,6 +129,12 @@ export function createLiveHost({
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') close(session, 'Connexion perdue');
     };
+    pc.ontrack = (e) => {
+      // La voix du parent, seulement s'il a le droit de parler.
+      if (e.track.kind !== 'audio' || !peer.talk || !peers.has(session)) return;
+      peer.voice = new MediaStream([e.track]);
+      if (peer.talking) changed();
+    };
     try {
       await pc.setRemoteDescription({ type: 'offer', sdp });
       try {
@@ -125,9 +154,36 @@ export function createLiveHost({
     }
   }
 
+  /** Le parent se met à parler (carillon, puis sa voix et le bandeau) ou s'arrête. */
+  async function talk(session: string, peer: HostPeer, on: boolean) {
+    if (!peer.talk) return;
+    const ticket = ++peer.talkTicket;
+    if (!on) {
+      if (peer.talking) {
+        peer.talking = false;
+        changed();
+      }
+      return;
+    }
+    if (peer.talking) return;
+    await chime().catch(() => {});
+    if (ticket !== peer.talkTicket || peers.get(session) !== peer) return;
+    peer.talking = true;
+    changed();
+  }
+
   async function handle({ session, signal }: CameraMessage) {
     if (signal.kind === 'start') {
-      peers.set(session, { viewerName: signal.viewerName, iceServers: signal.iceServers, audio: signal.audio, pending: [] });
+      peers.set(session, {
+        viewerName: signal.viewerName,
+        iceServers: signal.iceServers,
+        audio: signal.audio,
+        talk: signal.talk,
+        voice: null,
+        talking: false,
+        talkTicket: 0,
+        pending: [],
+      });
       changed();
       return;
     }
@@ -135,6 +191,7 @@ export function createLiveHost({
     const peer = peers.get(session);
     if (!peer) return;
     if (signal.kind === 'offer') return answer(session, peer, signal.sdp);
+    if (signal.kind === 'talk') return void talk(session, peer, signal.on); // le carillon ne retient pas les autres messages
     if (signal.kind === 'candidate') {
       if (peer.pc?.remoteDescription) await addCandidate(peer.pc, signal.candidate);
       else peer.pending.push(signal.candidate);
@@ -162,29 +219,48 @@ export function createLiveHost({
   };
 }
 
+/**
+ * État du téléphone. En direct : `audio` (le son de la tablette vient), `talk` (il peut parler), `talking` (il parle :
+ * son micro part vers la tablette et le son reçu est coupé).
+ */
 export type ViewerState =
   | { phase: 'connecting' }
-  | { phase: 'live'; audio: boolean }
+  | { phase: 'live'; audio: boolean; talk: boolean; talking: boolean }
   | { phase: 'ended'; message: string }
   | { phase: 'error'; message: string };
 
-export type LiveViewer = { stop(): void };
+/** `talk(true)` : parler (micro demandé au premier appui) ; `talk(false)` : s'arrêter. Rejette avec un texte à montrer. */
+export type LiveViewer = { stop(): void; talk(on: boolean): Promise<void> };
+
+/** Micro du téléphone pour parler, avec annulation d'écho et réduction du bruit. */
+export const phoneMicrophone = () =>
+  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+
+/** Texte d'un micro qui ne s'ouvre pas. */
+export function micError(err: unknown): string {
+  const name = (err as Error | undefined)?.name;
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Micro refusé : autorise-le pour HomeHub dans le navigateur.';
+  if (name === 'NotFoundError') return 'Pas de micro sur ce téléphone.';
+  return 'Micro indisponible.';
+}
 
 /**
  * Téléphone : ouvre une diffusion et la montre (`onStream`) ; `onState` suit la connexion. `stop` ferme la
- * diffusion (onglet quitté, page masquée).
+ * diffusion (onglet quitté, page masquée) ; `talk` branche ou débranche le micro.
  */
 export function createLiveViewer({
   api,
   createPeer,
   onState,
   onStream,
+  microphone = phoneMicrophone,
   connectTimeoutMs = CONNECT_TIMEOUT_MS,
 }: {
   api: Pick<Api, 'openCamera' | 'sendCameraSignal' | 'cameraMessages' | 'closeCamera'>;
   createPeer: PeerFactory;
   onState: (state: ViewerState) => void;
   onStream: (stream: MediaStream | null) => void;
+  microphone?: () => Promise<MediaStream>;
   connectTimeoutMs?: number;
 }): LiveViewer {
   const abort = new AbortController();
@@ -192,12 +268,71 @@ export function createLiveViewer({
   let pc: RTCPeerConnection | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let finished = false;
+  let live = false;
+  /** Où brancher le micro (piste audio prévue dès l'offre) ; null si parler n'est pas permis. */
+  let sender: RTCRtpSender | null = null;
+  let mic: MediaStream | null = null;
+  let talking = false;
+  /** Son reçu de la tablette : coupé pendant qu'on parle. */
+  const heard: MediaStreamTrack[] = [];
+
+  const report = () => {
+    if (live && !finished && session) onState({ phase: 'live', audio: session.audio, talk: session.talk, talking });
+  };
+  const hear = (on: boolean) => {
+    for (const track of heard) track.enabled = on;
+  };
+  const releaseMic = () => {
+    for (const track of mic?.getTracks() ?? []) track.stop();
+    mic = null;
+  };
+  /** Se tait : micro débranché et rendu, son de la tablette rétabli. */
+  async function quiet() {
+    talking = false;
+    await sender?.replaceTrack(null).catch(() => {});
+    releaseMic();
+    hear(true);
+    report();
+  }
+
+  async function talk(on: boolean) {
+    if (finished || !session || !sender || on === talking) return;
+    const id = session.id;
+    if (!on) {
+      await quiet();
+      await api.sendCameraSignal(id, { kind: 'talk', on: false }).catch(() => {});
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await microphone();
+    } catch (err) {
+      throw new Error(micError(err));
+    }
+    if (finished || talking) {
+      for (const track of stream.getTracks()) track.stop();
+      return;
+    }
+    mic = stream;
+    talking = true;
+    hear(false);
+    report();
+    try {
+      await sender.replaceTrack(stream.getAudioTracks()[0] ?? null);
+      await api.sendCameraSignal(id, { kind: 'talk', on: true });
+    } catch (err) {
+      // Refusé (camera.talk coupé entre-temps) : on se tait de nouveau.
+      await quiet();
+      throw err instanceof Error ? err : new Error('Impossible de parler à la tablette');
+    }
+  }
 
   function finish(state: Extract<ViewerState, { phase: 'ended' | 'error' }> | null, notifyServer: boolean) {
     if (finished) return;
     finished = true;
     clearTimeout(timer);
     abort.abort();
+    releaseMic();
     pc?.close();
     onStream(null);
     if (notifyServer && session) void api.closeCamera(session.id).catch(() => {});
@@ -216,9 +351,18 @@ export function createLiveViewer({
     const peer = createPeer(rtcConfig(current.iceServers));
     pc = peer;
     peer.addTransceiver('video', { direction: 'recvonly' });
-    if (current.audio) peer.addTransceiver('audio', { direction: 'recvonly' });
+    if (current.audio || current.talk) {
+      // Pour parler, la piste audio part aussi dans ce sens (vide tant qu'on ne parle pas).
+      const direction = !current.talk ? 'recvonly' : current.audio ? 'sendrecv' : 'sendonly';
+      const audio = peer.addTransceiver('audio', { direction });
+      if (current.talk) sender = audio.sender;
+    }
     const stream = new MediaStream();
     peer.ontrack = (e) => {
+      if (e.track.kind === 'audio') {
+        heard.push(e.track);
+        e.track.enabled = !talking;
+      }
       stream.addTrack(e.track);
       onStream(stream);
     };
@@ -226,7 +370,8 @@ export function createLiveViewer({
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'connected') {
         clearTimeout(timer);
-        onState({ phase: 'live', audio: current.audio });
+        live = true;
+        report();
       } else if (peer.connectionState === 'failed') {
         finish({ phase: 'error', message: CONNECT_FAILED }, true);
       }
@@ -261,7 +406,7 @@ export function createLiveViewer({
     }
   })();
 
-  return { stop: () => finish(null, true) };
+  return { stop: () => finish(null, true), talk };
 }
 
 /** Identifiant de cette page (tablette), tiré au hasard à l'ouverture. */

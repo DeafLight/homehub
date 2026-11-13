@@ -264,6 +264,17 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Android ; écran éteint, Android coupe la caméra et la page de la tablette ne répond plus (le téléphone affiche
   « Tablette injoignable ») : garder l'écran allumé (*Keep Screen On*) pour regarder à tout moment ; la détection de
   mouvement de Fully (*Motion Detection*) se sert aussi de la caméra frontale et peut la prendre : la laisser coupée.
+- **Parler à la tablette** (même onglet Caméra, en direct) : bouton **Parler** / **Arrêter de parler** (micro ouvert,
+  pas besoin de rester appuyé). Le micro du téléphone n'est demandé qu'au premier appui (annulation d'écho, réduction
+  du bruit) ; la tablette sonne un court carillon puis joue la voix sur ses haut-parleurs, avec en haut de l'écran le
+  bandeau **« Alex parle »**, toujours affiché pendant ce temps, même avec `camera.banner: false` (on doit savoir d'où
+  vient la voix). Pendant qu'on parle, le son reçu de la tablette est coupé sur le téléphone (pas d'écho ni de larsen) ;
+  il revient à l'arrêt. La voix passe par la même connexion que l'image (rien n'est enregistré). Activé par défaut ;
+  `camera.talk: false` le coupe : pas de bouton, et le serveur refuse l'annonce comme la tablette ignore la voix.
+  **Fully Kiosk** : la tablette joue la voix sans qu'on la touche seulement si la lecture automatique est permise :
+  activer *Web Content Settings › Autoplay Videos* (et *Autoplay Audio* si la version de Fully le propose ; à
+  vérifier sur la tablette) ; sinon la voix démarre au premier toucher de l'écran. Garder le volume média de la
+  tablette audible.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -562,6 +573,7 @@ camera:              # facultatif : caméra en direct (valeurs par défaut)
   live: true         # onglet Caméra des parents
   banner: true       # bandeau « Caméra en direct · <parent> » sur la tablette
   audio: true        # le son de la tablette aussi
+  talk: true         # le parent peut parler à la tablette (bandeau « <parent> parle », toujours affiché)
   maxMinutes: 10     # arrêt automatique
   stun: []           # ex. [stun:maison.example.org:3478]
   turn: []           # ex. [turn:maison.example.org:3478?transport=udp] ; secret : HOMEHUB_TURN_SECRET
@@ -722,8 +734,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/transit/routes?from=lat,lon&to=lat,lon` | `{ routes }` : lignes directes entre deux points, de la plus rapide à la plus lente |
 | `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ windows, members }` ; enregistrer : `{ windows, members }`, un parent |
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
-| `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
-| `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats ou fin (`{ kind: "offer" \| "candidate" \| "bye", … }`) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
+| `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, talk, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
+| `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats, parole ou fin (`{ kind: "offer" \| "candidate" \| "talk" \| "bye", … }` ; `{ kind: "talk", on }` : le parent parle ou s'arrête, 403 si `camera.talk` est coupé) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |

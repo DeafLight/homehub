@@ -223,6 +223,11 @@ Reste :
       reconnaissance faciale et le scanner.
 - [x] Caméra en direct, vérifiée en conditions réelles (13 novembre) : Fully Kiosk (caméra et micro autorisés, écran allumé,
       détection de mouvement coupée), un téléphone en 4G avec coturn sur le NAS, le son à l'ouverture de l'onglet.
+- [x] Parler à la tablette, 0.66.0 : bouton Parler / Arrêter de parler dans l'onglet Caméra (micro ouvert), carillon
+      puis la voix sur les haut-parleurs de la tablette, bandeau « Alex parle » toujours affiché ; son de la tablette
+      coupé sur le téléphone pendant ce temps ; `camera.talk` (activé par défaut).
+- [ ] Parler à la tablette, à vérifier en conditions réelles : lecture automatique dans Fully Kiosk (*Autoplay
+      Videos* / *Autoplay Audio*), volume, écho côté tablette.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

@@ -3,7 +3,8 @@
 // Une diffusion s'arrête quand le téléphone ou la tablette la ferme, quand l'un d'eux ne demande plus ses messages
 // (page masquée, réseau perdu), ou au bout de `camera.maxMinutes`. Plusieurs pages de tablette peuvent écouter (la
 // tablette et un navigateur de développement) : la première qui répond garde la diffusion, les autres sont congédiées.
-// Le serveur ne voit ni l'image ni le son, et n'enregistre rien.
+// Le parent peut parler (`camera.talk`) : le serveur relaie à la tablette « parle / ne parle plus » (carillon, bandeau),
+// et le refuse quand le réglage est coupé. Le serveur ne voit ni l'image ni le son, et n'enregistre rien.
 import { createHmac, randomUUID } from 'node:crypto';
 import type { CameraMessage, CameraMessages, CameraSession, CameraSignal, IceServer, PhoneSignal, TabletSignal } from '../../shared/camera.ts';
 import type { AppConfig } from '../config.ts';
@@ -24,6 +25,7 @@ const MESSAGE_TTL_MS = 120_000;
 export const CAMERA_DISABLED = 'Caméra en direct désactivée (camera.live dans homehub.yaml)';
 export const TABLET_OFFLINE = 'Tablette injoignable : elle est peut-être éteinte ou sur une autre page qu’HomeHub';
 export const SESSION_ENDED = 'Diffusion terminée';
+export const TALK_DISABLED = 'Parler à la tablette est désactivé (camera.talk dans homehub.yaml)';
 
 /**
  * Identifiants TURN éphémères (API REST de coturn, `use-auth-secret`) : nom = date d'expiration (secondes Unix) et
@@ -94,6 +96,8 @@ type Session = {
   phonePolling: number;
   /** Page de la tablette qui a répondu. */
   claimedBy?: string;
+  /** Le parent parle (dernier `talk` relayé). */
+  talking: boolean;
   phone: ReturnType<typeof createMailbox>;
 };
 
@@ -126,6 +130,10 @@ export function createLiveCamera({
     return client !== undefined && (client.polling > 0 || now() - client.seenAt < goneMs);
   };
 
+  /** Message du téléphone vers la page de la tablette qui a pris la diffusion (ou toutes, avant). */
+  const toTablet = (session: Session, signal: CameraSignal) =>
+    tablet.push(session.id, signal, now(), session.claimedBy ? { visibleTo: session.claimedBy } : {});
+
   function end(session: Session, reason: string, from: 'phone' | 'tablet' | 'server') {
     if (!sessions.delete(session.id)) return;
     ended.set(session.id, { session, at: now() });
@@ -144,6 +152,11 @@ export function createLiveCamera({
       else if (session.phonePolling === 0 && t - session.phoneSeenAt >= goneMs) end(session, 'Téléphone parti', 'server');
       else if (session.claimedBy !== undefined && !clientAlive(session.claimedBy)) end(session, TABLET_OFFLINE, 'server');
       else if (!rules().live) end(session, CAMERA_DISABLED, 'server');
+      else if (session.talking && !rules().talk) {
+        // Réglage coupé pendant que le parent parle : la tablette se tait.
+        session.talking = false;
+        toTablet(session, { kind: 'talk', on: false });
+      }
     }
     tablet.keep((m) => t - m.at < MESSAGE_TTL_MS);
     for (const [id, gone] of ended) if (t - gone.at >= MESSAGE_TTL_MS) ended.delete(id);
@@ -192,18 +205,26 @@ export function createLiveCamera({
       if (sessions.size >= MAX_SESSIONS) fail(409, `${MAX_SESSIONS} diffusions au plus en même temps`);
       const t = now();
       const id = randomUUID();
-      const session: Session = { id, viewerId, viewerName, deviceId, startedAt: t, phoneSeenAt: t, phonePolling: 0, phone: createMailbox() };
+      const session: Session = { id, viewerId, viewerName, deviceId, startedAt: t, phoneSeenAt: t, phonePolling: 0, talking: false, phone: createMailbox() };
       sessions.set(id, session);
-      tablet.push(id, { kind: 'start', viewerId, viewerName, iceServers: iceServersFor(current, turnSecret, clock()), audio: current.audio }, t);
-      return { id, iceServers: iceServersFor(current, turnSecret, clock()), audio: current.audio, maxSeconds: current.maxMinutes * 60 };
+      tablet.push(id, { kind: 'start', viewerId, viewerName, iceServers: iceServersFor(current, turnSecret, clock()), audio: current.audio, talk: current.talk }, t);
+      return { id, iceServers: iceServersFor(current, turnSecret, clock()), audio: current.audio, talk: current.talk, maxSeconds: current.maxMinutes * 60 };
     },
 
-    /** Offre, candidats ou fin, envoyés par le téléphone qui a ouvert la diffusion. */
+    /** Prénoms des parents qui parlent (tests, diagnostic). */
+    talkers: () => [...sessions.values()].filter((s) => s.talking).map((s) => s.viewerName),
+
+    /** Offre, candidats, parole ou fin, envoyés par le téléphone qui a ouvert la diffusion. */
     phoneSignal(id: string, deviceId: string, signal: PhoneSignal) {
       const session = sessionOf(id, deviceId);
       session.phoneSeenAt = now();
       if (signal.kind === 'bye') return end(session, signal.reason ?? 'Fermée sur le téléphone', 'phone');
-      tablet.push(id, signal, now(), session.claimedBy ? { visibleTo: session.claimedBy } : {});
+      if (signal.kind === 'talk') {
+        if (signal.on && !rules().talk) return fail(403, TALK_DISABLED);
+        if (signal.on === session.talking) return;
+        session.talking = signal.on;
+      }
+      toTablet(session, signal);
     },
 
     /** Messages pour le téléphone (réponse, candidats de la tablette, fin) ; l'attente le tient pour présent. */
