@@ -11,6 +11,8 @@ import {
   type PronoteStateStore,
   createFileStateStore,
   createPronoteSource,
+  gradePeriods,
+  gradesFromPeriods,
   gradeText,
   matchesChild,
   periodFor,
@@ -62,7 +64,7 @@ function memoryStore(initial: PronoteState | null = STATE) {
 function fakeClient(
   children = ['DUPONT Héloïse', 'DUPONT Jean'],
   homeworkFor: () => Promise<Homework[]> = async () => HOMEWORK,
-  gradesFor: () => Promise<SchoolGrade[] | null> = async () => GRADES,
+  gradesFor: () => Promise<{ items: SchoolGrade[]; periods: string[] } | null> = async () => ({ items: GRADES, periods: ['Semestre 1'] }),
 ) {
   let token = 'token-1';
   let busy = false;
@@ -182,7 +184,20 @@ describe('createPronoteSource', () => {
     const lines: string[] = [];
     logger.log = (message: string) => void lines.push(message);
     await source.lifeFor!('helo');
-    expect(lines).toEqual(['Pronote : 1 note(s) de heloise sur la période en cours.']);
+    expect(lines).toEqual(['Pronote : 1 note(s) de heloise (période : « Semestre 1 »).']);
+  });
+
+  it('dit quand l’onglet Notes manque, sans erreur, et les périodes lues quand aucune n’a de note', async () => {
+    for (const [read, line] of [
+      [null, 'Pronote : pas d’onglet Notes pour heloise.'],
+      [{ items: [], periods: ['Semestre 1', 'Trimestre 1'] }, 'Pronote : 0 note(s) de heloise (périodes lues : « Semestre 1 », « Trimestre 1 »).'],
+    ] as const) {
+      const { source, logger } = setup({ client: fakeClient(undefined, undefined, async () => (read && { items: [], periods: [...read.periods] })) });
+      const lines: string[] = [];
+      logger.log = (message: string) => void lines.push(message);
+      expect((await source.lifeFor!('helo'))?.grades).toEqual(read && []);
+      expect(lines).toEqual([line]);
+    }
   });
 
   it('garde le nouveau jeton même si l’enfant est introuvable', async () => {
@@ -326,6 +341,40 @@ describe('vie scolaire Pronote', () => {
     expect(periodFor({ ...tab, periods: [t2] }, NOW)).toEqual({ ...t2, kind: 2 });
     // Un genre donné par Pronote est gardé tel quel.
     expect(periodFor({ ...tab, periods: [{ ...t1, kind: 3 }] }, NOW)?.kind).toBe(3);
+  });
+
+  describe('périodes des notes', () => {
+    // Établissement fictif qui note par semestre mais propose aussi trimestres et année dans l'onglet Notes : seule la
+    // période par défaut (Semestre 1) porte les notes ; les autres reviennent vides.
+    const period = (id: string, start: Date, end: Date): Period => ({ id, name: id, kind: undefined, startDate: start, endDate: end }) as unknown as Period;
+    const t1 = period('Trimestre 1', new Date(2026, 8, 1), new Date(2026, 10, 30));
+    const s1 = period('Semestre 1', new Date(2026, 8, 1), new Date(2027, 0, 31));
+    const year = period('Année continue', new Date(2026, 8, 1), new Date(2027, 6, 4));
+    const s2 = period('Semestre 2', new Date(2027, 1, 1), new Date(2027, 6, 4));
+    const tab = { location: 198, periods: [t1, s1, s2, year], defaultPeriod: s1 } as Tab;
+
+    it('la période par défaut de Pronote d’abord, puis les autres en cours (la plus courte d’abord), avec leur genre', () => {
+      expect(gradePeriods(tab, NOW).map((p) => p.name)).toEqual(['Semestre 1', 'Trimestre 1', 'Année continue']);
+      expect(gradePeriods(tab, NOW).every((p) => p.kind === 2)).toBe(true);
+      // Sans période par défaut : celles en cours ; une période par défaut passée vient quand même en premier.
+      expect(gradePeriods({ ...tab, defaultPeriod: undefined }, NOW).map((p) => p.name)).toEqual(['Trimestre 1', 'Semestre 1', 'Année continue']);
+      expect(gradePeriods({ ...tab, periods: [s2], defaultPeriod: s2 }, NOW).map((p) => p.name)).toEqual(['Semestre 2']);
+      expect(gradePeriods(undefined, NOW)).toEqual([]);
+    });
+
+    it('garde les notes de la première période qui en a, et dit lesquelles ont été lues', async () => {
+      const notes: Record<string, SchoolGrade[]> = { 'Semestre 1': [{ id: 'g', subject: 'Allemand', date: '2026-11-09', value: '9', outOf: 20 }] };
+      const read: string[] = [];
+      const fetchPeriod = async (p: Period) => {
+        read.push(p.name);
+        return notes[p.name] ?? [];
+      };
+      // L'ancien choix (la plus longue en cours) lisait l'année : vide. La période par défaut donne les notes.
+      expect(await gradesFromPeriods([year, s1, t1], fetchPeriod)).toEqual({ items: notes['Semestre 1'], periods: ['Année continue', 'Semestre 1'] });
+      expect(read).toEqual(['Année continue', 'Semestre 1']);
+      expect(await gradesFromPeriods([t1, year], fetchPeriod)).toEqual({ items: [], periods: ['Trimestre 1', 'Année continue'] });
+      expect(await gradesFromPeriods([], fetchPeriod)).toBeNull();
+    });
   });
 
   it('accepte une note sans commentaire (champ absent de la réponse)', () => {

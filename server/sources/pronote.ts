@@ -48,8 +48,11 @@ export type PronoteSession = {
   timetable(child: string, from: Date, to: Date): Promise<SchoolCourse[]>;
   /** Devoirs à faire entre ces deux dates. */
   homework(child: string, from: Date, to: Date): Promise<Homework[]>;
-  /** Notes de la période en cours, récentes d'abord ; null si l'onglet est fermé au compte. */
-  grades(child: string, now: Date): Promise<SchoolGrade[] | null>;
+  /**
+   * Notes de la période en cours, récentes d'abord, avec les noms des périodes lues pour les trouver ; null si
+   * l'onglet est fermé au compte.
+   */
+  grades(child: string, now: Date): Promise<{ items: SchoolGrade[]; periods: string[] } | null>;
   /** Absences et retards de la période en cours, récents d'abord ; null si l'onglet est fermé au compte. */
   attendance(child: string, now: Date): Promise<SchoolAttendance[] | null>;
   /** Discussions de la messagerie du compte, récentes d'abord ; null si le compte ne peut pas les lire. */
@@ -219,7 +222,41 @@ export function periodFor(tab: pawnote.Tab | undefined, now: Date): pawnote.Peri
   const span = (p: pawnote.Period) => p.endDate.getTime() - p.startDate.getTime();
   const current = tab.periods.filter((p) => p.startDate <= now && now <= p.endDate).sort((a, b) => span(b) - span(a));
   const period = current[0] ?? tab.defaultPeriod;
-  return period ? { ...period, kind: period.kind ?? PERIOD_KIND } : null;
+  return period ? withKind(period) : null;
+}
+
+const withKind = (p: pawnote.Period): pawnote.Period => ({ ...p, kind: p.kind ?? PERIOD_KIND });
+
+/** Périodes lues au plus pour trouver des notes (une requête chacune). */
+const GRADE_PERIODS_MAX = 3;
+
+/**
+ * Périodes où chercher les notes, dans l'ordre : celle par défaut de Pronote (celle que montre le site, où
+ * l'établissement range ses notes), puis les autres qui contiennent aujourd'hui, la plus courte d'abord. Un
+ * établissement qui note par semestre peut aussi proposer trimestres et année : elles reviennent vides.
+ */
+export function gradePeriods(tab: pawnote.Tab | undefined, now: Date): pawnote.Period[] {
+  if (!tab) return [];
+  const span = (p: pawnote.Period) => p.endDate.getTime() - p.startDate.getTime();
+  const current = tab.periods.filter((p) => p.startDate <= now && now <= p.endDate).sort((a, b) => span(a) - span(b));
+  const ordered = tab.defaultPeriod ? [tab.defaultPeriod, ...current] : current;
+  const unique = ordered.filter((p, i) => ordered.findIndex((q) => q.id === p.id) === i);
+  return unique.slice(0, GRADE_PERIODS_MAX).map(withKind);
+}
+
+/** Notes de la première période qui en a, et les noms des périodes lues ; null s'il n'y a aucune période à lire. */
+export async function gradesFromPeriods(
+  periods: pawnote.Period[],
+  fetchPeriod: (period: pawnote.Period) => Promise<SchoolGrade[]>,
+): Promise<{ items: SchoolGrade[]; periods: string[] } | null> {
+  if (periods.length === 0) return null;
+  const read: string[] = [];
+  for (const period of periods) {
+    read.push(period.name);
+    const items = await fetchPeriod(period);
+    if (items.length > 0) return { items, periods: read };
+  }
+  return { items: [], periods: read };
 }
 
 /** Pawnote attend un `fetcher` : celui par défaut n'a pas de délai maximal. */
@@ -256,13 +293,14 @@ export function createPawnoteClient(): PronoteClient {
         state: { ...refresh, kind: refresh.kind, deviceUUID: state.deviceUUID },
         children: resources.map((r) => r.name),
         async grades(child, now) {
-          const period = periodFor(useChild(child).tabs.get(pawnote.TabLocation.Grades), now);
-          if (!period) return null;
-          const { grades } = await pawnote.gradesOverview(session, period);
-          return grades
-            .map(toGrade)
-            .filter((g) => g !== null)
-            .sort((a, b) => b.date.localeCompare(a.date));
+          const periods = gradePeriods(useChild(child).tabs.get(pawnote.TabLocation.Grades), now);
+          return gradesFromPeriods(periods, async (period) => {
+            const { grades } = await pawnote.gradesOverview(session, period);
+            return grades
+              .map(toGrade)
+              .filter((g) => g !== null)
+              .sort((a, b) => b.date.localeCompare(a.date));
+          });
         },
         async attendance(child, now) {
           const period = periodFor(useChild(child).tabs.get(pawnote.TabLocation.Notebook), now);
@@ -335,7 +373,7 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
     return session;
   }
 
-  const gradeCounts = new Map<string, number>();
+  const gradeSummaries = new Map<string, string>();
 
   // Clé : enfant et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
   // Devoirs chargés avec l'emploi du temps (une seule connexion, le jeton change à chacune) ; leur échec (onglet
@@ -370,11 +408,15 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
           }
         };
         const now = clock();
-        const grades = await part('notes', () => session.grades(child, now));
-        // Diagnostic discret : le nombre de notes reçues, sans leur contenu, noté quand il change.
-        if (grades && gradeCounts.get(prenom) !== grades.length) {
-          gradeCounts.set(prenom, grades.length);
-          logger.log(`Pronote : ${grades.length} note(s) de ${prenom} sur la période en cours.`);
+        const read = await part('notes', () => session.grades(child, now));
+        const grades = read && read.items;
+        // Diagnostic discret : nombre de notes reçues et périodes lues (sans le contenu des notes), noté quand il change.
+        const summary = read
+          ? `${read.items.length} note(s) de ${prenom} (${read.periods.length > 1 ? 'périodes lues' : 'période'} : ${read.periods.map((p) => `« ${p} »`).join(', ')})`
+          : `pas d’onglet Notes pour ${prenom}`;
+        if (gradeSummaries.get(prenom) !== summary) {
+          gradeSummaries.set(prenom, summary);
+          logger.log(`Pronote : ${summary}.`);
         }
         const attendance = await part('absences et retards', () => session.attendance(child, now));
         const messages = await part('messages', () => session.messages());
