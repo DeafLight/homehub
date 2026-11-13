@@ -195,6 +195,32 @@ export const configSchema = z.object({
       seconds: z.number().int().min(3).max(60).default(10),
     })
     .optional(),
+  /**
+   * Appareils Google Cast du réseau local (Google Home, télé Android TV) où un parent peut envoyer un message vocal
+   * depuis l'onglet Caméra (avec `camera.talk`). Appareils donnés par leur adresse IP (réservation DHCP conseillée) :
+   * pas de découverte mDNS, le conteneur garde son réseau. `mediaUrl` : d'où les appareils téléchargent le message
+   * (http://<ip du NAS>:<port> ; derrière un proxy, le port des médias HOMEHUB_MEDIA_PORT) ; sans elle, aucun
+   * appareil n'est proposé.
+   * `kind` : speaker (enceinte) ou tv (télé), pour l'icône.
+   */
+  cast: z
+    .object({
+      mediaUrl: z.url({ protocol: /^https?$/, error: 'adresse http(s)://hôte:port' }).optional(),
+      devices: z
+        .array(
+          z.object({
+            id: z.string().regex(/^[a-z0-9-]{1,32}$/, 'identifiant : minuscules, chiffres, tirets'),
+            name: z.string().trim().min(1).max(40),
+            host: z.string().trim().min(1).max(253),
+            port: z.number().int().min(1).max(65535).default(8009),
+            kind: z.enum(['speaker', 'tv']).default('speaker'),
+          }),
+        )
+        .max(10)
+        .default([])
+        .refine((list) => new Set(list.map((d) => d.id)).size === list.length, { message: 'identifiants en double' }),
+    })
+    .default({ devices: [] }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({
@@ -207,6 +233,7 @@ export const configSchema = z.object({
 });
 
 export type WeatherConfig = NonNullable<AppConfig['weather']>;
+export type CastConfig = AppConfig['cast'];
 export type HolidaysConfig = NonNullable<AppConfig['holidays']>;
 
 /** Noms des agendas d'un profil (membre ou FAMILY_ID). */
@@ -249,6 +276,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     camera: { live: config.camera.live, banner: config.camera.banner, talk: config.camera.talk },
     tv: config.tv !== undefined,
+    cast: config.camera.talk && config.cast.mediaUrl ? config.cast.devices.map(({ id, name, kind }) => ({ id, name, kind })) : [],
     revision,
   };
 }

@@ -658,7 +658,7 @@ await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('al
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
   // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
@@ -713,6 +713,23 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(500);
   await tv.capture('tele-message');
   await tv.close();
+  // Message vocal vers le Google Home du salon (faux appareil Cast, qui télécharge le message) : Alex arrête de parler à
+  // la tablette, choisit l'enceinte, enregistre deux secondes (faux micro) et envoie.
+  const clickText = (text: string) => phone.evaluate(`[...document.querySelectorAll('.camera button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)})?.click()`);
+  await clickText('Arrêter de parler');
+  await sleep(500);
+  await clickText('Google Home du salon');
+  await sleep(300);
+  await clickText('Enregistrer un message');
+  await sleep(2000);
+  await clickText('Envoyer');
+  for (let i = 0; i < 20; i++) {
+    await sleep(500);
+    const sent = await phone.evaluate(`document.querySelector('.camera [role=status]')?.textContent.includes('Message lu sur')`);
+    if (sent.result?.value) break;
+    if (i === 19) console.warn('Message vocal non lu par le faux Google Home');
+  }
+  await phone.capture('telephone-camera-google-home');
   await phone.close();
   await tablet.close();
   await send('Browser.resetPermissions');

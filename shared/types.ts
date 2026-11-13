@@ -32,6 +32,8 @@ export type PublicConfig = {
   camera: { live: boolean; banner: boolean; talk: boolean };
   /** Une télé reçoit les messages des parents (voir `tv` dans homehub.yaml). */
   tv: boolean;
+  /** Appareils Cast où un parent peut envoyer un message vocal (vide : aucun, ou `cast.mediaUrl` absent). */
+  cast: CastDevice[];
   /** Empreinte de la configuration : change à chaque modification du fichier. */
   revision: string;
 };
@@ -849,3 +851,6 @@ export type FaceCounts = Record<string, { enrolled: number; learned: number; uni
 
 /** Visages connus de la tablette (GET /api/faces). */
 export type FacesOverview = { enrolled: string[]; samples: FaceCounts };
+
+/** Appareil Google Cast du réseau local (enceinte Google Home ou télé), tel que le front le propose. */
+export type CastDevice = { id: string; name: string; kind: 'speaker' | 'tv' };

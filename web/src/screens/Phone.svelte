@@ -252,7 +252,7 @@
       {:else if tab === 'camera'}
         {#if hasCameraTab(member, config)}
           <div class="camera-tab">
-            {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} />{/if}
+            {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} castDevices={config.cast} />{/if}
             {#if config.tv}<PhoneTvMessage {api} />{/if}
           </div>
         {:else}

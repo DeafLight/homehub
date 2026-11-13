@@ -291,6 +291,8 @@ export type Api = {
   /** Caméra en direct, tablette : `client` identifie la page ; `after` null : page qui démarre. */
   tabletCameraMessages(client: string, after: number | null, abort?: AbortSignal): Promise<CameraMessages & { last: number }>;
   sendTabletCameraSignal(client: string, id: string, signal: TabletSignal): Promise<void>;
+  /** Message vocal enregistré, lu par l'appareil Cast `device` (Google Home, télé) ; renvoie le nom de l'appareil. */
+  sendVoice(device: string, audio: Blob): Promise<{ device: string }>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -484,5 +486,6 @@ export function createApi(
     tabletCameraMessages: (client, after, abort) =>
       request(`/camera/tablet/signals?client=${encodeURIComponent(client)}${after === null ? '' : `&after=${after}`}`, { signal: abort }),
     sendTabletCameraSignal: (client, id, signal) => send('POST', `/camera/tablet/sessions/${encodeURIComponent(id)}/signal?client=${encodeURIComponent(client)}`, signal),
+    sendVoice: (device, audio) => request(`/cast/${encodeURIComponent(device)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
   };
 }

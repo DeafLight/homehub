@@ -234,6 +234,13 @@ Reste :
 - [ ] Message à la télé, à vérifier sur la vraie télé : appli installée et autorisée (*Afficher par-dessus les autres
       applis*), message bien au centre et assez gros (police « max »), durée de 10 s respectée, affichage par-dessus
       Netflix / YouTube / la télé en direct et sur l'écran de veille, accents et emojis, titre « Message d'Alex ».
+- [x] Destination du micro, 0.68.0 : « Ta voix sur » Tablette (en direct) ou un appareil Google Cast (Google Home,
+      télé Android TV) : message enregistré puis lu par le récepteur média par défaut (Cast v2, client sans
+      dépendance) ; appareils par adresse IP (`cast.devices`, `cast.mediaUrl`), parents seulement, faux appareils
+      Cast dans le monde fictif.
+- [ ] Destination du micro, à vérifier sur les vrais appareils : lecture d'une adresse en http par le récepteur par
+      défaut (Google Home mini, télé), message webm/opus de Chrome sans durée, latence réelle, télé en veille,
+      appli de la télé interrompue, volume.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

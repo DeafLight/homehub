@@ -288,6 +288,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   l'adresse IP de la télé dans la box et la mettre dans `tv.host`. HomeHub lui envoie une requête HTTP locale (port
   7676, format de la bibliothèque `notifications-android-tv`) : position centre, police la plus grande, fond noir
   opaque. Rien n'est contourné : sans l'appli, la télé ne répond pas et le téléphone le dit.
+- **Destination du micro : Google Home, télé** (même onglet Caméra, si `cast` déclare des appareils) : sous la vidéo,
+  **Ta voix sur** propose la **Tablette** (en direct, comme ci-dessus) et chaque appareil Google Cast du réseau local
+  (enceinte Google Home ou Nest, télé Android TV avec Chromecast intégré). Vers un appareil, c'est un **message
+  enregistré** : **Enregistrer un message**, puis **Envoyer** (ou **Annuler** ; envoi automatique au bout de 30 s) ;
+  l'appareil le lit **une à trois secondes après l'envoi** (envoi, lancement du récepteur, chargement), puis le
+  téléphone affiche « Message lu sur Google Home du salon ». Le serveur garde le message 5 minutes en mémoire, derrière
+  une adresse tirée au hasard que l'appareil télécharge (il ne sait pas s'authentifier) ; rien n'est écrit sur le
+  disque. Le protocole est Cast v2, publié et local : HomeHub lance le récepteur média par défaut de Google et lui fait
+  lire cette adresse, sans compte Google ni service en ligne. Réservé au téléphone d'un parent (le serveur refuse un
+  enfant, la tablette, un appareil non appairé), et à `camera.talk`. **Effets de bord** : sur une enceinte, la musique
+  en cours s'arrête ; sur la télé, l'appli au premier plan est interrompue (le récepteur Cast passe devant). Pas de
+  voix en direct vers ces appareils : leur récepteur garde plusieurs secondes de son en réserve, ce ne serait pas une
+  conversation. Voir [Appareils Cast](#appareils-cast-google-home-télé).
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -594,6 +607,11 @@ tv:                  # facultatif : message à la télé (appli Notifications fo
   host: 192.168.1.40 # adresse de la télé (IP fixée dans la box, ou nom), sans http:// ni port
   port: 7676         # port de l'appli (défaut)
   seconds: 10        # durée d'affichage, 3 à 60 s (défaut 10)
+cast:                # facultatif : appareils Google Cast où un parent envoie un message vocal (onglet Caméra)
+  mediaUrl: http://192.168.1.10:3010   # d'où les appareils téléchargent : http://<ip du NAS>:<HOMEHUB_MEDIA_PORT> ; sans lui, rien n'est proposé
+  devices:           # par adresse IP (réservation DHCP conseillée), pas de découverte mDNS
+    - { id: salon, name: Google Home du salon, host: 192.168.1.20 }          # port: 8009 par défaut
+    - { id: tele, name: Télé, host: 192.168.1.21, kind: tv }                 # kind: speaker (défaut) ou tv
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -611,7 +629,32 @@ weather:             # facultatif : sans cette section, pas de météo
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
+| `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
+
+### Appareils Cast (Google Home, télé)
+
+Pour envoyer un message vocal vers une enceinte Google Home ou une télé Android TV depuis l'onglet Caméra :
+
+1. **Adresse fixe de chaque appareil** : réservation DHCP sur la box (l'adresse IP se lit dans l'appli Google Home,
+   réglages de l'appareil, *Informations sur l'appareil*). La télé doit avoir Chromecast intégré (Google TV, Android
+   TV) et rester joignable en veille (*Réseau › Veille réseau* ou équivalent, selon le modèle).
+2. **`cast.devices`** dans `homehub.yaml` : `id`, `name` (affiché sur le téléphone), `host` (adresse IP), `kind`
+   (`speaker` ou `tv`).
+3. **`cast.mediaUrl`** : l'adresse d'où les appareils **téléchargent le message**, en http avec l'IP du NAS. Pas le
+   nom public en https : les appareils Cast interrogent souvent les DNS de Google et ne voient pas les noms du réseau
+   local. Si HomeHub n'est joignable que par son proxy (cas habituel), ouvrir le **port des médias** :
+   `HOMEHUB_MEDIA_PORT=3010` (variable du conteneur), publié sur l'IP du NAS seulement (`192.168.1.10:3010:3010`
+   dans le compose), et `mediaUrl: http://192.168.1.10:3010`. Ce port ne sert que les messages vocaux (adresses
+   aléatoires valables 5 minutes) : tout le reste y répond 404, l'application reste derrière son proxy.
+4. **Réseau du conteneur** : pas de réseau hôte. Pas de découverte mDNS (les appareils sont donnés par adresse). Le
+   conteneur doit joindre le port 8009 des appareils (sortie vers le réseau local, permise par défaut en mode pont),
+   et les appareils, le port des médias sur le NAS (pare-feu du NAS compris).
+
+Le message part tel que le téléphone l'enregistre : webm/opus (Chrome, Android) ou mp4/aac (Safari, iPhone), deux
+formats que lisent les récepteurs Cast. L'appareil présente un certificat auto-signé, comme pour tout émetteur Cast
+local : HomeHub ne vérifie pas de chaîne de confiance (l'authentification de l'appareil, facultative dans le
+protocole, n'est pas utilisée).
 
 ### Caméra en direct hors de la maison
 
@@ -753,6 +796,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
 | `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, talk, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
 | `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats, parole ou fin (`{ kind: "offer" \| "candidate" \| "talk" \| "bye", … }` ; `{ kind: "talk", on }` : le parent parle ou s'arrête, 403 si `camera.talk` est coupé) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
+| `POST /api/cast/:device/voice` | message vocal vers l'appareil Cast `device` : corps = l'enregistrement, `Content-Type` = son format (`audio/webm`, `audio/mp4`, `audio/ogg`…, 3 Mo au plus) ; `{ device }` : nom de l'appareil qui le lit (téléphone d'un parent ; 403 enfant, tablette ou `camera.talk` coupé ; 404 appareil inconnu ; 400 format ou taille ; 502 appareil injoignable ou qui refuse ; 503 `cast.mediaUrl` absent) |
+| `GET /api/cast/clips/:token` | le message, pour l'appareil Cast (sans authentification : adresse aléatoire, valable 5 minutes ; 404 ensuite) |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères ; 404 sans `tv` ; 502 télé injoignable ou qui refuse) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |

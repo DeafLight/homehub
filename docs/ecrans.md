@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.67.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.68.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -308,6 +308,12 @@ inventée), le message s'affiche au centre, en gros, sur fond noir, par-dessus l
 est celle de l'appli *Notifications for Android TV* : à confirmer sur la vraie télé.
 
 ![Maquette d'une télé affichant « Message d'Alex » au centre, par-dessus un programme](images/tele-message.png)
+Avec des appareils Cast déclarés (`cast` dans homehub.yaml ; ici deux faux appareils du monde fictif), **Ta voix sur**
+choisit la destination du micro : la tablette, en direct (« Parler »), ou le Google Home du salon, la télé : message
+enregistré. Alex choisit le Google Home, appuie sur « Enregistrer un message », parle, puis « Envoyer » : l'enceinte
+le lit une ou deux secondes plus tard, et le téléphone confirme « Message lu sur Google Home du salon ».
+
+<img src="images/telephone-camera-google-home.png" alt="Onglet Caméra du téléphone d'Alex, message vocal lu sur le Google Home du salon" width="260">
 
 ### Vie scolaire sur le téléphone d'un parent
 

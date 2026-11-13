@@ -159,6 +159,16 @@ holidays:
 # tv:
 #   host: 192.168.1.40
 
+# Appareils Google Cast (enceinte Google Home, télé Android TV) où un parent envoie un message vocal depuis l'onglet
+# Caméra (avec camera.talk). Par adresse IP (réservation DHCP sur la box) : pas de découverte, le conteneur garde son
+# réseau. mediaUrl : d'où les appareils téléchargent le message (http://<ip du NAS>:<port>) ; derrière un proxy, le
+# port des médias (variable HOMEHUB_MEDIA_PORT, publié sur l'IP du NAS), qui ne sert que ces messages.
+# cast:
+#   mediaUrl: http://192.168.1.10:3010
+#   devices:
+#     - { id: salon, name: Google Home du salon, host: 192.168.1.20 }
+#     - { id: tele, name: Télé, host: 192.168.1.21, kind: tv }
+
 # Recettes (facultatif) : le carnet lit la page d'une recette partagée, seulement sur un site à l'adresse publique.
 #   allowedHosts : noms de sites autorisés malgré une adresse locale ou privée (un serveur de recettes de la maison) ;
 #                  aucun par défaut

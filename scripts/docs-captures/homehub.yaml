@@ -45,3 +45,10 @@ transit:
   stops:
     - { id: RALL, label: Ralliement }
     - { id: GARE, label: Gare }
+# Faux appareils Cast (server/services/cast-fake.ts), démarrés par server.ts : ports et adresse du serveur réécrits
+# là-bas selon le port des captures (DOCS_PORT).
+cast:
+  mediaUrl: http://127.0.0.1:3190
+  devices:
+    - { id: salon, name: Google Home du salon, host: 127.0.0.1, port: 3195 }
+    - { id: tele, name: Télé, host: 127.0.0.1, port: 3196, kind: tv }

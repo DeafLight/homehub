@@ -5,12 +5,14 @@ import { serve } from '@hono/node-server';
 import { FAMILY_ID } from '../shared/types.ts';
 import { KIOSK_KEY_MIN_LENGTH } from './access.ts';
 import { createApp } from './app.ts';
+import { createMediaApp } from './cast-api.ts';
 import { calendarsOf, hasCalendars, loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { createSchoolLifeService } from './services/school-life.ts';
+import { createVoiceMessages } from './services/voice-messages.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createDeviceStore } from './sources/devices.ts';
@@ -179,7 +181,9 @@ const nas = createNasService({
   startedAt,
 });
 const schoolLife = createSchoolLifeService({ household, school: sources.school, logger: console });
-const app = createApp({ config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
+// Messages vocaux vers les appareils Cast : partagés entre l'application et le port des médias.
+const voice = createVoiceMessages({ rules: () => config.current().cast, clock });
+const app = createApp({ voice, config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
@@ -187,10 +191,16 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
   );
 });
 
+// Port des médias (HOMEHUB_MEDIA_PORT, facultatif) : seulement les messages vocaux, pour les appareils Cast du réseau
+// local quand l'application elle-même n'est joignable que par le proxy. cast.mediaUrl pointe alors sur ce port.
+const mediaPort = Number(process.env.HOMEHUB_MEDIA_PORT) || 0;
+const media = mediaPort ? serve({ fetch: createMediaApp(voice).fetch, port: mediaPort }, (info) => console.log(`Port des médias (appareils Cast) : ${info.port}`)) : null;
+
 // Arrêt propre quand Docker envoie SIGTERM.
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     stopWatching();
+    media?.close();
     server.close(() => process.exit(0));
   });
 }
