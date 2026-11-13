@@ -88,6 +88,8 @@
   const homework = createResource(async () => (pairing ? (await api.homework(pairing.ownerId)).homework : null), HOMEWORK_REFRESH_MS);
   // Vie scolaire des enfants, en tête de l'agenda d'un parent (le serveur la refuse à un enfant).
   const schoolLife = createResource(async () => (member?.parent ? api.schoolLife() : null), SCHOOL_LIFE_REFRESH_MS);
+  // Télés HomeHub TV où un parent peut envoyer sa voix (onglet Caméra), et si elles sont allumées.
+  const screenTargets = createResource(async () => (member?.parent && config.camera.live && config.camera.talk ? api.screenTargets() : []), 30_000);
   let schoolLifeOpen = $state(false);
   // Rouverte (téléphone sorti de la poche) : la routine a pu changer de période ou être cochée sur la tablette.
   const onVisible = () => document.visibilityState === 'visible' && void routine.refresh();
@@ -97,6 +99,7 @@
     routine.destroy();
     homework.destroy();
     schoolLife.destroy();
+    screenTargets.destroy();
     lists.destroy();
     agenda.destroy();
     holidays.destroy();
@@ -252,7 +255,7 @@
       {:else if tab === 'camera'}
         {#if hasCameraTab(member, config)}
           <div class="camera-tab">
-            {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} castDevices={config.cast} />{/if}
+            {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} castDevices={config.cast} screens={screenTargets.data ?? []} />{/if}
             {#if config.tv}<PhoneTvMessage {api} />{/if}
           </div>
         {:else}

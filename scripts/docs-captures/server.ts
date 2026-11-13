@@ -1,10 +1,12 @@
 // Serveur HomeHub des captures : le vrai serveur, dans le monde fictif de fake-world.ts, avec deux faux appareils Cast
-// (Google Home du salon, télé) qui téléchargent et « lisent » les messages vocaux des parents.
+// (Google Home du salon, télé) qui téléchargent et « lisent » les messages vocaux des parents, et une fausse appli
+// HomeHub TV (fake-screen.ts) connectée comme la télé du salon.
 // Lancé par scripts/docs-captures.ts (qui fournit PORT, HOMEHUB_CONFIG, HOMEHUB_STATE_DIR, HOMEHUB_NAS_STATUS).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { startFakeCastDevice } from '../../server/services/cast-fake.ts';
+import { startFakeScreen } from './fake-screen.ts';
 import { installFakeClock, installFakeSources } from './fake-world.ts';
 
 // DOCS_NOW (ms) : autre instant de départ (captures des vacances scolaires, en décembre).
@@ -31,3 +33,4 @@ if (config.cast) {
   process.env.HOMEHUB_CONFIG = copy;
 }
 await import('../../server/index.ts');
+startFakeScreen(`http://127.0.0.1:${port}`);

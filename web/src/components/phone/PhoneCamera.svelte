@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import type { CastDevice } from '../../../../shared/types.ts';
+  import type { ScreenTarget } from '../../../../shared/screen.ts';
   import { createLiveViewer, type LiveViewer, type ViewerState } from '../../lib/live-camera.ts';
   import { createVoiceRecorder, VOICE_MAX_SECONDS, type VoiceState } from '../../lib/voice-message.ts';
   import Icon from '../Icon.svelte';
@@ -13,15 +14,27 @@
   // parle » ; pendant ce temps le son de la tablette est coupé ici (pas d'écho), il revient en arrêtant.
   // Destination du micro (s'il y a des appareils Cast, `cast` dans homehub.yaml) : la tablette, en direct, ou un
   // Google Home, une télé : message enregistré (un appui pour commencer, un pour envoyer), lu une ou deux secondes après.
-  type Props = { api: Api; bannerShown: boolean; castDevices?: CastDevice[] };
-  let { api, bannerShown, castDevices = [] }: Props = $props();
+  // Une télé appairée avec l'appli HomeHub TV (`screens`) lit le message par-dessus la vidéo, le son du programme
+  // baissé, au lieu de la couper comme le récepteur Cast.
+  type Props = { api: Api; bannerShown: boolean; castDevices?: CastDevice[]; screens?: ScreenTarget[] };
+  let { api, bannerShown, castDevices = [], screens = [] }: Props = $props();
 
   const TABLET = 'tablet';
+  /** Préfixe des télés HomeHub TV parmi les destinations (les appareils Cast gardent leur identifiant). */
+  const SCREEN = 'screen:';
+  type Destination = { id: string; name: string; kind: 'tv' | 'speaker'; screen: boolean; online: boolean };
+  const destinations = $derived<Destination[]>([
+    ...screens.map((s) => ({ id: `${SCREEN}${s.id}`, name: s.name, kind: 'tv' as const, screen: true, online: s.online })),
+    ...castDevices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, screen: false, online: true })),
+  ]);
   let target = $state(TABLET);
   let voice = $state<VoiceState>({ phase: 'idle' });
-  const recorder = createVoiceRecorder({ api: { sendVoice: (device, audio) => api.sendVoice(device, audio) }, onState: (s) => (voice = s) });
+  const recorder = createVoiceRecorder({
+    api: { sendVoice: (device, audio) => (device.startsWith(SCREEN) ? api.sendScreenVoice(device.slice(SCREEN.length), audio) : api.sendVoice(device, audio)) },
+    onState: (s) => (voice = s),
+  });
   const recording = $derived(voice.phase === 'recording');
-  const targetDevice = $derived(castDevices.find((d) => d.id === target) ?? null);
+  const targetDevice = $derived(destinations.find((d) => d.id === target) ?? null);
 
   let view = $state<ViewerState>({ phase: 'connecting' });
   let stream = $state<MediaStream | null>(null);
@@ -127,10 +140,10 @@
     </div>
   {/if}
 
-  {#if castDevices.length > 0}
+  {#if destinations.length > 0}
     <div class="dest" role="radiogroup" aria-label="Où part ta voix">
       <span class="dest-label">Ta voix sur</span>
-      {#each [{ id: TABLET, name: 'Tablette', icon: 'tablet' as const }, ...castDevices.map((d) => ({ id: d.id, name: d.name, icon: d.kind === 'tv' ? ('tv' as const) : ('speaker' as const) }))] as option (option.id)}
+      {#each [{ id: TABLET, name: 'Tablette', icon: 'tablet' as const }, ...destinations.map((d) => ({ id: d.id, name: d.name, icon: d.kind === 'tv' ? ('tv' as const) : ('speaker' as const) }))] as option (option.id)}
         <button type="button" role="radio" class="chip" aria-checked={target === option.id} disabled={locked && target !== option.id} onclick={() => choose(option.id)}>
           <Icon name={option.icon} size={20} />
           {option.name}
@@ -158,7 +171,15 @@
       {:else if voice.phase === 'error'}
         <p class="error" role="alert">{voice.message}</p>
       {:else}
-        <p class="talking">{targetDevice.name} lit ton message une ou deux secondes après l’envoi{targetDevice.kind === 'tv' ? ', par-dessus ce que montre la télé' : ' (la musique en cours s’arrête)'}.</p>
+        {#if targetDevice.screen}
+          <p class="talking">
+            {targetDevice.online
+              ? `${targetDevice.name} lit ton message par-dessus ce qui passe, le son du programme baissé, avec ton prénom en bandeau.`
+              : `${targetDevice.name} semble éteinte, ou l’appli HomeHub TV n’est pas lancée.`}
+          </p>
+        {:else}
+          <p class="talking">{targetDevice.name} lit ton message une ou deux secondes après l’envoi{targetDevice.kind === 'tv' ? ', par-dessus ce que montre la télé' : ' (la musique en cours s’arrête)'}.</p>
+        {/if}
       {/if}
     {/if}
   {:else if view.phase === 'live' && view.talk}

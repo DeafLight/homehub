@@ -21,6 +21,11 @@ export type VoiceClip = { data: Uint8Array; contentType: string; expiresAt: numb
 export type VoiceMessages = {
   /** Fait lire `audio` par l'appareil `deviceId` ; rejette avec un message pour l'écran. Renvoie le nom de l'appareil. */
   send(deviceId: string, audio: Uint8Array, contentType: string, senderName: string): Promise<{ device: string }>;
+  /**
+   * Garde `audio` quelques minutes derrière une adresse tirée au hasard (pour l'appli HomeHub TV) ; rejette comme
+   * `send` un format refusé, un message vide ou trop long. Renvoie le jeton et l'extension du fichier.
+   */
+  keep(audio: Uint8Array, contentType: string): { token: string; extension: string; contentType: string };
   /** Le message derrière `token`, s'il n'a pas expiré. */
   clip(token: string): VoiceClip | null;
 };
@@ -66,22 +71,28 @@ export function createVoiceMessages({
     while (clips.size > MAX_CLIPS) clips.delete(clips.keys().next().value!);
   };
 
+  function keep(audio: Uint8Array, contentType: string) {
+    const type = voiceType(contentType);
+    if (!type) throw new VoiceError(400, 'Format d’enregistrement non pris en charge');
+    if (audio.byteLength === 0) throw new VoiceError(400, 'Message vide');
+    if (audio.byteLength > VOICE_MAX_BYTES) throw new VoiceError(400, 'Message trop long');
+    sweep();
+    const token = randomBytes(24).toString('base64url');
+    clips.set(token, { data: audio, contentType: type, expiresAt: clock().getTime() + VOICE_TTL_MS });
+    return { token, extension: EXTENSIONS[type]!, contentType: type };
+  }
+
   return {
+    keep,
+
     async send(deviceId, audio, contentType, senderName) {
       const { devices, mediaUrl } = rules();
       const device = devices.find((d) => d.id === deviceId);
       if (!device) throw new VoiceError(404, 'Appareil inconnu');
       if (!mediaUrl) throw new VoiceError(503, 'Adresse du NAS pour les appareils non configurée (cast.mediaUrl)');
-      const type = voiceType(contentType);
-      if (!type) throw new VoiceError(400, 'Format d’enregistrement non pris en charge');
-      if (audio.byteLength === 0) throw new VoiceError(400, 'Message vide');
-      if (audio.byteLength > VOICE_MAX_BYTES) throw new VoiceError(400, 'Message trop long');
-
-      sweep();
-      const token = randomBytes(24).toString('base64url');
-      const clip: VoiceClip = { data: audio, contentType: type, expiresAt: clock().getTime() + VOICE_TTL_MS };
-      clips.set(token, clip);
-      const url = `${mediaUrl.replace(/\/+$/, '')}/api/cast/clips/${token}.${EXTENSIONS[type]}`;
+      const { token, extension, contentType: type } = keep(audio, contentType);
+      const clip = clips.get(token)!;
+      const url = `${mediaUrl.replace(/\/+$/, '')}/api/cast/clips/${token}.${extension}`;
       try {
         const log = (text: string) => logger.log(`Cast ${device.id} : ${text}`);
         log(`message de ${audio.byteLength} octets (${type})`);

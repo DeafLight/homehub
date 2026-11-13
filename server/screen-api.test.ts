@@ -1,0 +1,201 @@
+// Tests des routes de l'appli HomeHub TV : appairage par code tapé sur la tablette (parent reconnu seulement), version
+// du protocole, événements par interrogation longue, message vocal du téléphone d'un parent lu par la télé (compte
+// rendu, échec, télé absente), droits (enfant, tablette, appareil non appairé, jeton de téléphone), télé retirée.
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { SCREEN_PROTOCOL_HEADER, type Screen, type ScreenEvents, type ScreenPairingStart, type ScreenPairingState } from '../shared/screen.ts';
+import { createAccess, kioskKeyMatcher, UNKNOWN_SCREEN } from './access.ts';
+import { VOICE_OFF, VOICE_PARENTS_ONLY, VOICE_PHONE_ONLY } from './cast-api.ts';
+import { parseConfig } from './config.ts';
+import { createConfigStore } from './config-store.ts';
+import { createHousehold } from './household.ts';
+import { createRouter } from './http.ts';
+import { OUTDATED_APP, SCREENS_PARENTS_ONLY, createScreenApi } from './screen-api.ts';
+import { createScreenHub, SCREEN_OFFLINE, SCREEN_SILENT } from './services/screens.ts';
+import { createVoiceMessages } from './services/voice-messages.ts';
+import { createDeviceStore } from './sources/devices.ts';
+import { createActorSessions } from './sources/faces.ts';
+import { createScreenStore } from './sources/screens.ts';
+import { connectedFrom, NOW } from './testing.ts';
+
+const TABLET = '192.168.1.50';
+const OTHER = '192.168.1.20';
+const TV = '192.168.1.60';
+const PROTOCOL = { [SCREEN_PROTOCOL_HEADER]: '1' };
+
+async function setup({ talk = true, reportMs = 2_000 } = {}) {
+  let now = NOW.getTime();
+  const clock = () => new Date(now);
+  const config = createConfigStore(
+    parseConfig({
+      members: [
+        { id: 'alex', name: 'Alex', color: '#5b8def', parent: true },
+        { id: 'lea', name: 'Léa', color: '#3fb8a8' },
+      ],
+      kiosk: { addresses: [TABLET] },
+      camera: { talk },
+    }),
+  );
+  const dir = mkdtempSync(join(tmpdir(), 'homehub-screen-api-'));
+  const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock });
+  const screens = createScreenStore({ path: join(dir, 'screens.json'), clock });
+  const sessions = createActorSessions(clock);
+  const access = createAccess({ config, devices, screens, isKey: kioskKeyMatcher(undefined), actorOf: (t) => sessions.get(t, 10) });
+  const hub = createScreenHub({ clock, waitMs: 30, reportMs });
+  const voice = createVoiceMessages({ rules: () => config.current().cast, clock });
+  const api = createRouter();
+  api.route('/', createScreenApi({ screens, hub, voice, config, household: createHousehold(config), access }));
+
+  const phone = async (ownerId: string) => {
+    const { code } = devices.createCode(ownerId);
+    return (await devices.claim(code, `Téléphone de ${ownerId}`))!.token;
+  };
+  type Options = { from?: string; token?: string; body?: unknown; raw?: BodyInit; headers?: Record<string, string> };
+  const call = (method: string, path: string, { from = OTHER, token, body, raw, headers }: Options = {}) =>
+    api.request(
+      path,
+      {
+        method,
+        headers: { ...(raw === undefined && { 'Content-Type': 'application/json' }), ...headers, ...(token && { Authorization: `Bearer ${token}` }) },
+        body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
+      },
+      connectedFrom(from),
+    );
+  /** La tablette, avec un parent (ou un enfant) reconnu devant elle. */
+  const tablet = (who: string | null = 'alex'): { from: string; headers: Record<string, string> } => ({
+    from: TABLET,
+    headers: who ? { 'X-Actor-Session': sessions.open(who, 10).token } : {},
+  });
+
+  /** Appaire une télé : elle demande un code, Alex le tape sur la tablette ; renvoie son jeton. */
+  async function pairTv(name = 'Télé du salon') {
+    const start = (await (await call('POST', '/screen/pairing', { from: TV, headers: PROTOCOL, body: { system: 'Android 10', app: '0.69.0' } })).json()) as ScreenPairingStart;
+    const waiting = call('GET', `/screen/pairing/${start.id}`, { from: TV, headers: PROTOCOL });
+    const paired = await call('POST', '/screens', { ...tablet(), body: { code: start.code.toLowerCase(), name } });
+    expect(paired.status).toBe(201);
+    const state = (await (await waiting).json()) as ScreenPairingState;
+    if (state.status !== 'paired') throw new Error('télé non appairée');
+    return { token: state.token, id: state.screen.id };
+  }
+  const listen = (token: string, after = '') => call('GET', `/screen/events?after=${after}`, { from: TV, token, headers: PROTOCOL });
+
+  return { call, tablet, pairTv, listen, alex: await phone('alex'), lea: await phone('lea'), advance: (ms: number) => (now += ms) };
+}
+
+const audio = (type = 'audio/webm') => ({ raw: new Uint8Array([1, 2, 3, 4]), headers: { 'Content-Type': type } });
+
+describe('API HomeHub TV : appairage', () => {
+  it('code affiché sur la télé, tapé sur la tablette par un parent ; jeton remis une fois', async () => {
+    const { call, tablet, pairTv } = await setup();
+    const { id } = await pairTv();
+    const list = (await (await call('GET', '/screens', tablet(null))).json()) as Screen[];
+    expect(list).toEqual([expect.objectContaining({ id, name: 'Télé du salon', system: 'Android 10', app: '0.69.0', online: false })]);
+  });
+
+  it('un enfant reconnu, personne, un téléphone : ne peuvent pas appairer', async () => {
+    const { call, tablet, alex } = await setup();
+    const start = (await (await call('POST', '/screen/pairing', { from: TV, headers: PROTOCOL, body: {} })).json()) as ScreenPairingStart;
+    expect(await (await call('POST', '/screens', { ...tablet('lea'), body: { code: start.code, name: 'Télé' } })).json()).toEqual({ error: SCREENS_PARENTS_ONLY });
+    expect((await call('POST', '/screens', { ...tablet(null), body: { code: start.code, name: 'Télé' } })).status).toBe(403);
+    expect((await call('POST', '/screens', { token: alex, body: { code: start.code, name: 'Télé' } })).status).toBe(403);
+    expect((await call('POST', '/screens', { ...tablet(), body: { code: 'ZZZZZZ', name: 'Télé' } })).status).toBe(410);
+  });
+
+  it('appli sans la bonne version du protocole : 426', async () => {
+    const { call } = await setup();
+    expect(await (await call('POST', '/screen/pairing', { from: TV, body: {} })).json()).toEqual({ error: OUTDATED_APP });
+    expect((await call('POST', '/screen/pairing', { from: TV, headers: { [SCREEN_PROTOCOL_HEADER]: '99' }, body: {} })).status).toBe(426);
+  });
+
+  it('demande inconnue : 410', async () => {
+    const { call } = await setup();
+    expect((await call('GET', '/screen/pairing/inconnue', { from: TV, headers: PROTOCOL })).status).toBe(410);
+  });
+});
+
+describe('API HomeHub TV : droits de la télé', () => {
+  it('un jeton de téléphone n’est pas une télé ; une télé ne passe pas pour un téléphone', async () => {
+    const { call, pairTv, listen, alex } = await setup();
+    expect(await (await listen(alex)).json()).toEqual({ error: UNKNOWN_SCREEN });
+    const tv = await pairTv();
+    expect((await call('GET', '/screens/targets', { token: tv.token })).status).toBe(401);
+    expect((await call('POST', `/screens/${tv.id}/voice`, { token: tv.token, ...audio() })).status).toBe(401);
+  });
+
+  it('télé retirée depuis la tablette : 401 à sa demande suivante', async () => {
+    const { call, tablet, pairTv, listen } = await setup();
+    const tv = await pairTv();
+    expect((await listen(tv.token)).status).toBe(200);
+    expect((await call('DELETE', `/screens/${tv.id}`, tablet('lea'))).status).toBe(403);
+    expect((await call('DELETE', `/screens/${tv.id}`, tablet())).status).toBe(204);
+    expect((await listen(tv.token)).status).toBe(401);
+  });
+
+  it('renommée par un parent sur la tablette', async () => {
+    const { call, tablet, pairTv } = await setup();
+    const tv = await pairTv();
+    expect(((await (await call('PATCH', `/screens/${tv.id}`, { ...tablet(), body: { name: 'Salon' } })).json()) as Screen).name).toBe('Salon');
+  });
+});
+
+describe('API HomeHub TV : message vocal', () => {
+  it('le téléphone d’un parent envoie, la télé télécharge, lit et rend compte', async () => {
+    const { call, pairTv, listen, alex } = await setup();
+    const tv = await pairTv();
+    await listen(tv.token);
+    expect(await (await call('GET', '/screens/targets', { token: alex })).json()).toEqual([{ id: tv.id, name: 'Télé du salon', online: true }]);
+
+    const sending = call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio('audio/webm;codecs=opus') });
+    const { events } = (await (await listen(tv.token, '0')).json()) as ScreenEvents;
+    expect(events).toEqual([expect.objectContaining({ seq: 1, kind: 'voice', title: 'Message d’Alex', contentType: 'audio/webm' })]);
+    const event = events[0]!;
+    expect(event.audio).toMatch(/^\/api\/screen\/clips\/[\w-]+\.webm$/);
+
+    const clipPath = event.audio.replace(/^\/api/, '');
+    expect((await call('GET', clipPath)).status).toBe(401);
+    const clip = await call('GET', clipPath, { from: TV, token: tv.token });
+    expect(new Uint8Array(await clip.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+
+    expect((await call('POST', `/screen/events/${event.id}/report`, { from: TV, token: tv.token, headers: PROTOCOL, body: { ok: true } })).status).toBe(204);
+    expect(await (await sending).json()).toEqual({ device: 'Télé du salon' });
+  });
+
+  it('échec rapporté par la télé, ou pas de nouvelles : 502 avec la raison', async () => {
+    const { call, pairTv, listen, alex } = await setup({ reportMs: 50 });
+    const tv = await pairTv();
+    await listen(tv.token);
+    const sending = call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio() });
+    const { events } = (await (await listen(tv.token, '0')).json()) as ScreenEvents;
+    await call('POST', `/screen/events/${events[0]!.id}/report`, { from: TV, token: tv.token, headers: PROTOCOL, body: { ok: false, reason: 'Format illisible' } });
+    expect(await (await sending).json()).toEqual({ error: 'Télé du salon : Format illisible' });
+
+    await listen(tv.token, '1');
+    const silent = await call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio() });
+    expect(await silent.json()).toEqual({ error: `Télé du salon : ${SCREEN_SILENT}` });
+  });
+
+  it('télé absente (plus de nouvelles depuis 40 s) : 503', async () => {
+    const { call, pairTv, listen, alex, advance } = await setup();
+    const tv = await pairTv();
+    expect(await (await call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio() })).json()).toEqual({ error: SCREEN_OFFLINE });
+    await listen(tv.token);
+    advance(41_000);
+    expect((await call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio() })).status).toBe(503);
+  });
+
+  it('un enfant, la tablette, parler désactivé, un format refusé : refusés', async () => {
+    const { call, tablet, pairTv, listen, alex, lea } = await setup();
+    const tv = await pairTv();
+    await listen(tv.token);
+    expect(await (await call('POST', `/screens/${tv.id}/voice`, { token: lea, ...audio() })).json()).toEqual({ error: VOICE_PARENTS_ONLY });
+    const fromTablet = tablet();
+    expect(await (await call('POST', `/screens/${tv.id}/voice`, { ...fromTablet, ...audio(), headers: { ...fromTablet.headers, 'Content-Type': 'audio/webm' } })).json()).toEqual({ error: VOICE_PHONE_ONLY });
+    expect((await call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio('video/mp4') })).status).toBe(400);
+    expect((await call('POST', '/screens/inconnue/voice', { token: alex, ...audio() })).status).toBe(404);
+
+    const off = await setup({ talk: false });
+    expect(await (await off.call('GET', '/screens/targets', { token: off.alex })).json()).toEqual({ error: VOICE_OFF });
+  });
+});

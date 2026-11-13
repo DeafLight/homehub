@@ -12,6 +12,7 @@ import type { ConfigStore } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { fail } from './http.ts';
 import type { DeviceStore } from './sources/devices.ts';
+import type { ScreenRecord, ScreenStore } from './sources/screens.ts';
 
 export type Caller = {
   kiosk: boolean;
@@ -147,16 +148,26 @@ export type Access = {
    * du téléphone, ou la personne reconnue à la tablette s'il y en a une.
    */
   appliance(c: Context): Promise<Author>;
+  /**
+   * Une télé appairée (appli HomeHub TV), à son jeton : elle ne lit que ses propres événements et n'écrit rien. Un jeton
+   * de télé n'est jamais reconnu comme téléphone, et inversement ; télé retirée : 401.
+   */
+  screen(c: Context): Promise<ScreenRecord>;
 };
+
+export const UNKNOWN_SCREEN = 'Télé non reconnue : à appairer de nouveau';
 
 export function createAccess({
   config,
   devices,
+  screens,
   isKey,
   actorOf,
 }: {
   config: ConfigStore;
   devices: DeviceStore;
+  /** Télés appairées ; absent (tests) : aucune télé reconnue. */
+  screens?: ScreenStore;
   isKey: (presented: string | undefined) => boolean;
   /** Personne d'une session ouverte par la reconnaissance faciale, ou null. */
   actorOf: (token: string | undefined) => string | null;
@@ -228,6 +239,12 @@ export function createAccess({
       if (who.device) return { ownerId: who.device.ownerId, via: 'phone' };
       if (who.kiosk) return { ownerId: who.actorId ?? null, via: 'tablet' };
       return fail(403, READ_ONLY_DEVICE);
+    },
+
+    async screen(c) {
+      const token = /^Bearer (\S+)$/.exec(c.req.header('authorization') ?? '')?.[1];
+      const found = token && screens ? await screens.authenticate(token) : null;
+      return found ?? fail(401, UNKNOWN_SCREEN);
     },
   };
 }

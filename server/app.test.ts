@@ -9,6 +9,7 @@ import { createConfigStore } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
 import { createDeviceStore } from './sources/devices.ts';
+import { createScreenStore } from './sources/screens.ts';
 import { createActorSessions, createFaceStore } from './sources/faces.ts';
 import { createListsStore } from './sources/lists.ts';
 import { createNotesStore } from './sources/notes.ts';
@@ -53,6 +54,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
     lists,
     notes,
     devices,
+    screens: createScreenStore({ path: join(dir, 'screens.json'), clock: fixedClock }),
     pins,
     faces,
     sessions,

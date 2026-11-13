@@ -2,12 +2,13 @@
   import { onDestroy } from 'svelte';
   import BackButton from '../components/BackButton.svelte';
   import PhonesPanel from '../components/PhonesPanel.svelte';
+  import ScreensPanel from '../components/ScreensPanel.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import type { PageRoute } from '../lib/route.ts';
 
-  // Téléphones reliés à la famille, ouverts depuis la roue dentée : en relier un (QR code), en retirer.
-  // Réservé à la tablette.
+  // Téléphones reliés à la famille, ouverts depuis la roue dentée : en relier un (QR code), en retirer. En dessous, les
+  // télés avec l'appli HomeHub TV (appairage par le code affiché sur la télé). Réservé à la tablette.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -24,6 +25,7 @@
 
   {#if me.data?.kiosk}
     <PhonesPanel />
+    <ScreensPanel />
   {:else if me.data}
     <p class="muted">Réservé à la tablette.</p>
   {/if}
