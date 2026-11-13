@@ -221,7 +221,7 @@ Reste :
       (WebRTC, relais TURN pour la 4G) ; bandeau « Caméra en direct · <parent> » sur la tablette (désactivable),
       arrêt en quittant l'onglet, page masquée ou au bout de `camera.maxMinutes` ; caméra partagée avec la
       reconnaissance faciale et le scanner.
-- [ ] Caméra en direct, vérifier en conditions réelles : Fully Kiosk (caméra et micro autorisés, écran allumé,
+- [x] Caméra en direct, vérifiée en conditions réelles (13 novembre) : Fully Kiosk (caméra et micro autorisés, écran allumé,
       détection de mouvement coupée), un téléphone en 4G avec coturn sur le NAS, le son à l'ouverture de l'onglet.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
