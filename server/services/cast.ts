@@ -117,44 +117,68 @@ export const tlsCastConnect: CastConnect = ({ host, port }) =>
   // Certificat auto-signé de l'appareil : voir l'en-tête.
   tlsConnect({ host, port, rejectUnauthorized: false });
 
+/** Durée maximale pendant laquelle on reste connecté pour laisser le message se lire jusqu'au bout. */
+export const CAST_LINGER_MS = 120_000;
+
+type MediaStatus = { playerState?: string; idleReason?: string };
+
 /**
- * Fait lire `media` par l'appareil : connexion, lancement du récepteur par défaut, chargement, puis on se déconnecte
- * (la lecture continue sans nous). Résout quand l'appareil a accepté le média ; rejette avec un message pour l'écran
- * (injoignable, refus de chargement, délai dépassé).
+ * Fait lire `media` par l'appareil : connexion, lancement du récepteur par défaut, chargement. Résout quand la lecture
+ * a démarré (PLAYING) ; rejette avec un message pour l'écran (injoignable, refus de chargement, erreur de lecture,
+ * délai dépassé). On reste ensuite connecté, en tâche de fond, jusqu'à la fin de la lecture (ou `lingerMs`), puis on
+ * coupe la connexion SANS envoyer CLOSE : le récepteur par défaut s'arrête quand le dernier émetteur se déconnecte
+ * volontairement, ce qui coupait le message avant même qu'il soit téléchargé (bip de connexion, puis rien).
  */
-export function castPlay(target: CastTarget, media: CastMedia, { connect = tlsCastConnect, timeoutMs = 10_000 }: { connect?: CastConnect; timeoutMs?: number } = {}): Promise<void> {
+export function castPlay(
+  target: CastTarget,
+  media: CastMedia,
+  { connect = tlsCastConnect, timeoutMs = 15_000, lingerMs = CAST_LINGER_MS }: { connect?: CastConnect; timeoutMs?: number; lingerMs?: number } = {},
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const sender = `sender-homehub-${Math.random().toString(36).slice(2, 10)}`;
     let requestId = 1;
     let transport: string | null = null;
     let launchId = 0;
     let loadId = 0;
-    let done = false;
+    let settled = false;
+    let closed = false;
     const socket = connect(target);
 
-    const finish = (err?: Error) => {
-      if (done) return;
-      done = true;
+    // Fin de la connexion : jamais de CLOSE (voir plus haut), on coupe simplement.
+    const hangUp = () => {
+      if (closed) return;
+      closed = true;
       clearTimeout(timer);
-      if (!err) {
-        // Se déconnecter poliment : l'appli continue de lire.
-        try {
-          if (transport) send(transport, NS.connection, { type: 'CLOSE' });
-          send('receiver-0', NS.connection, { type: 'CLOSE' });
-        } catch {
-          // Connexion déjà fermée.
-        }
-      }
-      socket.end();
+      clearTimeout(linger);
       socket.destroy();
-      if (err) reject(err);
-      else resolve();
     };
-    const timer = setTimeout(() => finish(new Error('l’appareil ne répond pas')), timeoutMs);
+    /** Réponse à l'appelant : succès quand la lecture démarre, sinon l'erreur (et on raccroche). */
+    const settle = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) {
+        hangUp();
+        reject(err);
+      } else {
+        linger = setTimeout(hangUp, lingerMs);
+        resolve();
+      }
+    };
+    const timer = setTimeout(() => settle(new Error('l’appareil ne répond pas ou ne lit pas le message')), timeoutMs);
+    let linger: ReturnType<typeof setTimeout> | undefined;
 
     function send(destination: string, namespace: string, payload: Record<string, unknown>) {
-      socket.write(encodeCastMessage({ source: sender, destination, namespace, payload: JSON.stringify(payload) }));
+      if (!closed) socket.write(encodeCastMessage({ source: sender, destination, namespace, payload: JSON.stringify(payload) }));
     }
+
+    const onMediaStatus = (status: MediaStatus) => {
+      if (status.playerState === 'PLAYING') return settle();
+      if (status.playerState !== 'IDLE' || !status.idleReason) return; // chargement, mise en mémoire tampon
+      if (status.idleReason === 'ERROR') settle(new Error('l’appareil ne sait pas lire ce message'));
+      else settle(new Error('lecture interrompue sur l’appareil'));
+      hangUp(); // FINISHED, CANCELLED, INTERRUPTED : la lecture est finie, on peut partir.
+    };
 
     const framer = castFramer((m) => {
       let data: Record<string, unknown>;
@@ -165,10 +189,11 @@ export function castPlay(target: CastTarget, media: CastMedia, { connect = tlsCa
       }
       if (m.namespace === NS.heartbeat && data.type === 'PING') {
         send(m.source, NS.heartbeat, { type: 'PONG' });
-      } else if (m.namespace === NS.connection && data.type === 'CLOSE' && m.source !== 'receiver-0' && m.source === transport) {
-        finish(new Error('l’appareil a fermé la lecture'));
+      } else if (m.namespace === NS.connection && data.type === 'CLOSE' && (m.source === transport || m.source === 'receiver-0')) {
+        settle(new Error('l’appareil a fermé la lecture'));
+        hangUp();
       } else if (m.namespace === NS.receiver && data.type === 'RECEIVER_STATUS' && transport === null) {
-        const apps = ((data.status as { applications?: { appId?: string; transportId?: string }[] } | undefined)?.applications ?? []);
+        const apps = (data.status as { applications?: { appId?: string; transportId?: string }[] } | undefined)?.applications ?? [];
         const app = apps.find((a) => a.appId === DEFAULT_MEDIA_RECEIVER && a.transportId);
         if (!app) return; // Pas encore lancé : on attend le statut suivant.
         transport = app.transportId!;
@@ -182,10 +207,14 @@ export function castPlay(target: CastTarget, media: CastMedia, { connect = tlsCa
           media: { contentId: media.url, contentType: media.contentType, streamType: 'BUFFERED', metadata: { metadataType: 0, title: media.title } },
         });
       } else if (m.namespace === NS.receiver && (data.type === 'LAUNCH_ERROR' || data.type === 'INVALID_REQUEST') && data.requestId === launchId) {
-        finish(new Error('le récepteur média ne démarre pas'));
-      } else if (m.namespace === NS.media && data.requestId === loadId && loadId > 0) {
-        if (data.type === 'MEDIA_STATUS') finish();
-        else if (data.type === 'LOAD_FAILED' || data.type === 'LOAD_CANCELLED' || data.type === 'INVALID_REQUEST') finish(new Error('l’appareil ne sait pas lire ce message'));
+        settle(new Error('le récepteur média ne démarre pas'));
+      } else if (m.namespace === NS.media && loadId > 0) {
+        if (data.type === 'MEDIA_STATUS') {
+          // Statuts diffusés à tous (requestId 0) ou réponse au chargement : le dernier média est le nôtre.
+          for (const status of (data.status as MediaStatus[] | undefined) ?? []) onMediaStatus(status);
+        } else if (data.requestId === loadId && (data.type === 'LOAD_FAILED' || data.type === 'LOAD_CANCELLED' || data.type === 'INVALID_REQUEST')) {
+          settle(new Error('l’appareil ne sait pas lire ce message'));
+        }
       }
     });
 
@@ -193,11 +222,14 @@ export function castPlay(target: CastTarget, media: CastMedia, { connect = tlsCa
       try {
         framer(chunk);
       } catch (err) {
-        finish(err as Error);
+        settle(err as Error);
       }
     });
-    socket.on('error', (err: NodeJS.ErrnoException) => finish(new Error(err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH' || err.code === 'ETIMEDOUT' ? 'appareil injoignable' : `connexion impossible (${err.code ?? err.message})`)));
-    socket.on('close', () => finish(new Error('connexion fermée par l’appareil')));
+    socket.on('error', (err: NodeJS.ErrnoException) => settle(new Error(err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH' || err.code === 'ETIMEDOUT' ? 'appareil injoignable' : `connexion impossible (${err.code ?? err.message})`)));
+    socket.on('close', () => {
+      settle(new Error('connexion fermée par l’appareil'));
+      hangUp();
+    });
 
     const start = () => {
       send('receiver-0', NS.connection, { type: 'CONNECT' });

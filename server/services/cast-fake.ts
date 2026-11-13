@@ -30,17 +30,29 @@ export type FakeCastPlay = { url: string; contentType: string; title: string; by
 export type FakeCastDevice = {
   port: number;
   plays: FakeCastPlay[];
+  /** CLOSE reçus de l'émetteur (qui arrêtent le récepteur, comme sur le vrai appareil). */
+  readonly closes: number;
   /** Attend la prochaine lecture (ou la renvoie si elle a déjà eu lieu depuis le dernier appel). */
   nextPlay(): Promise<FakeCastPlay>;
   close(): Promise<void>;
 };
 
 /**
- * Démarre un faux appareil. `fetchMedia` : télécharger le média avant de répondre (et échouer si l'adresse ne
- * répond pas) ; `refuse` : refuser tout chargement (format non lu).
+ * Démarre un faux appareil, qui répond comme le vrai : « en chargement », puis lecture (PLAYING), puis fin (FINISHED)
+ * au bout de `playMs`. `fetchMedia` : télécharger le média (erreur de lecture si l'adresse ne répond pas) ; `refuse` :
+ * refuser le chargement ; `unplayable` : erreur de lecture (format). Un CLOSE de l'émetteur arrête tout, comme sur le
+ * vrai récepteur par défaut : `closes` les compte (un émetteur correct n'en envoie jamais).
  */
-export async function startFakeCastDevice({ port = 0, host = '127.0.0.1', fetchMedia = false, refuse = false }: { port?: number; host?: string; fetchMedia?: boolean; refuse?: boolean } = {}): Promise<FakeCastDevice> {
+export async function startFakeCastDevice({
+  port = 0,
+  host = '127.0.0.1',
+  fetchMedia = false,
+  refuse = false,
+  unplayable = false,
+  playMs = 50,
+}: { port?: number; host?: string; fetchMedia?: boolean; refuse?: boolean; unplayable?: boolean; playMs?: number } = {}): Promise<FakeCastDevice> {
   const plays: FakeCastPlay[] = [];
+  let closesBeforeEnd = 0;
   let seen = 0;
   const waiters: ((p: FakeCastPlay) => void)[] = [];
   const record = (p: FakeCastPlay) => {
@@ -54,6 +66,7 @@ export async function startFakeCastDevice({ port = 0, host = '127.0.0.1', fetchM
 
   const server: Server = createServer({ key: TEST_KEY, cert: TEST_CERT }, (socket: TLSSocket) => {
     const transport = 'faux-recepteur-1';
+    let stopped = false;
     const reply = (to: CastMessage, from: string, namespace: string, payload: Record<string, unknown>) =>
       socket.write(encodeCastMessage({ source: from, destination: to.source, namespace, payload: JSON.stringify(payload) }));
     const framer = castFramer((m) => {
@@ -64,18 +77,32 @@ export async function startFakeCastDevice({ port = 0, host = '127.0.0.1', fetchM
           requestId: data.requestId,
           status: { applications: [{ appId: DEFAULT_MEDIA_RECEIVER, displayName: 'Default Media Receiver', sessionId: 'faux', transportId: transport }], volume: { level: 0.5, muted: false } },
         });
+      } else if (data.type === 'CLOSE' && m.namespace.endsWith('tp.connection')) {
+        // Comme le vrai récepteur par défaut : l'émetteur part volontairement, l'appli s'arrête (lecture comprise).
+        stopped = true;
+        closesBeforeEnd++;
       } else if (data.type === 'LOAD' && m.destination === transport) {
         const media = data.media as { contentId: string; contentType: string; metadata?: { title?: string } };
+        const status = (playerState: string, extra: Record<string, unknown> = {}) =>
+          reply(m, transport, m.namespace, { type: 'MEDIA_STATUS', requestId: 0, status: [{ mediaSessionId: 1, playerState, ...extra }] });
         void (async () => {
           const play: FakeCastPlay = { url: media.contentId, contentType: media.contentType, title: media.metadata?.title ?? '' };
           if (refuse) return reply(m, transport, m.namespace, { type: 'LOAD_FAILED', requestId: data.requestId });
+          // Le vrai appareil répond d'abord « en chargement », avant de télécharger.
+          status('IDLE', { extendedStatus: { playerState: 'LOADING' } });
+          await new Promise((r) => setTimeout(r, 20));
+          if (stopped) return;
           if (fetchMedia) {
             const res = await fetch(media.contentId).catch(() => null);
-            if (!res?.ok) return reply(m, transport, m.namespace, { type: 'LOAD_FAILED', requestId: data.requestId });
+            if (!res?.ok) return status('IDLE', { idleReason: 'ERROR' });
             play.bytes = (await res.arrayBuffer()).byteLength;
           }
+          if (stopped) return;
+          if (unplayable) return status('IDLE', { idleReason: 'ERROR' });
+          status('BUFFERING');
+          status('PLAYING');
           record(play);
-          reply(m, transport, m.namespace, { type: 'MEDIA_STATUS', requestId: data.requestId, status: [{ mediaSessionId: 1, playerState: 'PLAYING' }] });
+          setTimeout(() => !stopped && status('IDLE', { idleReason: 'FINISHED' }), playMs);
         })();
       }
     });
@@ -93,6 +120,9 @@ export async function startFakeCastDevice({ port = 0, host = '127.0.0.1', fetchM
   return {
     port: (server.address() as AddressInfo).port,
     plays,
+    get closes() {
+      return closesBeforeEnd;
+    },
     nextPlay: () =>
       new Promise((resolve) => {
         if (plays.length > seen) {

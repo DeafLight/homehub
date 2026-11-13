@@ -1,5 +1,6 @@
 // Tests du client Cast v2 : encodage et décodage des messages, découpage du flux, et lecture complète contre le faux
-// appareil (vraie connexion TLS locale) : média accepté, refusé, appareil injoignable, appareil muet.
+// appareil (vraie connexion TLS locale) : lecture démarrée sans jamais envoyer CLOSE (qui arrête le vrai récepteur par
+// défaut : bip, puis rien), média refusé ou illisible, appareil injoignable, appareil muet.
 import { createServer } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { castFramer, castPlay, type CastMessage, decodeCastMessage, encodeCastMessage } from './cast.ts';
@@ -40,10 +41,23 @@ describe('lecture sur un appareil', () => {
     device = null;
   });
 
-  it('lance le récepteur par défaut et charge le média', async () => {
+  it('lance le récepteur par défaut, charge le média et résout quand la lecture démarre', async () => {
     device = await startFakeCastDevice();
     await castPlay({ host: '127.0.0.1', port: device.port }, media);
     expect(device.plays).toEqual([media]);
+  });
+
+  it('n’envoie jamais CLOSE : le message est lu jusqu’au bout, puis on raccroche', async () => {
+    device = await startFakeCastDevice({ playMs: 100 });
+    await castPlay({ host: '127.0.0.1', port: device.port }, media);
+    await new Promise((r) => setTimeout(r, 250));
+    expect(device.closes).toBe(0);
+    expect(device.plays).toHaveLength(1);
+  });
+
+  it('erreur de lecture sur l’appareil (format) : message clair', async () => {
+    device = await startFakeCastDevice({ unplayable: true });
+    await expect(castPlay({ host: '127.0.0.1', port: device.port }, media)).rejects.toThrow('ne sait pas lire');
   });
 
   it('média refusé par l’appareil : message clair', async () => {

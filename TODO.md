@@ -238,9 +238,12 @@ Reste :
       télé Android TV) : message enregistré puis lu par le récepteur média par défaut (Cast v2, client sans
       dépendance) ; appareils par adresse IP (`cast.devices`, `cast.mediaUrl`), parents seulement, faux appareils
       Cast dans le monde fictif.
-- [ ] Destination du micro, à vérifier sur les vrais appareils : lecture d'une adresse en http par le récepteur par
-      défaut (Google Home mini, télé), message webm/opus de Chrome sans durée, latence réelle, télé en veille,
-      appli de la télé interrompue, volume.
+- [x] Destination du micro, 0.68.1 : le Google Home ne faisait qu'un bip. HomeHub se déconnectait (CLOSE) dès la
+      première réponse de l'appareil, ce qui arrête le récepteur par défaut avant la lecture. Il attend maintenant
+      que la lecture démarre, reste connecté jusqu'à la fin du message et raccroche sans CLOSE. Vérifié depuis un PC
+      sur le Google Home mini (13 novembre) : adresse en http et webm/opus de Chrome lus, lecture démarrée en 2,7 s.
+- [ ] Destination du micro, à vérifier sur les vrais appareils : la télé (allumée, en veille, appli interrompue),
+      l'enregistrement d'un iPhone (mp4), volume.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

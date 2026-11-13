@@ -292,8 +292,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   **Ta voix sur** propose la **Tablette** (en direct, comme ci-dessus) et chaque appareil Google Cast du réseau local
   (enceinte Google Home ou Nest, télé Android TV avec Chromecast intégré). Vers un appareil, c'est un **message
   enregistré** : **Enregistrer un message**, puis **Envoyer** (ou **Annuler** ; envoi automatique au bout de 30 s) ;
-  l'appareil le lit **une à trois secondes après l'envoi** (envoi, lancement du récepteur, chargement), puis le
-  téléphone affiche « Message lu sur Google Home du salon ». Le serveur garde le message 5 minutes en mémoire, derrière
+  l'appareil le lit **deux à trois secondes après l'envoi** (envoi, lancement du récepteur, chargement), et le
+  téléphone affiche « Message lu sur Google Home du salon » dès que la lecture démarre. Le serveur garde le message 5 minutes en mémoire, derrière
   une adresse tirée au hasard que l'appareil télécharge (il ne sait pas s'authentifier) ; rien n'est écrit sur le
   disque. Le protocole est Cast v2, publié et local : HomeHub lance le récepteur média par défaut de Google et lui fait
   lire cette adresse, sans compte Google ni service en ligne. Réservé au téléphone d'un parent (le serveur refuse un
