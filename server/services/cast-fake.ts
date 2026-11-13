@@ -32,6 +32,8 @@ export type FakeCastDevice = {
   plays: FakeCastPlay[];
   /** CLOSE reçus de l'émetteur (qui arrêtent le récepteur, comme sur le vrai appareil). */
   readonly closes: number;
+  /** STOP reçus : le lecteur fermé une fois le message lu. */
+  readonly stops: number;
   /** Attend la prochaine lecture (ou la renvoie si elle a déjà eu lieu depuis le dernier appel). */
   nextPlay(): Promise<FakeCastPlay>;
   close(): Promise<void>;
@@ -53,6 +55,7 @@ export async function startFakeCastDevice({
 }: { port?: number; host?: string; fetchMedia?: boolean; refuse?: boolean; unplayable?: boolean; playMs?: number } = {}): Promise<FakeCastDevice> {
   const plays: FakeCastPlay[] = [];
   let closesBeforeEnd = 0;
+  let stops = 0;
   let seen = 0;
   const waiters: ((p: FakeCastPlay) => void)[] = [];
   const record = (p: FakeCastPlay) => {
@@ -77,6 +80,10 @@ export async function startFakeCastDevice({
           requestId: data.requestId,
           status: { applications: [{ appId: DEFAULT_MEDIA_RECEIVER, displayName: 'Default Media Receiver', sessionId: 'faux', transportId: transport }], volume: { level: 0.5, muted: false } },
         });
+      } else if (data.type === 'STOP' && data.sessionId === 'faux') {
+        // Le lecteur est fermé : l'appareil revient à ce qu'il faisait.
+        stopped = true;
+        stops++;
       } else if (data.type === 'CLOSE' && m.namespace.endsWith('tp.connection')) {
         // Comme le vrai récepteur par défaut : l'émetteur part volontairement, l'appli s'arrête (lecture comprise).
         stopped = true;
@@ -122,6 +129,9 @@ export async function startFakeCastDevice({
     plays,
     get closes() {
       return closesBeforeEnd;
+    },
+    get stops() {
+      return stops;
     },
     nextPlay: () =>
       new Promise((resolve) => {

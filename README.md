@@ -292,13 +292,18 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   **Ta voix sur** propose la **Tablette** (en direct, comme ci-dessus) et chaque appareil Google Cast du réseau local
   (enceinte Google Home ou Nest, télé Android TV avec Chromecast intégré). Vers un appareil, c'est un **message
   enregistré** : **Enregistrer un message**, puis **Envoyer** (ou **Annuler** ; envoi automatique au bout de 30 s) ;
-  l'appareil le lit **deux à trois secondes après l'envoi** (envoi, lancement du récepteur, chargement), et le
-  téléphone affiche « Message lu sur Google Home du salon » dès que la lecture démarre. Le serveur garde le message 5 minutes en mémoire, derrière
+  l'appareil le lit **deux à cinq secondes après l'envoi** (envoi, lancement du récepteur, chargement ; la toute
+  première fois, une télé peut mettre plus de 15 s à lancer le récepteur, HomeHub attend jusqu'à 45 s), et le
+  téléphone affiche « Message lu sur Google Home du salon » dès que la lecture démarre ; en cas d'échec, le message
+  dit à quelle étape. Le message lu, HomeHub **ferme le récepteur** : l'appareil revient à ce qu'il faisait (sur la
+  télé, l'appli d'avant). Les étapes de chaque envoi (connexion, lancement, chargement, lecture, avec leur durée) sont
+  notées dans le journal du conteneur, sans le contenu ni l'expéditeur. Le serveur garde le message 5 minutes en mémoire, derrière
   une adresse tirée au hasard que l'appareil télécharge (il ne sait pas s'authentifier) ; rien n'est écrit sur le
   disque. Le protocole est Cast v2, publié et local : HomeHub lance le récepteur média par défaut de Google et lui fait
   lire cette adresse, sans compte Google ni service en ligne. Réservé au téléphone d'un parent (le serveur refuse un
   enfant, la tablette, un appareil non appairé), et à `camera.talk`. **Effets de bord** : sur une enceinte, la musique
-  en cours s'arrête ; sur la télé, l'appli au premier plan est interrompue (le récepteur Cast passe devant). Pas de
+  en cours s'arrête ; sur la télé, l'appli au premier plan est interrompue le temps du message (le récepteur Cast
+  passe devant, puis se ferme). Pas de
   voix en direct vers ces appareils : leur récepteur garde plusieurs secondes de son en réserve, ce ne serait pas une
   conversation. Voir [Appareils Cast](#appareils-cast-google-home-télé).
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),

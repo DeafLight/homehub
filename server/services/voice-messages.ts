@@ -6,7 +6,7 @@
 import { randomBytes } from 'node:crypto';
 import type { CastConfig } from '../config.ts';
 import type { Clock } from '../sources/types.ts';
-import { type CastMedia, type CastTarget, castPlay } from './cast.ts';
+import { CastError, type CastMedia, type CastTarget, castPlay } from './cast.ts';
 
 /** Types d'enregistrement acceptés (MediaRecorder : webm/opus sur Android, mp4/aac sur iPhone) et lus par Cast. */
 export const VOICE_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/mpeg', 'audio/wav'] as const;
@@ -15,7 +15,8 @@ export const VOICE_MAX_BYTES = 3_000_000;
 export const VOICE_TTL_MS = 5 * 60_000;
 const MAX_CLIPS = 20;
 
-export type VoiceClip = { data: Uint8Array; contentType: string; expiresAt: number };
+/** `fetched` : l'appareil l'a téléchargé (pour dire, en cas d'échec, si l'adresse était joignable). */
+export type VoiceClip = { data: Uint8Array; contentType: string; expiresAt: number; fetched?: boolean };
 
 export type VoiceMessages = {
   /** Fait lire `audio` par l'appareil `deviceId` ; rejette avec un message pour l'écran. Renvoie le nom de l'appareil. */
@@ -47,11 +48,14 @@ export function createVoiceMessages({
   rules,
   clock,
   play = castPlay,
+  logger = console,
 }: {
   rules: () => CastConfig;
   clock: Clock;
-  /** Lecture sur l'appareil (remplaçable dans les tests). */
-  play?: (target: CastTarget, media: CastMedia) => Promise<void>;
+  /** Lecture sur l'appareil (remplaçable dans les tests) ; `log` reçoit ses étapes. */
+  play?: (target: CastTarget, media: CastMedia, options: { log: (step: string) => void }) => Promise<void>;
+  /** Journal des étapes de chaque envoi (sans le contenu ni l'expéditeur). */
+  logger?: Pick<Console, 'log'>;
 }): VoiceMessages {
   const clips = new Map<string, VoiceClip>();
 
@@ -75,13 +79,18 @@ export function createVoiceMessages({
 
       sweep();
       const token = randomBytes(24).toString('base64url');
-      clips.set(token, { data: audio, contentType: type, expiresAt: clock().getTime() + VOICE_TTL_MS });
+      const clip: VoiceClip = { data: audio, contentType: type, expiresAt: clock().getTime() + VOICE_TTL_MS };
+      clips.set(token, clip);
       const url = `${mediaUrl.replace(/\/+$/, '')}/api/cast/clips/${token}.${EXTENSIONS[type]}`;
       try {
-        await play({ host: device.host, port: device.port }, { url, contentType: type, title: `Message de ${senderName}` });
+        const log = (text: string) => logger.log(`Cast ${device.id} : ${text}`);
+        log(`message de ${audio.byteLength} octets (${type})`);
+        await play({ host: device.host, port: device.port }, { url, contentType: type, title: `Message de ${senderName}` }, { log });
       } catch (err) {
         clips.delete(token);
-        throw new VoiceError(502, `${device.name} : ${(err as Error).message}`);
+        // Échec pendant la lecture sans téléchargement : l'appareil n'a sans doute pas pu joindre cast.mediaUrl.
+        const hint = err instanceof CastError && err.stage === 'play' && !clip.fetched ? ', message jamais téléchargé (cast.mediaUrl joignable ?)' : '';
+        throw new VoiceError(502, `${device.name} : ${(err as Error).message}${hint}`);
       }
       return { device: device.name };
     },
@@ -89,7 +98,9 @@ export function createVoiceMessages({
     clip(token) {
       sweep();
       const clip = clips.get(token.replace(/\.[a-z0-9]+$/, ''));
-      return clip && clip.expiresAt > clock().getTime() ? clip : null;
+      if (!clip || clip.expiresAt <= clock().getTime()) return null;
+      clip.fetched = true;
+      return clip;
     },
   };
 }

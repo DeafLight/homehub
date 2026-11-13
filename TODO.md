@@ -242,8 +242,12 @@ Reste :
       première réponse de l'appareil, ce qui arrête le récepteur par défaut avant la lecture. Il attend maintenant
       que la lecture démarre, reste connecté jusqu'à la fin du message et raccroche sans CLOSE. Vérifié depuis un PC
       sur le Google Home mini (13 novembre) : adresse en http et webm/opus de Chrome lus, lecture démarrée en 2,7 s.
-- [ ] Destination du micro, à vérifier sur les vrais appareils : la télé (allumée, en veille, appli interrompue),
-      l'enregistrement d'un iPhone (mp4), volume.
+- [x] Destination du micro, 0.68.2 : la télé (Android TV) lit le message ; le premier lancement du récepteur peut
+      dépasser 15 s (page téléchargée sur Internet), HomeHub attend jusqu'à 45 s puis 20 s pour la lecture ; erreur
+      qui dit l'étape (lancement, lecture, message jamais téléchargé), étapes dans le journal du conteneur ; le
+      récepteur est fermé une fois le message lu, l'appareil revient à ce qu'il faisait.
+- [ ] Destination du micro, à vérifier sur les vrais appareils : retour à l'appli d'avant sur la télé (télé en
+      direct, Netflix : reprise ou pause ?), télé en veille, l'enregistrement d'un iPhone (mp4), volume.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

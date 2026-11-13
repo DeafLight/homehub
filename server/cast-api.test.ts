@@ -51,7 +51,8 @@ async function setup({ camera = {}, mediaUrl = 'http://192.168.1.10:3010/', refu
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock });
   const sessions = createActorSessions(clock);
   const access = createAccess({ config, devices, isKey: kioskKeyMatcher(undefined), actorOf: (t) => sessions.get(t, 10) });
-  const voice = createVoiceMessages({ rules: () => config.current().cast, clock });
+  const steps: string[] = [];
+  const voice = createVoiceMessages({ rules: () => config.current().cast, clock, logger: { log: (line: string) => void steps.push(line) } });
   const api = createRouter();
   api.route('/', createCastApi({ voice, config, household: createHousehold(config), access }));
 
@@ -62,7 +63,7 @@ async function setup({ camera = {}, mediaUrl = 'http://192.168.1.10:3010/', refu
   const send = (target: string, { token, from = OTHER, type = 'audio/webm;codecs=opus', body = AUDIO, headers = {} }: { token?: string; from?: string; type?: string; body?: Uint8Array<ArrayBuffer>; headers?: Record<string, string> } = {}) =>
     api.request(`/cast/${target}/voice`, { method: 'POST', headers: { 'Content-Type': type, ...headers, ...(token && { Authorization: `Bearer ${token}` }) }, body }, connectedFrom(from));
   const get = (path: string) => api.request(path, {}, connectedFrom(OTHER));
-  return { send, get, voice, sessions, config, alex: await phone('alex'), lea: await phone('lea'), advance: (ms: number) => (now += ms) };
+  return { send, get, voice, steps, sessions, config, alex: await phone('alex'), lea: await phone('lea'), advance: (ms: number) => (now += ms) };
 }
 
 describe('messages vocaux : droits', () => {
@@ -85,10 +86,14 @@ describe('messages vocaux : droits', () => {
 
 describe('messages vocaux : envoi', () => {
   it('le parent envoie, l’appareil lit l’adresse aléatoire, qui sert le message puis expire', async () => {
-    const { send, get, alex, advance } = await setup();
+    const { send, get, alex, advance, steps } = await setup();
     const res = await send('salon', { token: alex });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ device: 'Google Home du salon' });
+    // Journal du conteneur : les étapes, sans le contenu ni l'expéditeur.
+    expect(steps[0]).toBe('Cast salon : message de 8 octets (audio/webm)');
+    expect(steps.some((line) => line.startsWith('Cast salon : média : PLAYING'))).toBe(true);
+    expect(steps.join(' | ')).not.toContain('Alex');
     const [play] = device!.plays;
     expect(play).toMatchObject({ contentType: 'audio/webm', title: 'Message de Alex' });
     expect(play!.url).toMatch(/^http:\/\/192\.168\.1\.10:3010\/api\/cast\/clips\/[A-Za-z0-9_-]{32}\.webm$/);
@@ -119,7 +124,8 @@ describe('messages vocaux : envoi', () => {
     const { send, alex } = await setup({ refuse: true });
     const res = await send('salon', { token: alex, type: 'audio/mp4' });
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe('Google Home du salon : l’appareil ne sait pas lire ce message');
+    // Le faux appareil refuse sans télécharger : HomeHub le signale (adresse cast.mediaUrl à vérifier).
+    expect((await res.json()).error).toBe('Google Home du salon : l’appareil ne sait pas lire ce message, message jamais téléchargé (cast.mediaUrl joignable ?)');
   });
 
   it('type d’enregistrement : base du type, paramètres ignorés', () => {

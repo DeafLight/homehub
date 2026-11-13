@@ -53,6 +53,21 @@ describe('lecture sur un appareil', () => {
     await new Promise((r) => setTimeout(r, 250));
     expect(device.closes).toBe(0);
     expect(device.plays).toHaveLength(1);
+    // Message fini : le lecteur est fermé (la télé revient à ce qu'elle montrait).
+    expect(device.stops).toBe(1);
+  });
+
+  it('étapes journalisées : connexion, lancement, chargement, lecture', async () => {
+    device = await startFakeCastDevice();
+    const steps: string[] = [];
+    await castPlay({ host: '127.0.0.1', port: device.port }, media, { log: (s) => steps.push(s.replace(/ \(\d+ ms\)$/, '')) });
+    expect(steps).toEqual(['connecté, lancement du lecteur Cast', 'lecteur Cast prêt, chargement du message', 'média : IDLE', 'média : BUFFERING', 'média : PLAYING']);
+  });
+
+  it('lecteur lancé mais lecture qui ne vient pas : délai de lecture, étape « play »', async () => {
+    device = await startFakeCastDevice({ fetchMedia: true });
+    const slow = { ...media, url: 'http://127.0.0.1:9/inaccessible.webm' };
+    await expect(castPlay({ host: '127.0.0.1', port: device.port }, slow, { playTimeoutMs: 5000 })).rejects.toMatchObject({ stage: 'play' });
   });
 
   it('erreur de lecture sur l’appareil (format) : message clair', async () => {
@@ -77,7 +92,7 @@ describe('lecture sur un appareil', () => {
     const silent = createServer(() => {});
     await new Promise<void>((r) => silent.listen(0, '127.0.0.1', r));
     const port = (silent.address() as { port: number }).port;
-    await expect(castPlay({ host: '127.0.0.1', port }, media, { timeoutMs: 200 })).rejects.toThrow('ne répond pas');
+    await expect(castPlay({ host: '127.0.0.1', port }, media, { launchTimeoutMs: 200 })).rejects.toMatchObject({ stage: 'connect', message: 'l’appareil ne répond pas' });
     silent.close();
   });
 });
