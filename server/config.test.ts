@@ -24,6 +24,20 @@ describe('parseConfig', () => {
     expect(() => parseConfig({ members: [alex], camera: { turn: ['https://maison.example.org'] } })).toThrow();
   });
 
+  it('télé : absente par défaut ; port et durée par défaut ; au front, seulement sa présence', () => {
+    expect(parseConfig({ members: [alex] }).tv).toBeUndefined();
+    expect(toPublicConfig(parseConfig({ members: [alex] }), 'r').tv).toBe(false);
+    const config = parseConfig({ members: [alex], tv: { host: '192.168.1.40' } });
+    expect(config.tv).toEqual({ host: '192.168.1.40', port: 7676, seconds: 10 });
+    expect(toPublicConfig(config, 'r').tv).toBe(true);
+    expect(JSON.stringify(toPublicConfig(config, 'r'))).not.toContain('192.168');
+    expect(parseConfig({ members: [alex], tv: { host: 'tele.maison.lan', seconds: 20 } }).tv?.seconds).toBe(20);
+    for (const host of ['http://192.168.1.40', '192.168.1.40:7676', 'tele/maison', '']) {
+      expect(() => parseConfig({ members: [alex], tv: { host } })).toThrow();
+    }
+    expect(() => parseConfig({ members: [alex], tv: { host: 'tele', seconds: 600 } })).toThrow();
+  });
+
   it('calcul des empreintes : choisi dans homehub.yaml, transmis à la tablette', () => {
     const config = parseConfig({ members: [alex], faces: { backend: 'webgl-safe' } });
     expect(config.faces.threshold).toBe(0.55); // les autres réglages gardent leur valeur par défaut

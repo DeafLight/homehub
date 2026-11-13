@@ -150,6 +150,15 @@ holidays:
 #   stun: [stun:maison.example.org:3478]
 #   turn: [turn:maison.example.org:3478?transport=udp, turn:maison.example.org:3478?transport=tcp]
 
+# Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
+# l'affiche en gros au milieu de l'écran, par-dessus l'image. Il faut sur la télé l'appli « Notifications for Android
+# TV » (Play Store), ouverte une fois avec « Afficher par-dessus les autres applis » autorisé.
+#   host : adresse de la télé sur le réseau de la maison (IP fixée dans la box, ou nom), sans http:// ni port
+#   port (facultatif, 7676 par défaut) : port de l'appli
+#   seconds (facultatif, 10 par défaut, 3 à 60) : durée d'affichage
+# tv:
+#   host: 192.168.1.40
+
 # Recettes (facultatif) : le carnet lit la page d'une recette partagée, seulement sur un site à l'adresse publique.
 #   allowedHosts : noms de sites autorisés malgré une adresse locale ou privée (un serveur de recettes de la maison) ;
 #                  aucun par défaut

@@ -34,6 +34,9 @@ holidays:
 # (fake-drive.ts) sont servies par le faux monde : autorisées aussi, pour ne jamais interroger le vrai nom.
 recipes:
   allowedHosts: [cuisine.exemple.test, www.coursesu.com]
+# Fausse télé (fake-tv.ts) : elle reçoit les messages des parents comme l'appli Notifications for Android TV.
+tv:
+  host: tele.exemple.test
 weather:
   label: Angers
   latitude: 47.47

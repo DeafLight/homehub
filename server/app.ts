@@ -30,6 +30,7 @@ import type { DashboardService } from './services/dashboard.ts';
 import { createSchoolLifeService, type SchoolLifeService } from './services/school-life.ts';
 import { createFaceRecognition } from './services/faces.ts';
 import { createLiveCamera } from './services/live-camera.ts';
+import { createTvNotifier } from './services/tv.ts';
 import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
@@ -53,6 +54,7 @@ import type { Clock } from './sources/types.ts';
 import { createStockApi } from './stock-api.ts';
 import { createTimersApi } from './timers-api.ts';
 import { createTransitApi } from './transit-api.ts';
+import { createTvApi } from './tv-api.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -144,6 +146,7 @@ export function createApp(deps: AppDeps): Hono {
 
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
   api.route('/', createCameraApi({ camera, household, access }));
+  api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv }), household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

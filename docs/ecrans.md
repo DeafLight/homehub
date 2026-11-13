@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.66.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.67.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -295,6 +295,19 @@ coupé tant qu'Alex parle (pas d'écho) ; « Arrêter de parler » le rétablit.
 <img src="images/telephone-camera-parler.png" alt="Onglet Caméra du téléphone d'Alex, en train de parler" width="260">
 
 ![Accueil de la tablette avec le bandeau Alex parle](images/tablette-camera-parle.png)
+
+Plus bas, « Message à la télé » (si une télé est configurée) : Alex écrit un court message, avec le compteur des 140
+caractères permis, puis l'envoie ; le téléphone confirme le texte parti et sa durée d'affichage.
+
+| Écrire | Envoyé |
+|---|---|
+| <img src="images/telephone-camera-tele.png" alt="Onglet Caméra : message à la télé en cours d'écriture" width="260"> | <img src="images/telephone-camera-tele-envoye.png" alt="Onglet Caméra : message affiché sur la télé" width="260"> |
+
+Sur la télé (ici une **maquette** : la fausse télé du monde fictif reçoit la requête, et l'image de programme est
+inventée), le message s'affiche au centre, en gros, sur fond noir, par-dessus l'image, pendant 10 s. L'allure exacte
+est celle de l'appli *Notifications for Android TV* : à confirmer sur la vraie télé.
+
+![Maquette d'une télé affichant « Message d'Alex » au centre, par-dessus un programme](images/tele-message.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 

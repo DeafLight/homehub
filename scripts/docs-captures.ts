@@ -17,6 +17,7 @@ import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAV
 import { itemKey } from '../shared/drive.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
+import { FAKE_TV_FILE, fakeTvScreen } from './docs-captures/fake-tv.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -657,7 +658,7 @@ await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('al
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
   // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
@@ -684,6 +685,34 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(1000);
   await phone.capture('telephone-camera-parler');
   await tablet.capture('tablette-camera-parle');
+  // Message à la télé (fausse télé de fake-tv.ts) : Alex se tait, écrit un message, l'envoie ; la fausse télé le
+  // garde, et une maquette d'écran de télé le montre au centre, par-dessus un programme inventé.
+  await phone.evaluate(`[...document.querySelectorAll('.camera button')].find((b) => b.textContent.trim() === 'Arrêter de parler')?.click()`);
+  await sleep(500);
+  await phone.evaluate(`(() => {
+    [...document.querySelectorAll('.tv button')].find((b) => b.textContent.trim() === 'Message à la télé')?.click();
+    setTimeout(() => {
+      const field = document.querySelector('.tv textarea');
+      field.value = 'À table dans 5 minutes ! Lavez-vous les mains 🍝';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.blur();
+      document.querySelector('.tv form').scrollIntoView({ block: 'end' });
+    }, 200);
+  })()`);
+  await sleep(1000);
+  await phone.capture('telephone-camera-tele');
+  await phone.evaluate(`[...document.querySelectorAll('.tv button')].find((b) => b.textContent.trim() === 'Envoyer')?.click()`);
+  for (let i = 0; i < 20 && !existsSync(join(state, FAKE_TV_FILE)); i++) await sleep(250);
+  await sleep(800);
+  await phone.evaluate(`document.querySelector('.tv').scrollIntoView({ block: 'end' })`);
+  await sleep(300);
+  await phone.capture('telephone-camera-tele-envoye');
+  const tvScreen = join(work, 'tele.html');
+  writeFileSync(tvScreen, fakeTvScreen(JSON.parse(readFileSync(join(state, FAKE_TV_FILE), 'utf8'))));
+  const tv = await openTarget(pathToFileURL(tvScreen).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  await sleep(500);
+  await tv.capture('tele-message');
+  await tv.close();
   await phone.close();
   await tablet.close();
   await send('Browser.resetPermissions');

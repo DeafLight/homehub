@@ -1,7 +1,7 @@
 // Appli du téléphone (/m), sans navigateur : les onglets selon le profil, les mots reçus et ce qui reste à voir.
 // Phone.svelte ne garde que les données, les appels et l'affichage.
 import { canWrite } from '../../../shared/rights.ts';
-import { FAMILY_ID, type Member, type Note } from '../../../shared/types.ts';
+import { FAMILY_ID, type Member, type Note, type PublicConfig } from '../../../shared/types.ts';
 import type { IconName } from '../components/Icon.svelte';
 import type { PhoneTab } from './route.ts';
 
@@ -22,6 +22,13 @@ export function phoneTabs(hasFitness: boolean, camera = false): PhoneTabItem[] {
     ...(camera ? [{ tab: 'camera' as const, label: 'Caméra', icon: 'video' as const }] : []),
   ];
 }
+
+/**
+ * Onglet Caméra : pour un parent, dès qu'il y a la caméra en direct ou une télé qui reçoit les messages (le serveur
+ * revérifie chaque appel).
+ */
+export const hasCameraTab = (member: Pick<Member, 'parent'> | undefined, config: Pick<PublicConfig, 'camera' | 'tv'>) =>
+  Boolean(member?.parent && (config.camera.live || config.tv));
 
 /** Mots reçus (pour moi ou pour toute la famille, sauf les miens) : ceux pas encore vus d'abord. */
 export function receivedNotes(notes: Note[], meId: string): Note[] {

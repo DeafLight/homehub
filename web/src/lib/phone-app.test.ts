@@ -1,7 +1,7 @@
 // Tests de l'appli du téléphone : onglets selon le profil, mots reçus et pastille des mots à voir.
 import { describe, expect, it } from 'vitest';
 import { FAMILY_ID, type Note } from '../../../shared/types.ts';
-import { canMarkSeen, phoneTabs, receivedNotes, unseenCount } from './phone-app.ts';
+import { canMarkSeen, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from './phone-app.ts';
 
 const note = (id: string, to: string, from: string | null, seenAt?: string): Note => ({ id, text: id, to, from: { ownerId: from, via: 'tablet' }, at: '2026-11-10T08:00:00Z', seenAt });
 const lea = { id: 'lea', parent: false };
@@ -14,6 +14,17 @@ describe('appli du téléphone', () => {
     // Caméra en direct : un parent, quand elle est activée ; en dernier.
     expect(phoneTabs(true, true).map((t) => t.tab).slice(-2)).toEqual(['sport', 'camera']);
     expect(phoneTabs(false, false).some((t) => t.tab === 'camera')).toBe(false);
+  });
+
+  it('onglet Caméra : un parent, avec la caméra en direct ou une télé', () => {
+    const on = { camera: { live: true, banner: true, talk: true }, tv: false };
+    const tvOnly = { camera: { live: false, banner: true, talk: true }, tv: true };
+    const none = { camera: { live: false, banner: true, talk: true }, tv: false };
+    expect(hasCameraTab(alex, on)).toBe(true);
+    expect(hasCameraTab(alex, tvOnly)).toBe(true);
+    expect(hasCameraTab(alex, none)).toBe(false);
+    expect(hasCameraTab(lea, tvOnly)).toBe(false);
+    expect(hasCameraTab(undefined, on)).toBe(false);
   });
 
   it('mots reçus : pour moi ou la famille, pas les miens, les nouveaux d’abord', () => {

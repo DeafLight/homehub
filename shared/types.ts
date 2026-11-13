@@ -30,6 +30,8 @@ export type PublicConfig = {
   faces: { minConfidence: number; minSize: number; backend: FaceBackend };
   /** Caméra en direct (voir `camera` dans homehub.yaml) : onglet des parents, bandeau sur la tablette. */
   camera: { live: boolean; banner: boolean; talk: boolean };
+  /** Une télé reçoit les messages des parents (voir `tv` dans homehub.yaml). */
+  tv: boolean;
   /** Empreinte de la configuration : change à chaque modification du fichier. */
   revision: string;
 };

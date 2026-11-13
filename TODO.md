@@ -228,6 +228,12 @@ Reste :
       coupé sur le téléphone pendant ce temps ; `camera.talk` (activé par défaut).
 - [ ] Parler à la tablette, à vérifier en conditions réelles : lecture automatique dans Fully Kiosk (*Autoplay
       Videos* / *Autoplay Audio*), volume, écho côté tablette.
+- [x] Message à la télé, 0.67.0 : bouton dans l'onglet Caméra des parents, texte de 140 caractères au plus, nettoyé
+      par le serveur, affiché 10 s (`tv.seconds`) en gros au centre de la télé Android TV, par-dessus l'image (appli
+      Notifications for Android TV, requête HTTP locale) ; `tv.host` dans homehub.yaml ; fausse télé du monde fictif.
+- [ ] Message à la télé, à vérifier sur la vraie télé : appli installée et autorisée (*Afficher par-dessus les autres
+      applis*), message bien au centre et assez gros (police « max »), durée de 10 s respectée, affichage par-dessus
+      Netflix / YouTube / la télé en direct et sur l'écran de veille, accents et emojis, titre « Message d'Alex ».
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

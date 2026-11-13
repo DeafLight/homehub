@@ -275,6 +275,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   activer *Web Content Settings › Autoplay Videos* (et *Autoplay Audio* si la version de Fully le propose ; à
   vérifier sur la tablette) ; sinon la voix démarre au premier toucher de l'écran. Garder le volume média de la
   tablette audible.
+- **Message à la télé** (même onglet Caméra, parents ; seulement si `tv` est configuré) : bouton **Message à la télé**,
+  on écrit un court texte (140 caractères au plus, compteur), **Envoyer** : la télé Android TV l'affiche en gros au
+  milieu de l'écran, dans un cadre noir titré **« Message d'Alex »**, **par-dessus ce qu'elle diffuse** (l'image
+  continue derrière), pendant 10 s (`tv.seconds`). Le serveur n'accepte que les parents (téléphone, ou reconnus à la
+  tablette), refait la limite et nettoie le texte (retours à la ligne aplatis, caractères invisibles, de sens
+  d'écriture et chevrons retirés). La caméra en direct n'est pas nécessaire : avec `camera.live: false` et une télé,
+  l'onglet Caméra n'a que ce bouton. **Sur la télé** : installer depuis le Play Store l'appli gratuite
+  *Notifications for Android TV* (celle de l'intégration nfandroidtv de Home Assistant ; code fermé, achats intégrés
+  seulement dans l'appli pour téléphone), l'ouvrir une fois et suivre son assistant, qui demande *Afficher par-dessus
+  les autres applis* (et l'accès aux notifications) ; redémarrer la télé si le message n'apparaît pas. Fixer
+  l'adresse IP de la télé dans la box et la mettre dans `tv.host`. HomeHub lui envoie une requête HTTP locale (port
+  7676, format de la bibliothèque `notifications-android-tv`) : position centre, police la plus grande, fond noir
+  opaque. Rien n'est contourné : sans l'appli, la télé ne répond pas et le téléphone le dit.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -577,6 +590,10 @@ camera:              # facultatif : caméra en direct (valeurs par défaut)
   maxMinutes: 10     # arrêt automatique
   stun: []           # ex. [stun:maison.example.org:3478]
   turn: []           # ex. [turn:maison.example.org:3478?transport=udp] ; secret : HOMEHUB_TURN_SECRET
+tv:                  # facultatif : message à la télé (appli Notifications for Android TV sur la télé)
+  host: 192.168.1.40 # adresse de la télé (IP fixée dans la box, ou nom), sans http:// ni port
+  port: 7676         # port de l'appli (défaut)
+  seconds: 10        # durée d'affichage, 3 à 60 s (défaut 10)
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -737,6 +754,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, talk, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
 | `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats, parole ou fin (`{ kind: "offer" \| "candidate" \| "talk" \| "bye", … }` ; `{ kind: "talk", on }` : le parent parle ou s'arrête, 403 si `camera.talk` est coupé) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
+| `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères ; 404 sans `tv` ; 502 télé injoignable ou qui refuse) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |

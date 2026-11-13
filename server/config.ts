@@ -177,6 +177,24 @@ export const configSchema = z.object({
       turn: z.array(z.string().trim().regex(/^turns?:\S+$/, 'adresse turn:hôte:port (?transport=udp ou tcp)')).default([]),
     })
     .default({ live: true, banner: true, audio: true, talk: true, maxMinutes: 10, stun: [], turn: [] }),
+  /**
+   * Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
+   * l'affiche en gros au milieu de l'écran, par-dessus l'image, pendant `seconds` secondes. Il faut l'appli
+   * « Notifications for Android TV » sur la télé (avec « Afficher par-dessus les autres applis »). `host` : adresse de
+   * la télé sur le réseau de la maison (IP fixée dans la box, ou nom) ; `port` : celui de l'appli. Absent : pas de bouton.
+   */
+  tv: z
+    .object({
+      host: z
+        .string()
+        .trim()
+        .min(1)
+        .max(253)
+        .regex(/^(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:.]+\])$/u, 'nom ou adresse IP de la télé, sans http:// ni port'),
+      port: z.number().int().min(1).max(65535).default(7676),
+      seconds: z.number().int().min(3).max(60).default(10),
+    })
+    .optional(),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({
@@ -230,6 +248,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     camera: { live: config.camera.live, banner: config.camera.banner, talk: config.camera.talk },
+    tv: config.tv !== undefined,
     revision,
   };
 }

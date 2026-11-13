@@ -17,6 +17,7 @@
   import BottomSheet from '../components/phone/BottomSheet.svelte';
   import PhoneAgenda from '../components/phone/PhoneAgenda.svelte';
   import PhoneCamera from '../components/phone/PhoneCamera.svelte';
+  import PhoneTvMessage from '../components/phone/PhoneTvMessage.svelte';
   import PhoneNav from '../components/phone/PhoneNav.svelte';
   import PhoneNotes from '../components/phone/PhoneNotes.svelte';
   import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
@@ -28,7 +29,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { clearPairing, loadPairing } from '../lib/phone.ts';
-  import { canMarkSeen, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
+  import { canMarkSeen, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
@@ -197,7 +198,7 @@
     if (sharedProduct !== undefined) navigate(phonePath('shopping'));
   }
 
-  const TABS = phoneTabs(Boolean(member?.fitness), Boolean(member?.parent && config.camera.live));
+  const TABS = phoneTabs(Boolean(member?.fitness), hasCameraTab(member, config));
   let scroller = $state<HTMLElement | null>(null);
   const profileOf = (id: string) => profiles.find((p) => p.id === id);
 </script>
@@ -249,8 +250,11 @@
           <p class="muted">Impossible de charger le carnet : {recipes.error}</p>
         {/if}
       {:else if tab === 'camera'}
-        {#if member?.parent && config.camera.live}
-          <PhoneCamera {api} bannerShown={config.camera.banner} />
+        {#if hasCameraTab(member, config)}
+          <div class="camera-tab">
+            {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} />{/if}
+            {#if config.tv}<PhoneTvMessage {api} />{/if}
+          </div>
         {:else}
           <p class="muted">La caméra en direct est réservée aux parents.</p>
         {/if}
@@ -542,6 +546,12 @@
   .homework,
   .school-life {
     margin-bottom: 16px;
+  }
+
+  .camera-tab {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
   .school-life :global(.card) {

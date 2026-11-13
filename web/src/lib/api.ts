@@ -52,6 +52,7 @@ import type {
   WeekData,
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
+import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -280,6 +281,8 @@ export type Api = {
   /** Compte rendu de l'extension « Remplir le panier » (objet collé) : lignes marquées, prix notés. */
   sendDriveReport(report: unknown): Promise<DriveReportResult>;
   /** Caméra en direct, téléphone d'un parent : ouvrir une diffusion, envoyer offre et candidats, attendre la suite. */
+  /** Message d'un parent affiché sur la télé (texte nettoyé et limité par le serveur). */
+  sendTvMessage(text: string): Promise<TvMessageSent>;
   openCamera(): Promise<CameraSession>;
   sendCameraSignal(id: string, signal: PhoneSignal): Promise<void>;
   cameraMessages(id: string, after: number, abort?: AbortSignal): Promise<CameraMessages>;
@@ -473,6 +476,7 @@ export function createApi(
     changeRecipeNote: (id, noteId, patch) => send('PATCH', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, patch),
     removeRecipeNote: (id, noteId) => send('DELETE', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
+    sendTvMessage: (text) => send('POST', '/tv/message', { text }),
     openCamera: () => send('POST', '/camera/sessions'),
     sendCameraSignal: (id, signal) => send('POST', `/camera/sessions/${encodeURIComponent(id)}/signal`, signal),
     cameraMessages: (id, after, abort) => request(`/camera/sessions/${encodeURIComponent(id)}/signals?after=${after}`, { signal: abort }),
