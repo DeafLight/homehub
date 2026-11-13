@@ -183,29 +183,30 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | 15 | Mode « film » (annonces renvoyées vers le Google Home) | Peu coûteux une fois 7 fait : avec 7 |
 | 16 | Heure du coucher des enfants | Proche de 5 : avec 5 |
 
-**Ordre proposé** (une version par étape) :
+**Ordre proposé : une idée par version**, cochée dans `TODO.md` (section « Télé : appli HomeHub TV ») à sa sortie :
 
-1. **Socle** : projet Kotlin, service, appairage, attente longue, présence ; **message vocal atténué (1)** et
-   **message écrit (2)** ; destination « Télé » dans l'onglet Caméra du téléphone, parents seulement. ← étape 2 de la
-   demande, première version.
-2. **Télécommande et retour** : réponses rapides (10), pause/reprise/volume et « À table ! » (6).
-3. **État de la télé** : allumée/éteinte, bascule vers le Google Home (7), mode film (15).
-4. **Alertes de la maison** : minuteur (3), bus (4), pluie (14).
-5. **Soir** : routines, nouveaux mots (5), heure du coucher (16).
-6. **Écran de veille HomeHub (8)**, puis partage de photo (11).
-7. Plus tard, à décider : parler en direct (9), sport (12), recette (13).
+1. **Socle + message vocal atténué (1)** : projet Kotlin, service, appairage, attente longue, présence ;
+   destination « Télé » dans l'onglet Caméra du téléphone, parents seulement. Première version.
+2. Message écrit en bandeau (2), à la place de l'appli tierce.
+3. Réponses rapides à la télécommande (10).
+4. Pause, reprise, volume et « À table ! » (6).
+5. Télé allumée ou éteinte, bascule vers le Google Home (7), puis mode film (15).
+6. Alertes de la maison, une version chacune : minuteur (3), bus (4), pluie (14).
+7. Soir, une version chacune : routines et nouveaux mots (5), heure du coucher (16).
+8. Écran de veille HomeHub (8), puis partage de photo (11).
+9. Plus tard, à décider : parler en direct (9), sport (12), recette (13).
 
-## 7. Première version (après accord sur ce plan)
+## 7. Première version (après accord sur ce plan) : socle et message vocal
 
 - Serveur : `screens.ts` (magasin et service), `screen-api.ts`, `access.screen`, destination « Télé » dans
-  `cast-api.ts` (vocal) et `tv-api.ts` (écrit), page des appareils de la tablette (section Télé, saisie du code).
-- Front : « Ta voix sur » Tablette / **Télé** / appareils Cast dans l'onglet Caméra du téléphone ; bouton « Message à
-  la télé » qui passe par l'appli quand elle est là.
+  `cast-api.ts` (vocal), page des appareils de la tablette (section Télé, saisie du code).
+- Front : « Ta voix sur » Tablette / **Télé** / appareils Cast dans l'onglet Caméra du téléphone. Le message écrit
+  (bouton « Message à la télé » par l'appli) vient à la version suivante.
 - Monde fictif : une fausse télé HomeHub TV (attente longue simulée, comptes rendus) pour les tests et les captures.
 - Appli : `tv-app/` minimal (appairage, service, bandeau, lecture atténuée), tests JVM du protocole.
 - Tests serveur (`*.test.ts`), README, `docs/ecrans.md` et captures, `TODO.md`, puis version avec `homehub-release`.
 - **Fait** quand la version est taguée en local **et essayée sur la vraie télé** avec toi : message vocal pendant
-  Netflix, YouTube et la télé en direct (le son baisse-t-il ?), message écrit, télé en veille.
+  Netflix, YouTube et la télé en direct (le son baisse-t-il ?), télé en veille.
 
 ## Questions pour toi
 
