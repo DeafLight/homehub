@@ -2,7 +2,10 @@
 // ou saisie à la main, en versions datées), ce qu'on en a, chaque entrée et sortie, et les contenants de la maison
 // (bidon de lessive, bocal…) où l'on transvase les recharges. Les produits sans code-barres (vrac, marché, fait maison)
 // y ont un identifiant interne (préfixe 28, voir shared/barcode.ts) et se comportent ensuite comme les autres. Comme les listes : une modification à la fois, écrite
-// sur le disque (fichier temporaire puis renommage) avant d'être confirmée.
+// sur le disque (fichier temporaire puis renommage) avant d'être confirmée. Un produit qui s'utilise en plusieurs fois
+// peut garder la part restante de son paquet entamé (¼ · ½ · ¾, notée en cuisinant) ; une sortie l'efface (paquet
+// fini, paquet vide scanné). Les mouvements d'un même décompte « J'ai cuisiné » portent un identifiant commun (`cook`)
+// et leur raison (« Cuisiné : Pâtes au thon ») ; ils s'annulent ensemble, chacun s'il est encore le dernier de son produit.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { containerCode, isLooseCode, looseCode, looseNumber } from '../../shared/barcode.ts';
@@ -52,14 +55,22 @@ const fileSchema = z.object({
       categories: z.array(z.string()).optional(),
     }),
   ),
-  stock: z.record(z.string(), z.object({ quantity: z.number().int().min(0), updatedAt: z.string() })),
+  stock: z.record(
+    z.string(),
+    z.object({
+      quantity: z.number().int().min(0),
+      updatedAt: z.string(),
+      /** Part restante du paquet entamé (0 à 1), notée en cuisinant ; absente : inconnue. */
+      opened: z.number().min(0).max(1).nullable().optional(),
+    }),
+  ),
   movements: z.array(
     z.object({
       id: z.string(),
       at: z.string(),
       code: z.string(),
       /** « adjust » (quantité comptée) n'est plus écrit, mais reste lu : un ancien fichier peut en contenir. */
-      kind: z.enum(['in', 'out', 'refill', 'adjust', 'container-empty']),
+      kind: z.enum(['in', 'out', 'refill', 'adjust', 'container-empty', 'opened']),
       /** Unités entrées ou sorties ; pour « adjust », la nouvelle quantité. */
       count: z.number().int(),
       /** Prix payé (unité), quand on le connaît : jamais exigé. */
@@ -76,7 +87,15 @@ const fileSchema = z.object({
         container: containerSchema.nullable().optional(),
         /** Contenance d'un produit sans code-barres avant une nouvelle quantité (voir setLoose). */
         looseQuantity: z.string().nullable().optional(),
+        /** Part restante du paquet entamé avant le mouvement. */
+        opened: z.number().nullable().optional(),
       }),
+      /** Décompte « J'ai cuisiné » dont le mouvement fait partie. */
+      cook: z.string().optional(),
+      /** Raison écrite dans l'historique (« Cuisiné : Pâtes au thon »). */
+      reason: z.string().optional(),
+      /** Part restante notée par le mouvement (paquet entamé). */
+      opened: z.number().nullable().optional(),
       /** Article ajouté d'office à la liste de courses (retiré si on annule). */
       shoppingId: z.string().nullable(),
       undone: z.boolean(),
@@ -108,6 +127,12 @@ export type OutResult = {
   container: Container | null;
 };
 
+/** Ce qu'un décompte « J'ai cuisiné » change à un produit : paquets sortis, part restante (undefined : inchangée), ou contenant vidé. */
+export type CookChange = { code: string; remove: number; opened?: number | null; container: string | null };
+
+/** Ce qu'a donné une ligne du décompte, avant la décision sur la liste de courses. */
+export type CookOut = { code: string; movementId: string; quantity: number; exhausted: boolean; autoShop: boolean };
+
 export type StockStore = {
   data(): Promise<StockData>;
   product(code: string): Promise<Product | null>;
@@ -132,6 +157,16 @@ export type StockStore = {
   /** Annule un mouvement, s'il est le dernier de son produit (ou de son contenant). Renvoie l'article de courses à retirer. */
   undo(movementId: string): Promise<{ ok: boolean; shoppingId: string | null; code: string | null }>;
   attachShopping(movementId: string, shoppingId: string): Promise<void>;
+  /**
+   * Décompte « J'ai cuisiné », d'un coup : N paquets sortis par produit (jamais plus que le stock), part restante du
+   * paquet entamé, contenants vidés. Mouvements groupés sous `cook`, avec leur raison.
+   */
+  cook(cook: string, reason: string, changes: readonly CookChange[], by: Author): Promise<CookOut[]>;
+  /**
+   * Annule un décompte : chaque mouvement, du plus récent au plus ancien, s'il est encore le dernier de son produit.
+   * `kept` : produits dont le mouvement reste (bougé depuis) ; `shoppingIds` : articles ajoutés d'office à retirer.
+   */
+  undoCook(cook: string): Promise<{ undone: string[]; kept: string[]; shoppingIds: string[] }>;
   addContainer(name: string): Promise<Container>;
   renameContainer(id: string, name: string): Promise<Container | null>;
   removeContainer(id: string): Promise<boolean>;
@@ -194,8 +229,36 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
 
   const quantityOf = (file: StockFile, code: string) => file.stock[code]?.quantity ?? 0;
 
-  function setStock(file: StockFile, code: string, quantity: number, now: Date) {
-    file.stock[code] = { quantity: Math.max(0, quantity), updatedAt: now.toISOString() };
+  /** Nouvelle quantité ; la part restante du paquet entamé est gardée, sauf `opened` donné ou plus rien en stock. */
+  function setStock(file: StockFile, code: string, quantity: number, now: Date, opened?: number | null) {
+    const kept = opened === undefined ? (file.stock[code]?.opened ?? null) : opened;
+    const value = Math.max(0, quantity);
+    file.stock[code] = { quantity: value, updatedAt: now.toISOString(), ...(value > 0 && kept !== null && { opened: kept }) };
+  }
+  const openedOf = (file: StockFile, code: string) => file.stock[code]?.opened ?? null;
+
+  /** Un mouvement plus récent du même produit (ou du même contenant) : on ne peut plus annuler celui-ci. */
+  function newer(file: StockFile, movement: Movement) {
+    const containerId = movement.before.container?.id;
+    return file.movements
+      .slice(file.movements.indexOf(movement) + 1)
+      .some((m) => !m.undone && (m.code === movement.code || (containerId !== undefined && m.before.container?.id === containerId)));
+  }
+
+  /** Remet l'état d'avant un mouvement et le marque annulé ; renvoie l'article de courses ajouté d'office. */
+  function revert(file: StockFile, movement: Movement, now: Date) {
+    if (movement.before.quantity !== null) setStock(file, movement.code, movement.before.quantity, now, movement.before.opened);
+    else if (movement.before.opened !== undefined) setStock(file, movement.code, quantityOf(file, movement.code), now, movement.before.opened);
+    const stored = file.products[movement.code];
+    if (stored && movement.before.refill !== undefined) stored.refill = movement.before.refill;
+    const version = stored?.versions.at(-1);
+    if (version && movement.before.looseQuantity !== undefined) version.quantity = movement.before.looseQuantity;
+    if (movement.before.container) {
+      const container = file.containers.find((c) => c.id === movement.before.container?.id);
+      if (container) Object.assign(container, movement.before.container);
+    }
+    movement.undone = true;
+    return movement.shoppingId;
   }
 
   function record(file: StockFile, now: Date, movement: Omit<Movement, 'id' | 'at' | 'productVersion' | 'undone' | 'shoppingId' | 'forgotten'> & Partial<Pick<Movement, 'forgotten'>>) {
@@ -219,7 +282,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
   function lastMarks(file: StockFile) {
     const marks = new Map<string, { lastIn: StockMark | null; lastOut: StockMark | null }>();
     for (const m of file.movements) {
-      if (m.undone || m.kind === 'adjust') continue;
+      if (m.undone || m.kind === 'adjust' || m.kind === 'opened') continue;
       const entry = marks.get(m.code) ?? { lastIn: null, lastOut: null };
       const mark = { at: m.at, by: m.by };
       if (m.kind === 'in') entry.lastIn = mark;
@@ -239,6 +302,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
           updatedAt: file.stock[code]?.updatedAt ?? null,
           lastIn: marks.get(code)?.lastIn ?? null,
           lastOut: marks.get(code)?.lastOut ?? null,
+          opened: openedOf(file, code),
         }));
         items.sort(
           (a, b) =>
@@ -255,7 +319,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
           .filter((m) => m.code === code)
           .slice(-limit)
           .reverse()
-          .map(({ id, at, kind, count, price, by, forgotten, undone }) => ({ id, at, kind, count, price, by: { ...by }, forgotten, undone })),
+          .map(({ id, at, kind, count, price, by, forgotten, undone, reason, opened }) => ({ id, at, kind, count, price, by: { ...by }, forgotten, undone, reason: reason ?? null, opened: opened ?? null })),
       ),
     quantity: (code) => read((file) => quantityOf(file, code)),
     container: (code) =>
@@ -346,7 +410,9 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         const forgotten = before === 0;
         // Entrée oubliée : la sortie passe quand même ; ce qui reste entre au stock (sans prix).
         const after = forgotten ? Math.max(0, remaining) : all ? 0 : before - 1;
-        setStock(file, code, after, now);
+        // Paquet vide scanné, ou sorti à la main : le paquet entamé est parti avec.
+        const openedBefore = openedOf(file, code);
+        setStock(file, code, after, now, null);
         let container: StoredContainer | undefined;
         let containerBefore: StoredContainer | null = null;
         if (refill) {
@@ -363,7 +429,7 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
           price: null,
           by,
           forgotten,
-          before: { quantity: before, refill: stored?.refill ?? null, container: containerBefore },
+          before: { quantity: before, refill: stored?.refill ?? null, container: containerBefore, opened: openedBefore },
         });
         // Transvasé : on retient le contenant pour ce code-barres (proposé d'office la prochaine fois).
         if (container && stored) stored.refill = container.id;
@@ -384,22 +450,8 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
         const movement = file.movements.find((m) => m.id === movementId);
         if (!movement || movement.undone) return { ok: false, shoppingId: null, code: null };
         // Seulement le dernier mouvement de ce produit (et de ce contenant) : annuler plus ancien fausserait la suite.
-        const containerId = movement.before.container?.id;
-        const later = file.movements
-          .slice(file.movements.indexOf(movement) + 1)
-          .find((m) => !m.undone && (m.code === movement.code || (containerId !== undefined && m.before.container?.id === containerId)));
-        if (later) return { ok: false, shoppingId: null, code: movement.code };
-        if (movement.before.quantity !== null) setStock(file, movement.code, movement.before.quantity, now);
-        const stored = file.products[movement.code];
-        if (stored && movement.before.refill !== undefined) stored.refill = movement.before.refill;
-        const version = stored?.versions.at(-1);
-        if (version && movement.before.looseQuantity !== undefined) version.quantity = movement.before.looseQuantity;
-        if (movement.before.container) {
-          const container = file.containers.find((c) => c.id === movement.before.container?.id);
-          if (container) Object.assign(container, movement.before.container);
-        }
-        movement.undone = true;
-        return { ok: true, shoppingId: movement.shoppingId, code: movement.code };
+        if (newer(file, movement)) return { ok: false, shoppingId: null, code: movement.code };
+        return { ok: true, shoppingId: revert(file, movement, now), code: movement.code };
       });
     },
 
@@ -407,6 +459,63 @@ export function createStockStore({ path, clock }: { path: string; clock: Clock }
       return change((file) => {
         const movement = file.movements.find((m) => m.id === movementId);
         if (movement) movement.shoppingId = shoppingId;
+      });
+    },
+
+    cook(cook, reason, changes, by) {
+      return change((file, now) => {
+        const results: CookOut[] = [];
+        for (const { code, remove, opened, container: containerId } of changes) {
+          if (containerId) {
+            const container = file.containers.find((c) => c.id === containerId);
+            if (!container) continue;
+            const movement = record(file, now, { code: container.productCode ?? container.code, kind: 'container-empty', count: 0, price: null, by, before: { quantity: null, container: { ...container } }, cook, reason });
+            const wasFull = container.full;
+            container.full = false;
+            const productCode = container.productCode;
+            const exhausted = wasFull && productCode !== null && quantityOf(file, productCode) === 0;
+            results.push({ code: productCode ?? container.code, movementId: movement.id, quantity: productCode ? quantityOf(file, productCode) : 0, exhausted, autoShop: productCode ? autoShopOf(file, productCode) : false });
+            continue;
+          }
+          const before = quantityOf(file, code);
+          const count = Math.min(remove, before);
+          const openedBefore = openedOf(file, code);
+          // Des paquets finis sans estimation : le suivant n'est pas entamé (ou on ne sait pas combien il en reste).
+          const next = opened === undefined ? (count > 0 ? null : openedBefore) : opened;
+          if (count === 0 && next === openedBefore) continue;
+          setStock(file, code, before - count, now, next);
+          const movement = record(file, now, {
+            code,
+            kind: count > 0 ? 'out' : 'opened',
+            count,
+            price: null,
+            by,
+            before: { quantity: before, opened: openedBefore },
+            cook,
+            reason,
+            ...(next !== null && { opened: next }),
+          });
+          const after = quantityOf(file, code);
+          results.push({ code, movementId: movement.id, quantity: after, exhausted: count > 0 && after === 0, autoShop: autoShopOf(file, code) });
+        }
+        return results;
+      });
+    },
+
+    undoCook(cook) {
+      return change((file, now) => {
+        const result = { undone: [] as string[], kept: [] as string[], shoppingIds: [] as string[] };
+        const group = file.movements.filter((m) => m.cook === cook && !m.undone).reverse();
+        for (const movement of group) {
+          if (newer(file, movement)) {
+            result.kept.push(movement.code);
+            continue;
+          }
+          const shoppingId = revert(file, movement, now);
+          if (shoppingId) result.shoppingIds.push(shoppingId);
+          result.undone.push(movement.code);
+        }
+        return result;
       });
     },
 

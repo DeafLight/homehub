@@ -10,6 +10,8 @@
   import PantryForm from '../components/menu/PantryForm.svelte';
   import StockLinks from '../components/menu/StockLinks.svelte';
   import Modal from '../components/stock/Modal.svelte';
+  import CookFlow from '../components/cook/CookFlow.svelte';
+  import { type CookTarget, reminderText, uncookedPast, undoText } from '../lib/cook.ts';
   import { getAppContext } from '../lib/context.ts';
   import { entriesByDay, weekLabel, weekRange } from '../lib/menu.ts';
   import { loadPairing } from '../lib/phone.ts';
@@ -26,6 +28,8 @@
   // entre le stock et les ingrédients (dont « s'utilise en plusieurs fois ») se règlent ici aussi ; « À vérifier au
   // placard » se décide dans les courses du menu. Retirer un repas (croix de la ligne ou ses réglages) :
   // la ligne disparaît tout de suite, « Annuler » la rend pendant quelques secondes, puis le serveur la retire.
+  // « Cuisiné ? » sur un repas (toute la famille, comme le stock) ouvre le panneau « J'ai cuisiné » ; un repas cuisiné
+  // s'annule d'ici tant que sa semaine est ouverte. Une ligne discrète rappelle les repas passés pas encore notés.
   type Props = { back: PageRoute | null };
   let { back }: Props = $props();
 
@@ -70,6 +74,23 @@
 
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let notice = $state<string | null>(null);
+  let cooking = $state<CookTarget | null>(null);
+  const nameOf = (id: string | null) => (id ? (config.members.find((m) => m.id === id)?.name ?? null) : null);
+
+  /** Annuler le décompte d'un repas : chaque mouvement encore dernier de son produit ; les autres sont signalés. */
+  async function uncook(entry: MenuViewEntry) {
+    error = notice = null;
+    busy = true;
+    try {
+      notice = `« ${entry.title} » : ${undoText(await api.uncookMeal(entry.id)).toLowerCase()}`;
+    } catch (err) {
+      error = (err as Error).message;
+    } finally {
+      busy = false;
+      await view.refresh();
+    }
+  }
   type Dialog = { kind: 'add' } | { kind: 'entry'; entry: MenuViewEntry } | { kind: 'pantry' } | { kind: 'stock' };
   let dialog = $state<Dialog | null>(null);
 
@@ -160,6 +181,7 @@
   </header>
 
   {#if error}<p class="error">{error}</p>{/if}
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if view.data}
     {@const data = view.data}
@@ -169,11 +191,24 @@
           <h2 class="card-label">Recettes</h2>
           {#if editable}<button type="button" class="btn primary small" onclick={openAdd}><Icon name="plus" size={22} /> Recette</button>{/if}
         </div>
+        {#if reminderText(uncookedPast(data))}
+          <p class="reminder"><Icon name="chef" size={20} /> {reminderText(uncookedPast(data))}</p>
+        {/if}
         <div class="scroll">
           {#if shown.length === 0 && !editable}
             <p class="muted">{data.editable ? 'Aucune recette au menu.' : 'Pas de menu cette semaine-là.'}</p>
           {:else}
-            <MenuDays groups={entriesByDay(data.week, shown, !phone)} {editable} {busy} onPeople={setPeople} onOpen={(entry) => (dialog = { kind: 'entry', entry })} onRemove={remove} />
+            <MenuDays
+              groups={entriesByDay(data.week, shown, !phone)}
+              {editable}
+              {busy}
+              cook={{ today: data.today, cookable: data.cookable, nameOf }}
+              onPeople={setPeople}
+              onOpen={(entry) => (dialog = { kind: 'entry', entry })}
+              onRemove={remove}
+              onCook={(entry) => (cooking = { entryId: entry.id })}
+              onUncook={uncook}
+            />
           {/if}
         </div>
       </section>
@@ -216,6 +251,17 @@
     <button type="button" class="btn small" onclick={() => removal.cancel()}><Icon name="undo" size={22} /> Annuler</button>
   </div>
 {/if}
+
+<CookFlow
+  target={cooking}
+  {phone}
+  onClose={() => (cooking = null)}
+  onChanged={() => void view.refresh()}
+  onLink={() => {
+    cooking = null;
+    dialog = { kind: 'stock' };
+  }}
+/>
 
 {#if dialog && view.data}
   {@const data = view.data}
@@ -371,6 +417,22 @@
     margin: 0;
     color: var(--danger-fg);
   }
+
+  .notice {
+    margin: 0;
+    color: var(--fg-soft);
+  }
+
+  /* Rappel discret des repas passés pas encore notés. */
+  .reminder {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: var(--text-small);
+    color: var(--fg-muted);
+  }
+
 
   /* Bandeau « Annuler » du retrait, en bas au centre, au-dessus de la page. */
   .undo {

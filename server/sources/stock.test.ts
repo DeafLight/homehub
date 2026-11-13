@@ -138,3 +138,47 @@ describe('contenants', () => {
     expect((await s.data()).containers.map((c) => c.name)).toEqual(['Bocal']);
   });
 });
+
+describe('décompte « J’ai cuisiné »', () => {
+  it('sort N paquets d’un coup, retient la part restante, groupe les mouvements et les annule ensemble', async () => {
+    const s = store();
+    await s.saveManual('111', pasta);
+    await s.add('111', 3, null, by);
+    const outs = await s.cook('c1', 'Cuisiné : Pâtes au thon', [{ code: '111', remove: 2, opened: 0.5, container: null }], by);
+    expect(outs).toEqual([expect.objectContaining({ code: '111', quantity: 1, exhausted: false })]);
+    expect((await s.data()).items[0]).toMatchObject({ quantity: 1, opened: 0.5 });
+    expect((await s.movements('111'))[0]).toMatchObject({ kind: 'out', count: 2, reason: 'Cuisiné : Pâtes au thon', opened: 0.5 });
+    expect(await s.undoCook('c1')).toEqual({ undone: ['111'], kept: [], shoppingIds: [] });
+    expect((await s.data()).items[0]).toMatchObject({ quantity: 3, opened: null });
+  });
+
+  it('jamais plus que le stock ; paquet entamé seul : un mouvement « opened »', async () => {
+    const s = store();
+    await s.saveManual('111', pasta);
+    await s.add('111', 1, null, by);
+    await s.cook('c1', 'Cuisiné : x', [{ code: '111', remove: 0, opened: 0.25, container: null }], by);
+    expect((await s.movements('111'))[0]).toMatchObject({ kind: 'opened', count: 0 });
+    const [out] = await s.cook('c2', 'Cuisiné : x', [{ code: '111', remove: 5, opened: null, container: null }], by);
+    expect(out).toMatchObject({ quantity: 0, exhausted: true });
+  });
+
+  it('le scan du paquet vide efface la part restante ; annuler la rend', async () => {
+    const s = store();
+    await s.saveManual('111', pasta);
+    await s.add('111', 2, null, by);
+    await s.cook('c1', 'Cuisiné : x', [{ code: '111', remove: 0, opened: 0.75, container: null }], by);
+    const out = await s.remove('111', {}, by);
+    expect((await s.data()).items[0]).toMatchObject({ quantity: 1, opened: null });
+    await s.undo(out.movementId);
+    expect((await s.data()).items[0]).toMatchObject({ quantity: 2, opened: 0.75 });
+  });
+
+  it('un mouvement plus récent garde sa ligne : signalé, pas annulé', async () => {
+    const s = store();
+    await s.saveManual('111', pasta);
+    await s.add('111', 2, null, by);
+    await s.cook('c1', 'Cuisiné : x', [{ code: '111', remove: 1, container: null }], by);
+    await s.add('111', 1, null, by);
+    expect(await s.undoCook('c1')).toEqual({ undone: [], kept: ['111'], shoppingIds: [] });
+  });
+});

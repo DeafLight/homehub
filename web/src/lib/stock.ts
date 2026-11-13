@@ -3,6 +3,7 @@
 import { isLooseCode } from '../../../shared/barcode.ts';
 import { formatLoose, isCounted, looseAmount } from '../../../shared/loose.ts';
 import type { Author, Container, Product, ProductInfo, StockEntry, StockMark, StockMovement } from '../../../shared/types.ts';
+import { estimateLabel } from '../../../shared/cook.ts';
 import { dayDiff, formatTime } from './format.ts';
 
 const BASE_NAMES: Record<string, string> = {
@@ -41,7 +42,9 @@ export function infoDiff(mine: ProductInfo, theirs: ProductInfo): InfoDiff {
 }
 
 /** « 3 en stock », « Épuisé ». */
-export const stockText = (quantity: number) => (quantity > 0 ? `${quantity} en stock` : 'Épuisé');
+/** « 2 en stock », « 2 en stock · entamé, il en reste ½ » (part notée en cuisinant), « Épuisé ». */
+export const stockText = (quantity: number, opened: number | null = null) =>
+  quantity > 0 ? `${quantity} en stock${opened !== null ? ` · entamé, il en reste ${estimateLabel(opened)}` : ''}` : 'Épuisé';
 
 const shortDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
 const shortDayYear = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -85,9 +88,21 @@ export function lastMarksLine(entry: { quantity: number; lastIn: StockMark | nul
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
-/** Ce qu'a été un mouvement : « Rangé (+ 2) », « Jeté », « Transvasé », « Inventaire : 3 », « Contenant vidé ». */
-export function movementLabel(m: Pick<StockMovement, 'kind' | 'count' | 'forgotten'>): string {
+/**
+ * Ce qu'a été un mouvement : « Rangé (+ 2) », « Jeté », « Transvasé », « Inventaire : 3 », « Contenant vidé » ; un
+ * décompte « J'ai cuisiné » : « Cuisiné : Pâtes au thon (− 2) », « Cuisiné : Gratin · il en reste ½ ».
+ */
+export function movementLabel(m: Pick<StockMovement, 'kind' | 'count' | 'forgotten'> & Partial<Pick<StockMovement, 'reason' | 'opened'>>): string {
+  const left = m.opened !== null && m.opened !== undefined ? ` · il en reste ${estimateLabel(m.opened)}` : '';
+  if (m.reason) {
+    if (m.kind === 'container-empty') return `${m.reason} · contenant vidé`;
+    if (m.kind === 'opened') return `${m.reason}${left || ' · entamé'}`;
+    if (m.kind === 'out') return `${m.reason}${m.count > 1 ? ` (− ${m.count})` : ''}${left}`;
+  }
   switch (m.kind) {
+    case 'opened':
+      return `Entamé${left}`;
+
     case 'in':
       // Zéro unité : seule la contenance d'un produit sans code-barres a changé (« il reste 800 g »).
       if (m.count === 0) return 'Quantité changée';

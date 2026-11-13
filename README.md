@@ -106,7 +106,21 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   le retire des courses pour la semaine, « Il en faut » l'y garde ; sans décision, il reste sur la liste de courses,
   marqué « à vérifier : paquet peut-être entamé » (en cas de doute, on achète). **Arrondi au paquet** : quand un
   produit est relié et que les unités se comparent, la ligne dit combien de paquets acheter (« 250 g (2 × 200 g) »),
-  dans les courses du menu comme sur la liste. Le stock n'est jamais décompté quand on cuisine.
+  dans les courses du menu comme sur la liste.
+  **J'ai cuisiné** (toute la famille, jamais d'office) : « Terminé » à la fin du mode cuisine, « J'ai cuisiné » sur la
+  fiche du téléphone, ou « Cuisiné ? » sous un repas du menu ouvrent un panneau qui propose, ingrédient par ingrédient,
+  quoi retirer du stock : « Retirer N » paquets (compteur), « Paquet fini », « Il en reste » avec une estimation (à peu
+  près ¼ · ½ · ¾, proposée d'après la quantité de la recette), « Vide » ou « Il en reste » pour un contenant, « Pas utilisé ». Une ligne sans
+  réponse ne retire rien ; « Tout comme proposé » choisit d'un geste la réponse proposée de chaque ligne ; « Ne rien
+  retirer » note le repas cuisiné sans toucher au stock (ses ingrédients sans réponse comptent encore dans les courses).
+  Le nombre de personnes se change dans le panneau ; une recette hors menu se décompte aussi (« Hors menu »). Le repas
+  est marqué « Cuisiné · Alex, 19 h 40 », annulable (« Annuler » du bandeau ou du repas, tout le décompte revient), et
+  se note jusqu'à deux jours après la fin de sa semaine. Le stock garde la part restante du paquet entamé
+  (« entamé, il en reste ½ ») et le calcul du menu s'en sert ; « Paquet fini » ou le scan du paquet vide l'efface.
+  Historique du produit : « Cuisiné : Pâtes au thon (− 1) ». Un paquet fini retire le « j'en ai déjà » d'un ingrédient
+  qu'un autre repas demande encore, et le « J'en ai assez » du placard ; les produits épuisés sont proposés, ensemble,
+  pour la liste de courses. Repas passés pas encore notés : une ligne discrète sur l'accueil (« 1 repas passé :
+  cuisiné ? », un nombre, rien de personnel) et dans le menu.
   **Frais à acheter plus tard** : les produits frais (fruits et légumes, boucherie, poissonnerie, crèmerie,
   boulangerie, sauf ce qui se garde bien : oignon, ail, pomme de terre, carotte, citron, beurre, œufs, fromages à
   pâte dure…) d'un repas prévu plus de 3 jours après aujourd'hui ne vont pas tout de suite sur la liste : ils
@@ -564,6 +578,8 @@ server/
   sources/menus.ts         menus de la semaine (menus.json) : recettes et personnes, « j'en ai déjà », placards, produits reliés
   services/menu.ts         courses du menu : besoins, déductions (placards, stock…), synchronisation avec la liste de courses
   menu-api.ts              routes du menu de la semaine
+  services/cook.ts         « J'ai cuisiné » : proposition, décompte groupé du stock, repas noté cuisiné, annulation, rappel
+  cook-api.ts              routes de « J'ai cuisiné » (toute la famille)
   sources/drive.ts         drive (drive.json) : enseigne, magasin, produit retenu et secours par article, panier en cours
   sources/drive-page.ts    fiche produit d'une enseigne lue une fois à la demande (JSON-LD Product), sans contourner un refus
   drive-api.ts             routes du drive
@@ -577,6 +593,7 @@ shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé,
 shared/recipes.ts          recettes : types, limites, durées des étapes, portions, temps
 shared/quantities.ts       quantités par dimension (masse, volume, cuillères, pièces) : somme, différence, affichage, contenance d'un paquet
 shared/menu.ts             menu de la semaine : semaines, besoins agrégés, déductions, règle de synchronisation des courses
+shared/cook.ts             « J'ai cuisiné » : lignes proposées par ingrédient, réponses (retirer, il en reste ¼ ½ ¾, vide…), effets sur le stock, fenêtre des repas
 shared/stock-link.ts       produit du stock → ingrédient deviné (mots du nom, rayon, contenance)
 shared/loose.ts            produit sans code-barres : quantité avec unité ↔ unités du stock et contenance
 shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD Product, clé d'un article, paquets (pièces par paquet), remplir le panier, récapitulatif, prix vus, introuvable ou en rupture (remplacement)
@@ -645,10 +662,10 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/faces/diagnose` | `{ embedding, real, live }` → `{ verdict, scores, rules }` : verdict détaillé, sans session ni apprentissage (tablette seulement) |
 | `DELETE /api/faces/session` | termine la session de l'en-tête `X-Actor-Session` |
 | `POST /api/faces/:id`, `DELETE /api/faces/:id` | enregistre (`{ embeddings, pin }`) ou efface (`{ pin }`) un visage : code parent obligatoire ; prises anormalement uniformes refusées (422) |
-| `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité, contenants, réglage par défaut |
+| `GET /api/stock` | `{ items, containers, settings }` : produits avec leur quantité (et `opened` : part restante du paquet entamé, ou `null`), contenants, réglage par défaut |
 | `GET /api/stock/scan/:code` | ce qu'est un code (13 chiffres) : `product` (avec quantité ; base lue si besoin), `container` ou `unknown` (tablette ou téléphone relié) |
 | `PUT /api/stock/products/:code` | `{ name, brand, quantity, category }` : produit inconnu décrit, ou corrigé (notre version l'emporte) |
-| `GET /api/stock/products/:code/movements` | historique d'un produit, du plus récent : `{ at, by, kind, count, price, forgotten, undone }` |
+| `GET /api/stock/products/:code/movements` | historique d'un produit, du plus récent : `{ at, by, kind, count, price, forgotten, undone, reason, opened }` (`reason` : recette cuisinée ; `opened` : part restante du paquet entamé, mouvement `opened`) |
 | `POST /api/stock/products/:code/recheck`, `…/accept-base`, `…/conflict` | relit la base (différences) ; prend sa version ; tranche un désaccord (`{ take: "mine" \| "base" }`) |
 | `PATCH /api/stock/products/:code` | `{ autoShop, refill }` : liste de courses d'office (`null` : réglage par défaut), contenant habituel |
 | `POST /api/stock/in`, `/out` | entrée (`{ code, count?, price? }`) ; sortie (`{ code, all?, refill?, remaining? }`, avec la proposition de liste de courses) ; la réponse donne `at` et `by` (qui a scanné) |
@@ -675,6 +692,10 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `PUT /api/menu/now` | `{ week, key, now }` : « Acheter maintenant » (`true`) un ingrédient frais qui attendait, ou le remettre à plus tard (`false`) ; un parent |
 | `PUT /api/menu/check` | `{ week, key, decision }` : « à vérifier au placard », `enough` (j'en ai assez), `needed` (il en faut) ou `null` (pas encore décidé) ; un parent |
 | `PUT /api/menu/pantry` | `{ names }` : les placards, jamais demandés ; un parent |
+| `GET /api/menu/reminder` | `{ count }` : repas passés de la semaine (et des deux jours d'après) pas encore notés cuisinés |
+| `GET /api/menu/entries/:id/cook`, `GET /api/recipes/:id/cook?entry=&people=` | proposition « J'ai cuisiné » `{ recipeId, title, meal, meals, people, servingsUnit, missing, lines }` : chaque ingrédient (`status` : `pantry`, `untracked`, `absent`, `stock`) et ses produits ou contenants en stock (`options`, avec la réponse proposée) ; `entry` : un repas de la recette, `none` hors menu, absent : le repas d'aujourd'hui, sinon le plus récent pas encore noté |
+| `POST /api/menu/entries/:id/cook`, `POST /api/recipes/:id/cook` | `{ people, replies: [{ key, code, container, answer }], entryId? }`, `answer` : `{ action: "remove", count }`, `"left"` (`finished`, `estimate` ¼ ½ ¾ ou `null`), `"empty"` (contenant), `"unused"`, `"kept"` → `{ cook, mealId, removed, propose, added, returned }` : mouvements du stock groupés, produits épuisés à proposer pour la liste (ou ajoutés d'office) ; repas fermé (400), déjà noté (409), réponse impossible (400) ; toute la famille |
+| `DELETE /api/menu/entries/:id/cook`, `DELETE /api/cooks/:cook` | annule le décompte (le repas n'est plus noté cuisiné, les mouvements du stock reviennent sauf ceux qu'un mouvement plus récent a suivis, `kept`) ; toute la famille |
 | `GET /api/drive` | `{ settings, choices, basket }` : enseigne et magasin de retrait (`{ name, url }`), pour chaque article (`key`) le produit retenu (`preferred`, ou `null`) et ses secours (`fallback`), chacun `{ enseigne, id, url, name, brand, packText, pack, ean, source, pieces, price }` (`pieces` : pièces par paquet, ou `null` ; `price` : `{ value, at }`, dernier prix d'un paquet vu par l'extension, ou `null` ; `missingAt` : dernière fois signalé introuvable ou en rupture, ou `null`), et le panier en cours (`{ enseigne, startedAt, startedBy, lines, missing }`, ou `null`), chaque ligne `{ itemId, key, label, product, count, per, at, by }`, chaque article signalé `{ itemId, key, unavailable, replacement, source, at, by }` (produits vus indisponibles, secours choisi pour ce panier, `extension` ou `manual`) ; seulement les lignes et signalements dont l'article est encore dans la liste |
 | `PUT /api/drive/settings` | `{ enseigne, store }` : enseigne (`coursesu` ou `null`) et magasin (`{ name, url? }`, lien sur le site de l'enseigne) ; un parent |
 | `GET /api/drive/stock?key=` | `{ hints }` : produits du stock qui ressemblent à l'article (reliés à l'ingrédient dans le menu, ou de même nom), avec code-barres et contenance |

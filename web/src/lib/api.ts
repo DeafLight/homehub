@@ -51,6 +51,7 @@ import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, Sessio
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
 import type { LooseUnit, NewLooseProduct } from '../../../shared/loose.ts';
 import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
+import type { CookProposal, CookRequest, CookResult, CookUndo } from '../../../shared/cook.ts';
 import type { DriveChoice, DriveProduct, DriveReadResult, DriveSettings, DriveStockHint, DriveView } from '../../../shared/drive.ts';
 import type { DriveReportResult } from '../../../shared/drive-cart.ts';
 import type { NotePatch, RecipeNote } from '../../../shared/recipe-notes.ts';
@@ -230,6 +231,17 @@ export type Api = {
   setStockLink(code: string, link: StockLink | null): Promise<void>;
   /** Oublier la décision : le produit est de nouveau proposé. */
   forgetStockLink(code: string): Promise<void>;
+  /**
+   * « J'ai cuisiné » : la proposition pour un repas du menu, ou pour une recette (`entry` absent : repas pris
+   * d'office ; null : hors menu). Écrire : toute la famille, comme le stock.
+   */
+  cookProposal(target: { entryId: string } | { recipeId: string; entryId?: string | null }, people?: number | null): Promise<CookProposal>;
+  cook(target: { entryId: string } | { recipeId: string }, request: CookRequest): Promise<CookResult>;
+  /** Annule un décompte (bandeau), ou celui d'un repas (menu). */
+  undoCook(cook: string): Promise<CookUndo>;
+  uncookMeal(entryId: string): Promise<CookUndo>;
+  /** Repas passés pas encore notés cuisinés (un nombre, rien de personnel). */
+  menuReminder(): Promise<{ count: number }>;
   /** Drive : enseigne, magasin de retrait et produits retenus pour les articles de la liste. */
   drive(): Promise<DriveView>;
   /** Enseigne et magasin : un parent. */
@@ -406,6 +418,21 @@ export function createApi(
     setPantry: (names) => send('PUT', '/menu/pantry', { names }),
     setStockLink: (code, link) => send('PUT', `/menu/links/${encodeURIComponent(code)}`, { link }),
     forgetStockLink: (code) => send('DELETE', `/menu/links/${encodeURIComponent(code)}`),
+    cookProposal: (target, people = null) => {
+      const query = new URLSearchParams();
+      if (people) query.set('people', String(people));
+      if ('recipeId' in target && target.entryId !== undefined) query.set('entry', target.entryId ?? 'none');
+      const base = 'recipeId' in target ? `/recipes/${encodeURIComponent(target.recipeId)}/cook` : `/menu/entries/${encodeURIComponent(target.entryId)}/cook`;
+      return request(`${base}${query.size ? `?${query}` : ''}`);
+    },
+    cook: (target, body) =>
+      'recipeId' in target
+        ? send('POST', `/recipes/${encodeURIComponent(target.recipeId)}/cook`, body)
+        : send('POST', `/menu/entries/${encodeURIComponent(target.entryId)}/cook`, { people: body.people, replies: body.replies }),
+    undoCook: (cook) => send('DELETE', `/cooks/${encodeURIComponent(cook)}`),
+    uncookMeal: (entryId) => send('DELETE', `/menu/entries/${encodeURIComponent(entryId)}/cook`),
+    menuReminder: () => request('/menu/reminder'),
+
     drive: () => request('/drive'),
     saveDriveSettings: (settings) => send('PUT', '/drive/settings', settings),
     driveStock: (key) => request(`/drive/stock?key=${encodeURIComponent(key)}`),

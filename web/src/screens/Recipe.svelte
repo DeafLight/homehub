@@ -4,6 +4,8 @@
   import type { Recipe, RecipeContent } from '../../../shared/recipes.ts';
   import Icon from '../components/Icon.svelte';
   import KitchenMode from '../components/recipes/KitchenMode.svelte';
+  import CookFlow from '../components/cook/CookFlow.svelte';
+  import type { CookTarget } from '../lib/cook.ts';
   import RecipeEditor from '../components/recipes/RecipeEditor.svelte';
   import RecipeNotes from '../components/recipes/RecipeNotes.svelte';
   import RecipeView from '../components/recipes/RecipeView.svelte';
@@ -11,16 +13,18 @@
   import { loadPairing } from '../lib/phone.ts';
   import { canEditRecipe, emptyContent, handoff, previewSummary, rereadMessage, type ShownStep, timerLabel } from '../lib/recipes.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { detailPath, phonePath, phoneRecipePath, recipePath, type RecipeMode } from '../lib/route.ts';
+  import { detailPath, PHONE_MENU_PATH, phonePath, phoneRecipePath, recipePath, type RecipeMode } from '../lib/route.ts';
 
   // Une recette du carnet : sa fiche, son édition (notre version, une nouvelle recette saisie à la main, ou l'aperçu
   // d'un texte collé ou d'une page enregistrée), ses notes de la famille, et sur la tablette le mode cuisine (qui
   // rappelle les notes ouvertes). La page garde les données et les appels ; l'affichage est dans components/recipes/.
   // Sur la tablette, modifier demande quelqu'un de reconnu ; sur le téléphone, son profil agit. Le serveur décide.
+  // « J'ai cuisiné » (toute la famille) : « Terminé » à la fin du mode cuisine, ou le bouton de la fiche du téléphone ;
+  // le repas du menu est retrouvé seul (aujourd'hui, sinon le plus récent pas encore noté), ou hors menu.
   type Props = { id: string | null; mode: RecipeMode; phone?: boolean };
   let { id, mode, phone = false }: Props = $props();
 
-  const { api, actor, config, timers, navigate } = getAppContext();
+  const { api, actor, config, timers, navigate, router } = getAppContext();
   const pairing = untrack(() => (phone ? loadPairing() : null));
   const phoneMember = config.members.find((m) => m.id === pairing?.ownerId);
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
@@ -139,12 +143,33 @@
     notice = (await timers.start(timerLabel(title, step.number), seconds)) ? null : 'Minuteur non lancé';
   }
 
+  /** Panneau « J'ai cuisiné » ouvert ; à sa fermeture, le mode cuisine revient à la fiche. */
+  let cooking = $state<CookTarget | null>(null);
+  const openCook = () => {
+    if (id) cooking = { recipeId: id };
+  };
+  const menuPath = () => (phone ? PHONE_MENU_PATH : detailPath('menu', router.route));
+
   const editInitial = $derived(id === null ? (preview?.content ?? emptyContent(draft?.title ?? '')) : (recipe.data?.ours ?? null));
 </script>
 
+<CookFlow
+  target={cooking}
+  {phone}
+  onClose={() => {
+    cooking = null;
+    if (mode === 'cook') navigate(pathOf(id, 'view'));
+  }}
+  onLink={() => {
+    cooking = null;
+    navigate(menuPath());
+  }}
+/>
+
 <div class="recipe-page" class:phone class:cook={mode === 'cook'}>
+
   {#if mode === 'cook' && recipe.data && !phone}
-    <KitchenMode recipe={recipe.data} {servings} notes={openNotes} nameOf={(ownerId) => nameOf(ownerId) ?? ownerId} onTimer={startTimer} onExit={() => navigate(pathOf(id, 'view'))} />
+    <KitchenMode recipe={recipe.data} {servings} notes={openNotes} nameOf={(ownerId) => nameOf(ownerId) ?? ownerId} onTimer={startTimer} onExit={() => navigate(pathOf(id, 'view'))} onFinish={openCook} />
   {:else}
     <header>
       {#if mode === 'edit'}
@@ -191,6 +216,8 @@
         onReread={reread}
         {rereading}
         onCook={phone ? undefined : () => navigate(pathOf(data.id, 'cook'))}
+        onCooked={phone ? openCook : undefined}
+
         onTimer={phone ? undefined : startTimer}
         openNotes={openNotes.length}
       >

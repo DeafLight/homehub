@@ -6,6 +6,7 @@ import {
   addWeeks,
   aggregateNeeds,
   boughtFor,
+  cookedParts,
   desiredLines,
   type HaveState,
   addDays,
@@ -26,6 +27,7 @@ import {
   syncOps,
   weekDays,
   weekOf,
+  withoutCooked,
 } from './menu.ts';
 import { ingredientLines } from './recipes.ts';
 import { guessPartial } from './stock-link.ts';
@@ -449,5 +451,39 @@ describe('frais à acheter plus tard', () => {
   it('« j’en ai déjà » et les placards passent avant : rien n’attend', () => {
     const entries = [entry('pates', 4, '2026-11-15')];
     expect(byKey(planNeeds(aggregateNeeds(entries, recipeOf), state({ have: new Set(['lait']), ...later() }))).get('lait')).toMatchObject({ status: 'have', later: [] });
+  });
+});
+
+describe('repas cuisiné et paquet entamé connu', () => {
+  const cooked = (e: MenuEntry, keys: string[]): MenuEntry => ({ ...e, cooked: { at: '2026-11-09T19:00:00.000Z', by: { ownerId: 'sam', via: 'phone' }, cook: 'c1', keys, people: e.people, cleared: { have: [], checks: [] } } });
+
+  it('un repas cuisiné ne compte plus pour ses ingrédients qui ont eu une réponse', () => {
+    const a = cooked(entry('pates', 4, '2026-11-09'), ['pate', 'lait']);
+    const b = entry('galettes', 12, '2026-11-15');
+    const needs = aggregateNeeds([a, b], recipeOf);
+    expect(needs.find((n) => n.key === 'pate')).toBeUndefined();
+    expect(needs.find((n) => n.key === 'lait')?.quantities).toEqual({ volume: 500 });
+    expect(needs.find((n) => n.key === 'oignon')?.quantities).toEqual({ masse: 100 });
+    expect([...cookedParts([a, b], recipeOf).keys()]).toEqual(['pate', 'lait']);
+  });
+
+  it('déjà acheté : moins la part des repas cuisinés, jamais en dessous de rien', () => {
+    const a = cooked(entry('pates', 4, '2026-11-09'), ['pate', 'lait']);
+    const bought = new Map([
+      ['pate', { quantities: { masse: 300 }, toTaste: false }],
+      ['lait', { quantities: { volume: 700 }, toTaste: false }],
+      ['carotte', { quantities: { piece: 3 }, toTaste: false }],
+    ]);
+    const rest = withoutCooked(bought, cookedParts([a], recipeOf));
+    expect([...rest]).toEqual([
+      ['lait', { quantities: { volume: 500 }, toTaste: false }],
+      ['carotte', { quantities: { piece: 3 }, toTaste: false }],
+    ]);
+  });
+
+  it('le paquet entamé connu compte pour sa part, sans vérification', () => {
+    const link: StockLink = { key: 'gruyere', name: 'gruyère', per: { quantity: 200, unit: 'g' } };
+    const pool = stockPool([{ name: 'Gruyère', count: 2, link, partial: true, opened: 0.5 }]);
+    expect(pool.get('gruyere')).toMatchObject({ quantities: { masse: 300 }, opened: {}, openedProducts: [] });
   });
 });

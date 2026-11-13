@@ -14,11 +14,13 @@
   type Props = {
     product: Product;
     quantity: number | null;
+    /** Part restante du paquet entamé, notée en cuisinant (null : inconnue). */
+    opened?: number | null;
     containers: Container[];
     onChange: (product: Product) => void;
     onClose: () => void;
   };
-  let { product, quantity, containers, onChange, onClose }: Props = $props();
+  let { product, quantity, opened = null, containers, onChange, onClose }: Props = $props();
 
   const { api, clock, config } = getAppContext();
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
@@ -107,7 +109,8 @@
         <span class="small">{provenance(product)}{count !== null ? ` · ${count > 0 ? `${looseText(product, count) ?? count} en stock` : 'Épuisé'}` : ''}</span>
       {:else}
         <span class="muted">{productDetail(product.current) || 'Marque et contenance inconnues'}{product.current.category ? ` · ${product.current.category}` : ''}</span>
-        <span class="small">{provenance(product)}{count !== null ? ` · ${stockText(count)}` : ''}</span>
+        <span class="small">{provenance(product)}{count !== null ? ` · ${stockText(count, shown === null ? opened : null)}` : ''}</span>
+
       {/if}
     </div>
   </div>

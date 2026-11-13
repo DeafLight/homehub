@@ -1,12 +1,14 @@
 // Menu de la semaine (menus.json dans le dossier d'état) : les recettes de chaque semaine (lundi), les coches
 // « j'en ai déjà » de chaque semaine, les décisions « à vérifier au placard » (j'en ai assez / il en faut) de chaque
 // semaine, les ingrédients frais avancés à la main (« Acheter maintenant ») de chaque semaine, les placards toujours ignorés, et les liens entre produits du stock et ingrédients, confirmés une fois puis
-// retenus par produit (avec « s'utilise en plusieurs fois », absent : deviné). Les semaines passées restent lisibles
+// retenus par produit (avec « s'utilise en plusieurs fois », absent : deviné). Un repas noté cuisiné porte sa marque
+// (`cooked`, voir shared/cook.ts), avec ce que le décompte a effacé pour le rendre si on annule. Les semaines passées restent lisibles
 // quelques mois (MENU_LIMITS.weeksKept), puis sont oubliées avec leurs coches et leurs décisions.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { UNITS } from '../../shared/ingredients.ts';
 import { addWeeks, CHECK_DECISIONS, type CheckDecision, DEFAULT_PANTRY, MENU_LIMITS, type MenuEntry, type StockLink, weekOf } from '../../shared/menu.ts';
+import type { CookedMark } from '../../shared/cook.ts';
 import type { Author } from '../../shared/types.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema, sameShape } from './schemas.ts';
@@ -20,6 +22,17 @@ const entrySchema = z.object({
   day: z.string().nullable(),
   addedBy: authorSchema,
   addedAt: z.string(),
+  /** Noté cuisiné (0.63) ; absent : pas encore. */
+  cooked: z
+    .object({
+      at: z.string(),
+      by: authorSchema,
+      cook: z.string(),
+      keys: z.array(z.string()),
+      people: z.number().int().min(1),
+      cleared: z.object({ have: z.array(z.string()), checks: z.array(z.string()) }),
+    })
+    .optional(),
 });
 sameShape<z.infer<typeof entrySchema>, MenuEntry>(true);
 
@@ -74,6 +87,13 @@ export type MenuStore = {
   setPantry(names: string[]): Promise<string[]>;
   /** Lien d'un produit (null : pas un ingrédient) ; `undefined` : oublier la décision (de nouveau proposé). */
   setLink(code: string, link: StockLink | null | undefined): Promise<void>;
+  /**
+   * Note un repas cuisiné, d'un coup avec ce que le décompte efface (coches « j'en ai déjà », décisions « j'en ai
+   * assez » de sa semaine). `already` : déjà noté (double appui, autre appareil) ; null : repas inconnu.
+   */
+  markCooked(id: string, mark: CookedMark): Promise<{ week: string; entry: MenuEntry } | 'already' | null>;
+  /** Le repas redevient « pas cuisiné », et ce que le décompte avait effacé revient. Renvoie la marque retirée. */
+  unmarkCooked(id: string): Promise<{ week: string; mark: CookedMark } | null>;
 };
 
 export function createMenuStore({ path, clock }: { path: string; clock: Clock }): MenuStore {
@@ -177,6 +197,38 @@ export function createMenuStore({ path, clock }: { path: string; clock: Clock })
         if (link === undefined) delete file.links[code];
         else file.links[code] = link;
       });
+    },
+
+    markCooked(id, mark) {
+      return state.update(
+        (file) => {
+          const found = findEntry(file, id);
+          if (!found) return null;
+          if (found.entry.cooked) return 'already' as const;
+          found.entry.cooked = mark;
+          const have = mark.cleared.have;
+          if (have.length) file.have[found.week] = (file.have[found.week] ?? []).filter((k) => !have.includes(k));
+          const checks = file.checks[found.week];
+          if (checks) for (const key of mark.cleared.checks) delete checks[key];
+          return found;
+        },
+        (result) => result !== null && result !== 'already',
+      );
+    },
+
+    unmarkCooked(id) {
+      return state.update(
+        (file) => {
+          const found = findEntry(file, id);
+          const mark = found?.entry.cooked;
+          if (!found || !mark) return null;
+          delete found.entry.cooked;
+          if (mark.cleared.have.length) file.have[found.week] = [...new Set([...(file.have[found.week] ?? []), ...mark.cleared.have])];
+          for (const key of mark.cleared.checks) (file.checks[found.week] ??= {})[key] = 'enough';
+          return { week: found.week, mark };
+        },
+        (result) => result !== null,
+      );
     },
   };
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StockEntry } from '../../../../shared/types.ts';
+  import { estimateLabel } from '../../../../shared/cook.ts';
   import { canExhaust, filterStock, lastMarksLine, productSubtitle, type StockFilter, stockCounts } from '../../lib/stock.ts';
   import Icon from '../Icon.svelte';
 
@@ -43,7 +44,8 @@
     <li class:empty={entry.quantity === 0}>
       <button type="button" class="name" onclick={() => onOpen(entry)}>
         <strong>{product.current.name}{#if product.conflict}<span class="flag" title="La base dit autre chose">!</span>{/if}</strong>
-        <span>{productSubtitle(product)}</span>
+        <span>{productSubtitle(product)}{entry.opened !== null && entry.quantity > 0 ? ` · entamé, il en reste ${estimateLabel(entry.opened)}` : ''}</span>
+
         {#if marks}<span class="marks">{marks}</span>{/if}
       </button>
       {#if !readOnly}

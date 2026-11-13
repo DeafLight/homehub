@@ -51,8 +51,10 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
       « d'après sa catégorie Open Food Facts ».
 - [ ] Suites du menu : « brique de crème fraîche » rangée en Autres (unité « brique » à reconnaître) ; capture d'une
       semaine passée.
-- [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (toujours jamais d'office en 0.52 :
-      à proposer, ingrédient par ingrédient, et annulable). Proposition, maquette et décisions :
+- [x] Décompter le stock quand on cuisine (0.63.0) : « J'ai cuisiné » à la fin du mode cuisine, sur la fiche du
+      téléphone ou sous un repas du menu ; proposé ingrédient par ingrédient, jamais d'office, « Tout comme proposé »,
+      « Il en reste » à peu près ¼ · ½ · ¾ gardé par le stock et compté par le menu, annulable ; rappel des repas
+      passés sur l'accueil et dans le menu. Proposition et décisions :
       [docs/proposition-decompte-cuisine.md](docs/proposition-decompte-cuisine.md).
 - [ ] Drive : remplir le panier d'une enseigne depuis la liste de courses (étude faite, voir « Drive » ci-dessous).
 - [x] Groupes du carnet : dans notre version, créer, renommer, monter, retirer un groupe d'ingrédients ou d'étapes

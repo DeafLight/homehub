@@ -15,6 +15,8 @@ import { createHousehold } from './household.ts';
 import { createRouter, fail } from './http.ts';
 import { createListsApi } from './lists-api.ts';
 import { createMenuApi } from './menu-api.ts';
+import { createCookApi } from './cook-api.ts';
+import { createCookService } from './services/cook.ts';
 import { createMenuService } from './services/menu.ts';
 import type { MenuStore } from './sources/menus.ts';
 import { createPinGate } from './pin-gate.ts';
@@ -113,13 +115,14 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   const menu = createMenuService({ menus: deps.menus, recipes: deps.recipes, stock: deps.stock, lists: deps.lists, clock });
+  const cook = createCookService({ menus: deps.menus, recipes: deps.recipes, stock: deps.stock, lists: deps.lists, menu, clock });
 
   const api = createRouter();
   // Le stock ou une recette a changé (scan, notre version modifiée, recette retirée) : la liste suit le menu. Les
-  // notes sur une recette n'y changent rien.
+  // notes sur une recette n'y changent rien ; « J'ai cuisiné » synchronise lui-même (services/cook.ts).
   api.use('*', async (c, next) => {
     await next();
-    if (c.req.method === 'GET' || c.res.status >= 400 || !/^\/api\/(stock|recipes)(\/|$)/u.test(c.req.path) || /\/notes(\/|$)/u.test(c.req.path)) return;
+    if (c.req.method === 'GET' || c.res.status >= 400 || !/^\/api\/(stock|recipes)(\/|$)/u.test(c.req.path) || /\/(notes|cook)(\/|$)/u.test(c.req.path)) return;
     await menu.sync({ ownerId: null, via: 'tablet' }).catch((err: unknown) => console.error('Synchronisation du menu :', err));
   });
   api.route('/', createDashboardApi({ ...deps, access }));
@@ -129,6 +132,8 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createTimersApi({ timers: deps.timers, access, clock }));
   api.route('/', createListsApi({ ...deps, household, access, menu }));
   api.route('/', createMenuApi({ menus: deps.menus, service: menu, recipes: deps.recipes, access, clock }));
+  api.route('/', createCookApi({ service: cook, access }));
+
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));

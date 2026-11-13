@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.62.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.63.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -120,6 +120,14 @@ riz, l'oignon et la carotte, qui se gardent, y sont déjà.
 
 ![Frais à acheter plus tard](images/tablette-menu-plus-tard.png)
 
+Les pâtes au thon de mardi sont passées sans être notées : l'accueil le rappelle d'une ligne discrète (« 1 repas passé :
+cuisiné ? », un nombre, rien de personnel) qui ouvre le menu, où chaque repas passé ou du jour porte « Cuisiné ? ».
+Noté depuis le menu (« Tout comme proposé », puis « Retirer du stock ») : le repas est marqué « Cuisiné · Alex, 7 h 35 »
+avec « Annuler », et un bandeau résume ce qui est parti (« coquillettes (il en reste ¼) ») avec « Annuler » pendant
+quelques secondes ; le thon et la pâte, déjà là, ne sont plus dans les courses.
+
+![Repas noté cuisiné depuis le menu](images/tablette-menu-cuisine.png)
+
 ### Stock
 
 Produits en stock (± 1, « Épuisé » sur chacun, même s'il n'en reste qu'un), avec sous chacun la dernière entrée et la dernière sortie (quand, et qui :
@@ -218,6 +226,16 @@ l'écran reste allumé et la tablette ne revient pas à l'accueil. Les notes ouv
 sur le côté (« Moins de cumin… »), pour ne pas les oublier ; « Ingrédients » prend leur place.
 
 ![Mode cuisine](images/tablette-recette-cuisine.png)
+
+« Terminé », à la dernière étape du mode cuisine des pâtes au thon, ouvre **« J'ai cuisiné »** : le repas de mardi est
+retrouvé seul (« Repas de mardi 3 », changeable, ou « Hors menu »), le nombre de personnes se règle. Chaque ingrédient
+relié à un produit du stock propose sa réponse (contour bleu) : les coquillettes et le gruyère râpé, qui s'utilisent en
+plusieurs fois, « Il en reste » à peu près ¼ et ¾ ; le thon, en boîtes contre des grammes, un compteur (« Retirer 1 »).
+Rien ne part sans réponse : ici « Tout comme proposé » les a toutes choisies (en plein), et « Retirer du stock (3) »
+décompte d'un coup. « Ne rien retirer » note seulement le repas cuisiné ; les ingrédients pas suivis dans le stock se
+relient depuis le menu.
+
+![J'ai cuisiné, à la fin du mode cuisine](images/tablette-cuisine-decompte.png)
 
 ## Téléphone (PWA)
 
@@ -334,6 +352,11 @@ liste de courses, par jour d'achat (« Demain », « Dimanche 8 »), avec « Ach
 <img src="images/telephone-menu-placard.png" width="260" alt="À vérifier au placard, vu par un enfant"> <img src="images/telephone-courses-verifier.png" width="260" alt="Liste de courses : gruyère à vérifier, arrondi au paquet">
 
 <img src="images/telephone-menu-plus-tard.png" width="260" alt="Menu de la semaine prochaine : frais à acheter plus tard"> <img src="images/telephone-courses-plus-tard.png" width="260" alt="Liste de courses : à acheter plus tard, par jour">
+
+« J'ai cuisiné », en bas de la fiche d'une recette, ouvre le même panneau en plein écran (réponses proposées en
+contour, rien de choisi) ; dans le menu, le repas noté cuisiné porte sa marque et « Annuler ».
+
+<img src="images/telephone-cuisine-decompte.png" width="260" alt="J'ai cuisiné, depuis la fiche du téléphone"> <img src="images/telephone-menu-cuisine.png" width="260" alt="Menu du téléphone : pâtes au thon notées cuisinées">
 
 ### Drive du téléphone
 

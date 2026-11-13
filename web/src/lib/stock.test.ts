@@ -156,3 +156,17 @@ describe('inventaire du stock', () => {
     expect(parseAmount('1,2,3')).toBeNull();
   });
 });
+
+describe('décompte « J’ai cuisiné » dans le stock', () => {
+  it('historique : la recette, les paquets, ce qui reste', () => {
+    expect(movementLabel({ kind: 'out', count: 2, forgotten: false, reason: 'Cuisiné : Pâtes au thon', opened: null })).toBe('Cuisiné : Pâtes au thon (− 2)');
+    expect(movementLabel({ kind: 'out', count: 1, forgotten: false, reason: 'Cuisiné : Gratin', opened: 0.5 })).toBe('Cuisiné : Gratin · il en reste ½');
+    expect(movementLabel({ kind: 'opened', count: 0, forgotten: false, reason: 'Cuisiné : Gratin', opened: 0.75 })).toBe('Cuisiné : Gratin · il en reste ¾');
+    expect(movementLabel({ kind: 'container-empty', count: 0, forgotten: false, reason: 'Cuisiné : Crêpes', opened: null })).toBe('Cuisiné : Crêpes · contenant vidé');
+  });
+
+  it('quantité : la part restante du paquet entamé', () => {
+    expect(stockText(2, 0.25)).toBe('2 en stock · entamé, il en reste ¼');
+    expect(stockText(0, 0.25)).toBe('Épuisé');
+  });
+});

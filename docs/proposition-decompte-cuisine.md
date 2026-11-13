@@ -1,5 +1,8 @@
 # Proposition : retirer du stock ce qu'on cuisine
 
+> **Réalisée en 0.63.0** (13 novembre 2026), selon les décisions ci-dessous. Ce qui est fait est décrit dans le
+> [README](../README.md) (« J'ai cuisiné ») et dans [les écrans](ecrans.md).
+
 Proposition du 12 novembre 2026, faite sur `main` en 0.57.0, **avant tout code**. Elle répond à la case du
 [TODO](../TODO.md) « Peut-être plus tard : décompter le stock quand on cuisine une recette du menu » : à proposer,
 ingrédient par ingrédient, annulable, **jamais d'office**. Les [questions](#9-questions-à-trancher) ont été tranchées

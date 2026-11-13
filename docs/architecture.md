@@ -75,6 +75,7 @@ flowchart TB
     nasS["services/nas.ts<br/>page NAS"]
     recipesS["services/recipes.ts<br/>import d'une recette, notre version"]
     menuS["services/menu.ts<br/>courses du menu, synchronisées avec la liste"]
+    cookS["services/cook.ts<br/>J'ai cuisiné : décompte du stock"]
   end
   subgraph sources["Sources (server/sources/)"]
     distant["Distantes, en cache<br/>open-meteo, ical, ecoledirecte, pronote,<br/>irigo, gtfs, geocode, school-holidays,<br/>open-food-facts (sans cache : copie dans stock),<br/>web-page + recipe-page (sans cache : copie dans recipes),<br/>drive-page (sans cache : copie dans drive)"]
@@ -318,7 +319,12 @@ retirée) ; une ligne cochée, ou vidée (gardée dans `cleared` pour sa semaine
 touchée, seul le complément revient sur une nouvelle ligne ; une ligne ajoutée à la main pour le même ingrédient
 l'emporte ; retirer une ligne du menu vaut « j'en ai déjà » pour sa semaine. Ce qu'il faut est déduit dans cet ordre :
 placards, « j'en ai déjà », ligne à la main, déjà acheté, puis stock (partagé entre les semaines, la plus proche
-d'abord). Le stock n'est jamais décompté quand on cuisine.
+d'abord). Le stock n'est jamais décompté d'office : « J'ai cuisiné » (`services/cook.ts`, règles dans
+`shared/cook.ts`, toute la famille) propose ingrédient par ingrédient ; les réponses deviennent des mouvements du stock
+groupés sous un même décompte (`cook`), annulables d'un coup, et le repas est noté `cooked` dans `menus.json` (qui,
+quand, « j'en ai déjà » et « J'en ai assez » retirés par un paquet fini, gardés pour l'annulation). Un repas noté
+cuisiné ne compte plus dans les besoins que pour ses ingrédients restés sans réponse ; la part restante d'un paquet
+entamé (`opened`, ¼ ½ ¾) compte sûre dans le stock.
 
 **Frais à acheter plus tard** : chaque besoin garde ses parts jour de repas par jour de repas (`parts`). Une part
 fraîche (`isFresh` : rayon deviné ou choisi parmi Fruits et légumes, Boucherie, Poissonnerie, Crèmerie, Boulangerie,

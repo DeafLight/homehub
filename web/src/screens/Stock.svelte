@@ -154,7 +154,9 @@
     <ProductSheet
       product={d.product}
       quantity={d.quantity}
+      opened={stock.data?.items.find((i) => i.product.code === d.product.code)?.opened ?? null}
       containers={stock.data?.containers ?? []}
+
       onChange={(product) => {
         dialog = { ...d, product };
         void stock.refresh();

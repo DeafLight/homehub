@@ -23,8 +23,13 @@
 //   la ligne reste dans les courses (en cas de doute, on achète), marquée à vérifier. « J'en ai assez » la retire
 //   pour la semaine ; « Il en faut » la garde, sans le signal. Décision par semaine et par ingrédient.
 // - Si même un paquet plein ne suffit pas : on achète la différence calculée sur les paquets sûrs.
-// Un paquet jeté sans avoir été scanné est rattrapé par la même vérification. Le stock n'est jamais décompté quand on
-// cuisine : il est consommé seulement dans le calcul, semaine après semaine (ce qui couvre l'une ne couvre plus l'autre).
+// Un paquet jeté sans avoir été scanné est rattrapé par la même vérification. Quand on sait ce qui reste du paquet entamé
+// (« Il en reste à peu près ½ », noté en cuisinant, voir shared/cook.ts), il compte pour cette part, sans vérification.
+// Le stock est consommé dans le calcul, semaine après semaine (ce qui couvre l'une ne couvre plus l'autre).
+//
+// Repas cuisiné (`cooked`, voir shared/cook.ts) : pour les ingrédients qui ont eu une réponse (`keys`), le repas ne
+// compte plus (c'est mangé, le stock réel est déjà décompté) : besoin = repas non cuisinés ; déjà acheté = acheté moins
+// la part des repas cuisinés (cookedParts, withoutCooked). Pour les autres ingrédients, le repas compte comme avant.
 //
 // Arrondi au paquet (packsFor) : quand un produit est relié à l'ingrédient et que les unités se comparent, la ligne
 // dit combien de paquets acheter (« 250 g (2 × 200 g) »).
@@ -50,6 +55,7 @@ import {
   subtractQuantities,
 } from './quantities.ts';
 import { type RecipeContent, scaleFactor } from './recipes.ts';
+import type { CookedMark } from './cook.ts';
 import type { Author, ShoppingLater, ShoppingMenuMark } from './types.ts';
 
 export const MENU_LIMITS = { entries: 40, people: 50, pantry: 60, name: 80, weeksAhead: 4, weeksKept: 12 } as const;
@@ -68,6 +74,8 @@ export type MenuEntry = {
   day: string | null;
   addedBy: Author;
   addedAt: string;
+  /** Noté cuisiné (absent : pas encore). */
+  cooked?: CookedMark;
 };
 
 /** Ce qu'une recette apporte au calcul : notre version, ou null si elle n'est plus au carnet. */
@@ -153,12 +161,16 @@ function addSource(sources: NeedSource[], recipeId: string, title: string, count
   else sources.push({ recipeId, title, count });
 }
 
+/** Un ingrédient d'un repas cuisiné qui a eu une réponse : mangé, il ne compte plus. */
+export const eaten = (entry: MenuEntry, key: string) => entry.cooked?.keys.includes(key) ?? false;
+
 /**
  * Ingrédients d'une semaine : chaque recette mise à l'échelle de ses personnes (portions de notre version, sinon
  * telle quelle), puis regroupés par clé. Une plage (« 2 à 3 ») compte pour sa borne haute : mieux vaut en avoir assez.
- * Une recette qui n'est plus au carnet n'apporte rien. `count` : nombre de fois où la recette est au menu.
+ * Une recette qui n'est plus au carnet n'apporte rien. `count` : nombre de fois où la recette est au menu. `skip` :
+ * ingrédients d'un repas à laisser de côté (par défaut, ceux d'un repas cuisiné qui ont eu une réponse).
  */
-export function aggregateNeeds(entries: readonly MenuEntry[], recipeOf: (id: string) => MenuRecipe | null): Need[] {
+export function aggregateNeeds(entries: readonly MenuEntry[], recipeOf: (id: string) => MenuRecipe | null, skip: (entry: MenuEntry, key: string) => boolean = eaten): Need[] {
   const needs = new Map<string, Need>();
   for (const entry of entries) {
     const recipe = recipeOf(entry.recipeId);
@@ -167,7 +179,7 @@ export function aggregateNeeds(entries: readonly MenuEntry[], recipeOf: (id: str
     const seen = new Set<string>();
     for (const line of recipe.ingredients) {
       const key = line.key;
-      if (!key) continue;
+      if (!key || skip(entry, key)) continue;
       let need = needs.get(key);
       if (!need) {
         need = { key, name: capitalize(line.name), aisle: line.aisle ?? guessAisle(key), quantities: {}, toTaste: false, optional: true, sources: [], parts: [] };
@@ -193,6 +205,28 @@ export function aggregateNeeds(entries: readonly MenuEntry[], recipeOf: (id: str
     }
   }
   return [...needs.values()];
+}
+
+/** Part des repas cuisinés, par clé, pour les ingrédients qui ont eu une réponse (achetée pour eux, mangée). */
+export function cookedParts(entries: readonly MenuEntry[], recipeOf: (id: string) => MenuRecipe | null): Map<string, Need> {
+  const cooked = entries.filter((e) => e.cooked);
+  return new Map(aggregateNeeds(cooked, recipeOf, (e, key) => !eaten(e, key)).map((n) => [n.key, n]));
+}
+
+/** Déjà acheté moins la part des repas cuisinés (jamais en dessous de rien). */
+export function withoutCooked(bought: ReadonlyMap<string, Bought>, cooked: ReadonlyMap<string, Need>): Map<string, Bought> {
+  const rest = new Map<string, Bought>();
+  for (const [key, value] of bought) {
+    const part = cooked.get(key);
+    if (!part) {
+      rest.set(key, value);
+      continue;
+    }
+    const quantities = subtractQuantities(value.quantities, part.quantities).rest;
+    const toTaste = value.toTaste && !part.toTaste;
+    if (!isEmpty(quantities) || toTaste) rest.set(key, { quantities, toTaste });
+  }
+  return rest;
 }
 
 /**
@@ -561,13 +595,16 @@ export type StockLink = { key: string; name: string; per: Amount | null; partial
 /**
  * Stock relié, par clé, à partir des produits en stock et de leurs liens. `partial` : le produit s'utilise en
  * plusieurs fois (valeur du lien ou devinée) ; un de ses paquets est peut-être entamé, il n'est pas compté sûr.
+ * `opened` : part restante connue du paquet entamé (¼ · ½ · ¾) : il compte pour cette part, sans vérification.
  */
-export function stockPool(items: readonly { name: string; count: number; link: StockLink | null; partial?: boolean }[]): StockPool {
+export function stockPool(items: readonly { name: string; count: number; link: StockLink | null; partial?: boolean; opened?: number | null }[]): StockPool {
   const pool: StockPool = new Map();
-  for (const { name, count, link, partial = false } of items) {
+  for (const { name, count, link, partial = false, opened = null } of items) {
     if (!link || count <= 0) continue;
     const entry = pool.get(link.key) ?? { quantities: {}, opened: {}, unknown: false, products: [], openedProducts: [] };
-    if (link.per && partial) {
+    if (link.per && partial && opened !== null) {
+      entry.quantities = addQuantities(entry.quantities, quantitiesOf(link.per.quantity * (count - 1 + opened), link.per.unit));
+    } else if (link.per && partial) {
       entry.quantities = addQuantities(entry.quantities, quantitiesOf(link.per.quantity * (count - 1), link.per.unit));
       entry.opened = addQuantities(entry.opened, quantitiesOf(link.per.quantity, link.per.unit));
       entry.openedProducts.push(name);
@@ -609,6 +646,10 @@ export type MenuView = {
   current: string;
   /** Semaine en cours ou à venir (une semaine passée se consulte seulement). */
   editable: boolean;
+  /** Aujourd'hui (AAAA-MM-JJ). */
+  today: string;
+  /** Ses repas peuvent encore être notés cuisinés, ou annulés (semaine en cours, plus deux jours). */
+  cookable: boolean;
   entries: MenuViewEntry[];
   /** Courses de la semaine, ingrédient par ingrédient, avec ce qu'on a déjà. */
   plan: PlanLine[];

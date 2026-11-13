@@ -3,11 +3,14 @@
 // (menu, carnet, stock, listes). La synchronisation tourne après chaque changement qui la concerne (menu, placards,
 // coches, liens, stock, recettes), et au premier passage d'un nouveau jour (les frais d'un repas tardif rejoignent la
 // liste le jour où les acheter ; une nouvelle semaine remplace les lignes de la précédente). « S'utilise en plusieurs fois » est
-// la valeur du lien, ou devinée d'après les recettes du carnet quand le lien ne la donne pas.
+// la valeur du lien, ou devinée d'après les recettes du carnet quand le lien ne la donne pas. Un repas noté cuisiné sort
+// du calcul pour ses ingrédients qui ont eu une réponse (voir shared/menu.ts) ; le paquet entamé dont on sait ce qui
+// reste compte pour cette part. Le panneau « J'ai cuisiné » prend ici les produits reliés et les contenants (cookContext).
 import {
   addWeeks,
   aggregateNeeds,
   boughtFor,
+  cookedParts,
   type DesiredLine,
   desiredLines,
   labelKey,
@@ -25,7 +28,9 @@ import {
   type StockPool,
   syncOps,
   weekOf,
+  withoutCooked,
 } from '../../shared/menu.ts';
+import { type CookContainer, type CookContext, type CookProduct, cookWindow } from '../../shared/cook.ts';
 import { isLooseCode } from '../../shared/barcode.ts';
 import type { Recipe } from '../../shared/recipes.ts';
 import type { Quantities } from '../../shared/quantities.ts';
@@ -48,6 +53,8 @@ export type MenuService = {
   later(): Promise<ShoppingLater[]>;
   /** Une ligne du menu retirée à la main : « j'en ai déjà » pour sa semaine, puis synchronisation. */
   lineRemoved(item: ShoppingItem, by: Author): Promise<void>;
+  /** Placards, produits reliés et contenants pleins, par ingrédient : de quoi proposer le décompte « J'ai cuisiné ». */
+  cookContext(): Promise<CookContext>;
 };
 
 const SYSTEM: Author = { ownerId: null, via: 'tablet' };
@@ -88,7 +95,7 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     return stockPool(
       snap.stock.items.map((i) => {
         const link = snap.menu.links[i.product.code] ?? null;
-        return { name: i.product.current.name, count: i.quantity, link, partial: partialOf(i.product.code, link, largest) };
+        return { name: i.product.current.name, count: i.quantity, link, partial: partialOf(i.product.code, link, largest), opened: i.opened };
       }),
     );
   }
@@ -108,10 +115,12 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
     const packs = packSizes(Object.values(snap.menu.links));
     const result = new Map<string, PlanLine[]>();
     for (const week of activeWeeks(snap)) {
+      // Repas cuisinés : leurs ingrédients qui ont eu une réponse ne comptent plus, ni dans le besoin ni dans l'acheté.
       const needs = aggregateNeeds(snap.menu.weeks[week], recipeOf);
+      const bought = withoutCooked(boughtFor(shopping, cleared, week), cookedParts(snap.menu.weeks[week], recipeOf));
       const checks = new Map(Object.entries(snap.menu.checks[week] ?? {}));
       const later = { today: snap.today, advanced: new Set(snap.menu.now[week] ?? []) };
-      result.set(week, planNeeds(needs, { pantry, have: new Set(snap.menu.have[week] ?? []), manual, bought: boughtFor(shopping, cleared, week), stock: pool, checks, packs, later }));
+      result.set(week, planNeeds(needs, { pantry, have: new Set(snap.menu.have[week] ?? []), manual, bought, stock: pool, checks, packs, later }));
     }
     return result;
   }
@@ -174,6 +183,8 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
         week,
         current: snap.current,
         editable: week >= snap.current,
+        today: snap.today,
+        cookable: cookWindow(week, snap.today),
         entries: entries.map((e) => {
           const recipe = byId.get(e.recipeId);
           return {
@@ -203,7 +214,30 @@ export function createMenuService({ menus, recipes, stock, lists, clock }: { men
       return [...plans(snap, shopping, cleared)].flatMap(([week, lines]) => laterLines(lines, week)).sort((a, b) => a.day.localeCompare(b.day));
     },
 
+    async cookContext() {
+      const snap = await snapshot();
+      const largest = largestOf(snap);
+      const products = new Map<string, CookProduct[]>();
+      const containers = new Map<string, CookContainer[]>();
+      const keyOf = new Map<string, string>();
+      for (const item of snap.stock.items) {
+        const link = snap.menu.links[item.product.code];
+        if (!link) continue;
+        keyOf.set(item.product.code, link.key);
+        const list = products.get(link.key) ?? [];
+        list.push({ code: item.product.code, name: item.product.current.name, count: item.quantity, per: link.per, partial: partialOf(item.product.code, link, largest), opened: item.opened });
+        products.set(link.key, list);
+      }
+      for (const c of snap.stock.containers) {
+        const key = c.productCode ? keyOf.get(c.productCode) : undefined;
+        if (!key || !c.full || !c.productCode) continue;
+        containers.set(key, [...(containers.get(key) ?? []), { id: c.id, name: c.name, productCode: c.productCode }]);
+      }
+      return { pantry: snap.menu.pantry.map(labelKey), products, containers };
+    },
+
     async lineRemoved(item, by) {
+
       if (!item.menu || item.done) return;
       await menus.setHave(item.menu.week, item.menu.key, true);
       await sync(by);

@@ -662,16 +662,23 @@ export type StockEntry = {
   /** Dernière entrée (rangé, + 1) et dernière sortie (jeté, transvasé, contenant vidé), hors mouvements annulés. */
   lastIn: StockMark | null;
   lastOut: StockMark | null;
+  /** Part restante du paquet entamé (¼ · ½ · ¾), notée en cuisinant ; null : inconnue. */
+  opened: number | null;
 };
 
 /** Entrée ou sortie du stock, pour l'historique d'un produit. `count` : unités ; pour « adjust », la nouvelle quantité. */
 export type StockMovement = StockMark & {
   id: string;
-  kind: 'in' | 'out' | 'refill' | 'adjust' | 'container-empty';
+  /** « opened » : paquet entamé, part restante notée en cuisinant (aucun paquet ne sort). */
+  kind: 'in' | 'out' | 'refill' | 'adjust' | 'container-empty' | 'opened';
   count: number;
   price: number | null;
   forgotten: boolean;
   undone: boolean;
+  /** Raison écrite dans l'historique (« Cuisiné : Pâtes au thon »), sinon null. */
+  reason: string | null;
+  /** Part restante notée (mouvement « opened », ou sortie suivie d'un paquet entamé), sinon null. */
+  opened: number | null;
 };
 
 export type StockData = {

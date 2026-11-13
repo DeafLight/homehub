@@ -26,6 +26,8 @@
     onReread?: () => void;
     rereading?: boolean;
     onCook?: () => void;
+    /** « J'ai cuisiné » (téléphone, en bas de la fiche) : ouvre le décompte du stock. */
+    onCooked?: () => void;
     /** Lancer un minuteur depuis une étape (tablette). */
     onTimer?: (seconds: number, step: ShownStep) => void;
     /** Notes de la famille, sous les ingrédients. */
@@ -33,7 +35,7 @@
     /** Notes encore ouvertes (pastille en tête de fiche). */
     openNotes?: number;
   };
-  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onTimer, notes, openNotes = 0 }: Props = $props();
+  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onCooked, onTimer, notes, openNotes = 0 }: Props = $props();
 
   let notesBox = $state<HTMLElement | null>(null);
   const badge = $derived(notesBadge(openNotes));
@@ -145,6 +147,10 @@
       {#if onCook && !showSource}
         <button type="button" class="btn primary" onclick={onCook}><Icon name="chef" size={24} /> Mode cuisine</button>
       {/if}
+      {#if onCooked && !showSource}
+        <button type="button" class="btn primary" onclick={onCooked}><Icon name="chef" size={24} /> J’ai cuisiné</button>
+      {/if}
+
       {#if canEdit && !showSource}
         <button type="button" class="btn" onclick={onEdit}><Icon name="pencil" size={22} /> Modifier</button>
       {/if}

@@ -258,7 +258,8 @@ await call(A, 'POST', galettesNotes, { text: 'Pâte un peu épaisse : ajouter 5 
 await call(A, 'POST', `/recipes/${lentilles.id}/notes`, { text: 'Moins de cumin, les enfants l’ont trouvé fort.' });
 await call(L, 'POST', `/recipes/${lentilles.id}/notes`, { text: 'Super avec du riz !' });
 
-// Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont une sans jour ; trois produits du placard
+// Menu de la semaine (celle du jeudi 5 novembre) : quatre recettes, dont les pâtes au thon de mardi, pas encore notées
+// cuisinées (rappel discret sur l'accueil et dans le menu) ; trois produits du placard
 // reliés aux ingrédients (lentilles en stock en quantité suffisante, carottes au kilo contre des carottes à la pièce :
 // à vérifier, et un seul paquet de gruyère râpé, qui s'utilise en plusieurs fois, pour les galettes et les pâtes :
 // « à vérifier au placard », 160 g arrondis à un paquet de 200 g), les coquillettes et le thon (deviné d'après sa
@@ -272,7 +273,7 @@ for (const [start, people, day] of [
   ['Mijoté', 4, '2026-11-05'],
   ['Riz sauté', 4, '2026-11-06'],
   ['Galettes', 24, '2026-11-08'],
-  ['Pâtes au thon', 4, null],
+  ['Pâtes au thon', 4, '2026-11-03'],
 ] as const) await call(A, 'POST', '/menu/entries', { week: WEEK, recipeId: recipeId(start), people, day });
 for (const code of Object.values(DOCS_FOOD)) await call(A, 'GET', `/stock/scan/${code}`);
 await call(A, 'POST', '/stock/in', { code: DOCS_FOOD.lentilles, count: 2, price: 2.1 });
@@ -638,6 +639,30 @@ await shoot('telephone-courses-plus-tard', `${BASE}/m`, PHONE, { init: asPhone('
 const nextWeekLater = `[...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Semaine suivante')?.click(); setTimeout(() => document.querySelector('section.later')?.scrollIntoView({ block: 'start' }), 800)`;
 await shoot('telephone-menu-plus-tard', `${BASE}/m/menu`, PHONE, { init: asPhone('alex'), after: nextWeekLater });
 await shoot('tablette-menu-plus-tard', `${BASE}/menu`, TABLET, { after: nextWeekLater });
+
+// « J'ai cuisiné » : les coquillettes et le thon reliés pour l'occasion (les autres captures les gardent à relier).
+// Le mode cuisine des pâtes au thon finit sur le panneau (le repas de mardi est retrouvé seul), « Tout comme proposé »
+// choisi ; la fiche du téléphone l'ouvre par « J'ai cuisiné », rien de choisi ; puis le repas noté cuisiné depuis le
+// menu (bandeau « Annuler »), et le menu du téléphone. Tout est annulé ensuite : les captures suivantes n'en voient rien.
+if (!only || only.test('cuisine-decompte') || only.test('menu-cuisine')) {
+  await call(A, 'PUT', `/menu/links/${DOCS_PRODUCTS.pates}`, { link: { key: 'pate', name: 'pâtes', per: { quantity: 500, unit: 'g' } } });
+  await call(A, 'PUT', `/menu/links/${DOCS_FOOD.thon}`, { link: { key: 'thon-au-naturel', name: 'thon au naturel', per: { quantity: 140, unit: 'g' } } });
+}
+const pates = carnet.find((r) => r.title.startsWith('Pâtes au thon'))!;
+const finish = `${click('Suivante')}; setTimeout(() => { ${click('Suivante')}; setTimeout(() => { ${click('Terminé')}; setTimeout(() => { ${click('Tout comme proposé')} }, 1200) }, 300) }, 300)`;
+await shoot('tablette-cuisine-decompte', `${BASE}/recette/${pates.id}/cuisine`, TABLET, { after: finish, settle: 2500 });
+await shoot('telephone-cuisine-decompte', `${BASE}/m/recette/${pates.id}`, PHONE, { init: asPhone('alex'), after: click('J’ai cuisiné'), settle: 2000 });
+const cookFromMenu = `${click('Cuisiné ?')}; setTimeout(() => { ${click('Tout comme proposé')}; setTimeout(() => document.querySelector('[role=dialog] footer .btn.primary')?.click(), 400) }, 1500)`;
+await shoot('tablette-menu-cuisine', `${BASE}/menu`, TABLET, { after: cookFromMenu, settle: 3500 });
+await shoot('telephone-menu-cuisine', `${BASE}/m/menu`, PHONE, { init: asPhone('alex') });
+{
+  const view = (await call(A, 'GET', `/menu?week=${WEEK}`)) as { entries: { id: string; cooked?: unknown }[] };
+  for (const e of view.entries) if (e.cooked) await call(A, 'DELETE', `/menu/entries/${e.id}/cook`);
+}
+if (!only || only.test('cuisine-decompte') || only.test('menu-cuisine')) {
+  await call(A, 'DELETE', `/menu/links/${DOCS_PRODUCTS.pates}`);
+  await call(A, 'DELETE', `/menu/links/${DOCS_FOOD.thon}`);
+}
 
 // --- Vacances scolaires (calendrier d'exemple, zone B) : serveur et navigateur relancés à d'autres dates, même état.
 // Lundi 7 décembre : la puce annonce les vacances de Noël ; lundi 21 décembre : vacances, plus de bus ni de cours,

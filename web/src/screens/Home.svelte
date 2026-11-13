@@ -13,6 +13,7 @@
   import { dashboardPath, detailPath } from '../lib/route.ts';
   import { homeworkReminder } from '../lib/homework.ts';
   import { routineName } from '../lib/routine.ts';
+  import { reminderText } from '../lib/cook.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
   const HOME_REFRESH_MS = 60_000;
@@ -25,6 +26,10 @@
   // Passages Irigo : le serveur ne recontacte Irigo qu'au rythme réglé (60 s) ; les minutes se recomptent à l'horloge.
   const transit = createResource(() => api.transit(), TRANSIT_REFRESH_MS);
   onDestroy(transit.destroy);
+
+  // Repas passés pas encore notés cuisinés : une ligne discrète (un nombre, rien de personnel) qui ouvre le menu.
+  const reminder = createResource(() => api.menuReminder(), 5 * 60_000);
+  onDestroy(reminder.destroy);
 
   const summaries = $derived(new Map(home.data?.profiles.map((p) => [p.ownerId, p]) ?? []));
   // Personne reconnue : son accueil à elle (mots, routine, tâches, prochain rendez-vous), en un coup d'œil.
@@ -40,6 +45,11 @@
       <div class="date">{formatLongDate(clock.now)}</div>
       {#if home.data?.holiday}
         <HolidayChip holiday={home.data.holiday} />
+      {/if}
+      {#if reminder.data && reminderText(reminder.data.count)}
+        <button type="button" class="reminder" onclick={() => navigate(detailPath('menu', router.route))}>
+          <Icon name="chef" size={22} /> {reminderText(reminder.data.count)}
+        </button>
       {/if}
       <!-- Version du front réellement chargé sur la tablette : permet de vérifier qu'un déploiement est arrivé.
            Elle ouvre la page du NAS qui héberge HomeHub. -->
@@ -188,6 +198,23 @@
     height: 100%;
     display: flex;
   }
+
+  /* Rappel discret : repas passés pas encore notés cuisinés. */
+  .reminder {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 14px 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--fg-muted);
+    font: inherit;
+    font-size: var(--text-small);
+  }
+
 
   .ambient {
     flex: 1 1 0;

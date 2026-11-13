@@ -10,6 +10,7 @@
   // d'écran) ; une étape qui cite une durée lance le minuteur de la maison d'un toucher ; le mode Cookeo de l'étape
   // ressort. Les ingrédients s'ouvrent sur le côté, aux portions choisies sur la fiche ; les notes ouvertes de la
   // famille aussi (« moins salé la prochaine fois »), ouvertes d'elles-mêmes en arrivant pour ne pas les oublier.
+  // « Terminé » à la dernière étape ouvre « J'ai cuisiné » (`onFinish`) ; « Fiche » revient sans rien demander.
   type Props = {
     recipe: Recipe;
     servings: number | null;
@@ -18,8 +19,10 @@
     nameOf?: (ownerId: string) => string;
     onTimer: (seconds: number, step: ShownStep) => void;
     onExit: () => void;
+    /** « Terminé » : la recette est cuisinée (sinon, comme « Fiche »). */
+    onFinish?: () => void;
   };
-  let { recipe, servings, notes = [], nameOf = (id) => id, onTimer, onExit }: Props = $props();
+  let { recipe, servings, notes = [], nameOf = (id) => id, onTimer, onExit, onFinish }: Props = $props();
 
   const steps = $derived(shownSteps(recipe.ours));
   const ingredients = $derived(shownIngredients(recipe.ours, servings));
@@ -108,7 +111,8 @@
       {#each steps as s, i (s.id)}<span class:on={i === index}></span>{/each}
     </div>
     {#if last}
-      <button type="button" class="btn ok big" onclick={onExit}><Icon name="check" size={30} /> Terminé</button>
+      <button type="button" class="btn ok big" onclick={onFinish ?? onExit}><Icon name="check" size={30} /> Terminé</button>
+
     {:else}
       <button type="button" class="btn primary big" onclick={() => (index += 1)}>Suivante <Icon name="chevron" size={30} /></button>
     {/if}
