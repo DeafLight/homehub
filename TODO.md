@@ -52,7 +52,7 @@ des recettes de plusieurs sites, et toujours à partir de **notre version** de c
 - [ ] Suites du menu : « brique de crème fraîche » rangée en Autres (unité « brique » à reconnaître) ; capture d'une
       semaine passée.
 - [ ] Peut-être plus tard : décompter le stock quand on cuisine une recette du menu (toujours jamais d'office en 0.52 :
-      à proposer, ingrédient par ingrédient, et annulable). Proposition et maquette à trancher :
+      à proposer, ingrédient par ingrédient, et annulable). Proposition, maquette et décisions :
       [docs/proposition-decompte-cuisine.md](docs/proposition-decompte-cuisine.md).
 - [ ] Drive : remplir le panier d'une enseigne depuis la liste de courses (étude faite, voir « Drive » ci-dessous).
 - [x] Groupes du carnet : dans notre version, créer, renommer, monter, retirer un groupe d'ingrédients ou d'étapes

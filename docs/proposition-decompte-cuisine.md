@@ -2,8 +2,24 @@
 
 Proposition du 12 novembre 2026, faite sur `main` en 0.57.0, **avant tout code**. Elle répond à la case du
 [TODO](../TODO.md) « Peut-être plus tard : décompter le stock quand on cuisine une recette du menu » : à proposer,
-ingrédient par ingrédient, annulable, **jamais d'office**. Rien n'est décidé tant que les [questions](#9-questions-à-trancher)
-ne sont pas tranchées.
+ingrédient par ingrédient, annulable, **jamais d'office**. Les [questions](#9-questions-à-trancher) ont été tranchées
+le 13 novembre 2026 (ci-dessous) ; elles l'emportent sur le reste du texte.
+
+## Décisions (13 novembre 2026)
+
+1. **« Tout comme proposé »** : oui, un bouton qui choisit d'un geste la réponse proposée de chaque ligne (les
+   réponses restent visibles et modifiables avant « Retirer du stock »). Sans ce geste, une ligne sans réponse ne
+   retire rien.
+2. **Toute la famille** peut noter un repas cuisiné et faire le décompte (droits du stock, `access.appliance`).
+3. **Semaine précédente** : « Cuisiné ? » reste possible 2 jours après la fin de la semaine du repas.
+4. **« Il en reste » avec une estimation** : à peu près ¼ · ½ · ¾. Le stock garde, par produit, la part restante du
+   paquet entamé ; le calcul du menu s'en sert (le paquet entamé compte pour cette part de sa contenance) au lieu de
+   « peut-être entamé », et « Paquet fini » ou le scan du paquet vide l'efface. L'étape 3 rejoint donc la première
+   version.
+5. **Rappel des repas passés non notés** : sur l'accueil (ligne discrète, rien de personnel) et dans le menu.
+6. **« Ne rien retirer »** : le repas est noté cuisiné mais compte encore dans les courses pour ses ingrédients sans
+   réponse (en cas de doute, on achète).
+7. **Annuler plus tard** : tant que la semaine du repas est la semaine en cours, plus 2 jours (comme le 3).
 
 ![Maquette : « J'ai cuisiné » sur la tablette et le téléphone, puis le menu](images/maquette-decompte-cuisine.png)
 
