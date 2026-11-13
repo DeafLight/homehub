@@ -251,6 +251,32 @@ Reste :
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 
+## Télé : appli HomeHub TV (une idée par version)
+
+Petite appli Android TV maison, installée par `adb`, qui se connecte à HomeHub et s'appaire comme un appareil (aucun
+port ouvert sur la télé). La télé est un écran partagé : rien de personnel n'y apparaît, sauf à la demande de la
+personne depuis son propre téléphone.
+
+- [ ] Plan de l'appli (`docs/appli-tele.md`) : architecture, outils à installer, mise en place sur la télé, ordre.
+- [ ] 1. Message vocal sans couper la vidéo : son du programme baissé pendant le message, bandeau « Message d'Alex ».
+- [ ] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0).
+- [ ] 3. Alerte du minuteur de cuisine sur la télé.
+- [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
+- [ ] 5. Rappels des routines du soir et des nouveaux mots.
+- [ ] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause).
+- [ ] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home.
+- [ ] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir.
+- [ ] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé.
+- [ ] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le
+      téléphone de l'expéditeur.
+- [ ] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone.
+- [ ] 12. Séance de sport guidée sur la télé, lancée depuis le téléphone de la personne (seule elle peut la lancer).
+- [ ] 13. Mode cuisine d'une recette sur la télé : étapes en grand, minuteurs intégrés.
+- [ ] 14. Alerte pluie avant de sortir, par-dessus le programme du matin.
+- [ ] 15. Mode « film » : pendant un film, les annonces partent sur le Google Home ou en bandeau discret.
+- [ ] 16. Heure du coucher des enfants : rappel, puis pause, puis écran de veille ; un parent garde la main depuis
+      son téléphone.
+
 ## École
 
 - [x] Vacances scolaires (académie ou zone, calendrier officiel) : compte à rebours 3 semaines avant, dernier jour,
