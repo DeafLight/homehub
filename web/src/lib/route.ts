@@ -1,7 +1,7 @@
 // Routes du front : l'accueil, un dashboard par profil (/p/<id>), et des pages de détail (météo, semaine, NAS,
 // listes, stock, scanner, téléphones reliés, visages, routines, transports, vacances scolaires, sport et séance guidée,
 // recettes, menu de la semaine). Une recette : /recette/<id>, /recette/<id>/modifier, /recette/<id>/cuisine (retour : le carnet), et
-// /recette/nouvelle. Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots, /m/sport, /m/recettes), son
+// /recette/nouvelle. Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots, /m/sport, /m/recettes, /m/camera), son
 // scanner (/m/scanner), son stock (/m/stock), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
 // /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
@@ -9,7 +9,7 @@
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
 export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones' | 'faces' | 'routines' | 'transit' | 'holidays' | 'scan' | 'stock' | 'sport' | 'workout' | 'recipes' | 'menu';
-export type PhoneTab = 'shopping' | 'tasks' | 'agenda' | 'notes' | 'sport' | 'recipes';
+export type PhoneTab = 'shopping' | 'tasks' | 'agenda' | 'notes' | 'sport' | 'recipes' | 'camera';
 /** Recette ouverte : la fiche, son édition, ou le mode cuisine (tablette). `id` null : nouvelle recette (édition). */
 export type RecipeMode = 'view' | 'edit' | 'cook';
 export type Route =
@@ -29,7 +29,7 @@ const DETAIL_PREFIXES: Record<DetailName, string> = { weather: '/meteo', week: '
 
 export const dashboardPath = (ownerId: string) => `/p/${encodeURIComponent(ownerId)}`;
 
-const PHONE_PATHS: Record<PhoneTab, string> = { shopping: '/m', tasks: '/m/taches', agenda: '/m/agenda', notes: '/m/mots', sport: '/m/sport', recipes: '/m/recettes' };
+const PHONE_PATHS: Record<PhoneTab, string> = { shopping: '/m', tasks: '/m/taches', agenda: '/m/agenda', notes: '/m/mots', sport: '/m/sport', recipes: '/m/recettes', camera: '/m/camera' };
 export const phonePath = (tab: PhoneTab) => PHONE_PATHS[tab];
 export const PAIR_PATH = '/appairer';
 export const SHARE_PATH = '/partager';
@@ -84,6 +84,12 @@ export const allowsScreensaver = returnsHomeWhenIdle;
 
 /** Reconnaissance faciale en continu : sur les pages de la tablette, sauf celles qui retiennent la personne ou prennent la caméra. */
 export const watchesPresence = (route: Route) => !isPhoneRoute(route) && !holdsActor(route) && traits(route).camera !== true;
+
+/**
+ * Caméra en direct : seules les pages de la tablette diffusent (une page du téléphone ouverte depuis la tablette ou en
+ * local passerait sinon pour elle).
+ */
+export const hostsLiveCamera = (route: Route) => !isPhoneRoute(route);
 
 /** Minuteurs de cuisine : sur toutes les pages de la tablette. */
 export const showsTimers = (route: Route) => !isPhoneRoute(route);

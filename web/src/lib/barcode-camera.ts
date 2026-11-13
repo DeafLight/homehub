@@ -1,7 +1,9 @@
 // Caméra du scanner du stock : ouvre la caméra choisie (avant ou arrière), lit les codes-barres avec le
 // BarcodeDetector du navigateur toutes les `DETECT_EVERY_MS`, et rend la caméra à l'arrêt. Un changement de caméra
-// pendant l'ouverture de la précédente l'emporte (numéro de génération) : aucune piste ne reste allumée.
+// pendant l'ouverture de la précédente l'emporte (numéro de génération) : aucune piste ne reste allumée. La caméra est
+// demandée au partage de l'appareil (camera-share.ts), sans l'ouvrir une seconde fois.
 import { normalizeProductCode, PRODUCT_FORMATS, validProductCode } from '../../../shared/barcode.ts';
+import { cameraShare } from './camera-share.ts';
 import type { Facing } from './scan.ts';
 
 type Detected = { rawValue: string; format: string };
@@ -62,17 +64,19 @@ export function createBarcodeCamera({ video, paused, onFrame, onOpen }: BarcodeC
   async function start(facing: Facing): Promise<'on' | 'replaced'> {
     stop();
     const mine = generation;
-    const stream = await navigator.mediaDevices.getUserMedia({
+    // Caméra partagée : sur la tablette, la caméra en direct peut déjà tenir la caméra de face.
+    const held = await cameraShare.acquire(facing, {
       video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false,
     });
+    const { stream } = held;
     const el = video();
     if (!el || mine !== generation) {
-      for (const track of stream.getTracks()) track.stop();
+      held.release();
       return 'replaced';
     }
     const off = () => {
-      for (const track of stream.getTracks()) track.stop();
+      held.release();
       if (el.srcObject === stream) el.srcObject = null; // pas celle d'une ouverture plus récente
     };
     el.srcObject = stream;

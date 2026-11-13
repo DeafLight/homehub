@@ -5,6 +5,7 @@ import type { Context, Hono } from 'hono';
 import type { AddressMatch } from '../shared/types.ts';
 import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
+import { createCameraApi } from './camera-api.ts';
 import { createDashboardApi } from './dashboard-api.ts';
 import { createDevicesApi } from './devices-api.ts';
 import { createDriveApi } from './drive-api.ts';
@@ -28,6 +29,7 @@ import { createSchoolLifeApi } from './school-life-api.ts';
 import type { DashboardService } from './services/dashboard.ts';
 import { createSchoolLifeService, type SchoolLifeService } from './services/school-life.ts';
 import { createFaceRecognition } from './services/faces.ts';
+import { createLiveCamera } from './services/live-camera.ts';
 import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
@@ -88,6 +90,8 @@ export type AppDeps = {
   searchAddress?: (query: string, near?: { lat: number; lon: number }) => Promise<AddressMatch[]>;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
+  /** Secret partagé avec le serveur TURN de la caméra en direct (HOMEHUB_TURN_SECRET) ; absent : pas de TURN. */
+  turnSecret?: string;
   clock: Clock;
   version: string;
   /** Dossier du front compilé ; absent en test et en dev (Vite sert le front). */
@@ -114,6 +118,10 @@ export function createApp(deps: AppDeps): Hono {
     clock,
   });
 
+  // Caméra en direct : diffusions en mémoire, balayées régulièrement (téléphone ou tablette partis, durée écoulée).
+  const camera = createLiveCamera({ clock, rules: () => config.current().camera, turnSecret: deps.turnSecret });
+  setInterval(() => camera.sweep(), 5_000).unref();
+
   const menu = createMenuService({ menus: deps.menus, recipes: deps.recipes, stock: deps.stock, lists: deps.lists, clock });
   const cook = createCookService({ menus: deps.menus, recipes: deps.recipes, stock: deps.stock, lists: deps.lists, menu, clock });
 
@@ -135,6 +143,7 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createCookApi({ service: cook, access }));
 
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
+  api.route('/', createCameraApi({ camera, household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

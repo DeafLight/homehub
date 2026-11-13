@@ -51,6 +51,7 @@ import type {
   WeatherForecast,
   WeekData,
 } from '../../../shared/types.ts';
+import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -278,6 +279,15 @@ export type Api = {
   newBasket(): Promise<DriveView>;
   /** Compte rendu de l'extension « Remplir le panier » (objet collé) : lignes marquées, prix notés. */
   sendDriveReport(report: unknown): Promise<DriveReportResult>;
+  /** Caméra en direct, téléphone d'un parent : ouvrir une diffusion, envoyer offre et candidats, attendre la suite. */
+  openCamera(): Promise<CameraSession>;
+  sendCameraSignal(id: string, signal: PhoneSignal): Promise<void>;
+  cameraMessages(id: string, after: number, abort?: AbortSignal): Promise<CameraMessages>;
+  /** Fermer une diffusion, même pendant la fermeture de la page (keepalive). */
+  closeCamera(id: string): Promise<void>;
+  /** Caméra en direct, tablette : `client` identifie la page ; `after` null : page qui démarre. */
+  tabletCameraMessages(client: string, after: number | null, abort?: AbortSignal): Promise<CameraMessages & { last: number }>;
+  sendTabletCameraSignal(client: string, id: string, signal: TabletSignal): Promise<void>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -463,5 +473,12 @@ export function createApi(
     changeRecipeNote: (id, noteId, patch) => send('PATCH', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, patch),
     removeRecipeNote: (id, noteId) => send('DELETE', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
+    openCamera: () => send('POST', '/camera/sessions'),
+    sendCameraSignal: (id, signal) => send('POST', `/camera/sessions/${encodeURIComponent(id)}/signal`, signal),
+    cameraMessages: (id, after, abort) => request(`/camera/sessions/${encodeURIComponent(id)}/signals?after=${after}`, { signal: abort }),
+    closeCamera: (id) => request(`/camera/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', keepalive: true }),
+    tabletCameraMessages: (client, after, abort) =>
+      request(`/camera/tablet/signals?client=${encodeURIComponent(client)}${after === null ? '' : `&after=${after}`}`, { signal: abort }),
+    sendTabletCameraSignal: (client, id, signal) => send('POST', `/camera/tablet/sessions/${encodeURIComponent(id)}/signal?client=${encodeURIComponent(client)}`, signal),
   };
 }

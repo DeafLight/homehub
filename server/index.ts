@@ -179,7 +179,7 @@ const nas = createNasService({
   startedAt,
 });
 const schoolLife = createSchoolLifeService({ household, school: sources.school, logger: console });
-const app = createApp({ config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, clock, version, staticRoot });
+const app = createApp({ config, service, schoolLife, nas, lists, notes, devices, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

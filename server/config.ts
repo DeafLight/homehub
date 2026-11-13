@@ -158,6 +158,23 @@ export const configSchema = z.object({
   recipes: z
     .object({ allowedHosts: z.array(z.string().trim().toLowerCase().min(1).max(253)).default([]) })
     .default({ allowedHosts: [] }),
+  /**
+   * Caméra en direct : un parent regarde, depuis son téléphone (onglet Caméra), la caméra de face de la tablette.
+   * `live` : l'onglet existe ; `banner` : bandeau « Caméra en direct · <parent> » sur la tablette pendant la
+   * diffusion ; `audio` : le son de la tablette aussi ; `maxMinutes` : la diffusion s'arrête d'elle-même au bout de
+   * ce temps. `stun` et `turn` : serveurs pour joindre la tablette hors de la maison (4G) ; le secret du TURN (coturn,
+   * `use-auth-secret`) est dans la variable HOMEHUB_TURN_SECRET. Sans eux : Wi-Fi de la maison seulement.
+   */
+  camera: z
+    .object({
+      live: z.boolean().default(true),
+      banner: z.boolean().default(true),
+      audio: z.boolean().default(true),
+      maxMinutes: z.number().int().min(1).max(120).default(10),
+      stun: z.array(z.string().trim().regex(/^stuns?:\S+$/, 'adresse stun:hôte:port')).default([]),
+      turn: z.array(z.string().trim().regex(/^turns?:\S+$/, 'adresse turn:hôte:port (?transport=udp ou tcp)')).default([]),
+    })
+    .default({ live: true, banner: true, audio: true, maxMinutes: 10, stun: [], turn: [] }),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({
@@ -210,6 +227,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     family: { name: config.family.name },
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
+    camera: { live: config.camera.live, banner: config.camera.banner },
     revision,
   };
 }

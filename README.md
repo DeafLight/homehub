@@ -210,7 +210,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches` (avec, en tête, la
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`
-  (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`, `/m/menu`. Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
+  (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`, `/m/menu`, `/m/camera` (parents). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste) ;
   un texte copié d'une recette ou une page enregistrée (`.mhtml`), l'aperçu de l'import ; le lien d'une fiche produit
   du drive (Courses U), le choix de l'article de la liste auquel le relier. Un téléphone retiré depuis la tablette perd l'accès aussitôt.
@@ -249,6 +249,21 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   l'exclure, la ruse d'une photo ; la caméra reste allumée tant que l'écran l'est (éteinte sur la page Visages, et
   quand la page est masquée). Fully Kiosk : activer *Web Content Settings › Enable Webcam Access* et autoriser la
   caméra à Fully dans Android ; la détection de mouvement de Fully se sert aussi de la caméra et peut l'empêcher.
+- **Caméra en direct** (téléphone d'un parent, onglet Caméra, `/m/camera`) : la caméra de face de la tablette en
+  direct, avec le son. La diffusion démarre à l'ouverture de l'onglet et s'arrête en le quittant, quand la page est
+  masquée (écran éteint, autre appli ; elle reprend au retour), au bout de `camera.maxMinutes` (10 min par défaut,
+  « Relancer »), ou si la tablette ne répond plus. Pendant ce temps, la tablette affiche en haut de tous ses écrans
+  (veille comprise) un bandeau **« Caméra en direct · Alex »** ; `camera.banner: false` le retire. Réservée aux
+  parents, depuis leur téléphone (ni un enfant, ni la tablette elle-même) : le serveur le vérifie à chaque échange.
+  Image et son vont directement de la tablette au téléphone (WebRTC, chiffré) ; le serveur ne fait que passer les
+  messages de connexion, n'en garde aucun et n'enregistre rien. La caméra est la même que celle de la reconnaissance
+  faciale et du scanner : elle n'est pas ouverte deux fois. Activée par défaut (`camera.live: false` la coupe), le
+  son aussi (`camera.audio`). **Hors de la maison (4G)**, il faut un relais TURN : voir
+  [Caméra en direct hors de la maison](#caméra-en-direct-hors-de-la-maison). **Fully Kiosk** : activer *Enable
+  Webcam Access* et *Enable Microphone Access* (*Web Content Settings*), autoriser caméra et micro à Fully dans
+  Android ; écran éteint, Android coupe la caméra et la page de la tablette ne répond plus (le téléphone affiche
+  « Tablette injoignable ») : garder l'écran allumé (*Keep Screen On*) pour regarder à tout moment ; la détection de
+  mouvement de Fully (*Motion Detection*) se sert aussi de la caméra frontale et peut la prendre : la laisser coupée.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -538,6 +553,13 @@ holidays:            # facultatif : vacances scolaires (la page « Vacances scol
   academie: Nantes   # ou zone: B (A, B ou C) ; Corse et outre-mer : academie: Corse, Réunion…
 recipes:             # facultatif
   allowedHosts: []   # sites autorisés malgré une adresse privée (un serveur de recettes de la maison) ; défaut : aucun
+camera:              # facultatif : caméra en direct (valeurs par défaut)
+  live: true         # onglet Caméra des parents
+  banner: true       # bandeau « Caméra en direct · <parent> » sur la tablette
+  audio: true        # le son de la tablette aussi
+  maxMinutes: 10     # arrêt automatique
+  stun: []           # ex. [stun:maison.example.org:3478]
+  turn: []           # ex. [turn:maison.example.org:3478?transport=udp] ; secret : HOMEHUB_TURN_SECRET
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -554,7 +576,30 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
+| `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
+
+### Caméra en direct hors de la maison
+
+Sur le Wi-Fi de la maison, la tablette et le téléphone se joignent directement : rien à configurer. En 4G, il faut
+un relais **TURN** joignable depuis Internet, par exemple coturn sur le NAS (conteneur `coturn/coturn`) :
+
+```ini
+# turnserver.conf
+listening-port=3478
+use-auth-secret
+static-auth-secret=<même valeur que HOMEHUB_TURN_SECRET>
+realm=maison.example.org
+min-port=49160
+max-port=49200
+no-cli
+```
+
+Sur la box : rediriger le port 3478 (UDP et TCP) et la plage 49160–49200 (UDP) vers le NAS. Dans homehub.yaml :
+`camera.stun: [stun:maison.example.org:3478]` et `camera.turn: [turn:maison.example.org:3478?transport=udp,
+turn:maison.example.org:3478?transport=tcp]` ; dans app.env, `HOMEHUB_TURN_SECRET` (ex. `openssl rand -base64 32`).
+HomeHub donne à chaque diffusion des identifiants TURN éphémères (valables le temps de la diffusion plus une heure),
+jamais le secret. Le relais ne voit passer que du trafic chiffré de bout en bout (DTLS-SRTP).
 
 ## Architecture
 
@@ -672,6 +717,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/transit/routes?from=lat,lon&to=lat,lon` | `{ routes }` : lignes directes entre deux points, de la plus rapide à la plus lente |
 | `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ windows, members }` ; enregistrer : `{ windows, members }`, un parent |
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
+| `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
+| `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats ou fin (`{ kind: "offer" \| "candidate" \| "bye", … }`) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
+| `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |

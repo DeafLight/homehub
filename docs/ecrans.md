@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.64.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.65.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -277,6 +277,16 @@ relient depuis le menu.
 Les tâches s'ouvrent filtrées sur la personne du téléphone (ici Léa) ; si elle n'a rien à faire, sur « Tous ». Son
 bouton reste affiché après « Tous », même à 0, pour revenir à ses tâches ; les autres n'ont un bouton que s'ils ont
 une tâche. Même règle sur la tablette pour le profil d'où l'on ouvre les listes.
+
+### Caméra en direct (téléphone d'un parent)
+
+Onglet Caméra, pour les parents : la caméra de face de la tablette en direct (ici la fausse caméra de Chrome). Le son
+demande souvent un premier geste : « Activer le son ». La diffusion s'arrête en quittant l'onglet ou quand la page est
+masquée. Pendant ce temps, la tablette affiche le bandeau « Caméra en direct · Alex » en haut de tous ses écrans.
+
+<img src="images/telephone-camera.png" alt="Onglet Caméra du téléphone d'Alex, en direct" width="260">
+
+![Accueil de la tablette avec le bandeau Caméra en direct](images/tablette-camera-direct.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 

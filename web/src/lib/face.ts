@@ -5,6 +5,7 @@
 // d'Android System WebView fausse ce calcul sans erreur (même empreinte pour tous les visages).
 import type { Human } from '@vladmandic/human';
 import type { FaceBackend } from '../../../shared/types.ts';
+import { cameraShare } from './camera-share.ts';
 
 export type FaceReading = {
   embedding: number[];
@@ -102,13 +103,24 @@ export function cameraError(err: unknown): string {
   return `Caméra indisponible : ${(err as Error)?.message ?? err}`;
 }
 
-/** Caméra de face de la tablette, affichée dans `video`. Renvoie la fonction qui l'éteint. */
+/** Réglages de la caméra de face de la tablette (reconnaissance faciale, caméra en direct). */
+export const FRONT_CAMERA: MediaStreamConstraints = { video: { facingMode: 'user', width: 640, height: 480 }, audio: false };
+
+/**
+ * Caméra de face de la tablette, affichée dans `video`. Renvoie la fonction qui la rend (elle s'éteint quand plus
+ * personne ne s'en sert : la caméra en direct peut la garder allumée, voir camera-share.ts).
+ */
 export async function startCamera(video: HTMLVideoElement): Promise<() => void> {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
+  const { stream, release } = await cameraShare.acquire('user', FRONT_CAMERA);
   video.srcObject = stream;
-  await video.play();
+  try {
+    await video.play();
+  } catch (err) {
+    release();
+    throw err;
+  }
   return () => {
-    for (const track of stream.getTracks()) track.stop();
-    video.srcObject = null;
+    release();
+    if (video.srcObject === stream) video.srcObject = null;
   };
 }

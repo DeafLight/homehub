@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_MENU_PATH, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
+import { PHONE_MENU_PATH, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
 
 describe('stock du téléphone', () => {
   it('a sa propre adresse, aller et retour', () => {
@@ -38,6 +38,11 @@ describe('sport de la tablette', () => {
     expect(parseRoute('/semaine')).toMatchObject({ name: 'week' });
   });
 
+  it('caméra en direct : diffusée par les pages de la tablette (scanner et visages compris), jamais du téléphone', () => {
+    for (const path of ['/', '/p/lea', '/scanner', '/visages', '/recette/abc/cuisine']) expect(hostsLiveCamera(parseRoute(path))).toBe(true);
+    for (const path of ['/m', '/m/camera', '/m/scanner', '/appairer', '/partager']) expect(hostsLiveCamera(parseRoute(path))).toBe(false);
+  });
+
   it('la séance guidée retient la personne reconnue, comme le scanner ; pas la page Sport', () => {
     expect(holdsActor(parseRoute('/seance/p/alex'))).toBe(true);
     expect(holdsActor(parseRoute('/scanner'))).toBe(true);
@@ -72,6 +77,7 @@ describe('recettes', () => {
     expect(parseRoute('/recettes')).toEqual({ name: 'recipes', back: { name: 'home' } });
     expect(parseRoute('/recettes/p/alex')).toEqual({ name: 'recipes', back: { name: 'dashboard', ownerId: 'alex' } });
     expect(parseRoute('/m/recettes')).toEqual({ name: 'phone', tab: 'recipes' });
+    expect(parseRoute('/m/camera')).toEqual({ name: 'phone', tab: 'camera' });
   });
 
   it('fiche, édition, mode cuisine et nouvelle recette, aller et retour', () => {

@@ -14,6 +14,16 @@ describe('parseConfig', () => {
     expect(config.faces.backend).toBe('webgl');
   });
 
+  it('caméra en direct : activée par défaut, bandeau et son compris ; au front, ni serveurs ni durée', () => {
+    const config = parseConfig({ members: [alex] });
+    expect(config.camera).toEqual({ live: true, banner: true, audio: true, maxMinutes: 10, stun: [], turn: [] });
+    expect(toPublicConfig(config, 'r').camera).toEqual({ live: true, banner: true });
+    const off = parseConfig({ members: [alex], camera: { banner: false, turn: ['turn:maison.example.org:3478?transport=udp'] } });
+    expect(toPublicConfig(off, 'r').camera).toEqual({ live: true, banner: false });
+    expect(JSON.stringify(toPublicConfig(off, 'r'))).not.toContain('turn:');
+    expect(() => parseConfig({ members: [alex], camera: { turn: ['https://maison.example.org'] } })).toThrow();
+  });
+
   it('calcul des empreintes : choisi dans homehub.yaml, transmis à la tablette', () => {
     const config = parseConfig({ members: [alex], faces: { backend: 'webgl-safe' } });
     expect(config.faces.threshold).toBe(0.55); // les autres réglages gardent leur valeur par défaut

@@ -28,6 +28,8 @@ export type PublicConfig = {
   ui: { idleTimeoutSeconds: number; screensaverMinutes: number };
   /** Détection des visages sur la tablette (voir `faces` dans homehub.yaml). */
   faces: { minConfidence: number; minSize: number; backend: FaceBackend };
+  /** Caméra en direct (voir `camera` dans homehub.yaml) : onglet des parents, bandeau sur la tablette. */
+  camera: { live: boolean; banner: boolean };
   /** Empreinte de la configuration : change à chaque modification du fichier. */
   revision: string;
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import LiveCameraHost from './components/LiveCameraHost.svelte';
   import Presence from './components/Presence.svelte';
   import Screensaver from './components/Screensaver.svelte';
   import StatusBanner from './components/StatusBanner.svelte';
@@ -133,6 +134,7 @@
 {/if}
 
 <Presence />
+<LiveCameraHost />
 <Screensaver />
 <Timers />
 

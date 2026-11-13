@@ -349,8 +349,9 @@ if (process.env.DOCS_SERVE) {
 const chrome = spawn(chromePath, [
   '--headless=new', `--remote-debugging-port=${PORT + 1}`, `--user-data-dir=${join(work, 'chrome')}`,
   '--no-first-run', '--hide-scrollbars', '--lang=fr-FR', '--force-color-profile=srgb',
-  // Fausse caméra (mire animée), autorisée seulement pour la capture du scanner du téléphone (voir `camera`).
-  '--use-fake-device-for-media-stream', 'about:blank',
+  // Fausse caméra (mire animée) et faux micro, autorisés seulement pour le scanner du téléphone (voir `camera`) et la
+  // caméra en direct. Candidats WebRTC sans nom mDNS : la tablette et le téléphone se joignent sur la même machine.
+  '--use-fake-device-for-media-stream', '--disable-features=WebRtcHideLocalIpsWithMdns', 'about:blank',
 ], { stdio: 'ignore' });
 children.push(chrome);
 let wsUrl = '';
@@ -393,9 +394,8 @@ const fakeClock = () => `(() => {
 const asPhone = (ownerId: keyof typeof TOKENS) =>
   `localStorage.setItem('homehub.phone', JSON.stringify({ token: '${TOKENS[ownerId]}', ownerId: '${ownerId}' }));`;
 
-async function shoot(name: string, url: string, metrics: Metrics, { init = '', after = '', wait = 3000, settle = 1000, camera = false } = {}) {
-  if (only && !only.test(name)) return;
-  if (camera) await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture'] });
+/** Onglet ouvert sur `url` (avec l'horloge fictive et `init` avant le chargement), à capturer puis fermer. */
+async function openTarget(url: string, metrics: Metrics, init = '') {
   const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await send('Page.enable', {}, sessionId);
@@ -405,16 +405,29 @@ async function shoot(name: string, url: string, metrics: Metrics, { init = '', a
   const loaded = new Promise<void>((r) => listeners.push((m) => m.sessionId === sessionId && m.method === 'Page.loadEventFired' && r()));
   await send('Page.navigate', { url }, sessionId);
   await loaded;
+  return {
+    evaluate: (expression: string) => send('Runtime.evaluate', { expression, returnByValue: true }, sessionId),
+    async capture(name: string) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+      writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
+      console.log(`docs/images/${name}.png`);
+    },
+    close: () => send('Target.closeTarget', { targetId }),
+  };
+}
+
+async function shoot(name: string, url: string, metrics: Metrics, { init = '', after = '', wait = 3000, settle = 1000, camera = false } = {}) {
+  if (only && !only.test(name)) return;
+  if (camera) await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture'] });
+  const target = await openTarget(url, metrics, init);
   await sleep(wait);
   if (after) {
-    await send('Runtime.evaluate', { expression: after }, sessionId);
+    await target.evaluate(after);
     await sleep(settle);
   }
-  const { data } = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
-  writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
-  await send('Target.closeTarget', { targetId });
+  await target.capture(name);
+  await target.close();
   if (camera) await send('Browser.resetPermissions');
-  console.log(`docs/images/${name}.png`);
 }
 
 mkdirSync(OUT, { recursive: true });
@@ -641,6 +654,27 @@ const fakeDetector = `globalThis.BarcodeDetector = class {
   async detect() { return [{ rawValue: '${DOCS_PRODUCTS.pates}', format: 'ean_13' }]; }
 };`;
 await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeDetector, camera: true, wait: 4000 });
+
+// Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
+// capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct'];
+if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
+  await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
+  const tablet = await openTarget(`${BASE}/`, TABLET);
+  await sleep(3000);
+  const phone = await openTarget(`${BASE}/m/camera`, PHONE, asPhone('alex'));
+  for (let i = 0; i < 40; i++) {
+    await sleep(500);
+    const live = await phone.evaluate(`document.querySelector('.camera video')?.readyState >= 2 && !!document.querySelector('.camera .bar')`);
+    if (live.result?.value) break;
+  }
+  await sleep(1500);
+  await phone.capture('telephone-camera');
+  await tablet.capture('tablette-camera-direct');
+  await phone.close();
+  await tablet.close();
+  await send('Browser.resetPermissions');
+}
 
 // Frais à acheter plus tard : deux repas de la semaine prochaine, ajoutés en dernier (les autres captures gardent la
 // liste sans eux). Riz sauté lundi 9 : les petits pois attendent vendredi 6 (« Demain ») ; poulet aux courgettes

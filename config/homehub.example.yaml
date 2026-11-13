@@ -132,6 +132,21 @@ ui:
 holidays:
   academie: Nantes
 
+# Caméra en direct (facultatif, valeurs par défaut ci-dessous) : un parent regarde, depuis son téléphone (onglet
+# Caméra), la caméra de face de la tablette, qui affiche alors un bandeau « Caméra en direct · <parent> ».
+#   live       : l'onglet existe (false : la coupe partout)
+#   banner     : bandeau sur la tablette pendant la diffusion
+#   audio      : le son de la tablette aussi (Fully Kiosk : Enable Microphone Access)
+#   maxMinutes : la diffusion s'arrête d'elle-même au bout de ce temps (1 à 120)
+#   stun, turn : relais pour regarder hors de la maison (4G), voir le README ; secret TURN dans HOMEHUB_TURN_SECRET
+# camera:
+#   live: true
+#   banner: true
+#   audio: true
+#   maxMinutes: 10
+#   stun: [stun:maison.example.org:3478]
+#   turn: [turn:maison.example.org:3478?transport=udp, turn:maison.example.org:3478?transport=tcp]
+
 # Recettes (facultatif) : le carnet lit la page d'une recette partagée, seulement sur un site à l'adresse publique.
 #   allowedHosts : noms de sites autorisés malgré une adresse locale ou privée (un serveur de recettes de la maison) ;
 #                  aucun par défaut

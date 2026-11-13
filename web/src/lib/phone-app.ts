@@ -7,8 +7,11 @@ import type { PhoneTab } from './route.ts';
 
 export type PhoneTabItem = { tab: PhoneTab; label: string; icon: IconName };
 
-/** Onglets du bas : Recettes pour tous ; Sport seulement pour un profil qui a un programme. */
-export function phoneTabs(hasFitness: boolean): PhoneTabItem[] {
+/**
+ * Onglets du bas : Recettes pour tous ; Sport seulement pour un profil qui a un programme ; Caméra pour un parent,
+ * quand la caméra en direct est activée (le serveur le revérifie).
+ */
+export function phoneTabs(hasFitness: boolean, camera = false): PhoneTabItem[] {
   return [
     { tab: 'shopping', label: 'Courses', icon: 'cart' },
     { tab: 'tasks', label: 'Tâches', icon: 'check' },
@@ -16,6 +19,7 @@ export function phoneTabs(hasFitness: boolean): PhoneTabItem[] {
     { tab: 'notes', label: 'Mots', icon: 'message' },
     { tab: 'recipes', label: 'Recettes', icon: 'book' },
     ...(hasFitness ? [{ tab: 'sport' as const, label: 'Sport', icon: 'dumbbell' as const }] : []),
+    ...(camera ? [{ tab: 'camera' as const, label: 'Caméra', icon: 'video' as const }] : []),
   ];
 }
 

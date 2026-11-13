@@ -16,6 +16,7 @@
   import SportPanel from '../components/fitness/SportPanel.svelte';
   import BottomSheet from '../components/phone/BottomSheet.svelte';
   import PhoneAgenda from '../components/phone/PhoneAgenda.svelte';
+  import PhoneCamera from '../components/phone/PhoneCamera.svelte';
   import PhoneNav from '../components/phone/PhoneNav.svelte';
   import PhoneNotes from '../components/phone/PhoneNotes.svelte';
   import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
@@ -43,12 +44,12 @@
   const RECIPES_REFRESH_MS = 5 * 60_000;
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
-  // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes et, pour un adulte
-  // qui a un programme, le sport. Tout ce qui est coché ou ajouté l’est au nom de ce profil. `shared` : texte reçu par
-  // « Partager », qui ouvre directement l'ajout ; `sharedRecipe` : lien, texte copié d'une page ou page enregistrée
-  // reçus, qui ouvrent l'import de recette (l'ajout à une liste reste proposé pour un lien) ; `sharedProduct` : lien
-  // d'une fiche produit du drive, qui propose de le relier à un article de la liste. Règles : lib/phone-app.ts ;
-  // onglets : components/phone/.
+  // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes, pour un adulte qui
+  // a un programme le sport, et pour un parent la caméra de la tablette en direct. Tout ce qui est coché ou ajouté
+  // l’est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout ; `sharedRecipe` :
+  // lien, texte copié d'une page ou page enregistrée reçus, qui ouvrent l'import de recette (l'ajout à une liste reste
+  // proposé pour un lien) ; `sharedProduct` : lien d'une fiche produit du drive, qui propose de le relier à un article
+  // de la liste. Règles : lib/phone-app.ts ; onglets : components/phone/.
   type Props = { tab: PhoneTab; shared?: string; sharedRecipe?: SharedRecipe; sharedProduct?: string };
   let { tab, shared, sharedRecipe, sharedProduct }: Props = $props();
   const sharedLink = untrack(() => (sharedRecipe?.kind === 'link' ? sharedRecipe.link : undefined));
@@ -196,7 +197,7 @@
     if (sharedProduct !== undefined) navigate(phonePath('shopping'));
   }
 
-  const TABS = phoneTabs(Boolean(member?.fitness));
+  const TABS = phoneTabs(Boolean(member?.fitness), Boolean(member?.parent && config.camera.live));
   let scroller = $state<HTMLElement | null>(null);
   const profileOf = (id: string) => profiles.find((p) => p.id === id);
 </script>
@@ -246,6 +247,12 @@
           {/if}
         {:else if recipes.error}
           <p class="muted">Impossible de charger le carnet : {recipes.error}</p>
+        {/if}
+      {:else if tab === 'camera'}
+        {#if member?.parent && config.camera.live}
+          <PhoneCamera {api} bannerShown={config.camera.banner} />
+        {:else}
+          <p class="muted">La caméra en direct est réservée aux parents.</p>
         {/if}
       {:else if tab === 'sport'}
         {#if member?.fitness}

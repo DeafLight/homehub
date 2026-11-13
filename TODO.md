@@ -217,6 +217,12 @@ Reste :
       d'abord, l'autre au bon bilan suivant), exercices changés signalés ; réglage « sans sauts ».
 - [x] Tâches, 0.64.1 : le bouton de la personne du téléphone ne disparaît plus après « Tous » (épinglé, même à 0) ;
       ouverture sur « Tous » quand elle n'a rien à faire. Même règle sur la tablette pour le profil d'origine.
+- [x] Caméra en direct, 0.65.0 : onglet Caméra des parents, la caméra de face de la tablette en direct avec le son
+      (WebRTC, relais TURN pour la 4G) ; bandeau « Caméra en direct · <parent> » sur la tablette (désactivable),
+      arrêt en quittant l'onglet, page masquée ou au bout de `camera.maxMinutes` ; caméra partagée avec la
+      reconnaissance faciale et le scanner.
+- [ ] Caméra en direct, vérifier en conditions réelles : Fully Kiosk (caméra et micro autorisés, écran allumé,
+      détection de mouvement coupée), un téléphone en 4G avec coturn sur le NAS, le son à l'ouverture de l'onglet.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

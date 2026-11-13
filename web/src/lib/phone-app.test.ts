@@ -11,6 +11,9 @@ describe('appli du téléphone', () => {
   it('onglet Sport seulement avec un programme', () => {
     expect(phoneTabs(false).map((t) => t.tab)).toEqual(['shopping', 'tasks', 'agenda', 'notes', 'recipes']);
     expect(phoneTabs(true).at(-1)).toEqual({ tab: 'sport', label: 'Sport', icon: 'dumbbell' });
+    // Caméra en direct : un parent, quand elle est activée ; en dernier.
+    expect(phoneTabs(true, true).map((t) => t.tab).slice(-2)).toEqual(['sport', 'camera']);
+    expect(phoneTabs(false, false).some((t) => t.tab === 'camera')).toBe(false);
   });
 
   it('mots reçus : pour moi ou la famille, pas les miens, les nouveaux d’abord', () => {
