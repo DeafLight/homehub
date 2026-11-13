@@ -5,6 +5,7 @@
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
   import { revert } from '../lib/checkbox.ts';
+  import { filterChips, openTaskCount } from '../lib/task-filter.ts';
 
   // Tâches de la famille, triées par le serveur (échéance, puis sans date, puis faites aujourd'hui), avec un filtre
   // par personne. Tailles réglables par le parent (--list-font, --list-row) : tablette ou téléphone.
@@ -14,17 +15,20 @@
     now: Date;
     /** Personne affichée (null : tout le monde). */
     filter: string | null;
+    /** Personnes dont le bouton reste affiché même sans tâche (la personne du téléphone, le profil d'origine). */
+    pinned?: string[];
     readOnly?: boolean;
     onFilter(ownerId: string | null): void;
     onToggle(task: ListTask, done: boolean): void;
     onRemove(task: ListTask): void;
   };
-  let { tasks, profiles, now, filter, readOnly = false, onFilter, onToggle, onRemove }: Props = $props();
+  let { tasks, profiles, now, filter, pinned = [], readOnly = false, onFilter, onToggle, onRemove }: Props = $props();
 
   const profileOf = (id: string | null) => profiles.find((p) => p.id === id);
   const nameOf = (id: string | null) => profileOf(id)?.name ?? null;
   const shown = $derived(filter ? tasks.filter((t) => t.ownerId === filter) : tasks);
-  const openCount = (ownerId: string | null) => tasks.filter((t) => !t.done && (!ownerId || t.ownerId === ownerId)).length;
+  const openCount = (ownerId: string | null) => openTaskCount(tasks, ownerId);
+  const chips = $derived(filterChips(profiles.map((p) => p.id), tasks, filter, pinned));
 </script>
 
 <div class="tasks">
@@ -33,7 +37,7 @@
       Tous · {openCount(null)}
     </button>
     {#each profiles as profile (profile.id)}
-      {#if tasks.some((t) => t.ownerId === profile.id) || filter === profile.id}
+      {#if chips.includes(profile.id)}
         <button
           type="button"
           role="radio"

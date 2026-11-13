@@ -199,7 +199,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   rayon » retire le signalement. Le produit garde la trace de sa rupture (« Introuvable ou en rupture le 12/11 ») pour
   la prochaine fois, effacée quand il repart au panier ; « Nouveau panier » efface les signalements.
   Tâches : pour qui, échéance (en retard en rouge), répétition (la suivante est créée quand on coche), filtre par
-  personne ; une tâche faite reste visible jusqu'à minuit. Les tâches d'un membre apparaissent sur son dashboard, les
+  personne ; une tâche faite reste visible jusqu'à minuit. Le filtre s'ouvre sur la personne du téléphone (ou du
+  dashboard d'où l'on vient) si elle a quelque chose à faire, sinon sur « Tous » ; son bouton reste toujours là, même
+  à 0, les autres personnes n'en ont un que si elles ont une tâche. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
 - **Mots** : envoyés depuis un profil à un autre, ou à toute la famille (200 caractères) : depuis son téléphone
   (onglet Mots) ou la tablette (bloc « Mots » d'un dashboard, envoyé depuis ce profil ; on choisit seulement à qui). Le

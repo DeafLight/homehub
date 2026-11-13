@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy } from 'svelte';
   import type { DriveView } from '../../../shared/drive.ts';
   import { localDay } from '../../../shared/dates.ts';
   import { FAMILY_ID, type ShoppingItem } from '../../../shared/types.ts';
@@ -12,6 +12,7 @@
   import DriveProductForm from '../components/drive/DriveProductForm.svelte';
   import DriveSettingsForm from '../components/drive/DriveSettingsForm.svelte';
   import { getAppContext } from '../lib/context.ts';
+  import { initialTaskFilter } from '../lib/task-filter.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { type PageRoute, detailPath } from '../lib/route.ts';
@@ -47,7 +48,13 @@
   /** Écriture réservée à la tablette (et aux téléphones reliés) : ailleurs, les listes sont en lecture seule. */
   const readOnly = $derived(me.data !== null && !me.data.kiosk && !me.data.device);
 
-  let filter = $state<string | null>(untrack(() => (origin !== FAMILY_ID ? origin : null)));
+  // Profil d'origine (dashboard d'une personne) : même règle que sur le téléphone, ouverture sur lui s'il a à faire,
+  // sinon sur « Tous », et son bouton reste épinglé.
+  const person = $derived(origin !== FAMILY_ID ? origin : null);
+  let filter = $state<string | null | undefined>(undefined);
+  $effect(() => {
+    if (filter === undefined && lists.data) filter = initialTaskFilter(lists.data.tasks, person);
+  });
   let adding = $state(false);
 
   async function add(input: AddInput) {
@@ -113,7 +120,8 @@
             tasks={data.tasks}
             {profiles}
             now={clock.now}
-            {filter}
+            filter={filter ?? null}
+            pinned={person ? [person] : []}
             {readOnly}
             onFilter={(id) => (filter = id)}
             onToggle={lists.setTaskDone}

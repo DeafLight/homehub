@@ -9,6 +9,7 @@
   import NoteForm from '../components/NoteForm.svelte';
   import ShoppingPanel from '../components/ShoppingPanel.svelte';
   import TasksPanel from '../components/TasksPanel.svelte';
+  import { initialTaskFilter } from '../lib/task-filter.ts';
   import DriveFill from '../components/drive/DriveFill.svelte';
   import DriveProductForm from '../components/drive/DriveProductForm.svelte';
   import DriveSettingsForm from '../components/drive/DriveSettingsForm.svelte';
@@ -103,7 +104,12 @@
     check.destroy();
   });
 
-  let filter = $state<string | null>(me?.id ?? null);
+  // Filtre des tâches : choisi une fois les listes chargées (la personne si elle a à faire, sinon « Tous »), puis
+  // laissé à la main de la personne ; son bouton reste épinglé pour y revenir.
+  let filter = $state<string | null | undefined>(undefined);
+  $effect(() => {
+    if (filter === undefined && lists.data) filter = initialTaskFilter(lists.data.tasks, me?.id ?? null);
+  });
   let writing = $state(false);
   let noteError = $state<string | null>(null);
 
@@ -286,7 +292,8 @@
             tasks={lists.data.tasks}
             {profiles}
             now={clock.now}
-            {filter}
+            filter={filter ?? null}
+            pinned={[me.id]}
             onFilter={(id) => (filter = id)}
             onToggle={lists.setTaskDone}
             onRemove={lists.removeTask}

@@ -215,6 +215,8 @@ Reste :
       tablette) ; réglage « élastique de tirage » (rowing à l'élastique pour le dos de chaque séance) ; bilan qui monte
       dès 2 bonnes séances, demandé une fois la semaine finie ; palier suivant en deux temps (la moitié des exercices
       d'abord, l'autre au bon bilan suivant), exercices changés signalés ; réglage « sans sauts ».
+- [x] Tâches, 0.64.1 : le bouton de la personne du téléphone ne disparaît plus après « Tous » (épinglé, même à 0) ;
+      ouverture sur « Tous » quand elle n'a rien à faire. Même règle sur la tablette pour le profil d'origine.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 
