@@ -272,7 +272,9 @@ personne depuis son propre téléphone.
 - [x] 1 bis, 0.69.1 : un vrai message du téléphone (1 s, webm/opus) affichait le bandeau sans son, pour toujours. Le
       lecteur n'était gardé par rien et le ramasse-miettes le finalisait pendant la lecture ; il est gardé dans un
       champ, et un garde-fou (durée + 3 s, 40 s si inconnue) termine la lecture et cache le bandeau quoi qu'il arrive.
-- [ ] 1 ter. À vérifier après déploiement : appli vivante après veille et redémarrage de la télé ; Netflix.
+- [x] 1 ter. Vérifié après déploiement : appli vivante après une veille courte et un redémarrage de la télé, son
+      baissé aussi sous Netflix. 0.71.1 : `installer.ps1` met l'appli dans la liste blanche Doze à chaque installation
+      (`dumpsys deviceidle whitelist`), pour qu'une longue veille ne lui coupe ni le réseau ni le processeur.
 - [ ] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0).
 - [ ] 3. Alerte du minuteur de cuisine sur la télé.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
