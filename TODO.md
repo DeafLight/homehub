@@ -262,8 +262,10 @@ personne depuis son propre téléphone.
       (0.69.0) : appli `tv-app/` (Kotlin, sans bibliothèque), appairage par code tapé sur la tablette (Téléphones ›
       Télés), interrogation longue, compte rendu au téléphone, télé absente signalée ; destination « Télé du salon »
       dans l'onglet Caméra des parents ; fausse appli dans le monde fictif.
-- [ ] 1 bis. À vérifier sur la vraie télé : le son baisse-t-il sous Netflix, YouTube, la télé en direct (tuner, HDMI) ?
-      Sinon, baisser le volume nous-mêmes le temps du message. Appli vivante après veille et redémarrage ?
+- [x] 1 bis. Vérifié sur la vraie télé (Android 11, avant publication, contre le monde fictif par `adb reverse`) :
+      appairage par code, message lu en 0,2 à 0,3 s, son baissé puis rendu sans pause sous YouTube et sous l'appli
+      TV de la box (le système baisse le son lui-même, `LOSS_TRANSIENT_CAN_DUCK`), bandeau affiché.
+- [ ] 1 ter. À vérifier après déploiement : appli vivante après veille et redémarrage de la télé ; Netflix.
 - [ ] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0).
 - [ ] 3. Alerte du minuteur de cuisine sur la télé.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).

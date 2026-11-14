@@ -80,8 +80,16 @@ async function setup({ talk = true, reportMs = 2_000 } = {}) {
     return { token: state.token, id: state.screen.id };
   }
   const listen = (token: string, after = '') => call('GET', `/screen/events?after=${after}`, { from: TV, token, headers: PROTOCOL });
+  /** La télé redemande jusqu'à recevoir un événement (l'envoi du téléphone peut arriver après une attente vide). */
+  async function nextEvents(token: string, after: string) {
+    for (let i = 0; i < 100; i++) {
+      const found = (await (await listen(token, after)).json()) as ScreenEvents;
+      if (found.events.length) return found;
+    }
+    throw new Error('aucun événement reçu');
+  }
 
-  return { call, tablet, pairTv, listen, alex: await phone('alex'), lea: await phone('lea'), advance: (ms: number) => (now += ms) };
+  return { call, tablet, pairTv, listen, nextEvents, alex: await phone('alex'), lea: await phone('lea'), advance: (ms: number) => (now += ms) };
 }
 
 const audio = (type = 'audio/webm') => ({ raw: new Uint8Array([1, 2, 3, 4]), headers: { 'Content-Type': type } });
@@ -142,13 +150,13 @@ describe('API HomeHub TV : droits de la télé', () => {
 
 describe('API HomeHub TV : message vocal', () => {
   it('le téléphone d’un parent envoie, la télé télécharge, lit et rend compte', async () => {
-    const { call, pairTv, listen, alex } = await setup();
+    const { call, pairTv, listen, nextEvents, alex } = await setup();
     const tv = await pairTv();
     await listen(tv.token);
     expect(await (await call('GET', '/screens/targets', { token: alex })).json()).toEqual([{ id: tv.id, name: 'Télé du salon', online: true }]);
 
     const sending = call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio('audio/webm;codecs=opus') });
-    const { events } = (await (await listen(tv.token, '0')).json()) as ScreenEvents;
+    const { events } = await nextEvents(tv.token, '0');
     expect(events).toEqual([expect.objectContaining({ seq: 1, kind: 'voice', title: 'Message d’Alex', contentType: 'audio/webm' })]);
     const event = events[0]!;
     expect(event.audio).toMatch(/^\/api\/screen\/clips\/[\w-]+\.webm$/);
@@ -163,11 +171,11 @@ describe('API HomeHub TV : message vocal', () => {
   });
 
   it('échec rapporté par la télé, ou pas de nouvelles : 502 avec la raison', async () => {
-    const { call, pairTv, listen, alex } = await setup({ reportMs: 50 });
+    const { call, pairTv, listen, nextEvents, alex } = await setup({ reportMs: 50 });
     const tv = await pairTv();
     await listen(tv.token);
     const sending = call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio() });
-    const { events } = (await (await listen(tv.token, '0')).json()) as ScreenEvents;
+    const { events } = await nextEvents(tv.token, '0');
     await call('POST', `/screen/events/${events[0]!.id}/report`, { from: TV, token: tv.token, headers: PROTOCOL, body: { ok: false, reason: 'Format illisible' } });
     expect(await (await sending).json()).toEqual({ error: 'Télé du salon : Format illisible' });
 
