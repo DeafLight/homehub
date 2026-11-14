@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Screen } from '../../../shared/screen.ts';
+  import type { Screen, ScreenAlerts } from '../../../shared/screen.ts';
   import { getAppContext } from '../lib/context.ts';
   import { formatDay } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -9,12 +9,15 @@
   // Télés de la maison avec l'appli HomeHub TV (tablette seulement) : l'appli affiche un code de 6 caractères au
   // premier lancement, un parent le tape ici avec le nom de la télé. Une télé n'appartient à personne et n'écrit rien ;
   // elle lit les messages vocaux des parents par-dessus ce qui passe. « Allumée » : l'appli a appelé il y a moins de
-  // 40 s. Le retrait se confirme d'un second geste, par un parent.
+  // 40 s. Le retrait se confirme d'un second geste, par un parent. En dessous, les alertes de la maison sur les télés
+  // (minuteur terminé : bandeau et son, « Arrêter » à la télécommande), changées par un parent.
   const SCREENS_REFRESH_MS = 15_000;
 
   const { api, actor, clock } = getAppContext();
   const screens = createResource(() => api.screens(), SCREENS_REFRESH_MS);
   onDestroy(screens.destroy);
+  const alerts = createResource(() => api.screenAlerts(), 5 * 60_000);
+  onDestroy(alerts.destroy);
 
   let code = $state('');
   let name = $state('Télé du salon');
@@ -39,6 +42,27 @@
       error = (err as Error).message;
     } finally {
       busy = false;
+    }
+  }
+
+  let alertsBusy = $state(false);
+  let alertsError = $state<string | null>(null);
+
+  async function saveAlerts(next: ScreenAlerts) {
+    if (alertsBusy) return;
+    if (!(await actor.allow(null))) {
+      await alerts.refresh();
+      return;
+    }
+    alertsBusy = true;
+    alertsError = null;
+    try {
+      await api.setScreenAlerts(next);
+    } catch (err) {
+      alertsError = (err as Error).message;
+    } finally {
+      alertsBusy = false;
+      await alerts.refresh();
     }
   }
 
@@ -98,6 +122,19 @@
       {#if removeError}<li class="error">{removeError}</li>{/if}
     </ul>
   </div>
+  {#if alerts.data}
+    <div class="alerts">
+      <h3>Alertes sur la télé</h3>
+      <label class="check">
+        <input type="checkbox" checked={alerts.data.timer} disabled={alertsBusy} onchange={(e) => saveAlerts({ ...alerts.data!, timer: e.currentTarget.checked })} />
+        <span>
+          <strong>Minuteurs</strong>
+          <span class="muted small">Un minuteur terminé s’affiche sur la télé allumée, avec un son court ; « Arrêter » à la télécommande l’arrête partout.</span>
+        </span>
+      </label>
+      {#if alertsError}<p class="error">{alertsError}</p>{/if}
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -259,5 +296,41 @@
 
   .error {
     color: var(--danger-fg);
+  }
+
+  .alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-2);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 6px 0;
+  }
+
+  .check input {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin: 2px 0 0;
+    accent-color: var(--rain);
+  }
+
+  .check > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 1.1rem;
   }
 </style>

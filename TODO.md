@@ -294,7 +294,11 @@ personne depuis son propre téléphone.
 - [x] 2 ter. Message écrit, vérifié sur la vraie télé le 15/11/2026 : le bandeau s'affiche (à revoir au fil de
       l'usage : lisible de loin, texte long sur trois lignes, accents et emojis, par-dessus Netflix / YouTube / la
       télé en direct, disparition au bout de `tv.seconds`).
-- [ ] 3. Alerte du minuteur de cuisine sur la télé.
+- [x] 3. Alerte du minuteur de cuisine sur la télé : un minuteur qui se termine s'affiche sur chaque télé allumée
+      (bandeau « Cuisson, C'est l'heure ! », carillon court son baissé) ; le bandeau prend la télécommande sans
+      arrêter l'appli en cours : OK arrête le minuteur partout, Retour masque ; arrêté ailleurs, le bandeau s'en va.
+      Réglage « Minuteurs » dans Téléphones › Télés › Alertes sur la télé (parent). Fausse appli et maquette dans le
+      monde fictif. À vérifier sur la vraie télé : vidéo qui continue quand le bandeau prend le focus.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
 - [ ] 5. Rappels des routines du soir et des nouveaux mots.
 - [ ] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause).

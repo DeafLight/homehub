@@ -7,6 +7,7 @@
 // l'adb local, ou secours), l'un après l'autre, avec compte rendu. Le service dit à HomeHub où en est la télé (écran
 // allumé, appli au premier plan, moyen d'action, adresses) quand cela change, et lui envoie la liste des applis du
 // lanceur quand elle change (installation, retrait).
+// Minuteur terminé (fonction 3) : bandeau qui prend la télécommande, carillon, « Arrêter » (MinuteurAlertes).
 package fr.homehub.tv
 
 import android.app.Notification
@@ -32,6 +33,7 @@ class HubService : Service() {
     private lateinit var prefs: Prefs
     private lateinit var player: VoicePlayer
     private lateinit var banner: OverlayBanner
+    private lateinit var minuteurs: MinuteurAlertes
     private val playback = Executors.newSingleThreadExecutor()
     /** Ordres de la télécommande, l'un après l'autre (à part des messages vocaux, qui durent). */
     private val remote = Executors.newSingleThreadExecutor()
@@ -63,6 +65,7 @@ class HubService : Service() {
         prefs = Prefs(this)
         player = VoicePlayer(this)
         banner = OverlayBanner(this)
+        minuteurs = MinuteurAlertes(this, prefs)
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         telecommande = Telecommande(this) { sendState() }
         HomeHubAccessibility.listener = { sendState() }
@@ -98,6 +101,7 @@ class HubService : Service() {
         HomeHubAccessibility.listener = null
         runCatching { unregisterReceiver(receiver) }
         banner.hide()
+        minuteurs.stop()
         super.onDestroy()
     }
 
@@ -111,7 +115,8 @@ class HubService : Service() {
             if (server == null || token == null) break
             try {
                 val query = after?.let { "?after=$it" } ?: ""
-                val events = parseEvents(HubClient(server, token).call("GET", "/api/screen/events$query", readTimeoutMs = 40_000))
+                val json = HubClient(server, token).call("GET", "/api/screen/events$query", readTimeoutMs = 40_000)
+                val events = parseEvents(json)
                 prefs.status = getString(R.string.status_connected)
                 backoffMs = 2_000L
                 after = events.last
@@ -124,6 +129,7 @@ class HubService : Service() {
                 events.voices.forEach { event -> playback.execute { handleVoice(server, token, event) } }
                 events.remote.forEach { event -> remote.execute { handleRemote(server, token, event) } }
                 events.messages.forEach { event -> remote.execute { handleMessage(server, token, event) } }
+                minuteurs.handle(parseTimerEvents(json))
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {

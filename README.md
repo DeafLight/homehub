@@ -477,6 +477,13 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Lancer ou annuler un minuteur demande quelqu'un de reconnu (n'importe qui, enfant compris) ; arrêter celui qui
   sonne, non. Enregistrés (`timers.json`) : une mise à jour ou un redémarrage du serveur ne les perd pas ; celui qui
   s'est terminé entre-temps sonne au retour.
+  **Sur la télé** (appli HomeHub TV) : un minuteur qui se termine s'affiche aussi sur chaque télé allumée, en haut à
+  droite, par-dessus ce qui passe (nom du minuteur, « C'est l'heure ! », bouton **Arrêter**), avec un carillon court,
+  son du programme baissé le temps du carillon. Le bandeau prend la télécommande sans arrêter l'appli en cours : **OK**
+  arrête le minuteur partout (tablette, téléphones, autres télés), **Retour** masque le bandeau sur cette télé. Arrêté
+  ailleurs, le bandeau s'en va aussitôt ; sans geste, au bout de 10 min. Une télé allumée dans les 5 min qui suivent la
+  fin le reçoit encore. Réglage pour toutes les télés : tablette, **Téléphones** › **Télés** › **Alertes sur la
+  télé** › **Minuteurs** (actif par défaut, changé par un parent reconnu ; `screen-alerts.json`).
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -673,7 +680,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`) et leurs applis (`screen-apps.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) et le réglage de leurs alertes (`screen-alerts.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
@@ -787,6 +794,9 @@ server/
   stock-api.ts             routes du stock et du scanner
   services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
   screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
+  screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
+  services/timer-alerts.ts guetteur des minuteurs : alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
+  sources/screen-alerts.ts réglage des alertes télé (screen-alerts.json)
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
@@ -854,8 +864,10 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/cast/clips/:token` | le message, pour l'appareil Cast (sans authentification : adresse aléatoire, valable 5 minutes ; 404 ensuite) |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `POST /api/screen/pairing`, `GET /api/screen/pairing/:id` | appli HomeHub TV, sans jeton (en-tête `X-HomeHub-Screen: 1`, 426 sinon) : demande d'appairage `{ system, app }` → `{ id, code, expiresAt }` (5 minutes) ; attente de la confirmation (25 s au plus) → `{ status: "pending" }` ou `{ status: "paired", token, screen }` (jeton remis une fois ; 410 code expiré) |
-| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }`) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
+| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }` ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
+| `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
+| `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |
 | `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |
 | `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
 | `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `volup`, `voldown`, `mute`) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |

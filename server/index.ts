@@ -16,6 +16,7 @@ import { createVoiceMessages } from './services/voice-messages.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
 import { createIcalAgendaSource } from './sources/ical.ts';
 import { createDeviceStore } from './sources/devices.ts';
+import { createScreenAlertStore } from './sources/screen-alerts.ts';
 import { createScreenAppStore } from './sources/screen-apps.ts';
 import { createScreenStore } from './sources/screens.ts';
 import { createFitnessStore } from './sources/fitness.ts';
@@ -102,6 +103,7 @@ const lists = createListsStore({ path: join(stateDir, 'lists.json'), clock });
 const devices = createDeviceStore({ path: join(stateDir, 'devices.json'), clock });
 const screens = createScreenStore({ path: join(stateDir, 'screens.json'), clock });
 const screenApps = createScreenAppStore({ path: join(stateDir, 'screen-apps.json'), clock });
+const screenAlerts = createScreenAlertStore({ path: join(stateDir, 'screen-alerts.json') });
 const pins = createPinStore({ path: join(stateDir, 'pins.json'), clock });
 const notes = createNotesStore({ path: join(stateDir, 'notes.json'), clock });
 const faces = createFaceStore({ path: join(stateDir, 'faces.json') });
@@ -188,7 +190,7 @@ const nas = createNasService({
 const schoolLife = createSchoolLifeService({ household, school: sources.school, logger: console });
 // Messages vocaux vers les appareils Cast : partagés entre l'application et le port des médias.
 const voice = createVoiceMessages({ rules: () => config.current().cast, clock });
-const app = createApp({ voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
+const app = createApp({ voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

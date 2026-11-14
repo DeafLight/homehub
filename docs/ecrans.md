@@ -226,6 +226,8 @@ sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 
 Relier un téléphone à un profil (QR code), voir et retirer les téléphones reliés. En dessous, **Télés** : appairer
 une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, la retirer.
+**Alertes sur la télé** : la case **Minuteurs** (cochée par défaut, changée par un parent reconnu) fait afficher et
+sonner sur les télés allumées un minuteur qui se termine.
 
 ![Téléphones](images/tablette-telephones.png)
 
@@ -333,6 +335,12 @@ s'affiche en haut à droite pendant le message, avec des barres de niveau ; le s
 message, puis revient.
 
 ![Maquette d'une télé : bandeau « Message d'Alex, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-message.png)
+
+Un **minuteur** qui se termine s'affiche aussi sur la télé (**maquette** : minuteur « Cuisson » de 10 s lancé par
+Alex, reçu par la fausse appli) : bandeau en haut à droite avec un carillon court, et le bouton **Arrêter** qui a le
+focus de la télécommande. OK l'arrête partout (tablette, téléphones), Retour masque le bandeau ; la vidéo continue.
+
+![Maquette d'une télé : bandeau « Cuisson, C'est l'heure ! » avec le bouton Arrêter en haut à droite d'un programme](images/tele-minuteur.png)
 
 ### Télécommande de la télé (téléphone d'un parent)
 

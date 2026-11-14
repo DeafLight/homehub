@@ -60,6 +60,9 @@ import { createTimersApi } from './timers-api.ts';
 import { createTransitApi } from './transit-api.ts';
 import { createTvApi } from './tv-api.ts';
 import { createScreenApi } from './screen-api.ts';
+import { createScreenAlertsApi } from './screen-alerts-api.ts';
+import { createTimerAlerts } from './services/timer-alerts.ts';
+import { createScreenAlertStore, type ScreenAlertStore } from './sources/screen-alerts.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -74,6 +77,8 @@ export type AppDeps = {
   screens: ScreenStore;
   /** Applis du lanceur de chaque télé (tiroir de la télécommande). */
   screenApps: ScreenAppStore;
+  /** Alertes de la maison sur les télés ; absent (tests) : en mémoire, toutes actives. */
+  screenAlerts?: ScreenAlertStore;
   pins: PinStore;
   faces: FaceStore;
   sessions: ActorSessions;
@@ -164,6 +169,10 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access }));
   api.route('/', createCastApi({ voice, config, household, access }));
   api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access }));
+  // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
+  const screenAlerts = deps.screenAlerts ?? createScreenAlertStore();
+  api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock }));
+  createTimerAlerts({ timers: deps.timers, screens: deps.screens, hub: screenHub, alerts: screenAlerts, clock }).start();
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

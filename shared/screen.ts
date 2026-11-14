@@ -59,7 +59,23 @@ export type ScreenPowerEvent = { kind: 'power'; id: string; on: boolean };
  */
 export type ScreenMessageEvent = { kind: 'message'; id: string; title: string; text: string; seconds: number };
 
-export type ScreenEventBody = ScreenVoiceEvent | ScreenKeysEvent | ScreenTextEvent | ScreenLaunchEvent | ScreenPowerEvent | ScreenMessageEvent;
+/**
+ * Minuteur de la maison terminé (fonction 3) : bandeau avec « Arrêter » et son court. « Arrêter » à la télécommande
+ * arrête le minuteur partout (`POST /api/screen/timers/:timerId/stop`).
+ */
+export type ScreenTimerEvent = { kind: 'timer'; id: string; timerId: string; title: string; subtitle: string };
+/** Minuteur arrêté (sur la tablette, un téléphone ou une autre télé) : son bandeau s'en va. */
+export type ScreenTimerClearEvent = { kind: 'timer-clear'; id: string; timerId: string };
+
+export type ScreenEventBody =
+  | ScreenVoiceEvent
+  | ScreenKeysEvent
+  | ScreenTextEvent
+  | ScreenLaunchEvent
+  | ScreenPowerEvent
+  | ScreenMessageEvent
+  | ScreenTimerEvent
+  | ScreenTimerClearEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 
@@ -115,6 +131,12 @@ export type RemoteApps = { at: string | null; apps: RemoteApp[] };
 
 /** Réponse à « Allumer » : réveil par l'appli de la télé, ou par son appareil Cast. */
 export type RemotePowerResult = { power: RemotePower; via: 'screen' | 'cast' | null };
+
+/**
+ * Alertes de la maison sur les télés (panneau Télés de la tablette), pour toutes les télés appairées. `timer` : un
+ * minuteur qui se termine s'affiche et sonne sur la télé.
+ */
+export type ScreenAlerts = { timer: boolean };
 
 /** Compte rendu de la télé : lecture commencée, ou échec avec sa raison. */
 export type ScreenReport = { ok: true } | { ok: false; reason: string };

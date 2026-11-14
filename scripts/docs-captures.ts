@@ -15,9 +15,10 @@ import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAVE, type SessionNumber, weekOf } from '../shared/fitness.ts';
 import { itemKey } from '../shared/drive.ts';
+import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TOKEN, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -783,6 +784,31 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await phone.close();
   await tablet.close();
   await send('Browser.resetPermissions');
+}
+
+// Minuteur terminé sur la télé (fonction 3) : un minuteur de 10 s lancé par Alex sonne ; la fausse appli HomeHub TV
+// reçoit l'alerte, la maquette d'écran montre le bandeau et son bouton « Arrêter ». Puis « Arrêter » depuis la télé
+// (route de la télé, avec son jeton) arrête le minuteur partout, et le bandeau s'en va.
+if (!only || only.test('tele-minuteur')) {
+  const timerFile = join(state, FAKE_SCREEN_TIMER_FILE);
+  const pasta = (await call(A, 'POST', '/timers', { label: 'Cuisson', seconds: 10 })) as { id: string };
+  for (let i = 0; i < 40 && !existsSync(timerFile); i++) await sleep(500);
+  if (!existsSync(timerFile)) console.warn('Alerte du minuteur non reçue par la fausse appli HomeHub TV');
+  else {
+    const alertTv = join(work, 'tele-minuteur.html');
+    writeFileSync(alertTv, fakeScreenTimerTv(JSON.parse(readFileSync(timerFile, 'utf8')) as FakeScreenTimer));
+    const tv = await openTarget(pathToFileURL(alertTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(500);
+    await tv.capture('tele-minuteur');
+    await tv.close();
+  }
+  const stop = await fetch(`${BASE}/api/screen/timers/${pasta.id}/stop`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${FAKE_SCREEN_TOKEN}`, [SCREEN_PROTOCOL_HEADER]: String(SCREEN_PROTOCOL) },
+  });
+  if (stop.status !== 204) console.warn(`« Arrêter » depuis la fausse télé : HTTP ${stop.status}`);
+  for (let i = 0; i < 10 && existsSync(timerFile); i++) await sleep(500);
+  if (existsSync(timerFile)) console.warn('Bandeau du minuteur pas retiré de la fausse télé');
 }
 
 // Frais à acheter plus tard : deux repas de la semaine prochaine, ajoutés en dernier (les autres captures gardent la

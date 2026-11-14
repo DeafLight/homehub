@@ -53,7 +53,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenTarget } from '../../../shared/screen.ts';
+import type { RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenTarget } from '../../../shared/screen.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -300,6 +300,9 @@ export type Api = {
   screens(): Promise<Screen[]>;
   pairScreen(code: string, name: string): Promise<Screen>;
   removeScreen(id: string): Promise<void>;
+  /** Alertes de la maison sur les télés (minuteur terminé…) : réglage lu par la tablette, changé par un parent. */
+  screenAlerts(): Promise<ScreenAlerts>;
+  setScreenAlerts(alerts: ScreenAlerts): Promise<ScreenAlerts>;
   /** Téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (lu par l'appli, son du programme baissé). */
   screenTargets(): Promise<ScreenTarget[]>;
   sendScreenVoice(id: string, audio: Blob): Promise<{ device: string }>;
@@ -509,6 +512,8 @@ export function createApi(
     screens: () => request('/screens'),
     pairScreen: (code, name) => send('POST', '/screens', { code, name }),
     removeScreen: (id) => send('DELETE', `/screens/${encodeURIComponent(id)}`),
+    screenAlerts: () => request('/screens/alerts'),
+    setScreenAlerts: (alerts) => send('PUT', '/screens/alerts', alerts),
     screenTargets: () => request('/screens/targets'),
     remoteScreens: () => request('/screens/remote'),
     remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),

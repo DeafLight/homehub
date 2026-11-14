@@ -22,4 +22,6 @@
     <string name="remote_ready">Télécommande prête</string>
     <string name="remote_authorize">Télécommande : accepter « Autoriser le débogage ? » (Toujours autoriser)</string>
     <string name="remote_off">Télécommande : débogage réseau coupé, flèches et clavier indisponibles</string>
+    <string name="timer_stop">Arrêter</string>
+    <string name="timer_hint">OK : arrêter partout · Retour : masquer</string>
 </resources>

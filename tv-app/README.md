@@ -6,7 +6,8 @@ Petite appli Android TV, compagnon de HomeHub, installée hors du Play Store par
 (interrogation longue, aucun port ouvert sur la télé) et lit les messages vocaux des parents **par-dessus ce qui passe,
 le son du programme baissé**, avec un bandeau « Message d'Alex », et affiche leurs **messages écrits** en bandeau en
 haut de l'écran pendant `tv.seconds` (10 s par défaut), en rendant compte au téléphone. Elle sert aussi de **télécommande** depuis le
-téléphone d'un parent (touches, texte, applis, marche/arrêt). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
+téléphone d'un parent (touches, texte, applis, marche/arrêt). Un **minuteur** de la maison qui se termine s'y affiche avec un carillon court ;
+« Arrêter » à la télécommande l'arrête partout (tablette, téléphones). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
 (`package.json`).
@@ -25,6 +26,21 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `Telecommande.kt` | Garde l'injecteur lancé (relance s'il tombe), touches, texte, veille et réveil, secours sans `adb` |
 | `Applis.kt` | Applis du lanceur (nom, paquet, bannière PNG) envoyées à HomeHub, lancement d'une appli |
 | `HomeHubAccessibility.kt` | Service d'accessibilité : appli en cours, secours Retour/Accueil |
+| `Minuteur.kt` | Alerte des minuteurs, sans Android : événements `timer` et `timer-clear`, file des minuteurs qui sonnent, carillon synthétisé |
+| `MinuteurBandeau.kt` | Bandeau du minuteur qui prend le focus de la télécommande (OK : « Arrêter » partout, Retour : masquer), carillon son baissé, compte rendu |
+
+## Alerte des minuteurs
+
+Quand un minuteur de HomeHub se termine, le serveur envoie `timer` à chaque télé allumée (réglage **Minuteurs** du
+panneau Télés de la tablette). Le bandeau s'affiche en haut à droite et **prend le focus de la télécommande** : c'est
+une fenêtre par-dessus (`TYPE_APPLICATION_OVERLAY`) focalisable, sans `FLAG_NOT_FOCUSABLE`. L'appli en cours ne passe
+pas en pause (elle perd seulement le focus de fenêtre) ; flèches, OK et Retour vont au bandeau tant qu'il est là, les
+touches média et le volume restent au système. **OK** appelle `POST /api/screen/timers/:id/stop` : le minuteur
+s'arrête sur la tablette, les téléphones et les autres télés (`timer-clear`). **Retour** masque le bandeau sur cette
+télé seulement. Sans geste, il s'en va au bout de 10 min. Plusieurs minuteurs : le dernier arrivé s'affiche, les autres
+reviennent quand il s'en va. Carillon : trois notes synthétisées (`AudioTrack`, aucun fichier), focus audio transitoire
+avec baisse du son, comme un message vocal. À vérifier sur la vraie télé : que les applis vidéo continuent bien quand le
+bandeau prend le focus.
 
 ## Outils (PC Windows)
 
