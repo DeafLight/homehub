@@ -8,11 +8,12 @@
   import { appsDate, capabilities, controlHint, createFeedbackTimer, createKeyQueue, statusLine } from '../lib/remote.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { phonePath } from '../lib/route.ts';
+  import { volumeHint } from '../lib/tv-media.ts';
 
   // Télécommande de la télé sur le téléphone d'un parent (/m/tele, fonction 17). En-tête : nom et état de la télé
   // (allumée, en veille, injoignable) et bouton marche/arrêt (une télé injoignable s'allume par Cast). Onglet Touches :
   // pavé de flèches avec OK au centre, Retour, Accueil, lecture/pause, volume, muet, clavier (texte écrit dans le champ
-  // qui a le focus sur la télé) et « À table ! » (pause et bandeau). Onglet Applis : l'appli en cours et le tiroir des
+  // qui a le focus sur la télé) et « À table ! » (pause et bandeau) ; volume grisé et expliqué s'il est fixe (barre de son). Onglet Applis : l'appli en cours et le tiroir des
   // applis de la télé, à lancer d'un geste. Le compte rendu de chaque ordre s'efface seul après quelques secondes. La page
   // défile d'un bloc (le body ne défile pas). Le serveur vérifie les droits (parents) ; règles : lib/remote.ts.
   const STATE_REFRESH_MS = 5_000;
@@ -28,6 +29,8 @@
   const screen = $derived<RemoteScreen | undefined>(screens.data?.find((s) => s.id === chosenId) ?? screens.data?.[0]);
   const can = $derived(screen ? capabilities(screen) : { keys: false, basic: false, apps: false });
   const hint = $derived(screen ? controlHint(screen) : null);
+  // Volume fixe (barre de son par HDMI ARC) : touches de volume grisées, explication dessous (fonction 6).
+  const fixedVolume = $derived(screen?.volume === 'fixed');
 
   let tab = $state<'keys' | 'apps'>('keys');
   let error = $state<string | null>(null);
@@ -186,10 +189,11 @@
         {/each}
       </div>
       <div class="row">
-        <button type="button" class="key" aria-label="Baisser le volume" disabled={!can.basic} onclick={() => press('voldown')}><Icon name="volume" size={24} /><span class="sign">−</span></button>
-        <button type="button" class="key" aria-label="Couper le son" disabled={!can.basic} onclick={() => press('mute')}><Icon name="mute" size={24} /></button>
-        <button type="button" class="key" aria-label="Monter le volume" disabled={!can.basic} onclick={() => press('volup')}><Icon name="volume" size={24} /><span class="sign">+</span></button>
+        <button type="button" class="key" aria-label="Baisser le volume" disabled={!can.basic || fixedVolume} onclick={() => press('voldown')}><Icon name="volume" size={24} /><span class="sign">−</span></button>
+        <button type="button" class="key" aria-label="Couper le son" disabled={!can.basic || fixedVolume} onclick={() => press('mute')}><Icon name="mute" size={24} /></button>
+        <button type="button" class="key" aria-label="Monter le volume" disabled={!can.basic || fixedVolume} onclick={() => press('volup')}><Icon name="volume" size={24} /><span class="sign">+</span></button>
       </div>
+      {#if fixedVolume}<p class="muted small">{volumeHint(screen.volume)}</p>{/if}
 
       <h2>Clavier</h2>
       <form class="typing" onsubmit={sendText}>

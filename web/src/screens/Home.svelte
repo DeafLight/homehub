@@ -6,6 +6,7 @@
   import DetailLink from '../components/DetailLink.svelte';
   import HolidayChip from '../components/HolidayChip.svelte';
   import SettingsMenu from '../components/SettingsMenu.svelte';
+  import TvMedia from '../components/TvMedia.svelte';
   import ExpiringCard from '../components/stock/ExpiringCard.svelte';
   import TransitBoard from '../components/widgets/TransitBoard.svelte';
   import { getAppContext } from '../lib/context.ts';
@@ -39,7 +40,7 @@
 
 <!-- Accueil, piste A (docs/design.md) : à gauche l'heure et des cartes de même facture (météo, famille, à consommer,
      passages) ;
-     à droite « Qui est là ? » et, en bas, la barre d'actions Minuteur · Scanner · Réglages. -->
+     à droite « Qui est là ? » et, en bas, la barre d'actions Minuteur · Recettes · Scanner · Télé · Réglages. -->
 <div class="home">
   <section class="ambient">
     <div class="clock">
@@ -192,6 +193,8 @@
         <Icon name="barcode" size={32} />
         <span>Scanner</span>
       </button>
+      <!-- Télé : pause, reprise, volume, « À table ! » (une télé appairée au moins). -->
+      <TvMedia />
       <SettingsMenu placement="above" size={88} labelled />
     </div>
   </section>

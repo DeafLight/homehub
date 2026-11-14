@@ -11,10 +11,10 @@ class RemoteTest {
     @Test
     fun touchesConnuesSeulement() {
         assertEquals(listOf(20, 20, 22, 23), RemoteKeys.codes(listOf("down", "down", "right", "ok")))
-        assertEquals(listOf(4, 3, 85, 127, 24, 25, 164), RemoteKeys.codes(listOf("back", "home", "playpause", "pause", "volup", "voldown", "mute")))
+        assertEquals(listOf(4, 3, 85, 127, 24, 25, 164, 126), RemoteKeys.codes(listOf("back", "home", "playpause", "pause", "volup", "voldown", "mute", "play")))
         assertEquals(listOf(19), RemoteKeys.codes(listOf("saut", "up")))
         // Les noms de shared/screen.ts (REMOTE_KEYS) ont tous un code.
-        assertEquals(12, RemoteKeys.CODES.size)
+        assertEquals(13, RemoteKeys.CODES.size)
     }
 
     @Test

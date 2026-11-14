@@ -13,6 +13,8 @@
 // du matin (fonction 14) : le bandeau reçu va dans fake-screen-rain.json (maquette : fake-screen-rain.ts).
 // Rappels (fonction 5 : routine du soir, mots à lire) : le dernier va dans fake-screen-reminder.json
 // (maquette : fake-screen-reminder.ts).
+// Pause et reprise (fonction 6) : elle retient si le programme est en pause et le
+// dernier bandeau (« À table ! »), pour la maquette de fake-screen-pause.ts ; son volume est réglable.
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
@@ -38,12 +40,20 @@ export type FakeScreenTimer = { timerId: string; title: string; subtitle: string
 /** Minuteurs en cours reçus (événement `timers`) : l'heure du serveur à l'envoi et la liste. */
 export type FakeScreenTimers = { serverNow: string; timers: ScreenRunningTimer[] };
 /** Ordres de la télécommande reçus, en clair (« touches : bas bas ok »), et l'état qui en résulte. */
-export type FakeScreenRemote = { received: string[]; screenOn: boolean; foreground: string };
+export type FakeScreenRemote = { received: string[]; screenOn: boolean; foreground: string; paused?: boolean; notice?: { title: string; subtitle: string } };
 
 /** Ce que fait la fausse télé d'un ordre de la télécommande : la ligne du journal, et l'état qui change. */
-export function applyRemote(event: ScreenEvent, state: ScreenStateReport): string | null {
+export function applyRemote(event: ScreenEvent, state: ScreenStateReport, remote?: FakeScreenRemote): string | null {
   switch (event.kind) {
     case 'key':
+      if (remote) {
+        for (const key of event.keys) {
+          if (key === 'pause') remote.paused = true;
+          if (key === 'play') remote.paused = false;
+          if (key === 'playpause') remote.paused = !remote.paused;
+        }
+        if (event.notice) remote.notice = event.notice;
+      }
       return `touches : ${event.keys.join(' ')}${event.notice ? ` (bandeau « ${event.notice.title} »)` : ''}`;
     case 'text':
       return `texte : ${event.text}${event.submit ? ' ⏎' : ''}`;
@@ -64,7 +74,7 @@ export function startFakeScreen(base: string) {
   const post = (method: string, path: string, body: unknown) =>
     fetch(`${base}${path}`, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const dir = process.env.HOMEHUB_STATE_DIR ?? '.';
-  const state: ScreenStateReport = { screenOn: true, foreground: 'fr.exemple.video', control: 'adb', addresses: ['127.0.0.1'] };
+  const state: ScreenStateReport = { screenOn: true, foreground: 'fr.exemple.video', control: 'adb', addresses: ['127.0.0.1'], volume: 'adjustable' };
   const remote: FakeScreenRemote = { received: [], screenOn: true, foreground: state.foreground! };
   let after: number | null = null;
   let introduced = false;
@@ -119,7 +129,7 @@ export function startFakeScreen(base: string) {
           continue;
         }
         if (event.kind !== 'voice') {
-          const line = applyRemote(event, state);
+          const line = applyRemote(event, state, remote);
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           if (event.kind === 'launch' || event.kind === 'power') await post('POST', '/api/screen/state', state);
           if (line) {

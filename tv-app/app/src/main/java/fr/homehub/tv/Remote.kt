@@ -23,6 +23,7 @@ object RemoteKeys {
     const val DEL = 67
     const val MOVE_END = 123
     const val MEDIA_PLAY_PAUSE = 85
+    const val MEDIA_PLAY = 126
     const val MEDIA_PAUSE = 127
     const val VOLUME_MUTE = 164
     const val SLEEP = 223
@@ -42,6 +43,7 @@ object RemoteKeys {
         "volup" to VOLUME_UP,
         "voldown" to VOLUME_DOWN,
         "mute" to VOLUME_MUTE,
+        "play" to MEDIA_PLAY,
     )
 
     /** Codes des touches connues ; une touche inconnue (serveur plus récent) est ignorée. */

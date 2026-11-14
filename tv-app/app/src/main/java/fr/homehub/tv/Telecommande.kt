@@ -129,7 +129,7 @@ class Telecommande(private val context: Context, private val onChange: () -> Uni
             RemoteKeys.VOLUME_UP -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
             RemoteKeys.VOLUME_DOWN -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
             RemoteKeys.VOLUME_MUTE -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
-            RemoteKeys.MEDIA_PLAY_PAUSE, RemoteKeys.MEDIA_PAUSE -> {
+            RemoteKeys.MEDIA_PLAY_PAUSE, RemoteKeys.MEDIA_PAUSE, RemoteKeys.MEDIA_PLAY -> {
                 audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
                 audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
             }

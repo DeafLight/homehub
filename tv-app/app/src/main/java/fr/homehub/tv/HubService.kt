@@ -10,6 +10,8 @@
 // Minuteurs (fonction 3) : petit décompte en bas à droite tant qu'il en tourne (sans contrôle à la télécommande), puis
 // à la fin bandeau qui prend la télécommande, carillon, « Arrêter » (MinuteurAlertes).
 // Rappels (routine du soir, mots à lire) : bandeau cloche pendant la durée demandée, après le message vocal en cours.
+// Volume réglable ou fixe (barre de son par HDMI ARC, Volume.kt) : annoncé avec l'état, renvoyé quand une sortie
+// audio apparaît ou disparaît.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -21,6 +23,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.PowerManager
@@ -66,7 +71,19 @@ class HubService : Service() {
         }
     }
 
+    /** Barre de son branchée ou débranchée (sortie HDMI ARC) : le volume peut passer de réglable à fixe. */
+    private val audioDevices = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = sendState()
+        override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = sendState()
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** Volume de la télé pour HomeHub (fonction 6). */
+    private fun volume(): String {
+        val audio = getSystemService(AudioManager::class.java)
+        return volumeMode(audio.isVolumeFixed, audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { it.type })
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -87,6 +104,7 @@ class HubService : Service() {
             addAction(Intent.ACTION_PACKAGE_CHANGED)
             addDataScheme("package")
         })
+        getSystemService(AudioManager::class.java).registerAudioDeviceCallback(audioDevices, Handler(mainLooper))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -109,6 +127,7 @@ class HubService : Service() {
         telecommande.stop()
         HomeHubAccessibility.listener = null
         runCatching { unregisterReceiver(receiver) }
+        getSystemService(AudioManager::class.java).unregisterAudioDeviceCallback(audioDevices)
         banner.hide()
         minuteurs.stop()
         super.onDestroy()
@@ -297,7 +316,7 @@ class HubService : Service() {
             }
             val server = prefs.server ?: return@execute
             val token = prefs.token ?: return@execute
-            val json = stateJson(screenOn, HomeHubAccessibility.foreground, telecommande.control(), addresses())
+            val json = stateJson(screenOn, HomeHubAccessibility.foreground, telecommande.control(), addresses(), volume())
             val now = System.currentTimeMillis()
             if (!force && json == lastState && now - lastStateAt < STATE_REFRESH_MS) return@execute
             runCatching { HubClient(server, token).call("POST", "/api/screen/state", json) }.onSuccess {

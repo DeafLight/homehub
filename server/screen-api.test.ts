@@ -242,7 +242,7 @@ describe('API HomeHub TV : télécommande', () => {
     const env = await setup();
     const tv = await env.pairTv();
     expect(await (await env.call('GET', '/screens/remote', { token: env.alex })).json()).toEqual([
-      { id: tv.id, name: 'Télé du salon', power: 'offline', control: null, foreground: null, canWake: false, appsAt: null, appCount: 0 },
+      { id: tv.id, name: 'Télé du salon', power: 'offline', control: null, volume: null, foreground: null, canWake: false, appsAt: null, appCount: 0 },
     ]);
     await env.listen(tv.token);
     expect((await env.call('POST', '/screen/state', { from: TV, token: tv.token, headers: PROTOCOL, body: state(false) })).status).toBe(204);

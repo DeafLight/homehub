@@ -21,7 +21,8 @@ Chrome est cherché aux emplacements habituels ; sinon `CHROME=<chemin>`. Pour e
 Horloge, météo, prochains passages aux arrêts suivis, prochain événement de la famille ; à droite, « Qui est là ? »
 avec le prochain rendez-vous et les mots non lus de chacun. Carte **« À consommer »** : le pot de crème fraîche
 passé d'hier et le jambon à finir aujourd'hui (DLC passées ou urgentes seulement) ; touchée, elle ouvre le stock sur
-« À consommer ». En bas, un minuteur en cours.
+« À consommer ». En bas, un minuteur en cours, et la barre d'actions : Minuteur, Recettes, Scanner, **Télé** (dès
+qu'une télé est appairée) et Réglages.
 
 ![Accueil](images/tablette-accueil.png)
 
@@ -388,6 +389,29 @@ du monde fictif), à ouvrir d'un geste, avec la date de la liste.
 
 <img src="images/telephone-telecommande.png" alt="Télécommande sur le téléphone d'Alex : pavé de flèches, OK, Retour, Accueil, lecture, volume, clavier" width="260">
 <img src="images/telephone-telecommande-applis.png" alt="Télécommande, onglet Applis : appli en cours et grille des applis de la télé" width="260">
+
+Si le volume de la télé est fixe (son par une barre de son), les touches de volume sont grisées et une ligne
+l'explique sous elles.
+
+### Télé depuis la tablette : pause, reprise, volume, « À table ! »
+
+Le bouton **Télé** de l'accueil ouvre un panneau : état de la télé, **Pause**, **Reprendre**, volume −, muet,
+volume + et **À table !** (en jaune). Un parent reconnu commande tout de suite ; sinon le **code parent** est
+demandé une fois (ici : personne n'est reconnu). Rien de personnel : ni l'appli en cours, ni le programme.
+
+![Panneau Télé de la tablette : pause, reprise, volume, À table !](images/tablette-tele.png)
+
+![Code parent demandé pour commander la télé](images/tablette-tele-code.png)
+
+Télé dont le son passe par une barre de son (HDMI ARC) : volume fixe, la tablette n'offre plus que pause et
+reprise, et le dit.
+
+![Volume fixe : pause et reprise seulement](images/tablette-tele-volume-fixe.png)
+
+Sur la télé, « À table ! » met le programme en pause et affiche le bandeau de l'appli (maquette d'après ce qu'a reçu
+la fausse télé du monde fictif) :
+
+![Maquette d'une télé en pause avec le bandeau « À table ! De la part d'Alex »](images/tele-a-table.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 

@@ -367,6 +367,14 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   une rafale de flèches part en un seul envoi pendant que le précédent est en route. Sans `adb`, secours : Retour,
   Accueil, lecture et volume seulement, et l'écran le dit. Les ordres passent par l'interrogation longue de l'appli
   (aller-retour d'une touche d'environ 65 ms, compte rendu compris, mesuré dans le monde fictif) : pas de WebSocket.
+- **Pause, reprise et volume depuis la tablette** (bouton **Télé** de la barre d'actions de l'accueil, dès qu'une
+  télé est appairée) : **Pause**, **Reprendre**, volume −, muet, volume + et **À table !** (pause et bandeau « À table !
+  De la part d'Alex » sur la télé). Un **parent reconnu** commande tout de suite ; sinon le **code parent** est demandé
+  une fois, puis gardé tant que le panneau reste ouvert (signé « HomeHub » sur la télé) ; un enfant reconnu est
+  refusé. Rien de personnel : ni l'appli en cours, ni le programme. **Volume fixe** : quand le son sort par une barre
+  de son (HDMI ARC / eARC) ou que le système déclare le volume fixe, l'appli l'annonce à HomeHub ; la tablette et la
+  télécommande du téléphone n'offrent plus que pause et reprise et le disent (le volume se règle avec la
+  télécommande de la barre de son), et le serveur refuse les touches de volume (409).
   **Parents seulement** (le serveur refuse un enfant et un appareil non appairé ; un parent reconnu à la tablette peut
   s'en servir aussi). Rien de personnel : le tiroir ne montre que des noms d'applis.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
@@ -840,6 +848,8 @@ server/
   screen-reminders-api.ts  routes des rappels sur la télé (réglages, « Essayer »)
   services/screen-reminders.ts  rappels sur la télé : heures, rattrapage, textes (routine du soir, mots à lire)
   sources/screen-reminders.ts   réglages des rappels et jour du dernier envoi (screen-reminders.json)
+  screen-media-api.ts      pause, reprise, volume et « À table ! » depuis la tablette (parent reconnu ou code parent)
+  services/screen-media.ts commandes de ce qui passe : touches, volume fixe refusé, événement « À table ! »
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
@@ -914,8 +924,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |
 | `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |
 | `GET /api/screens/reminders`, `PUT /api/screens/reminders`, `POST /api/screens/reminders/:kind/test` | rappels sur la télé, tablette : réglages `{ reminders: [{ kind, enabled, time }] }` (`kind` : `evening-routine` ou `notes`, `time` : HH:MM) ; enregistrement d'un ou plusieurs rappels (parent reconnu ; 400 heure ou genre inconnus) ; essai tout de suite (parent reconnu) → `{ title, subtitle, screens }` (409 rien à rappeler, 503 aucune télé allumée) |
-| `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
-| `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `volup`, `voldown`, `mute`) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |
+| `GET /api/screens/media`, `POST /api/screens/:id/media` | tablette seulement : télés `{ screens: [{ id, name, power, volume, control }], parentCode }` (`volume` : `adjustable`, `fixed` ou null) ; commande `{ action, pin? }` (`pause`, `play`, `voldown`, `volup`, `mute`, `dinner`), par un parent reconnu ou avec le code parent (403 enfant ou personne, 409 volume fixe, 502/503 comme la télécommande) |
+| `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, volume, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
+| `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `play`, `volup`, `voldown`, `mute` ; touches de volume refusées, 409, si le volume de la télé est fixe) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |
 | `GET /api/screens/targets`, `POST /api/screens/:id/voice` | téléphone d'un parent (`camera.talk`) : télés où envoyer sa voix `[{ id, name, online }]` ; message vocal (corps et `Content-Type` comme vers Cast) → `{ device }` dès que la télé le lit (503 télé absente ; 502 échec rapporté par la télé ou pas de réponse en 20 s) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Événement `message` à chaque télé appairée et joignable, `screens` = celles qui l'ont affiché ; 404 aucune télé appairée, 503 aucune joignable, 502 aucune ne l'a affiché (raisons) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |

@@ -53,7 +53,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenTarget } from '../../../shared/screen.ts';
+import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenTarget } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
@@ -319,6 +319,9 @@ export type Api = {
   remoteLaunch(id: string, pkg: string): Promise<void>;
   remoteDinner(id: string): Promise<void>;
   remotePower(id: string, on: boolean): Promise<RemotePowerResult>;
+  /** Tablette : télés et commandes de ce qui passe (pause, reprise, volume, « À table ! »), parent reconnu ou code parent. */
+  mediaScreens(): Promise<MediaScreens>;
+  screenMedia(id: string, action: MediaAction, pin?: string): Promise<void>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -530,6 +533,8 @@ export function createApi(
     remoteLaunch: async (id, pkg) => void (await send('POST', `/screens/${encodeURIComponent(id)}/launch`, { package: pkg })),
     remoteDinner: async (id) => void (await send('POST', `/screens/${encodeURIComponent(id)}/dinner`)),
     remotePower: (id, on) => send('POST', `/screens/${encodeURIComponent(id)}/power`, { on }),
+    mediaScreens: () => request('/screens/media'),
+    screenMedia: async (id, action, pin) => void (await send('POST', `/screens/${encodeURIComponent(id)}/media`, { action, ...(pin && { pin }) })),
     sendScreenVoice: (id, audio) => request(`/screens/${encodeURIComponent(id)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
   };
 }

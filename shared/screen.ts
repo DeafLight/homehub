@@ -37,7 +37,7 @@ export type ScreenVoiceEvent = { kind: 'voice'; id: string; title: string; audio
  * Touches de la télécommande du téléphone (fonction 17), dans l'ordre où elles s'envoient ; l'appli les traduit en
  * codes Android (tv-app, Remote.kt). Une rafale de flèches part en un seul événement (touches regroupées).
  */
-export const REMOTE_KEYS = ['up', 'down', 'left', 'right', 'ok', 'back', 'home', 'playpause', 'pause', 'volup', 'voldown', 'mute'] as const;
+export const REMOTE_KEYS = ['up', 'down', 'left', 'right', 'ok', 'back', 'home', 'playpause', 'pause', 'volup', 'voldown', 'mute', 'play'] as const;
 export type RemoteKey = (typeof REMOTE_KEYS)[number];
 /** Touches au plus par événement. */
 export const REMOTE_MAX_KEYS = 20;
@@ -125,7 +125,18 @@ export type ScreenStateReport = {
   control: ScreenControl;
   /** Adresses de la télé sur le réseau local : pour retrouver son appareil Cast (allumage). */
   addresses: string[];
+  /** Volume réglable par l'appli, ou fixe (barre de son par HDMI ARC) ; absent : appli antérieure à la fonction 6. */
+  volume?: ScreenVolume;
 };
+
+/**
+ * Volume de la télé (fonction 6) : `adjustable`, ou `fixed` quand le système le déclare fixe ou que le son sort par une
+ * barre de son (HDMI ARC / eARC) : la télé ne règle pas son volume, la télécommande ne fait alors que la pause.
+ */
+export const SCREEN_VOLUMES = ['adjustable', 'fixed'] as const;
+export type ScreenVolume = (typeof SCREEN_VOLUMES)[number];
+/** Touches de volume, refusées quand le volume est fixe. */
+export const VOLUME_KEYS: readonly RemoteKey[] = ['volup', 'voldown', 'mute'];
 
 /** Une appli du lanceur de la télé ; `banner` : sa bannière en PNG, encodée en base64 (sans préfixe). */
 export type ScreenApp = { package: string; name: string; banner: string | null };
@@ -145,6 +156,8 @@ export type RemoteScreen = {
   power: RemotePower;
   /** Moyen d'action annoncé par l'appli (null : appli trop ancienne ou télé injoignable). */
   control: ScreenControl | null;
+  /** Volume réglable ou fixe (null : inconnu, appli trop ancienne ou télé injoignable). */
+  volume: ScreenVolume | null;
   /** Appli au premier plan, avec son nom s'il est dans la liste. */
   foreground: { package: string; name: string } | null;
   /** Un appareil Cast de la télé est connu : elle peut être allumée même injoignable. */
@@ -166,6 +179,18 @@ export type RemotePowerResult = { power: RemotePower; via: 'screen' | 'cast' | n
  * minuteur qui se termine s'affiche et sonne sur la télé.
  */
 export type ScreenAlerts = { timer: boolean };
+
+/**
+ * Commandes de ce qui passe depuis la tablette (fonction 6) : pause, reprise, volume, et « À table ! » (bandeau et
+ * pause). Un parent reconnu devant la tablette, ou le code parent.
+ */
+export const MEDIA_ACTIONS = ['pause', 'play', 'voldown', 'volup', 'mute', 'dinner'] as const;
+export type MediaAction = (typeof MEDIA_ACTIONS)[number];
+
+/** Une télé vue de la tablette, pour ses commandes : rien de personnel (ni l'appli en cours). */
+export type MediaScreen = { id: string; name: string; power: RemotePower; volume: ScreenVolume | null; control: ScreenControl | null };
+/** Télés de la tablette, et si un code parent est défini (sinon, seul un parent reconnu commande). */
+export type MediaScreens = { screens: MediaScreen[]; parentCode: boolean };
 
 /** Compte rendu de la télé : lecture commencée, ou échec avec sa raison. */
 export type ScreenReport = { ok: true } | { ok: false; reason: string };

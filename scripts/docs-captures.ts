@@ -18,10 +18,11 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
+import { fakeScreenPaused } from './docs-captures/fake-screen-pause.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -690,6 +691,27 @@ await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhon
 // Touches après « À table ! », puis onglet Applis (appli en cours et tiroir).
 await shoot('telephone-telecommande', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('À table !'), settle: 1500 });
 await shoot('telephone-telecommande-applis', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Applis') });
+// La télé après « À table ! » (fonction 6) : maquette d'après ce qu'a reçu la fausse appli (pause, bandeau).
+if ((!only || only.test('tele-a-table')) && existsSync(join(state, FAKE_SCREEN_REMOTE_FILE))) {
+  const pausedTv = join(work, 'tele-a-table.html');
+  writeFileSync(pausedTv, fakeScreenPaused(JSON.parse(readFileSync(join(state, FAKE_SCREEN_REMOTE_FILE), 'utf8'))));
+  const tvPaused = await openTarget(pathToFileURL(pausedTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  await sleep(500);
+  await tvPaused.capture('tele-a-table');
+  await tvPaused.close();
+}
+// Commandes de la télé sur la tablette (fonction 6), bouton « Télé » de l'accueil. Sans caméra, personne n'est
+// reconnu : la réponse de /api/screens/media est retouchée dans le navigateur pour annoncer un code parent (et, pour
+// la dernière, un volume fixe, barre de son) ; « À table ! » demande alors le code parent.
+const mediaAs = (patch: object) => `localStorage.removeItem('homehub.phone'); { const g = globalThis.fetch; globalThis.fetch = async (url, init) => {
+  const res = await g(url, init);
+  if (!String(url).endsWith('/api/screens/media')) return res;
+  const body = await res.json();
+  return new Response(JSON.stringify({ ...body, parentCode: true, screens: body.screens.map((s) => ({ ...s, ...${JSON.stringify(patch)} })) }), { headers: { 'content-type': 'application/json' } });
+}; }`;
+await shoot('tablette-tele', `${BASE}/`, TABLET, { init: mediaAs({}), after: click('Télé') });
+await shoot('tablette-tele-code', `${BASE}/`, TABLET, { init: mediaAs({}), after: `${click('Télé')}; setTimeout(() => { ${click('À table !')} }, 300)` });
+await shoot('tablette-tele-volume-fixe', `${BASE}/`, TABLET, { init: mediaAs({ volume: 'fixed' }), after: click('Télé') });
 
 // Alerte du bus du matin sur la télé : Léa doit partir dans 7 min (trajet du YAML, `tvAlert: 8`, faux temps réel :
 // bus dans 11 min, 4 min de marche) ; le serveur l'envoie de lui-même à la fausse télé (vérification toutes les 20 s),

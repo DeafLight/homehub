@@ -108,6 +108,8 @@ class ProtocolTest {
         assertEquals(true, state.isNull("foreground"))
         assertEquals("adb", state.getString("control"))
         assertEquals("192.168.1.60", state.getJSONArray("addresses").getString(0))
+        assertEquals(false, state.has("volume"))
+        assertEquals("fixed", JSONObject(stateJson(true, null, "adb", emptyList(), "fixed")).getString("volume"))
 
         val apps: JSONArray = JSONObject(appsJson(listOf(AppEntry("fr.exemple.video", "Vidéo+", "iVBORw0KGgo="), AppEntry("fr.exemple.box", "Box TV", null)))).getJSONArray("apps")
         assertEquals("fr.exemple.video", apps.getJSONObject(0).getString("package"))

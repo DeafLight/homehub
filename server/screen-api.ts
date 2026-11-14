@@ -15,6 +15,7 @@ import {
   SCREEN_CONTROLS,
   SCREEN_PROTOCOL,
   SCREEN_PROTOCOL_HEADER,
+  SCREEN_VOLUMES,
   type RemoteApps,
   type RemotePowerResult,
   type RemoteScreen,
@@ -29,6 +30,7 @@ import type { ConfigStore } from './config-store.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { CastError, type CastTarget, castWake } from './services/cast.ts';
+import { dinnerEvent, refusesVolume, VOLUME_FIXED } from './services/screen-media.ts';
 import { SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 import { screenAppSchema, type ScreenAppStore } from './sources/screen-apps.ts';
@@ -49,6 +51,7 @@ const stateSchema = z.object({
   foreground: z.string().max(200).nullable(),
   control: z.enum(SCREEN_CONTROLS),
   addresses: z.array(z.string().max(60)).max(8),
+  volume: z.enum(SCREEN_VOLUMES).optional(),
 });
 const appsSchema = z.object({ apps: z.array(screenAppSchema).max(SCREEN_APPS_MAX) });
 const keysSchema = z.object({ keys: z.array(z.enum(REMOTE_KEYS)).min(1).max(REMOTE_MAX_KEYS) });
@@ -253,7 +256,7 @@ export function createScreenApi({
     const list = await apps.get(s.id);
     const current = state?.foreground ?? null;
     const foreground = current ? { package: current, name: list?.apps.find((a) => a.package === current)?.name ?? current } : null;
-    return { id: s.id, name: s.name, power, control: state?.control ?? null, foreground, canWake: castOf(s.id) !== null, appsAt: list?.at ?? null, appCount: list?.apps.length ?? 0 };
+    return { id: s.id, name: s.name, power, control: state?.control ?? null, volume: state?.volume ?? null, foreground, canWake: castOf(s.id) !== null, appsAt: list?.at ?? null, appCount: list?.apps.length ?? 0 };
   };
 
   /** Envoie un ordre de la télécommande et attend le compte rendu ; échec : 502 avec la raison donnée par la télé. */
@@ -282,6 +285,7 @@ export function createScreenApi({
     await access.remote(c);
     const screen = await screenOf(c.req.param('id'));
     const { keys } = await readBody(c, keysSchema, 'Touches attendues');
+    if (refusesVolume(hub.stateOf(screen.id)?.volume, keys)) return fail(409, VOLUME_FIXED);
     return command(c, screen, { kind: 'key', id: randomUUID(), keys });
   });
 
@@ -304,9 +308,7 @@ export function createScreenApi({
   api.post('/screens/:id/dinner', async (c) => {
     const author = await access.remote(c);
     const screen = await screenOf(c.req.param('id'));
-    const name = author.ownerId ? household.nameOf(author.ownerId) : null;
-    const subtitle = name ? tvTitle(name).replace(/^Message /u, 'De la part ') : 'HomeHub';
-    return command(c, screen, { kind: 'key', id: randomUUID(), keys: ['pause'], notice: { title: 'À table !', subtitle } });
+    return command(c, screen, dinnerEvent(author.ownerId ? household.nameOf(author.ownerId) : null));
   });
 
   api.post('/screens/:id/power', async (c) => {

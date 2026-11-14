@@ -307,7 +307,11 @@ personne depuis son propre téléphone.
       (qui a encore des étapes, qui a des mots à lire, avec des nombres seulement), un réglage par rappel (actif ou
       non, heure) et « Essayer » sur la tablette (Téléphones › Rappels sur la télé), une fois par jour, rattrapage
       d'une demi-heure si la télé s'allume après ; mécanisme prêt pour l'heure du coucher (16).
-- [ ] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause).
+- [x] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause) :
+      bouton **Télé** de l'accueil de la tablette (parent reconnu ou code parent), touche `play` (reprendre) ;
+      volume fixe (barre de son HDMI ARC / eARC, `AudioManager.isVolumeFixed`) annoncé par l'appli, volume grisé
+      et expliqué sur la tablette et le téléphone, refusé par le serveur. À vérifier sur la vraie télé : pause et
+      reprise dans Netflix, YouTube, la télé en direct ; la barre de son est-elle vue comme sortie ARC ?
 - [ ] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home.
 - [ ] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir.
 - [ ] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé.
