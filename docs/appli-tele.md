@@ -279,6 +279,11 @@ Résultats (14 novembre 2026) :
   `IDLE`, sommeil profond), `adb` répond, l'appli est vivante et garde sa connexion à HomeHub (liste blanche Doze).
   `KEYCODE_WAKEUP` rallume alors l'écran. Restent l'essai à 1 h et un vrai message vocal envoyé pendant la veille.
 
+- **E7 : passage par HomeHub (0.73).** Dans le monde fictif, une touche fait l'aller-retour téléphone → HomeHub →
+  appli → compte rendu en **63 à 84 ms** : l'attente longue suffit, **pas de WebSocket**. Le téléphone groupe une
+  rafale : pendant qu'un envoi est en route, les touches suivantes attendent et partent ensemble au suivant (20 au
+  plus). Reste la mesure sur la vraie télé.
+
 **Conséquence pour la méthode** : le moyen retenu pour les touches, le texte et la veille est un **petit programme
 résident lancé par l'appli à travers son `adb` local**, comme le serveur de scrcpy :
 `CLASSPATH=<chemin de l'APK> app_process / fr.homehub.tv.Injecteur`. Il tourne sous l'identité `shell`, qui a le droit

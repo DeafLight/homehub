@@ -330,8 +330,26 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   **Téléphones** › **Télés**, un parent reconnu tape le code et le nom de la télé. Une télé n'appartient à personne
   et n'écrit rien : son jeton ne vaut que pour ses propres événements ; retirée depuis la tablette, elle revient au
   code. Installation par `adb`, hors du Play Store : voir [`tv-app/README.md`](tv-app/README.md) et le plan
-  [`docs/appli-tele.md`](docs/appli-tele.md) (prochaines versions : message écrit, réponses à la télécommande, pause
-  « À table ! », bascule vers le Google Home quand la télé est éteinte…).
+  [`docs/appli-tele.md`](docs/appli-tele.md) (prochaines versions : message écrit, réponses à la télécommande,
+  bascule vers le Google Home quand la télé est éteinte…).
+- **Télécommande de la télé** (téléphone d'un parent, bouton télé en haut de l'appli, `/m/tele`) : pour une télé qui a
+  l'appli HomeHub TV. En-tête : nom et état de la télé (**allumée**, **en veille**, **injoignable**) et bouton
+  marche/arrêt. Onglet **Touches** : pavé de flèches avec **OK** au centre, Retour, Accueil, lecture/pause, volume −,
+  muet, volume + ; **Clavier** : le texte tapé sur le téléphone s'écrit dans le champ de recherche ouvert sur la télé,
+  puis la recherche se lance (lettres accentuées écrites sans accent) ; **À table !** met en pause ce qui passe et
+  affiche un bandeau « À table ! De la part d'Alex ». Onglet **Applis** : l'appli **en cours** et le tiroir des
+  **applis de la télé** (bannière et nom, 3 colonnes), à ouvrir d'un geste ; la télé envoie sa liste à l'appairage et
+  quand elle change. **Allumer** : une télé en veille mais joignable rallume son écran (touche de réveil) ; sinon, ou
+  si elle ne répond pas, HomeHub la réveille par son **Chromecast intégré** (lance puis referme le récepteur Cast ;
+  « Wake on wireless LAN » activé sur la télé) : l'appareil Cast de la télé est celui de `cast.devices` dont l'adresse
+  est celle de la télé, sinon le seul de genre `tv`. **Comment** : l'appli se connecte à l'`adb` de sa propre télé
+  (`127.0.0.1:5555`, débogage réseau activé, « Toujours autoriser » accepté une fois à la télécommande) et y lance un
+  petit programme résident, rangé dans l'APK, qui injecte les touches et le texte (quelques millisecondes par touche) ;
+  une rafale de flèches part en un seul envoi pendant que le précédent est en route. Sans `adb`, secours : Retour,
+  Accueil, lecture et volume seulement, et l'écran le dit. Les ordres passent par l'interrogation longue de l'appli
+  (aller-retour d'une touche d'environ 65 ms, compte rendu compris, mesuré dans le monde fictif) : pas de WebSocket.
+  **Parents seulement** (le serveur refuse un enfant et un appareil non appairé ; un parent reconnu à la tablette peut
+  s'en servir aussi). Rien de personnel : le tiroir ne montre que des noms d'applis.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -656,7 +674,7 @@ weather:             # facultatif : sans cette section, pas de météo
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`) et leurs applis (`screen-apps.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
@@ -744,6 +762,7 @@ server/
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
   sources/screens.ts       télés avec l'appli HomeHub TV (screens.json), codes affichés sur la télé
+  sources/screen-apps.ts   applis du lanceur de chaque télé, avec leurs bannières (screen-apps.json)
   sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants, produits sans code-barres
   sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
   sources/recipes.ts       carnet de recettes (recipes.json, photos dans recipes/), doublons par adresse
@@ -767,8 +786,8 @@ server/
   access.ts                qui écrit : la tablette (clé, kiosk.addresses), un téléphone relié (jeton), sinon personne ; proxys de confiance
   lists-api.ts             routes des listes, de l'appairage et des téléphones
   stock-api.ts             routes du stock et du scanner
-  services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus
-  screen-api.ts            routes de l'appli HomeHub TV, de leur appairage et des messages vocaux vers elles
+  services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
+  screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
@@ -782,7 +801,7 @@ shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD 
 shared/drive-cart.ts       drive : panier copié pour l'extension et son compte rendu (format, relecture, prix affichés)
 shared/recipe-notes.ts     notes sur une recette : limites, ordre (ouvertes, puis résolues), qui les modifie
 shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
-shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage, événements, comptes rendus
+shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage, événements, comptes rendus, télécommande
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -838,6 +857,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/screen/pairing`, `GET /api/screen/pairing/:id` | appli HomeHub TV, sans jeton (en-tête `X-HomeHub-Screen: 1`, 426 sinon) : demande d'appairage `{ system, app }` → `{ id, code, expiresAt }` (5 minutes) ; attente de la confirmation (25 s au plus) → `{ status: "pending" }` ou `{ status: "paired", token, screen }` (jeton remis une fois ; 410 code expiré) |
 | `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }`) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
+| `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |
+| `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
+| `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `volup`, `voldown`, `mute`) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |
 | `GET /api/screens/targets`, `POST /api/screens/:id/voice` | téléphone d'un parent (`camera.talk`) : télés où envoyer sa voix `[{ id, name, online }]` ; message vocal (corps et `Content-Type` comme vers Cast) → `{ device }` dès que la télé le lit (503 télé absente ; 502 échec rapporté par la télé ou pas de réponse en 20 s) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères ; 404 sans `tv` ; 502 télé injoignable ou qui refuse) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |

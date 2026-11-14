@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.72.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.73.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -329,6 +329,18 @@ s'affiche en haut à droite pendant le message, avec des barres de niveau ; le s
 message, puis revient.
 
 ![Maquette d'une télé : bandeau « Message d'Alex, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-message.png)
+
+### Télécommande de la télé (téléphone d'un parent)
+
+Le bouton télé en haut de l'appli ouvre la **Télécommande** de la télé du salon (appli HomeHub TV) : son état
+(allumée, en veille, injoignable) et le bouton rouge marche/arrêt. Onglet **Touches** : flèches et gros **OK** bleu,
+Retour, Accueil, lecture/pause, volume et muet, le **clavier** (le texte s'écrit dans la recherche ouverte sur la
+télé) et **À table !**, qui met en pause et affiche un bandeau sur la télé ; le compte rendu s'affiche en bas.
+Onglet **Applis** : l'appli en cours et le tiroir des applis de la télé (ici des applis inventées par la fausse télé
+du monde fictif), à ouvrir d'un geste, avec la date de la liste.
+
+<img src="images/telephone-telecommande.png" alt="Télécommande sur le téléphone d'Alex : pavé de flèches, OK, Retour, Accueil, lecture, volume, clavier" width="260">
+<img src="images/telephone-telecommande-applis.png" alt="Télécommande, onglet Applis : appli en cours et grille des applis de la télé" width="260">
 
 ### Vie scolaire sur le téléphone d'un parent
 

@@ -1,6 +1,6 @@
 {
   "name": "homehub",
-  "version": "0.72.0",
+  "version": "0.73.0",
   "private": true,
   "type": "module",
   "description": "Tableau de bord maison affiché sur la tablette (Fully Kiosk)",
