@@ -1,0 +1,8 @@
+# Fichiers produits par Gradle et le SDK : jamais dans le dépôt (la clé de signature non plus, elle vit hors du dépôt).
+.gradle/
+build/
+app/build/
+local.properties
+*.jks
+*.keystore
+keystore.properties

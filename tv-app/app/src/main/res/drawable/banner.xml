@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bannière du lanceur Android TV (320 × 180) : fond sombre, maison bleue, liseré bleu en bas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#181B22" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#5B8DEF" android:pathData="M0,170h320v10h-320z" />
+    <path
+        android:pathData="M120,90L160,56L200,90V132H120Z"
+        android:strokeWidth="9"
+        android:strokeColor="#5B8DEF"
+        android:strokeLineJoin="round" />
+    <path android:fillColor="#F2B84B" android:pathData="M149,132V106h22v26z" />
+</vector>

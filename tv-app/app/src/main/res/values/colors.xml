@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Couleurs du thème sombre de HomeHub (variables de web/src/app.css), pour l'écran d'accueil et le bandeau. -->
+<resources>
+    <color name="bg">#0F1115</color>
+    <color name="surface">#181B22</color>
+    <color name="surface_banner">#F0181B22</color>
+    <color name="fg">#E8EAED</color>
+    <color name="fg_muted">#9AA1AB</color>
+    <color name="rain">#5B8DEF</color>
+    <color name="sun">#F2B84B</color>
+</resources>

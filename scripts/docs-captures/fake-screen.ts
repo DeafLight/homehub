@@ -58,7 +58,7 @@ export function fakeScreenTv(message: FakeScreenMessage): string {
     radial-gradient(ellipse 1000px 300px at 90% 105%, #3f8a55 0 99%, transparent 100%),
     linear-gradient(#5aa5d8, #b9dcef 70%, #e8f1d8); }
   .chaine { position: absolute; top: 28px; left: 36px; padding: 6px 14px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font-size: 20px; }
-  .bandeau { position: absolute; top: 32px; right: 40px; display: flex; align-items: center; gap: 18px; padding: 18px 28px 18px 20px;
+  .bandeau { position: absolute; top: 28px; right: 32px; display: flex; align-items: center; gap: 18px; padding: 18px 28px 18px 20px;
     border-radius: 20px; background: rgba(24,27,34,.94); color: #e8eaed; box-shadow: 0 8px 30px rgba(0,0,0,.45); }
   .icone { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: #5b8def; }
   .titre { font-size: 30px; font-weight: 600; }
@@ -71,6 +71,6 @@ export function fakeScreenTv(message: FakeScreenMessage): string {
 <div class="bandeau">
   <div class="icone"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0f1115" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
   <div><div class="titre">${escape(message.title)}</div><div class="sous-titre">Le son du programme est baissé</div></div>
-  <div class="niveau">${[14, 26, 36, 22, 30, 16].map((h) => `<span style="height:${h}px"></span>`).join('')}</div>
+  <div class="niveau">${[14, 26, 34, 22, 30].map((h) => `<span style="height:${h}px"></span>`).join('')}</div>
 </div>`;
 }

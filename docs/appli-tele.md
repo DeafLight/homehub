@@ -55,7 +55,7 @@ un profil. Proposition :
   La télé apparaît ensuite dans la liste (nom, dernière connexion, « Retirer »). Retirée : 401, l'appli revient à
   l'écran d'appairage.
 - **Adresse de HomeHub** : donnée une fois à l'installation, par `adb` (pas de saisie à la télécommande) :
-  `adb shell am start -n fr.homehub.tv/.SetupActivity --es server https://homehub.exemple`. Rien de réel dans le dépôt.
+  `adb shell am start -n fr.homehub.tv/.MainActivity --es server https://homehub.exemple`. Rien de réel dans le dépôt.
 - **Qui peut envoyer** : les routes d'envoi gardent leurs règles. Message vocal : téléphone d'un parent, `camera.talk`.
   Message écrit : un parent (téléphone ou reconnu à la tablette). Le serveur vérifie toujours, le front ne fait
   qu'anticiper (règle 4 du dépôt).
@@ -89,7 +89,7 @@ couvrent pas le Kotlin (l'appli a ses propres tests JVM : `gradlew test`). Le do
 
 Choix techniques de l'appli, pour rester petite :
 
-- **Kotlin, vues Android classiques, sans Compose ni AndroidX lourds** : APK de quelques centaines de Ko.
+- **Kotlin, vues Android classiques, sans Compose ni AndroidX** : APK d'environ 2 Mo (surtout la bibliothèque Kotlin).
 - **Aucune bibliothèque réseau** : `HttpURLConnection` et `org.json` du système suffisent pour une interrogation longue
   et un téléchargement.
 - `minSdk 29` (Android 10, la télé), `targetSdk` récent ; un service au premier plan pour rester vivant, démarré au
@@ -136,7 +136,7 @@ approximatives, à confirmer au téléchargement :
      session média en cours : `adb shell cmd notification allow_listener fr.homehub.tv/.MediaListener` ;
    - (fonction 8) écran de veille HomeHub :
      `adb shell settings put secure screensaver_components fr.homehub.tv/.HomeHubDream`.
-7. **Adresse de HomeHub** : `adb shell am start -n fr.homehub.tv/.SetupActivity --es server <adresse>` ; l'appli
+7. **Adresse de HomeHub** : `adb shell am start -n fr.homehub.tv/.MainActivity --es server <adresse>` ; l'appli
    affiche alors le code d'appairage, à taper sur la tablette.
 8. **Éviter qu'elle soit tuée** : vérifier qu'elle repart après un redémarrage et une mise en veille ; si le fabricant
    tue les applis en arrière-plan, l'exclure de l'optimisation de batterie

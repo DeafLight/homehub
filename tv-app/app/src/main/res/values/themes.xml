@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thème de l'écran d'accueil : sombre, plein écran, sans barre de titre. -->
+<resources>
+    <style name="Theme.HomeHub" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorAccent">@color/rain</item>
+    </style>
+</resources>

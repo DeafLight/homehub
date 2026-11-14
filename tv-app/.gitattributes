@@ -1,0 +1,4 @@
+# Fins de ligne des scripts Gradle : gradlew reste lisible par Linux (CI), gradlew.bat par Windows.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
