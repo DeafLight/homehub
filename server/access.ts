@@ -163,7 +163,16 @@ export type Access = {
    * montrer son téléphone à la famille) ; ni la tablette, ni un appareil non appairé. Rend le profil du téléphone.
    */
   mediaSender(c: Context): Promise<Author & { ownerId: string }>;
+
+  /**
+   * Le téléphone appairé de la personne, et lui seul : son profil. Ni la tablette (même la personne reconnue devant
+   * elle), ni une télé, ni un parent pour un autre. Sert aux données personnelles montrées sur un écran partagé à la
+   * demande de la personne (séance de sport sur la télé).
+   */
+  ownPhone(c: Context): Promise<string>;
 };
+
+export const OWN_PHONE_ONLY = 'Réservé au téléphone de la personne';
 
 export const REMOTE_PARENTS_ONLY = 'La télécommande de la télé est réservée aux parents';
 
@@ -271,6 +280,13 @@ export function createAccess({
       if (who.rejectedToken) return fail(401, REJECTED_PHONE);
       const ownerId = who.device?.ownerId;
       return ownerId ? { ownerId, via: 'phone' } : fail(403, MEDIA_PHONE_ONLY);
+    },
+
+    async ownPhone(c) {
+      const who = await caller(c);
+      if (who.rejectedToken) return fail(401, REJECTED_PHONE);
+      if (!who.device || !household.member(who.device.ownerId)) return fail(403, OWN_PHONE_ONLY);
+      return who.device.ownerId;
     },
   };
 }

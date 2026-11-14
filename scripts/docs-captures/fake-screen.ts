@@ -19,6 +19,8 @@
 // veille, l'écran est annoncé éteint et un message vocal est refusé comme le fait l'appli (« écran éteint ») ; absente,
 // elle ne demande plus rien (HomeHub la voit partie au bout de GONE_MS).
 // Photo partagée (fonction 11) : téléchargée et notée dans fake-screen-media.json.
+// Séance de sport (fonction 12) : elle note l'ouverture et la fermeture de la page (la page elle-même est capturée
+// à part, avec le jeton de cette télé).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
@@ -91,6 +93,8 @@ export function applyRemote(event: ScreenEvent, state: ScreenStateReport, remote
     case 'power':
       state.screenOn = event.on;
       return event.on ? 'allumer' : 'veille';
+    case 'workout':
+      return event.action === 'start' ? `séance de sport : page ${event.page} ouverte` : `séance de sport : fin (bandeau « ${event.notice?.title} »)`;
     default:
       return null;
   }

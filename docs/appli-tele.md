@@ -307,6 +307,33 @@ coûte qu'un démarrage (environ 1 s) au lancement de l'appli. L'accessibilité 
   (service au premier plan) en 1 min 20 s, écran toujours éteint. `input keyevent KEYCODE_WAKEUP` par `adb` la
   rallume aussitôt (écran `ON`) : c'est la touche que l'appli enverra pour « Allumer » quand elle est joignable.
 
+## 9. Séance de sport sur la télé (fonction 12)
+
+Retenue le 15 novembre 2026. Données personnelles sur un écran partagé : seulement à la demande de la personne, depuis
+son propre téléphone, et rien de plus que la séance en cours.
+
+- **Droits** : seul le téléphone de la personne (profil avec `fitness: true`) lance, pilote et note sa séance
+  (`access.ownPhone` : ni la tablette, ni un parent pour un autre, ni la télé). Une télé prise par la séance de
+  quelqu'un d'autre refuse (409).
+- **Ce que voit la télé** : le rythme (tours, effort, repos), les six exercices et l'étape en cours avec son temps
+  restant (`shared/screen-workout.ts`). Ni prénom, ni numéro de séance, ni palier, ni historique, ni mesures.
+- **Horloge** : tenue par le serveur, en mémoire (`server/services/screen-workouts.ts`). La page de la télé la suit
+  par interrogation longue (`GET /api/screen/workout?after=rev`) et fait défiler le compte à rebours elle-même, bips
+  compris ; le téléphone relit toutes les 3 s.
+- **Fin** : finie ou arrêtée, le serveur envoie `workout`/`end` : l'appli ferme la page, vide cache, historique et
+  stockage de la WebView, et affiche le bandeau « Séance terminée, Bravo ! » (ou « Séance arrêtée »). Le téléphone
+  ouvre la fin de séance habituelle ; la note passe par `POST /api/fitness/sessions`, comme sans la télé.
+- **Affichage : page dans une WebView** (`SportActivity`), plutôt qu'une vue native. L'animation du bonhomme
+  (`shared/fitness-moves.ts`, dessinée en SVG par `ExerciseAnimation.svelte`) et le minuteur de la séance guidée de la
+  tablette (`web/src/lib/workout-timer.ts`) se réutilisent tels quels ; les recopier en Kotlin doublerait le code à
+  tenir à jour. La page est une **entrée à part du front** (`web/tele-sport.html`, quelques Ko en plus de la
+  bibliothèque commune), sans la tablette ni le téléphone ; mise en page simple (flex, grille, tailles en hauteur
+  d'écran). Jeton de la télé passé dans le fragment (`#token=…`, jamais dans une adresse envoyée au serveur), page
+  limitée à HomeHub (`Sport.sameOrigin`), son permis sans geste (`setMediaPlaybackRequiresUserGesture(false)`).
+- **À essayer sur la vraie télé** : version de la WebView d'Android TV (mise à jour par le Play Store), bips du
+  décompte, Retour à la télécommande (ferme la page ; la séance continue sur le téléphone), ouverture par-dessus une
+  appli en cours (permise par `SYSTEM_ALERT_WINDOW`, comme le lancement d'une appli de la télécommande).
+
 ## Décisions (14 novembre 2026)
 
 1. Code dans le sous-dossier `tv-app/` de ce dépôt.

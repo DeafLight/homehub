@@ -662,6 +662,18 @@ await shoot('telephone-sport-seance', `${BASE}/m/sport`, PHONE, {
   init: asPhone('alex'),
   after: `${click('Noter la séance')}; setTimeout(() => { ${click('3Exigeant')}; document.querySelectorAll('.seg')[1].querySelectorAll('button')[2].click(); }, 300)`,
 });
+// Séance guidée sur la télé, lancée depuis le téléphone d'Alex (la fausse appli de fake-screen.ts ouvre la page) : le
+// pilotage sur le téléphone, puis la page de la télé (WebView de l'appli), une étape d'effort en cours. La séance est
+// abandonnée ensuite : les autres captures du sport retrouvent l'onglet ordinaire.
+const SPORT_TV_SHOTS = ['telephone-sport-tele', 'tele-sport'];
+if (!only || SPORT_TV_SHOTS.some((name) => only.test(name))) {
+  await call(A, 'POST', '/fitness/screen', { screenId: FAKE_SCREEN_ID, session: 3 });
+  // Échauffement passé, avance jusqu'au troisième exercice du premier tour.
+  for (let i = 0; i < 9; i++) await call(A, 'POST', '/fitness/screen/command', { command: 'next' });
+  await shoot('telephone-sport-tele', `${BASE}/m/sport`, PHONE, { init: asPhone('alex') });
+  await shoot('tele-sport', `${BASE}/tele-sport.html#token=${FAKE_SCREEN_TOKEN}`, TV_SCREEN);
+  await call(A, 'DELETE', '/fitness/screen');
+}
 // Réglages du programme : élastique de tirage et sans sauts cochés, séance 1 choisie (rowing à l'élastique, jumping
 // jacks sans saut à la place des jumping jacks), puis la carte des réglages. En dernier : les autres captures du
 // sport gardent le programme sans réglage.

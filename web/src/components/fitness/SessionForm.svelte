@@ -21,12 +21,14 @@
     plan: PlannedExercise[];
     onSubmit: (report: SessionReport) => Promise<void>;
     onCancel: () => void;
+    /** Séance arrêtée avant la fin (séance guidée sur la télé) : case cochée d'office. */
+    stoppedEarly?: boolean;
   };
-  let { session, plan, onSubmit, onCancel }: Props = $props();
+  let { session, plan, onSubmit, onCancel, stoppedEarly = false }: Props = $props();
 
   type Draft = { rating: Rating | null; painOn: boolean; pain: PainSpot | null; reps: number | null; note: string };
   let rpe = $state<number | null>(null);
-  let stopped = $state(false);
+  let stopped = $state(untrack(() => stoppedEarly));
   let note = $state('');
   let drafts = $state<Draft[]>(untrack(() => plan.map(() => ({ rating: null, painOn: false, pain: null, reps: null, note: '' }))));
   let saving = $state(false);

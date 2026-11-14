@@ -59,6 +59,7 @@ import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-medi
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
+import type { PhoneScreenWorkout, ScreenWorkoutCommand, WorkoutScreen } from '../../../shared/screen-workout.ts';
 import type { LooseUnit, NewLooseProduct } from '../../../shared/loose.ts';
 import type { CheckDecision, MenuEntry, MenuView, StockLink } from '../../../shared/menu.ts';
 import type { CookProposal, CookRequest, CookResult, CookUndo } from '../../../shared/cook.ts';
@@ -203,6 +204,14 @@ export type Api = {
   /** Séance du jour de la personne reconnue devant la tablette (la lire prolonge aussi sa session). */
   tabletWorkout(): Promise<TabletSession>;
   finishTabletWorkout(report: TabletSessionReport): Promise<TabletSession>;
+  /** Télés où lancer sa séance (téléphone de la personne). */
+  workoutScreens(): Promise<WorkoutScreen[]>;
+  /** Sa séance sur la télé (en cours, ou finie et pas encore notée), ou null. */
+  screenWorkout(): Promise<PhoneScreenWorkout | null>;
+  startScreenWorkout(screenId: string, session: SessionNumber): Promise<PhoneScreenWorkout>;
+  commandScreenWorkout(command: ScreenWorkoutCommand): Promise<PhoneScreenWorkout>;
+  /** Séance notée ou abandonnée : oubliée, la télé effacée. */
+  dismissScreenWorkout(): Promise<void>;
   /** Carnet de recettes (lecture ouverte). */
   recipes(): Promise<{ recipes: RecipeSummary[] }>;
   recipe(id: string): Promise<Recipe>;
@@ -463,6 +472,11 @@ export function createApi(
     saveFitnessSettings: (settings) => send('PUT', '/fitness/settings', settings),
     tabletWorkout: () => request('/fitness/tablet'),
     finishTabletWorkout: (report) => send('POST', '/fitness/tablet/sessions', report),
+    workoutScreens: () => request('/fitness/screens'),
+    screenWorkout: () => request('/fitness/screen'),
+    startScreenWorkout: (screenId, session) => send('POST', '/fitness/screen', { screenId, session }),
+    commandScreenWorkout: (command) => send('POST', '/fitness/screen/command', { command }),
+    dismissScreenWorkout: () => send('DELETE', '/fitness/screen'),
     recipes: () => request('/recipes'),
     recipe: (id) => request(`/recipes/${encodeURIComponent(id)}`),
     importRecipe: (url) => send('POST', '/recipes/import', { url }),

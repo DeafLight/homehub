@@ -10,7 +10,8 @@ téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). L'**alerte du bus du matin** s'y affiche (« Bus dans 9 min », bandeau icône bus pendant 45 s, réglée par
 trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche, après un
 message vocal en cours). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
-famille, menu du soir). Elle montre aussi **en plein écran** une photo ou une vidéo partagée depuis un téléphone.
+famille, menu du soir). Elle montre aussi **en plein écran** une photo ou une vidéo partagée depuis un téléphone, et la **séance de sport
+guidée** lancée depuis le téléphone d'une personne (rien d'autre que la séance en cours ; tout est effacé à la fin).
 Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
@@ -38,6 +39,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `MinuteurDecompte.kt` | Petit décompte des minuteurs en cours en bas à droite, fenêtre non focalisable et non touchable |
 | `MinuteurBandeau.kt` | Bandeau du minuteur qui prend le focus de la télécommande (OK : « Arrêter » partout, Retour : masquer), carillon son baissé, compte rendu |
 | `HomeHubDream.kt`, `Ecran.kt` | Écran de veille (`DreamService`) : la page `/ecran` de HomeHub dans une WebView, avec le jeton de la télé |
+| `SportActivity.kt`, `Sport.kt` | Séance de sport guidée : page de HomeHub (`/tele-sport.html`) en plein écran dans une WebView, ouverte quand la personne la lance depuis son téléphone, fermée et effacée à la fin |
 
 ## Minuteurs
 

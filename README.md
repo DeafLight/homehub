@@ -403,6 +403,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   ne pas marquer l'écran). Seule une télé appairée la lit, et rien de personnel n'y figure (ni tâches, ni mots, ni
   sport, ni vie scolaire). La première touche de la télécommande la ferme. `tv-app/installer.ps1` la choisit comme
   écran de veille ; le délai avant la veille reste celui des paramètres de la télé.
+- **Séance de sport sur la télé** (téléphone de la personne, onglet Sport ; télé avec l'appli HomeHub TV) : sous la
+  prochaine séance, **Lancer sur Télé du salon** (une ligne par télé, grisée si elle est éteinte) ouvre la séance
+  guidée en plein écran sur la télé, par-dessus ce qui passe : étape (échauffement, tour, repos, pause entre les
+  tours), exercice et son animation, compte à rebours, « change de côté », bips du décompte, temps restant. Le
+  téléphone pilote : **Pause / Reprendre**, **Suivant**, **Arrêter**, avec le même compte à rebours. À la fin, finie
+  ou arrêtée, la télé **efface tout** (page fermée, cache et stockage de la page vidés, bandeau « Séance terminée,
+  Bravo ! » ou « Séance arrêtée ») et le téléphone ouvre la fin de séance habituelle (« Arrêtée avant la fin » cochée
+  d'office) : la note ne s'enregistre que là. **Seule la personne** lance et pilote sa séance, depuis son propre
+  téléphone (ni la tablette, ni un parent pour un autre, ni la télé : `access.ownPhone`) ; une télé déjà prise par la
+  séance de quelqu'un d'autre refuse. **Rien de personnel sur la télé** : elle ne reçoit que le rythme, les exercices
+  et l'étape en cours, ni prénom, ni numéro de séance, ni palier, ni historique, ni mesures. Le serveur tient l'horloge
+  (en mémoire seulement) ; la page de la télé (`/tele-sport.html`, entrée à part du front, légère) la suit par
+  interrogation longue et défile seule entre deux nouvelles.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -869,6 +882,8 @@ server/
   services/screen-bus.ts   alerte du bus du matin sur les télés HomeHub TV (« Bus dans 9 min »)
   services/rain-alert.ts   alerte pluie du matin sur les télés : plage, jours d'école, seuil, une fois par matin
   services/screen-fallback.ts  annonce destinée à une télé éteinte ou injoignable : bascule vers son Google Home
+  services/screen-workouts.ts  séances de sport sur la télé : horloge, pilotage, effacement de la télé à la fin
+  fitness-screen-api.ts    routes de la séance de sport sur la télé (téléphone de la personne, page de la télé)
   screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
   screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
   services/timer-alerts.ts guetteur des minuteurs : liste `timers` en cours, alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
@@ -899,6 +914,7 @@ shared/ecran.ts            écran de veille de la télé : données de la page /
 shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage, événements, comptes rendus, télécommande
 shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut, heure due, textes
 shared/screen-media.ts     photo ou vidéo vers la télé : formats, taille au plus, durées, événement « media »
+shared/screen-workout.ts   séance de sport sur la télé : plan sans rien de personnel, horloge (pause, suivant, arrêt)
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -1036,6 +1052,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/fitness/rhythm` | `{ week, option }` : rythme choisi au bilan de la semaine (parmi ceux proposés) |
 | `POST /api/fitness/slots` | `{ session, family, change }` : changement d'exercice accepté (`easier`, `harder`, `gentle`, `normal`) ou refusé (`dismiss`) |
 | `PUT /api/fitness/settings` | `{ band, noJump }` : réglages du programme (élastique de tirage, sans sauts) |
+| `GET /api/fitness/screens`, `GET /api/fitness/screen` | téléphone de la personne (avec un programme) : télés où lancer sa séance `[{ id, name, online }]` ; sa séance sur la télé `{ rev, screen, session, plan, index, left, paused, phase, stopped }` (`phase` : `running`, ou `done` en attendant la note), ou `null` |
+| `POST /api/fitness/screen`, `POST /api/fitness/screen/command`, `DELETE /api/fitness/screen` | téléphone de la personne : lancer `{ screenId, session }` (201 dès que la télé a ouvert la page ; 409 télé prise par quelqu'un d'autre, 503 télé absente, 502 page pas ouverte) ; piloter `{ command }` (`pause`, `next`, `stop`) ; oublier la séance notée ou abandonnée (la télé s'efface si elle défilait encore) |
+| `GET /api/screen/workout?after=` | la télé, avec son jeton (en-tête `X-HomeHub-Screen: 1`) : séance en cours `{ rev, workout: { plan: { rounds, effort, rest, exercises }, index, left, paused } }` ou `workout: null` ; attend 25 s au plus que `rev` dépasse `after` |
 
 Toutes les écritures du stock, et les lectures de la base de produits (`scan`, `recheck`) : tablette ou téléphone relié.
 

@@ -14,6 +14,7 @@
 // Volume réglable ou fixe (barre de son par HDMI ARC, Volume.kt) : annoncé avec l'état, renvoyé quand une sortie
 // audio apparaît ou disparaît.
 // Photo ou vidéo partagée depuis un téléphone : téléchargée puis montrée en plein écran (MediaActivity), compte rendu.
+// Séance de sport (fonction 12) : la page de la séance s'ouvre dans SportActivity, et se ferme à la fin.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -287,6 +288,7 @@ class HubService : Service() {
                 is RemoteEvent.Text -> telecommande.text(event.text, event.submit)
                 is RemoteEvent.Launch -> Applis.launch(this, event.pkg)
                 is RemoteEvent.Power -> telecommande.power(event.on)
+                is RemoteEvent.Workout -> handleWorkout(server, token, event)
             }
         } catch (e: Exception) {
             e.message ?: "erreur sur la télé"
@@ -349,6 +351,23 @@ class HubService : Service() {
         } finally {
             file.delete()
         }
+    }
+
+    /**
+     * Séance de sport (fonction 12) : ouvrir la page de la séance, ou la fermer (tout est effacé en sortant) avec le
+     * bandeau de fin ; null si c'est fait, sinon la raison.
+     */
+    private fun handleWorkout(server: String, token: String, event: RemoteEvent.Workout): String? {
+        if (event.start) {
+            val url = Sport.pageUrl(server, event.page, token) ?: return "adresse de page refusée"
+            return SportActivity.open(this, url)
+        }
+        SportActivity.close()
+        event.notice?.let { notice ->
+            banner.show(notice.title, notice.subtitle, voice = false)
+            Handler(mainLooper).postDelayed({ banner.hide() }, NOTICE_MS)
+        }
+        return null
     }
 
     /** Adresses IPv4 de la télé sur le réseau local (pour que HomeHub retrouve son appareil Cast). */

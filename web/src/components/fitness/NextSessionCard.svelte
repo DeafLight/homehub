@@ -1,11 +1,13 @@
 <script lang="ts">
   import { FAMILY_LABELS } from '../../../../shared/fitness-catalogue.ts';
   import { type FitnessState, PALIERS, palierHint, type planSession, type SessionNumber, sessionSeconds, WARMUP_MINUTES } from '../../../../shared/fitness.ts';
+  import type { WorkoutScreen } from '../../../../shared/screen-workout.ts';
   import { formatMinutes } from '../../lib/fitness.ts';
   import ExerciseList from './ExerciseList.svelte';
   import SportCard from './SportCard.svelte';
 
   // Prochaine séance (onglet Sport) : son numéro (une autre au choix), le rythme, les exercices et « Noter la séance ».
+  // S'il y a une télé appairée : « Lancer sur la télé » (séance guidée sur la télé, pilotée d'ici).
   type Props = {
     program: FitnessState;
     session: SessionNumber;
@@ -13,8 +15,11 @@
     onPick: (session: SessionNumber) => void;
     onOpen: (id: string) => void;
     onLog: () => void;
+    screens?: WorkoutScreen[];
+    onTv?: (screenId: string) => void;
+    tvBusy?: boolean;
   };
-  let { program, session, plan, onPick, onOpen, onLog }: Props = $props();
+  let { program, session, plan, onPick, onOpen, onLog, screens = [], onTv, tvBusy = false }: Props = $props();
 </script>
 
 {#snippet detail(item: (typeof plan)[number])}
@@ -41,6 +46,11 @@
     {formatMinutes(sessionSeconds(program))}, plus {WARMUP_MINUTES} min d’échauffement ; 1 min de pause entre les tours.
   </p>
   <ExerciseList items={plan} key={(item) => item.family} exercise={(item) => item.exercise} {detail} {onOpen} />
+  {#each screens as screen (screen.id)}
+    <button type="button" class="tv" disabled={tvBusy || !screen.online} onclick={() => onTv?.(screen.id)}>
+      Lancer sur {screen.name}{screen.online ? '' : ' (éteinte)'}
+    </button>
+  {/each}
   <button type="button" class="big" onclick={onLog}>Noter la séance</button>
   <p class="hint">{palierHint(program)}</p>
 </SportCard>
@@ -100,6 +110,23 @@
     font: inherit;
     font-size: 1.1rem;
     font-weight: 700;
+  }
+
+  .tv {
+    width: 100%;
+    min-height: 50px;
+    margin-bottom: 10px;
+    border: 1px solid var(--rain);
+    border-radius: 999px;
+    background: none;
+    color: var(--fg);
+    font: inherit;
+    font-weight: 700;
+  }
+
+  .tv:disabled {
+    border-color: var(--border-strong);
+    color: var(--fg-muted);
   }
 
   .hint {

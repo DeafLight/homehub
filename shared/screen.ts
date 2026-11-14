@@ -98,6 +98,14 @@ export type ScreenRainEvent = { kind: 'rain'; id: string; title: string; subtitl
 export type { ScreenReminderEvent } from './screen-reminders.ts';
 import type { ScreenReminderEvent } from './screen-reminders.ts';
 
+/**
+ * Séance de sport guidée (fonction 12) : `start` ouvre la page `page` (chemin du front, à charger avec le jeton de la
+ * télé) ; `end` la ferme et efface tout, avec un bandeau qui dit que c'est fini (rien de personnel).
+ */
+export type ScreenWorkoutEvent = { kind: 'workout'; id: string; action: 'start' | 'end'; page: string; notice?: { title: string; subtitle: string } };
+/** Page de la séance sur la télé (entrée à part du front, web/tele-sport.html). */
+export const SCREEN_WORKOUT_PAGE = '/tele-sport.html';
+
 export type ScreenEventBody =
   | ScreenVoiceEvent
   | ScreenKeysEvent
@@ -111,7 +119,8 @@ export type ScreenEventBody =
   | ScreenBusEvent
   | ScreenRainEvent
   | ScreenReminderEvent
-  | ScreenMediaEvent;
+  | ScreenMediaEvent
+  | ScreenWorkoutEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

@@ -52,6 +52,13 @@
             android:noHistory="true"
             android:taskAffinity="fr.homehub.tv.media" />
 
+        <!-- Séance de sport guidée (fonction 12) : page de HomeHub en plein écran, ouverte par le service. -->
+        <activity
+            android:name=".SportActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask" />
+
         <service
             android:name=".HubService"
             android:exported="false"

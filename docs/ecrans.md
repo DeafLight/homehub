@@ -494,6 +494,15 @@ avec la courbe de ses répétitions.
 |---|---|---|
 | ![Statistiques](images/telephone-sport-stats.png) | ![Progression](images/telephone-sport-stats-progression.png) | ![Par exercice](images/telephone-sport-stats-exercices.png) |
 
+Séance sur la télé : **Lancer sur Télé du salon** (sous la prochaine séance) ouvre la séance guidée sur la télé, et
+l'onglet devient son pilotage (étape, compte à rebours, Pause, Suivant, Arrêter). Ici, séance 3, premier tour,
+troisième exercice. La télé (page de l'appli HomeHub TV) ne montre que la séance en cours : ni prénom, ni numéro de
+séance, ni palier, ni historique. À la fin, elle s'efface et le téléphone ouvre la fin de séance.
+
+<img src="images/telephone-sport-tele.png" alt="Onglet Sport du téléphone d'Alex : séance 3 sur la Télé du salon, Dips chaise genoux pliés, 32 s, boutons Pause, Suivant, Arrêter" width="260">
+
+![Page de la télé : Tour 1/4, exercice 3/6, Dips chaise genoux pliés, compte à rebours 28, animation du bonhomme sur une chaise](images/tele-sport.png)
+
 ### Scanner du téléphone
 
 Bouton code-barres de l'onglet Courses. L'aperçu tient en un bandeau en haut ; le passage prend le reste de l'écran.

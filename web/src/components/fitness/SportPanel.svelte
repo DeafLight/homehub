@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { exerciseById, FAMILIES, FAMILY_LABELS } from '../../../../shared/fitness-catalogue.ts';
   import { type FitnessState, nextSession, pendingReview, planSession, type SessionNumber, type SessionReport, slotProposals, weekOf } from '../../../../shared/fitness.ts';
+  import type { PhoneScreenWorkout, WorkoutScreen } from '../../../../shared/screen-workout.ts';
   import type { Api } from '../../lib/api.ts';
   import { familyExercises, waistSeries } from '../../lib/fitness.ts';
   import { createResource } from '../../lib/resource.svelte.ts';
@@ -14,13 +15,15 @@
   import ProposalCard from './ProposalCard.svelte';
   import SessionForm from './SessionForm.svelte';
   import StatsView from './StatsView.svelte';
+  import TvWorkoutCard from './TvWorkoutCard.svelte';
   import WeekLogCard from './WeekLogCard.svelte';
   import WeekReviewCard from './WeekReviewCard.svelte';
 
   // Onglet Sport du téléphone : la prochaine séance, le bilan de la semaine (rythme à choisir), les changements
   // d'exercice proposés, le cardio et le tour de taille de la semaine, l'historique, les réglages du programme
   // (élastique, sans sauts), les statistiques et le catalogue des exercices. Ce composant garde le programme et la vue affichée ; chaque carte est un composant de ce dossier.
-  // Données personnelles : seul ce téléphone les voit.
+  // Données personnelles : seul ce téléphone les voit. Séance guidée sur la télé : lancée et pilotée d'ici, notée ici
+  // (la télé ne montre que la séance en cours et s'efface à la fin).
   type Props = { api: Api; now: Date; onScrollTop: () => void };
   let { api, now, onScrollTop }: Props = $props();
 
@@ -28,11 +31,29 @@
   const fitness = createResource(() => api.fitness(), REFRESH_MS);
   onDestroy(() => fitness.destroy());
 
-  type View = { name: 'home' } | { name: 'log' } | { name: 'catalogue' } | { name: 'stats' } | { name: 'exercise'; id: string; back: View };
+  type View =
+    | { name: 'home' }
+    | { name: 'log'; tv?: { session: SessionNumber; stopped: boolean } }
+    | { name: 'tv'; workout: PhoneScreenWorkout }
+    | { name: 'catalogue' } | { name: 'stats' } | { name: 'exercise'; id: string; back: View };
   let view = $state<View>({ name: 'home' });
   let chosen = $state<SessionNumber | null>(null);
   let error = $state<string | null>(null);
   let busy = $state(false);
+  let screens = $state<WorkoutScreen[]>([]);
+
+  // Télés où lancer la séance (relues de temps en temps : allumée ou non), et une séance déjà sur la télé (onglet
+  // rouvert pendant la séance, ou séance finie pas encore notée).
+  const SCREENS_MS = 30_000;
+  onMount(() => {
+    const load = () => void api.workoutScreens().then((list) => (screens = list), () => {});
+    load();
+    const timer = setInterval(load, SCREENS_MS);
+    void api.screenWorkout().then((w) => {
+      if (w) showTv(w);
+    }, () => {});
+    return () => clearInterval(timer);
+  });
 
   function go(next: View) {
     view = next;
@@ -66,9 +87,33 @@
     }
   }
 
+  /** La séance sur la télé : son pilotage tant qu'elle défile, puis sa note. */
+  function showTv(workout: PhoneScreenWorkout) {
+    go(workout.phase === 'done' ? { name: 'log', tv: { session: workout.session, stopped: workout.stopped } } : { name: 'tv', workout });
+  }
+
+  async function startTv(screenId: string) {
+    busy = true;
+    error = null;
+    try {
+      showTv(await api.startScreenWorkout(screenId, session));
+    } catch (err) {
+      error = (err as Error).message;
+    } finally {
+      busy = false;
+    }
+  }
+
+  /** Note de la séance faite sur la télé envoyée, ou abandonnée : le serveur l'oublie. */
+  const dismissTv = () => void api.dismissScreenWorkout().catch(() => {});
+
+  const logSession = $derived(view.name === 'log' && view.tv ? view.tv.session : session);
+  const logPlan = $derived(program ? planSession(program, logSession) : []);
+
   /** Séance notée ; un refus du serveur s'affiche dans le formulaire (SessionForm), qui reste ouvert. */
   async function submit(report: SessionReport) {
     const next = await api.addFitnessSession(report);
+    if (view.name === 'log' && view.tv) dismissTv();
     fitness.set(next);
     chosen = null;
     go({ name: 'home' });
@@ -76,8 +121,15 @@
 </script>
 
 <div class="sport">
-  {#if view.name !== 'home'}
-    <button type="button" class="back" onclick={() => go(view.name === 'exercise' ? view.back : { name: 'home' })}>
+  {#if view.name !== 'home' && view.name !== 'tv'}
+    <button
+      type="button"
+      class="back"
+      onclick={() => {
+        if (view.name === 'log' && view.tv) dismissTv();
+        go(view.name === 'exercise' ? view.back : { name: 'home' });
+      }}
+    >
       <Icon name="back" size={22} /> Retour
     </button>
   {/if}
@@ -103,14 +155,28 @@
     {/each}
   {:else if !program}
     {#if fitness.error}<p class="muted">Impossible de charger le programme : {fitness.error}</p>{:else}<p class="muted">Chargement…</p>{/if}
+  {:else if view.name === 'tv'}
+    <TvWorkoutCard {api} initial={view.workout} onDone={showTv} />
   {:else if view.name === 'log'}
-    <SessionForm {session} {plan} onSubmit={submit} onCancel={() => go({ name: 'home' })} />
+    {@const tv = view.tv}
+    {#key tv?.session ?? 0}
+      <SessionForm
+        session={logSession}
+        plan={logPlan}
+        stoppedEarly={tv?.stopped ?? false}
+        onSubmit={submit}
+        onCancel={() => {
+          if (tv) dismissTv();
+          go({ name: 'home' });
+        }}
+      />
+    {/key}
   {:else}
     {#if review}
       <WeekReviewCard {review} {busy} onChoose={(option) => act(() => api.chooseRhythm(review.week, option))} />
     {/if}
 
-    <NextSessionCard {program} {session} {plan} onPick={(n) => (chosen = n)} onOpen={open({ name: 'home' })} onLog={() => go({ name: 'log' })} />
+    <NextSessionCard {program} {session} {plan} onPick={(n) => (chosen = n)} onOpen={open({ name: 'home' })} onLog={() => go({ name: 'log' })} {screens} onTv={startTv} tvBusy={busy} />
 
     {#each proposals as p (`${p.session}-${p.family}`)}
       <ProposalCard

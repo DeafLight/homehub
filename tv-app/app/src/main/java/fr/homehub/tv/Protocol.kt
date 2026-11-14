@@ -1,5 +1,5 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
-// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus, séance de sport), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -36,6 +36,8 @@ sealed interface RemoteEvent {
     data class Text(override val id: String, val text: String, val submit: Boolean) : RemoteEvent
     data class Launch(override val id: String, val pkg: String) : RemoteEvent
     data class Power(override val id: String, val on: Boolean) : RemoteEvent
+    /** Séance de sport (fonction 12) : ouvrir la page `page` (start), ou la fermer et tout effacer (end). */
+    data class Workout(override val id: String, val start: Boolean, val page: String, val notice: Notice?) : RemoteEvent
 }
 
 /** Bandeau qui accompagne des touches (« À table ! », « De la part d'Alex »). */
@@ -96,6 +98,10 @@ fun parseEvents(json: String): Events {
             "text" -> RemoteEvent.Text(id, e.getString("text"), e.optBoolean("submit"))
             "launch" -> RemoteEvent.Launch(id, e.getString("package"))
             "power" -> RemoteEvent.Power(id, e.getBoolean("on"))
+            "workout" -> {
+                val notice = e.optJSONObject("notice")?.let { Notice(it.getString("title"), it.getString("subtitle")) }
+                RemoteEvent.Workout(id, e.getString("action") == "start", e.getString("page"), notice)
+            }
             else -> null
         }
     }

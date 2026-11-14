@@ -331,7 +331,11 @@ personne depuis son propre téléphone.
 - [x] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone : « Montrer sur la
       télé », plein écran (photo une minute au plus, vidéo le programme en pause), Retour ferme ; tout téléphone
       appairé, 50 Mo au plus. Reste à vérifier sur la vraie télé (vidéo par-dessus la télé en direct, HEIC).
-- [ ] 12. Séance de sport guidée sur la télé, lancée depuis le téléphone de la personne (seule elle peut la lancer).
+- [x] 12. Séance de sport guidée sur la télé, lancée depuis le téléphone de la personne (seule elle peut la lancer) :
+      « Lancer sur Télé du salon » dans l'onglet Sport, page plein écran dans une WebView de l'appli
+      (`/tele-sport.html` : exercice, animation, compte à rebours, tours), pilotage par le téléphone (pause, suivant,
+      arrêter), télé effacée à la fin, note enregistrée depuis le téléphone seulement ; rien de personnel sur la télé.
+      À essayer sur la vraie télé (WebView, son des bips, Retour à la télécommande).
 - [ ] 13. Mode cuisine d'une recette sur la télé : étapes en grand, minuteurs intégrés.
 - [x] 14. Alerte pluie avant de sortir, par-dessus le programme du matin : de 7 h à 8 h 30 les jours d'école (ni
       vacances ni jours fériés), pluie prévue dans les 3 h (0,5 mm sur une heure) → bandeau parapluie « Pluie vers

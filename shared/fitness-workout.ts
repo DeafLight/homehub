@@ -54,7 +54,7 @@ export type WorkoutStep = {
  * Déroulé complet. Après chaque effort, un repos qui montre l'exercice suivant ; à la fin d'un tour, le repos et la
  * pause entre les tours ne font qu'une étape. Rien après le dernier effort : la séance est finie.
  */
-export function workoutSteps(plan: TabletSession): WorkoutStep[] {
+export function workoutSteps(plan: Pick<TabletSession, 'rounds' | 'effort' | 'rest' | 'exercises'>): WorkoutStep[] {
   const steps: WorkoutStep[] = WARMUP.map((w, i) => ({ kind: 'warmup', seconds: w.seconds, exercise: exerciseById(w.id)!, round: 0, index: i + 1, cue: w.cue }));
   const exercises = plan.exercises.map((e) => exerciseById(e.id)).filter((e): e is Exercise => Boolean(e));
   for (let round = 1; round <= plan.rounds; round++) {

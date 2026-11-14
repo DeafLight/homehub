@@ -15,6 +15,10 @@ export default defineConfig({
     emptyOutDir: true,
     // La bibliothèque de reconnaissance faciale (≈ 1,5 Mo), chargée à part au premier usage sur la tablette.
     chunkSizeWarningLimit: 1600,
+    // Deux pages : le front (index.html) et la séance de sport sur la télé (tele-sport.html, WebView de HomeHub TV).
+    rollupOptions: {
+      input: { main: 'web/index.html', teleSport: 'web/tele-sport.html' },
+    },
   },
   server: {
     host: true,
