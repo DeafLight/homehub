@@ -295,6 +295,22 @@ personne depuis son propre téléphone.
 - [ ] 15. Mode « film » : pendant un film, les annonces partent sur le Google Home ou en bandeau discret.
 - [ ] 16. Heure du coucher des enfants : rappel, puis pause, puis écran de veille ; un parent garde la main depuis
       son téléphone.
+- [ ] 17. Télécommande sur le téléphone (PWA, parents) : flèches et OK, Retour, Accueil, clavier du téléphone, tiroir
+      des applis installées, lancement direct, marche/arrêt (`docs/appli-tele.md`, section 8). Après les essais :
+  - [x] E1. `adb` réseau encore ouvert après un redémarrage de la télé : oui, en 45 s, même revenue en veille ;
+        l'appli repart seule en 1 min 20 s, écran éteint.
+  - [ ] E2. Connexion de l'appli à l'`adb` de la télé elle-même (`127.0.0.1:5555`) : port local accepté (`nc`),
+        reste l'autorisation de l'appli (prototype).
+  - [x] E3. Télé en veille rallumée en castant un média : oui (« Wake on wireless LAN » activé).
+  - [ ] E4. Télé en veille (5 min, 1 h) encore joignable par `adb` et par l'appli : 5 min OK (Doze `IDLE`, appli
+        connectée, réveil par `KEYCODE_WAKEUP`) ; restent 1 h et un message vocal pendant la veille.
+  - [x] E5. Réglages « veille réseau », « Chromecast toujours disponible », « Allumer par le réseau » : « Wake on
+        wireless LAN » existe et est activé.
+  - [ ] E6. Saisie de texte (`input text`, accessibilité) dans YouTube, Netflix et l'appli de la box : accessibilité
+        écartée (aucun champ visible), touches injectées OK dans le Play Store ; YouTube et Netflix à essayer après
+        le choix du profil.
+  - [ ] E7. Rafale de flèches par attente longue : délai ressenti, sinon WebSocket. `input keyevent` ≈ 1 s (écarté) ;
+        processus résident : 8 à 260 ms par touche, 10 flèches en 0,4 s ; reste le passage par HomeHub.
 
 ## École
 

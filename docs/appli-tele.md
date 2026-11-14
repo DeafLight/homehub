@@ -184,6 +184,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | 14 | Alerte pluie | Peu coûteux (météo déjà là) : avec 4 |
 | 15 | Mode « film » (annonces renvoyées vers le Google Home) | Peu coûteux une fois 7 fait : avec 7 |
 | 16 | Heure du coucher des enfants | Proche de 5 : avec 5 |
+| 17 | Télécommande sur le téléphone (PWA) : flèches, clavier du téléphone, tiroir des applis, lancement, marche/arrêt | Retenue le 14 novembre 2026, détail et essais à faire en section 8 ; reprend presque toute la fonction 6 |
 
 **Ordre proposé : une idée par version**, cochée dans `TODO.md` (section « Télé : appli HomeHub TV ») à sa sortie :
 
@@ -193,6 +194,8 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 3. Réponses rapides à la télécommande (10).
 4. Pause, reprise, volume et « À table ! » (6).
 5. Télé allumée ou éteinte, bascule vers le Google Home (7), puis mode film (15).
+5 bis. Télécommande sur le téléphone (17), après les essais de la section 8 : tiroir et lancement, puis touches et
+   clavier, puis marche/arrêt (qui s'appuie sur 7).
 6. Alertes de la maison, une version chacune : minuteur (3), bus (4), pluie (14).
 7. Soir, une version chacune : routines et nouveaux mots (5), heure du coucher (16).
 8. Écran de veille HomeHub (8), puis partage de photo (11).
@@ -209,6 +212,83 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 - Tests serveur (`*.test.ts`), README, `docs/ecrans.md` et captures, `TODO.md`, puis version avec `homehub-release`.
 - **Fait** quand la version est taguée en local **et essayée sur la vraie télé** avec toi : message vocal pendant
   Netflix, YouTube et la télé en direct (le son baisse-t-il ?), télé en veille.
+
+## 8. Télécommande sur le téléphone (fonction 17)
+
+Un écran de la PWA (`/m`) qui sert de télécommande à la télé : flèches et OK, Retour, Accueil, clavier du téléphone,
+tiroir des applis installées, lancement direct, marche/arrêt. Il couvre aussi pause, reprise et volume (fonction 6).
+
+### Comment
+
+| Fonction | Moyen | Difficulté |
+|---|---|---|
+| Tiroir des applis | L'appli liste les applis du lanceur Android TV (`CATEGORY_LEANBACK_LAUNCHER`, avec `<queries>` pour Android 11) : nom, paquet, bannière en PNG, envoyés au serveur à l'appairage et quand la liste change | Facile |
+| Lancer une appli | Événement `launch` ; l'appli démarre l'activité. Android 10+ interdit de lancer un écran depuis l'arrière-plan, sauf aux applis qui ont `SYSTEM_ALERT_WINDOW` : déjà accordé pour le bandeau | Facile |
+| Clavier du téléphone | Texte tapé sur le téléphone, écrit dans le champ qui a le focus : par `adb` local (voir plus bas) ou par un service d'accessibilité (`ACTION_SET_TEXT`) | Moyen : YouTube, Netflix ont leur propre clavier à l'écran et n'exposent pas toujours un champ |
+| Flèches, OK, Retour, Accueil | Une appli ordinaire ne peut pas envoyer de touches aux autres. Les actions « flèche » de l'accessibilité n'existent qu'à partir d'Android 13 (la télé est en Android 11). Choix : **l'appli se connecte à l'`adb` de la télé elle-même** (`127.0.0.1:5555`, protocole `adb` écrit en Kotlin, sans bibliothèque) et envoie `input keyevent` ; autorisation « Toujours autoriser » acceptée une fois à la télécommande. Secours si `adb` est coupé : accessibilité (Retour, Accueil, focus d'un élément à l'autre, mauvais dans les applis qui dessinent elles-mêmes) | Difficile |
+| Éteindre | `KEYCODE_SLEEP` (sinon `KEYCODE_POWER`) par `adb` local ; secours : action « verrouiller l'écran » de l'accessibilité | Facile si `adb` local marche |
+| Allumer | En veille, l'appli peut ne plus rien recevoir. Pistes, par ordre : **Cast** (lancer un média sur le Chromecast intégré rallume la télé si « Chromecast toujours disponible » / veille réseau est activé, puis on ferme le récepteur ; HomeHub parle déjà Cast) ; **notre appli** si la veille rapide garde le réseau (`KEYCODE_WAKEUP` par `adb` local) ; **Wake-on-LAN** si la télé le propose (le conteneur doit pouvoir diffuser sur le réseau local) | À essayer |
+
+Écartées : le protocole de la télécommande Google (celui de l'appli Google TV, parlé par le serveur) ne liste pas les
+applis et n'est pas documenté officiellement ; HDMI-CEC par la box, que HomeHub ne pilote pas.
+
+- **Réactivité** : une touche fait téléphone → HomeHub → télé. L'attente longue convient à un événement isolé, mais une
+  rafale de flèches demande un échange continu : c'est le cas prévu par la décision 6, une WebSocket pour cet écran
+  seulement (ou des touches regroupées), à mesurer sur la vraie télé.
+- **État** : le bouton marche/arrêt montre allumée, en veille ou injoignable (présence et écran, fonction 7). Télé
+  éteinte complètement (veille profonde, prise coupée) : rien ne marche, l'écran le dit.
+- **Droits** : parents seulement à la première version (un enfant ne lance pas une appli pendant le film), vérifié par
+  `access.ts` ; à revoir avec l'heure du coucher (16).
+- **Rien de personnel** : le tiroir ne montre que des noms d'applis.
+- **Mise en place** : `installer.ps1` active le service d'accessibilité
+  (`settings put secure enabled_accessibility_services …`) ; la première connexion `adb` locale demande l'autorisation
+  à la télécommande.
+
+### Essais à faire sur la vraie télé (avant tout code)
+
+| # | Essai | Ce qu'il décide |
+|---|---|---|
+| E1 | Redémarrer la télé, puis `adb connect <ip>:5555` depuis le PC : répond-elle encore ? | `adb` local utilisable après un redémarrage, sinon touches par l'accessibilité seulement |
+| E2 | Depuis la télé, une connexion à `127.0.0.1:5555` est-elle acceptée (essai avec une appli `adb` locale ou un premier prototype) ? | Choix de l'`adb` local pour les touches, le clavier et la veille |
+| E3 | Télé mise en veille à la télécommande, caster un média depuis un téléphone : se rallume-t-elle ? | Allumage par Cast |
+| E4 | Télé en veille depuis 5 min puis 1 h : `adb connect` répond-il, l'appli reçoit-elle encore un message ? | Allumage par notre appli (`KEYCODE_WAKEUP`) |
+| E5 | Paramètres : « veille réseau », « Chromecast toujours disponible », « Allumer par le réseau » existent-ils ? | Réglages à activer, Wake-on-LAN possible |
+| E6 | `adb shell input text` et `ACTION_SET_TEXT` dans la recherche de YouTube, Netflix et de l'appli de la box | Moyen retenu pour le clavier |
+| E7 | Rafale de flèches par attente longue (prototype) : délai ressenti | Attente longue suffisante ou WebSocket |
+
+Résultats (14 novembre 2026) :
+
+- **E3 : oui.** Télé en veille, un média casté depuis un téléphone la rallume. **Allumage par Cast retenu.**
+- **E5 : « Wake on wireless LAN »** existe et est activé (c'est lui qui rend E3 possible). Le Wake-on-LAN par paquet
+  réveil (adresse MAC du Wi-Fi de la télé) reste une piste de secours, inutile tant que Cast suffit.
+- **E2, en partie** (Android 11) : `adbd` écoute le port 5555 sur toutes les adresses, et `nc 127.0.0.1 5555` lancé
+  sur la télé est accepté. Reste à vérifier, avec un prototype, que l'appli s'y connecte et que la télé accepte son
+  autorisation.
+- **E7 : touches.** `input keyevent` coûte **environ 1 s par appel** (une machine Java démarrée à chaque fois) : trop
+  lent pour des flèches. L'écriture directe dans `/dev/input/event*` est refusée (SELinux), même si `shell` est dans le
+  groupe `input`. Avec un **processus qui reste lancé** sous l'identité `shell` (essai avec `monkey --port`), une touche
+  fait l'aller-retour PC → télé → PC en 8 à 260 ms, et une rafale de 10 flèches passe en 0,4 s. Il reste à ajouter le
+  passage par HomeHub (attente longue).
+- **E6 : texte.** L'accessibilité ne voit **aucun champ de saisie** dans Netflix (7 éléments), l'appli de la box
+  (110), le Play Store (123), ni YouTube (16, sur l'écran du choix du compte) : `ACTION_SET_TEXT` est écarté. En
+  revanche, des touches injectées écrivent dans le champ qui a le focus (essai dans la recherche du Play Store : le mot
+  apparaît et les résultats suivent). YouTube et Netflix s'ouvrent sur le choix du profil, que l'essai n'a pas fait à
+  la place de la famille : la saisie y reste à essayer.
+
+- **E4 : 5 min, oui.** Télé mise en veille (`KEYCODE_SLEEP`) : à 2 min 30 (Doze `INACTIVE`) puis à 5 min (Doze
+  `IDLE`, sommeil profond), `adb` répond, l'appli est vivante et garde sa connexion à HomeHub (liste blanche Doze).
+  `KEYCODE_WAKEUP` rallume alors l'écran. Restent l'essai à 1 h et un vrai message vocal envoyé pendant la veille.
+
+**Conséquence pour la méthode** : le moyen retenu pour les touches, le texte et la veille est un **petit programme
+résident lancé par l'appli à travers son `adb` local**, comme le serveur de scrcpy :
+`CLASSPATH=<chemin de l'APK> app_process / fr.homehub.tv.Injecteur`. Il tourne sous l'identité `shell`, qui a le droit
+d'injecter des événements (`InputManager.injectInputEvent`), reçoit les touches et le texte par le flux `adb`, et ne
+coûte qu'un démarrage (environ 1 s) au lancement de l'appli. L'accessibilité ne sert plus qu'à Retour et Accueil si
+`adb` est coupé.
+- **E1 : oui.** Après `adb reboot`, `adb` répond de nouveau en 45 s environ (`service.adb.tcp.port=5555` reposé au
+  démarrage, `persist.adb.tcp.port` vide). La télé revient **en veille, écran éteint** ; l'appli repart seule
+  (service au premier plan) en 1 min 20 s, écran toujours éteint. `input keyevent KEYCODE_WAKEUP` par `adb` la
+  rallume aussitôt (écran `ON`) : c'est la touche que l'appli enverra pour « Allumer » quand elle est joignable.
 
 ## Décisions (14 novembre 2026)
 
