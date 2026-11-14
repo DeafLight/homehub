@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mode cuisine d'une recette (CuisineActivity) : textes et couleurs en plus de celles du thème (variables de
+     web/src/app.css : surface-2, warn-bg). -->
+<resources>
+    <color name="surface_2">#262A33</color>
+    <color name="sun_bg">#3D3018</color>
+
+    <string name="cook_loading">Ouverture de la recette…</string>
+    <string name="cook_unreachable">HomeHub injoignable : nouvel essai bientôt</string>
+    <string name="cook_step_of">Étape %1$d / %2$d</string>
+    <string name="cook_no_steps">Cette recette n’a pas encore d’étapes.</string>
+    <string name="cook_mode">Cookeo · %1$s</string>
+    <string name="cook_start">Lancer %1$s</string>
+    <string name="cook_running">Minuteur · %1$s</string>
+    <string name="cook_timers">Minuteurs</string>
+    <string name="cook_stop_ringing">Sonne ! Arrêter</string>
+    <string name="cook_next">Ensuite : %1$s</string>
+    <string name="cook_last">Dernière étape</string>
+    <string name="cook_keys">◀ ▶ étapes · OK minuteur · Retour quitter</string>
+    <string name="cook_not_shown">vue cuisine pas affichée (autoriser l’affichage par-dessus les autres applis : appops SYSTEM_ALERT_WINDOW)</string>
+</resources>

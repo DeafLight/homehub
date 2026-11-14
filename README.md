@@ -114,6 +114,13 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   champignons ») ; une note se marque **résolue** (repliée, toujours consultable) et se rouvre ; son auteur ou un
   parent la modifie ou la retire. Les notes ouvertes font une pastille sur les cartes du carnet et en tête de fiche, et
   s'ouvrent d'elles-mêmes dans le mode cuisine. Elles partent avec la recette quand elle est retirée.
+  **Sur la télé** (fiche, tablette et téléphone, si une télé a l'appli HomeHub TV) : le mode cuisine passe sur la
+  télé, l'étape en cours en grand (avec son mode Cookeo), les boutons de ses durées (« Lancer 15 min ») et les
+  minuteurs de la maison qui tournent ; la télé allume son écran et le garde allumé. On avance à la télécommande de la
+  télé (flèches gauche/droite ; OK lance le minuteur choisi ou arrête celui qui sonne ; Retour quitte et rend la télé à
+  ce qui passait) ou depuis la fiche, qui devient la barre de pilotage (« Télé du salon · étape 4 / 5 », précédente,
+  suivante, **Arrêter**). Les minuteurs restent ceux de HomeHub : lancés depuis la télé, ils ont le nom de l'étape et
+  s'affichent aussi sur la tablette.
 - **Menu de la semaine** (`/menu` sur la tablette, depuis Recettes ou Listes ; `/m/menu` sur le téléphone, depuis les
   onglets Courses et Recettes) : des recettes du carnet (notre version), chacune pour un nombre de personnes (par défaut
   ses portions) et un jour, ou « dans la semaine » ; une recette peut revenir plusieurs fois. Semaines suivantes
@@ -884,7 +891,9 @@ server/
   services/screen-fallback.ts  annonce destinée à une télé éteinte ou injoignable : bascule vers son Google Home
   services/screen-workouts.ts  séances de sport sur la télé : horloge, pilotage, effacement de la télé à la fin
   fitness-screen-api.ts    routes de la séance de sport sur la télé (téléphone de la personne, page de la télé)
+  services/screen-cook.ts  mode cuisine des télés : recette, étape, auteur, attente des changements
   screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
+  screen-cook-api.ts       mode cuisine d'une recette sur la télé : lancement, étapes, minuteurs, fin
   screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
   services/timer-alerts.ts guetteur des minuteurs : liste `timers` en cours, alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
   sources/screen-alerts.ts réglage des alertes télé (screen-alerts.json)
@@ -915,6 +924,7 @@ shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage,
 shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut, heure due, textes
 shared/screen-media.ts     photo ou vidéo vers la télé : formats, taille au plus, durées, événement « media »
 shared/screen-workout.ts   séance de sport sur la télé : plan sans rien de personnel, horloge (pause, suivant, arrêt)
+shared/screen-cook.ts      vue cuisine de la télé : étape, durées, minuteurs de la maison (même logique que la tablette)
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -982,6 +992,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/screens/fallbacks`, `PUT /api/screens/:id/fallback` | appareil de secours des télés, tablette : `{ devices: [{ id, name, kind }], screens: [{ id, device, auto }] }` (`auto` : jamais réglé, première enceinte) ; choix `{ device }` (identifiant de `cast.devices` ou null ; parent reconnu ; 400 appareil inconnu) |
 | `GET /api/screens/share-targets`, `GET /api/screens/shared/:id`, `GET /api/screens/shared/:id/file`, `POST /api/screens/:id/share` | photo ou vidéo partagée, tout téléphone appairé (403 sinon) : télés `[{ id, name, online }]` ; fichier reçu par `/partager` `{ id, kind, type, name, bytes }` (`kind` : `photo` ou `video` ; 410 expiré) ; son contenu (aperçu) ; envoi à la télé `{ shared }` → `{ device }` dès qu'elle l'affiche (503 télé absente ; 502 échec rapporté, ou pas de réponse en 60 s) |
 | `GET /api/screen/media/:token` | la télé, avec son jeton : la photo ou la vidéo de l'événement `{ kind: "media", id, media, title, url, contentType, seconds }` (5 minutes au plus ; 401 sans jeton de télé) |
+| `GET /api/screens/cook`, `POST /api/screens/:id/cook`, `POST /api/screens/:id/cook/step`, `DELETE /api/screens/:id/cook` | mode cuisine sur la télé, depuis la fiche (tablette, ou téléphone appairé) : télés `[{ id, name, online, cook }]` (`cook` : vue ci-dessous, ou `null`) ; « Sur la télé » `{ recipeId, index }` → la télé, dès qu'elle a ouvert sa vue cuisine (503 télé absente ; 502 avec la raison, le mode cuisine d'avant reste) ; étape `{ index }` → `{ cook }` (ramenée dans la recette ; 404 sans mode cuisine) ; fin |
+| `GET /api/screen/cook?after=`, `POST /api/screen/cook/step`, `POST /api/screen/cook/timers`, `DELETE /api/screen/cook/timers/:id`, `DELETE /api/screen/cook` | la télé, avec son jeton : sa vue cuisine `{ cook: { rev, recipeId, title, index, total, step: { number, text, section, mode, durations: [{ seconds, text, timerId }] }, next, timers: [{ id, label, durationSeconds, remainingSeconds, ended, step }] } }` (`null` sans mode cuisine ; avec `after`, attend 5 s au plus que `rev` change) ; étape `{ index }` ; minuteur `{ seconds }` d'une durée citée par l'étape (400 sinon, 409 au-delà de 6 minuteurs ; auteur : qui a lancé le mode cuisine) ; arrêt d'un minuteur qui sonne (403 s'il tourne encore) ; fin (Retour) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Événement `message` à chaque télé appairée et joignable, `screens` = celles qui l'ont affiché ; 404 aucune télé appairée, 503 aucune joignable, 502 aucune ne l'a affiché (raisons) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |

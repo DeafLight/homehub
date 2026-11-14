@@ -1,5 +1,6 @@
 // Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `credentials` : jeton du téléphone
 // appairé, ou clé de la tablette et session de la personne reconnue devant elle, envoyés avec chaque requête.
+import type { ScreenCook, ScreenCookTarget } from '../../../shared/screen-cook.ts';
 import type {
   AddressMatch,
   RouteOption,
@@ -341,6 +342,11 @@ export type Api = {
   /** Télés où la montrer, et l'envoi (la télé l'affiche ou la lit) ; renvoie le nom de la télé. */
   shareTargets(): Promise<ShareScreenTarget[]>;
   sendSharedMedia(screenId: string, shared: string): Promise<{ device: string }>;
+  /** Mode cuisine d'une recette sur la télé (fiche recette, tablette ou téléphone) : télés, lancement, étape, fin. */
+  screenCooks(): Promise<ScreenCookTarget[]>;
+  startScreenCook(id: string, recipeId: string, index: number): Promise<ScreenCookTarget>;
+  screenCookStep(id: string, index: number): Promise<{ cook: ScreenCook }>;
+  stopScreenCook(id: string): Promise<void>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -566,5 +572,9 @@ export function createApi(
     shareTargets: () => request('/screens/share-targets'),
     sendSharedMedia: (screenId, shared) => send('POST', `/screens/${encodeURIComponent(screenId)}/share`, { shared }),
     sendScreenVoice: (id, audio) => request(`/screens/${encodeURIComponent(id)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
+    screenCooks: () => request('/screens/cook'),
+    startScreenCook: (id, recipeId, index) => send('POST', `/screens/${encodeURIComponent(id)}/cook`, { recipeId, index }),
+    screenCookStep: (id, index) => send('POST', `/screens/${encodeURIComponent(id)}/cook/step`, { index }),
+    stopScreenCook: async (id) => void (await send('DELETE', `/screens/${encodeURIComponent(id)}/cook`)),
   };
 }

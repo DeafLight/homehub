@@ -11,7 +11,8 @@ téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs
 trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche, après un
 message vocal en cours). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
 famille, menu du soir). Elle montre aussi **en plein écran** une photo ou une vidéo partagée depuis un téléphone, et la **séance de sport
-guidée** lancée depuis le téléphone d'une personne (rien d'autre que la séance en cours ; tout est effacé à la fin).
+guidée** lancée depuis le téléphone d'une personne (rien d'autre que la séance en cours ; tout est effacé à la fin). Elle affiche enfin
+le **mode cuisine** d'une recette lancé depuis la fiche recette (« Sur la télé »).
 Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
@@ -40,6 +41,8 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `MinuteurBandeau.kt` | Bandeau du minuteur qui prend le focus de la télécommande (OK : « Arrêter » partout, Retour : masquer), carillon son baissé, compte rendu |
 | `HomeHubDream.kt`, `Ecran.kt` | Écran de veille (`DreamService`) : la page `/ecran` de HomeHub dans une WebView, avec le jeton de la télé |
 | `SportActivity.kt`, `Sport.kt` | Séance de sport guidée : page de HomeHub (`/tele-sport.html`) en plein écran dans une WebView, ouverte quand la personne la lance depuis son téléphone, fermée et effacée à la fin |
+| `Cuisine.kt` | Mode cuisine : lecture de la vue envoyée par HomeHub (`shared/screen-cook.ts`), décompte, taille du texte, touches |
+| `CuisineActivity.kt` | Vue cuisine native (sa propre tâche) : étape en grand, mode Cookeo, durées à lancer (OK), minuteurs de la maison, flèches gauche/droite pour les étapes, Retour pour quitter |
 
 ## Minuteurs
 
@@ -60,6 +63,21 @@ télé seulement. Sans geste, il s'en va au bout de 10 min. Plusieurs minuteurs 
 reviennent quand il s'en va. Carillon : trois notes synthétisées (`AudioTrack`, aucun fichier), focus audio transitoire
 avec baisse du son, comme un message vocal. À vérifier sur la vraie télé : que les applis vidéo continuent bien quand le
 bandeau prend le focus.
+
+## Mode cuisine d'une recette
+
+« Sur la télé » sur la fiche d'une recette (tablette ou téléphone) envoie l'événement `cook` : le service ouvre
+`CuisineActivity` (permis depuis l'arrière-plan par l'affichage par-dessus les autres applis, le même réglage que le
+bandeau) et rend compte dès qu'elle est à l'écran. La vue allume l'écran, le garde allumé, et lit elle-même ce qu'elle
+affiche (`GET /api/screen/cook?after=<rev>`, attente de 5 s au plus, réveillée par un changement d'étape) :
+
+- **◀ ▶** : étape précédente ou suivante (aussi depuis la fiche, sur la tablette ou le téléphone) ;
+- **▲ ▼** puis **OK** : « Lancer 15 min » (minuteur de la maison, au nom de l'étape, visible aussi sur la tablette),
+  ou « Sonne ! Arrêter » sur un minuteur terminé ;
+- **Retour** : fin du mode cuisine (aussi sur HomeHub), la télé revient à ce qui passait.
+
+Le décompte se fait sur l'horloge de la télé depuis son démarrage, à partir du temps restant donné par HomeHub : une
+télé à l'heure fausse affiche quand même le bon temps.
 
 ## Outils (PC Windows)
 

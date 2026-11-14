@@ -232,6 +232,23 @@ export function formatMinutes(minutes: number): string {
   return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
 }
 
+/** Longueur d'un nom de minuteur (serveur : TIMER_LABEL_MAX). */
+const TIMER_LABEL_MAX = 30;
+
+/**
+ * Nom du minuteur lancé depuis une étape (« Cuisson · ét. 3 · Galettes du… ») : il prend l'emoji de la cuisson. Le
+ * même sur la tablette et sur la télé (mode cuisine) : c'est à lui que la télé reconnaît le minuteur d'une étape.
+ */
+export function timerLabel(title: string, step: number): string {
+  const prefix = `Cuisson · ét. ${step} · `;
+  const room = TIMER_LABEL_MAX - prefix.length;
+  const short = title.length > room ? `${title.slice(0, room - 1).trimEnd()}…` : title;
+  return `${prefix}${short}`;
+}
+
+/** Durée d'un bouton de minuteur : « 35 min », « 1 h 30 », « 30 s ». */
+export const durationText = (seconds: number) => (seconds < 60 ? `${seconds} s` : formatMinutes(Math.round(seconds / 60)));
+
 // --- Étapes : durées (minuteur) et mode Cookeo ---
 
 export type StepDuration = { seconds: number; text: string };

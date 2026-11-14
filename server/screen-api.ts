@@ -79,7 +79,7 @@ export const UNKNOWN_APP = 'Appli inconnue sur cette télé';
 export const UNKNOWN_FALLBACK = 'Appareil de secours inconnu (cast.devices, avec cast.mediaUrl)';
 
 /** Une télé ne parle que la version du protocole du serveur (426 sinon : l'appli dit de se mettre à jour). */
-function checkProtocol(c: Context) {
+export function checkProtocol(c: Context) {
   if (c.req.header(SCREEN_PROTOCOL_HEADER) !== String(SCREEN_PROTOCOL)) fail(426, OUTDATED_APP);
 }
 

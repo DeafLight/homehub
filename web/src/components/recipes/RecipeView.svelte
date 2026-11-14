@@ -34,8 +34,10 @@
     notes?: Snippet;
     /** Notes encore ouvertes (pastille en tête de fiche). */
     openNotes?: number;
+    /** « Sur la télé » (mode cuisine sur la télé), à côté du mode cuisine. */
+    tv?: Snippet;
   };
-  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onCooked, onTimer, notes, openNotes = 0 }: Props = $props();
+  let { recipe, servings = $bindable(), photoUrl, phone = false, canEdit, canRemove, addedBy, onEdit, onRemove, onReread, rereading = false, onCook, onCooked, onTimer, notes, openNotes = 0, tv }: Props = $props();
 
   let notesBox = $state<HTMLElement | null>(null);
   const badge = $derived(notesBadge(openNotes));
@@ -150,6 +152,7 @@
       {#if onCooked && !showSource}
         <button type="button" class="btn primary" onclick={onCooked}><Icon name="chef" size={24} /> J’ai cuisiné</button>
       {/if}
+      {#if tv && !showSource}{@render tv()}{/if}
 
       {#if canEdit && !showSource}
         <button type="button" class="btn" onclick={onEdit}><Icon name="pencil" size={22} /> Modifier</button>

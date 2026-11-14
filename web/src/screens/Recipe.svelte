@@ -9,6 +9,7 @@
   import RecipeEditor from '../components/recipes/RecipeEditor.svelte';
   import RecipeNotes from '../components/recipes/RecipeNotes.svelte';
   import RecipeView from '../components/recipes/RecipeView.svelte';
+  import TvCook from '../components/recipes/TvCook.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
   import { canEditRecipe, emptyContent, handoff, previewSummary, rereadMessage, type ShownStep, timerLabel } from '../lib/recipes.ts';
@@ -21,6 +22,7 @@
   // Sur la tablette, modifier demande quelqu'un de reconnu ; sur le téléphone, son profil agit. Le serveur décide.
   // « J'ai cuisiné » (toute la famille) : « Terminé » à la fin du mode cuisine, ou le bouton de la fiche du téléphone ;
   // le repas du menu est retrouvé seul (aujourd'hui, sinon le plus récent pas encore noté), ou hors menu.
+  // « Sur la télé » (TvCook) : le mode cuisine passe sur une télé qui a l'appli HomeHub TV, et la fiche la pilote.
   type Props = { id: string | null; mode: RecipeMode; phone?: boolean };
   let { id, mode, phone = false }: Props = $props();
 
@@ -221,6 +223,7 @@
         onTimer={phone ? undefined : startTimer}
         openNotes={openNotes.length}
       >
+        {#snippet tv()}<TvCook recipeId={data.id} {phone} />{/snippet}
         {#snippet notes()}
           <RecipeNotes
             notes={noteList.data ?? (noteList.error ? [] : null)}

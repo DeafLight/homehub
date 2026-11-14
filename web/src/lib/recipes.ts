@@ -20,7 +20,6 @@ import {
   scaleFactor,
   type StepDuration,
   stepDurations,
-  formatMinutes,
 } from '../../../shared/recipes.ts';
 import type { Member } from '../../../shared/types.ts';
 import { formatAgo } from './format.ts';
@@ -95,19 +94,8 @@ export function shownSteps(content: RecipeContent): ShownStep[] {
   }));
 }
 
-/** Longueur d'un nom de minuteur (serveur : TIMER_LABEL_MAX). */
-const TIMER_LABEL_MAX = 30;
-
-/** Nom du minuteur lancé depuis une étape (« Cuisson · ét. 3 · Galettes du… ») : il prend l'emoji de la cuisson. */
-export function timerLabel(title: string, step: number): string {
-  const prefix = `Cuisson · ét. ${step} · `;
-  const room = TIMER_LABEL_MAX - prefix.length;
-  const short = title.length > room ? `${title.slice(0, room - 1).trimEnd()}…` : title;
-  return `${prefix}${short}`;
-}
-
-/** Durée d'un bouton de minuteur : « 35 min », « 1 h 30 », « 30 s ». */
-export const durationText = (seconds: number) => (seconds < 60 ? `${seconds} s` : formatMinutes(Math.round(seconds / 60)));
+/** Nom du minuteur d'une étape et durée d'un bouton de minuteur : communs avec la télé (shared/recipes.ts). */
+export { durationText, timerLabel } from '../../../shared/recipes.ts';
 
 /** Peut modifier notre version : un parent, ou qui a ajouté la recette (le serveur décide de toute façon). */
 export const canEditRecipe = (member: Pick<Member, 'id' | 'parent'> | undefined, recipe: Pick<Recipe, 'addedBy'>) =>

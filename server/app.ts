@@ -77,6 +77,8 @@ import { createEcranService } from './services/ecran.ts';
 import { createScreenShareApi, shareMediaHandler } from './screen-share-api.ts';
 import { createSharedMedia } from './services/shared-media.ts';
 import { SCREEN_MEDIA_MAX_BYTES } from '../shared/screen-media.ts';
+import { createScreenCookApi } from './screen-cook-api.ts';
+import { createScreenCooking } from './services/screen-cook.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -221,6 +223,8 @@ export function createApp(deps: AppDeps): Hono {
   // Photo ou vidéo partagée vers la télé (fonction 11) : reçue par /partager, envoyée depuis la page du téléphone.
   const sharedMedia = createSharedMedia({ clock });
   api.route('/', createScreenShareApi({ screens: deps.screens, hub: screenHub, store: sharedMedia, household, access }));
+  // Mode cuisine d'une recette sur la télé (fonction 13).
+  api.route('/', createScreenCookApi({ screens: deps.screens, hub: screenHub, cooking: createScreenCooking(), recipes: deps.recipes, timers: deps.timers, access, clock }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const screenWorkouts = createScreenWorkouts({ clock, hub: screenHub });

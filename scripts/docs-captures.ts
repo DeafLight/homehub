@@ -24,6 +24,7 @@ import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-sc
 import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
 import { fakeScreenPaused } from './docs-captures/fake-screen-pause.ts';
 import { FAKE_SCREEN_MEDIA_FILE, type FakeScreenMedia, fakePhotoHtml, fakeScreenPhotoTv } from './docs-captures/fake-photo.ts';
+import { fakeScreenCook, fakeScreenCookView } from './docs-captures/fake-screen-cook.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -794,6 +795,31 @@ if (!only || SHARE_SHOTS.some((name) => only.test(name))) {
     await tvPhoto.capture('tele-appli-photo');
     await tvPhoto.close();
   }
+}
+
+// Mode cuisine sur la télé (fonction 13) : « Sur la télé » sur la fiche du mijoté (tablette), la fausse télé ouvre sa
+// vue ; Alex avance à l'étape 4 depuis son téléphone, la télécommande lance le minuteur de 15 min (OK) ; maquette de
+// la vue cuisine de la télé. Tout est arrêté ensuite (le minuteur cacherait le bas des captures suivantes).
+const TV_COOK_SHOTS = ['tablette-recette-tele', 'telephone-recette-tele', 'tele-cuisine'];
+if (!only || TV_COOK_SHOTS.some((name) => only.test(name))) {
+  const pilot = `setTimeout(() => document.querySelector('.pilot')?.scrollIntoView({ block: 'center', inline: 'nearest' }), 1500)`;
+  await shoot('tablette-recette-tele', `${BASE}/recette/${lentilles.id}`, TABLET, { after: `${click('Sur la télé')}; ${pilot}`, settle: 2500 });
+  if (!(await fakeScreenCookView(BASE))) await call('', 'POST', `/screens/${FAKE_SCREEN_ID}/cook`, { recipeId: lentilles.id, index: 0 });
+  await call(A, 'POST', `/screens/${FAKE_SCREEN_ID}/cook/step`, { index: 3 });
+  const tvHeaders = { authorization: `Bearer ${FAKE_SCREEN_TOKEN}`, 'content-type': 'application/json', 'x-homehub-screen': '1' };
+  await fetch(`${BASE}/api/screen/cook/timers`, { method: 'POST', headers: tvHeaders, body: JSON.stringify({ seconds: 900 }) });
+  await shoot('telephone-recette-tele', `${BASE}/m/recette/${lentilles.id}`, PHONE, { init: asPhone('alex'), after: pilot, settle: 2000 });
+  const cook = await fakeScreenCookView(BASE);
+  if (cook && (!only || only.test('tele-cuisine'))) {
+    const page = join(work, 'tele-cuisine.html');
+    writeFileSync(page, fakeScreenCook(cook));
+    const tvCook = await openTarget(pathToFileURL(page).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(500);
+    await tvCook.capture('tele-cuisine');
+    await tvCook.close();
+  }
+  for (const t of cook?.timers ?? []) await call(A, 'DELETE', `/timers/${t.id}`);
+  await call('', 'DELETE', `/screens/${FAKE_SCREEN_ID}/cook`);
 }
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;

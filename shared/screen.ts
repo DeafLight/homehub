@@ -106,6 +106,12 @@ export type ScreenWorkoutEvent = { kind: 'workout'; id: string; action: 'start' 
 /** Page de la séance sur la télé (entrée à part du front, web/tele-sport.html). */
 export const SCREEN_WORKOUT_PAGE = '/tele-sport.html';
 
+/**
+ * Ouvrir le mode cuisine d'une recette (fonction 13) : la télé ouvre sa vue cuisine, qui lit ensuite elle-même ce
+ * qu'elle affiche (GET /api/screen/cook, shared/screen-cook.ts).
+ */
+export type ScreenCookEvent = { kind: 'cook'; id: string };
+
 export type ScreenEventBody =
   | ScreenVoiceEvent
   | ScreenKeysEvent
@@ -120,7 +126,8 @@ export type ScreenEventBody =
   | ScreenRainEvent
   | ScreenReminderEvent
   | ScreenMediaEvent
-  | ScreenWorkoutEvent;
+  | ScreenWorkoutEvent
+  | ScreenCookEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

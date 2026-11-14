@@ -21,6 +21,7 @@
 // Photo partagée (fonction 11) : téléchargée et notée dans fake-screen-media.json.
 // Séance de sport (fonction 12) : elle note l'ouverture et la fermeture de la page (la page elle-même est capturée
 // à part, avec le jeton de cette télé).
+// Mode cuisine d'une recette (fonction 13) : ouverture acceptée (vue lue par fake-screen-cook.ts).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
@@ -95,6 +96,8 @@ export function applyRemote(event: ScreenEvent, state: ScreenStateReport, remote
       return event.on ? 'allumer' : 'veille';
     case 'workout':
       return event.action === 'start' ? `séance de sport : page ${event.page} ouverte` : `séance de sport : fin (bandeau « ${event.notice?.title} »)`;
+    case 'cook':
+      return 'mode cuisine ouvert';
     default:
       return null;
   }

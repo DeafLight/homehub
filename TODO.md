@@ -336,7 +336,11 @@ personne depuis son propre téléphone.
       (`/tele-sport.html` : exercice, animation, compte à rebours, tours), pilotage par le téléphone (pause, suivant,
       arrêter), télé effacée à la fin, note enregistrée depuis le téléphone seulement ; rien de personnel sur la télé.
       À essayer sur la vraie télé (WebView, son des bips, Retour à la télécommande).
-- [ ] 13. Mode cuisine d'une recette sur la télé : étapes en grand, minuteurs intégrés.
+- [x] 13. Mode cuisine d'une recette sur la télé : étapes en grand, minuteurs intégrés. « Sur la télé » sur la fiche
+      (tablette, téléphone), vue native de l'appli (`CuisineActivity`) : étape en grand, mode Cookeo, durées à lancer,
+      minuteurs de la maison ; flèches de la télécommande ou barre de pilotage de la fiche ; Retour rend la télé.
+- [ ] 13 bis. Mode cuisine sur la vraie télé : ouverture depuis Netflix et depuis la veille, Retour qui rend
+      l'appli d'avant, lisibilité à 3 m, focus des boutons à la télécommande.
 - [x] 14. Alerte pluie avant de sortir, par-dessus le programme du matin : de 7 h à 8 h 30 les jours d'école (ni
       vacances ni jours fériés), pluie prévue dans les 3 h (0,5 mm sur une heure) → bandeau parapluie « Pluie vers
       8 h · Prenez un parapluie » sur chaque télé, une fois par matin (section `rainAlert` : plage, jours, horizon,

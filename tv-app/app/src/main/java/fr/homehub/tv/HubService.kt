@@ -15,6 +15,7 @@
 // audio apparaît ou disparaît.
 // Photo ou vidéo partagée depuis un téléphone : téléchargée puis montrée en plein écran (MediaActivity), compte rendu.
 // Séance de sport (fonction 12) : la page de la séance s'ouvre dans SportActivity, et se ferme à la fin.
+// Mode cuisine d'une recette (fonction 13) : ouvre la vue cuisine (CuisineActivity).
 package fr.homehub.tv
 
 import android.app.Notification
@@ -32,6 +33,7 @@ import android.media.AudioManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -173,6 +175,7 @@ class HubService : Service() {
                 // Une nouvelle photo ferme celle à l'écran : la file passe aussitôt à la suivante.
                 if (shared.isNotEmpty()) MediaActivity.closeCurrent()
                 shared.forEach { event -> media.execute { handleMedia(server, token, event) } }
+                cookEventIds(json).forEach { id -> remote.execute { openCook(server, token, id) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -370,6 +373,25 @@ class HubService : Service() {
         return null
     }
 
+    /**
+     * Mode cuisine d'une recette : ouvre la vue cuisine (elle lit ensuite elle-même ce qu'elle affiche) et rend compte
+     * dès qu'elle est à l'écran. Ouverture depuis l'arrière-plan : permise par l'affichage par-dessus les autres applis.
+     */
+    private fun openCook(server: String, token: String, id: String) {
+        val asked = SystemClock.elapsedRealtime()
+        val failure = try {
+            startActivity(Intent(this, CuisineActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            val deadline = asked + COOK_OPEN_MS
+            while (!(CuisineActivity.visible && CuisineActivity.resumedAt >= asked) && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
+            if (CuisineActivity.visible) null else getString(R.string.cook_not_shown)
+        } catch (e: InterruptedException) {
+            return
+        } catch (e: Exception) {
+            e.message ?: getString(R.string.cook_not_shown)
+        }
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/$id/report", reportJson(failure == null, failure)) }
+    }
+
     /** Adresses IPv4 de la télé sur le réseau local (pour que HomeHub retrouve son appareil Cast). */
     private fun addresses(): List<String> = runCatching {
         NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
@@ -429,6 +451,8 @@ class HubService : Service() {
         private const val STATE_REFRESH_MS = 5 * 60_000L
         /** Attente de l'affichage d'une photo ou du début d'une vidéo, une fois téléchargée. */
         private const val MEDIA_START_S = 20L
+        /** Attente de la vue cuisine à l'écran (sous les 8 s qu'attend HomeHub, COOK_OPEN_MS de screen-cook-api.ts). */
+        private const val COOK_OPEN_MS = 6_000L
 
         /** Démarre le service si la télé est appairée. */
         fun startIfPaired(context: Context) {

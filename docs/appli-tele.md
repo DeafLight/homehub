@@ -185,7 +185,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | 10 | Réponses rapides à la télécommande (« OK », « J'arrive ») renvoyées au téléphone | Peu coûteux une fois 2 fait : à faire tôt |
 | 11 | Partager une photo ou une vidéo vers la télé | Simple (même chemin que le message vocal) : moyen. **Fait** : cible de partage de la PWA (champ `media`), fichier en mémoire (10 min, 2 places, puis 5 min derrière une adresse au hasard), plein écran `MediaActivity`, routes dans `server/screen-share-api.ts` ; **qui envoie : tout téléphone appairé, enfants compris** (comme montrer son téléphone à la famille ; `access.mediaSender`) ; 50 Mo au plus ; télé en veille refusée |
 | 12 | Séance de sport guidée sur la télé, lancée depuis le téléphone | Données personnelles affichées sur un écran partagé : seulement sur demande de la personne, à cadrer |
-| 13 | Mode cuisine d'une recette | La tablette le fait déjà mieux en cuisine : faible |
+| 13 | Mode cuisine d'une recette | Fait : vue native, voir section 10 |
 | 14 | Alerte pluie | Peu coûteux (météo déjà là) : avec 4 |
 | 15 | Mode « film » (annonces renvoyées vers le Google Home) | Peu coûteux une fois 7 fait : avec 7 |
 | 16 | Heure du coucher des enfants | Proche de 5 : avec 5 |
@@ -333,6 +333,34 @@ son propre téléphone, et rien de plus que la séance en cours.
 - **À essayer sur la vraie télé** : version de la WebView d'Android TV (mise à jour par le Play Store), bips du
   décompte, Retour à la télécommande (ferme la page ; la séance continue sur le téléphone), ouverture par-dessus une
   appli en cours (permise par `SYSTEM_ALERT_WINDOW`, comme le lancement d'une appli de la télécommande).
+
+## 10. Mode cuisine d'une recette (fonction 13)
+
+**Choix : vue native** (`CuisineActivity`, vues Android classiques), plutôt qu'une page dans une WebView :
+
+- rien à partager avec la page `/ecran` de l'écran de veille (fonction 8), développée à part : pas de jeton de télé à
+  passer à une page web, pas de seconde route du front à maintenir ;
+- le focus de la télécommande est celui des boutons Android (haut/bas, OK), sans rien réimplémenter en JavaScript ;
+- la vue est petite (une étape, quelques boutons, une liste de minuteurs) : la mise en page en Kotlin reste courte,
+  et rien ne dépend de la version de la WebView d'Android 10.
+
+Même logique que le mode cuisine de la tablette, calculée par le serveur (`shared/screen-cook.ts`) à partir de la
+même source de recettes : durées citées par l'étape (`stepDurations`), mode Cookeo, nom du minuteur d'une étape
+(`timerLabel`, commun avec la tablette, qui permet de reconnaître le minuteur d'une étape). La télé ne reçoit que ce
+qu'elle affiche.
+
+- **Lancement** : « Sur la télé » sur la fiche (tablette, ou téléphone appairé ; rien de personnel dans une recette) →
+  `POST /api/screens/:id/cook` → événement `cook` dans l'attente longue → le service ouvre la vue (permis en
+  arrière-plan par l'affichage par-dessus les autres applis) et rend compte quand elle est à l'écran. Sinon 502 avec la
+  raison, et le mode cuisine d'avant reste.
+- **Affichage** : la vue lit `GET /api/screen/cook?after=<rev>` en boucle ; le serveur répond tout de suite si l'étape a
+  changé (depuis la fiche, la télécommande), sinon au bout de 5 s, pour reprendre aussi les minuteurs lancés ou arrêtés
+  depuis la tablette. Les minuteurs arrivent avec leur temps restant : la télé décompte sans dépendre de son heure.
+- **Minuteurs** : ceux de HomeHub (une seule source), lancés par OK sur une durée citée par l'étape (le serveur refuse
+  toute autre durée), au nom de qui a lancé le mode cuisine ; la télé ne peut arrêter qu'un minuteur qui sonne (comme
+  n'importe qui à la tablette). L'alerte du minuteur fini sur la télé reste la fonction 3.
+- **Fin** : Retour (la vue est dans sa propre tâche : la télé revient à ce qui passait), « Arrêter » sur la fiche, ou
+  recette retirée. Le mode cuisine vit en mémoire du serveur : un redémarrage l'arrête (la vue se ferme).
 
 ## Décisions (14 novembre 2026)
 

@@ -275,6 +275,21 @@ sur le côté (« Moins de cumin… »), pour ne pas les oublier ; « Ingrédien
 
 ![Mode cuisine](images/tablette-recette-cuisine.png)
 
+**Sur la télé** (si une télé a l'appli HomeHub TV) : le mode cuisine passe sur la télé du salon, et la fiche devient
+la barre de pilotage (« Télé du salon · étape 1 / 5 », étape précédente, **Suivante**, **Arrêter**). Le téléphone a le
+même bouton et la même barre, ici après qu'Alex est passé à l'étape 4 et que la télécommande a lancé ses 15 minutes.
+
+| Tablette | Téléphone d'Alex |
+|---|---|
+| ![Fiche du mijoté, mode cuisine lancé sur la télé](images/tablette-recette-tele.png) | <img src="images/telephone-recette-tele.png" alt="Fiche du mijoté sur le téléphone, barre de pilotage de la télé à l'étape 4" width="260"> |
+
+Sur la télé (**maquette** dessinée comme la vue de l'appli, d'après ce que la fausse télé du monde fictif lit à
+HomeHub) : la recette et sa partie, « Étape 4 / 5 », l'étape en grand avec son mode Cookeo, le bouton de sa durée
+(ici le minuteur déjà lancé, qui décompte), les minuteurs de la maison sur le côté et le début de l'étape suivante.
+Flèches gauche/droite pour les étapes, OK pour le bouton choisi, Retour pour quitter.
+
+![Maquette d'une télé : étape 4 du mijoté en grand, mode Cookeo sous pression, minuteur de 15 minutes qui décompte](images/tele-cuisine.png)
+
 « Terminé », à la dernière étape du mode cuisine des pâtes au thon, ouvre **« J'ai cuisiné »** : le repas de mardi est
 retrouvé seul (« Repas de mardi 3 », changeable, ou « Hors menu »), le nombre de personnes se règle. Chaque ingrédient
 relié à un produit du stock propose sa réponse (contour bleu) : les coquillettes et le gruyère râpé, qui s'utilisent en
