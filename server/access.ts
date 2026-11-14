@@ -170,9 +170,18 @@ export type Access = {
    * demande de la personne (séance de sport sur la télé).
    */
   ownPhone(c: Context): Promise<string>;
+
+  /**
+   * Parler en direct à une télé (fonction 9) : le téléphone d'un parent seulement (jamais la tablette ni un enfant), et
+   * seulement si `camera.talk` est permis. Renvoie le parent et l'appareil (pour reconnaître ses prises de parole).
+   */
+  talker(c: Context): Promise<{ ownerId: string; deviceId: string }>;
 };
 
 export const OWN_PHONE_ONLY = 'Réservé au téléphone de la personne';
+export const TALK_PARENTS_ONLY = 'Parler à la télé est réservé aux parents';
+export const TALK_PHONE_ONLY = 'On parle à la télé depuis le téléphone d’un parent';
+export const TALK_OFF = 'Parler est désactivé (camera.talk)';
 
 export const REMOTE_PARENTS_ONLY = 'La télécommande de la télé est réservée aux parents';
 
@@ -287,6 +296,15 @@ export function createAccess({
       if (who.rejectedToken) return fail(401, REJECTED_PHONE);
       if (!who.device || !household.member(who.device.ownerId)) return fail(403, OWN_PHONE_ONLY);
       return who.device.ownerId;
+    },
+
+    async talker(c) {
+      const who = await caller(c);
+      const author = await writer(c, null);
+      if (!household.member(author.ownerId)?.parent) return fail(403, TALK_PARENTS_ONLY);
+      if (!who.device || author.via !== 'phone' || author.ownerId === null) return fail(403, TALK_PHONE_ONLY);
+      if (!config.current().camera.talk) return fail(403, TALK_OFF);
+      return { ownerId: author.ownerId, deviceId: who.device.id };
     },
   };
 }

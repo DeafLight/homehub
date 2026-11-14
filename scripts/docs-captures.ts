@@ -25,6 +25,7 @@ import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures
 import { fakeScreenPaused } from './docs-captures/fake-screen-pause.ts';
 import { FAKE_SCREEN_MEDIA_FILE, type FakeScreenMedia, fakePhotoHtml, fakeScreenPhotoTv } from './docs-captures/fake-photo.ts';
 import { fakeScreenCook, fakeScreenCookView } from './docs-captures/fake-screen-cook.ts';
+import { FAKE_SCREEN_TALK_FILE, type FakeScreenTalk } from './docs-captures/fake-screen-talk.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -824,7 +825,7 @@ if (!only || TV_COOK_SHOTS.some((name) => only.test(name))) {
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message', 'telephone-camera-tele-eteinte'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message', 'telephone-camera-tele-direct', 'tele-appli-parle', 'telephone-camera-tele-eteinte'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
   // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
@@ -911,6 +912,25 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
     if (i === 19) console.warn('Message vocal non lu par la fausse appli HomeHub TV');
   }
   await phone.capture('telephone-camera-tele-appli');
+  // Parler en direct à la télé du salon (fonction 9) : le faux micro de Chrome part par morceaux, la fausse appli les
+  // reçoit (fake-screen-talk.ts) ; capturés pendant le direct : le téléphone, puis la maquette de l'écran de la télé.
+  // Avant les autres maquettes : un onglet ouvert masque le téléphone, qui coupe alors le direct (et la caméra).
+  await clickText('Parler en direct');
+  const talkFile = join(state, FAKE_SCREEN_TALK_FILE);
+  for (let i = 0; i < 30; i++) {
+    await sleep(300);
+    if (existsSync(talkFile) && (JSON.parse(readFileSync(talkFile, 'utf8')) as FakeScreenTalk).bytes > 16_000) break;
+    if (i === 29) console.warn('Voix d’Alex absente sur la fausse appli HomeHub TV');
+  }
+  await phone.capture('telephone-camera-tele-direct');
+  await clickText('Arrêter de parler');
+  await sleep(500);
+  const talkTv = join(work, 'tele-appli-parle.html');
+  writeFileSync(talkTv, fakeScreenTv({ title: (JSON.parse(readFileSync(talkFile, 'utf8')) as FakeScreenTalk).title, bytes: 0 }));
+  const tvTalk = await openTarget(pathToFileURL(talkTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  await sleep(500);
+  await tvTalk.capture('tele-appli-parle');
+  await tvTalk.close();
   const screenTv = join(work, 'tele-appli.html');
   writeFileSync(screenTv, fakeScreenTv(JSON.parse(readFileSync(join(state, FAKE_SCREEN_FILE), 'utf8'))));
   const tvApp = await openTarget(pathToFileURL(screenTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });

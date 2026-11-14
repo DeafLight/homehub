@@ -2,6 +2,7 @@
 // événements par interrogation longue et rend compte de chacun. Types communs au serveur, au front et, recopiés en
 // Kotlin, à l'appli (tv-app/). Toute évolution incompatible change SCREEN_PROTOCOL.
 import type { ScreenMediaEvent } from './screen-media.ts';
+import type { ScreenTalkEvent } from './screen-talk.ts';
 
 /** Version du protocole, envoyée par l'appli dans l'en-tête SCREEN_PROTOCOL_HEADER. */
 export const SCREEN_PROTOCOL = 1;
@@ -127,7 +128,8 @@ export type ScreenEventBody =
   | ScreenReminderEvent
   | ScreenMediaEvent
   | ScreenWorkoutEvent
-  | ScreenCookEvent;
+  | ScreenCookEvent
+  | ScreenTalkEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

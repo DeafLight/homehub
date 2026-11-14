@@ -35,6 +35,7 @@ import { createLiveCamera } from './services/live-camera.ts';
 import { BUS_TICK_MS, createScreenBusAlerts } from './services/screen-bus.ts';
 import { createScreenHub, type ScreenHub } from './services/screens.ts';
 import { createScreenWorkouts } from './services/screen-workouts.ts';
+import { createScreenTalk } from './services/screen-talk.ts';
 import { createVoiceMessages, type VoiceMessages } from './services/voice-messages.ts';
 import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
@@ -79,6 +80,7 @@ import { createSharedMedia } from './services/shared-media.ts';
 import { SCREEN_MEDIA_MAX_BYTES } from '../shared/screen-media.ts';
 import { createScreenCookApi } from './screen-cook-api.ts';
 import { createScreenCooking } from './services/screen-cook.ts';
+import { createScreenTalkApi } from './screen-talk-api.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -225,6 +227,8 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createScreenShareApi({ screens: deps.screens, hub: screenHub, store: sharedMedia, household, access }));
   // Mode cuisine d'une recette sur la télé (fonction 13).
   api.route('/', createScreenCookApi({ screens: deps.screens, hub: screenHub, cooking: createScreenCooking(), recipes: deps.recipes, timers: deps.timers, access, clock }));
+  // Parler en direct à la télé (fonction 9) : la voix du téléphone relayée par HomeHub.
+  api.route('/', createScreenTalkApi({ screens: deps.screens, talk: createScreenTalk({ clock, hub: screenHub, rules: () => config.current().camera }), household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const screenWorkouts = createScreenWorkouts({ clock, hub: screenHub });

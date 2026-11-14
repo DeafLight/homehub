@@ -57,6 +57,7 @@ import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-media.ts';
+import type { ScreenTalkStart } from '../../../shared/screen-talk.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -325,6 +326,10 @@ export type Api = {
   /** Appareil de secours de chaque télé éteinte (tablette). */
   screenFallbacks(): Promise<ScreenFallbackSettings>;
   setScreenFallback(id: string, device: string | null): Promise<ScreenFallbackSettings>;
+  /** Parler en direct à une télé (parents, `camera.talk`) : ouvrir, envoyer un morceau de voix, arrêter. */
+  startScreenTalk(id: string): Promise<ScreenTalkStart>;
+  sendScreenTalk(id: string, talk: string, seq: number, pcm: Uint8Array): Promise<void>;
+  stopScreenTalk(id: string, talk: string): Promise<void>;
   /** Télécommande d'une télé (parents) : état, applis, touches, texte, lancement, « À table ! », marche/arrêt. */
   remoteScreens(): Promise<RemoteScreen[]>;
   remoteApps(id: string): Promise<RemoteApps>;
@@ -576,5 +581,14 @@ export function createApi(
     startScreenCook: (id, recipeId, index) => send('POST', `/screens/${encodeURIComponent(id)}/cook`, { recipeId, index }),
     screenCookStep: (id, index) => send('POST', `/screens/${encodeURIComponent(id)}/cook/step`, { index }),
     stopScreenCook: async (id) => void (await send('DELETE', `/screens/${encodeURIComponent(id)}/cook`)),
+    startScreenTalk: (id) => send('POST', `/screens/${encodeURIComponent(id)}/talk`),
+    sendScreenTalk: (id, talk, seq, pcm) =>
+      request(`/screens/${encodeURIComponent(id)}/talk/${encodeURIComponent(talk)}/audio?seq=${seq}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: pcm as Uint8Array<ArrayBuffer>,
+      }),
+    // keepalive : la demande part même si l'onglet se ferme.
+    stopScreenTalk: (id, talk) => request(`/screens/${encodeURIComponent(id)}/talk/${encodeURIComponent(talk)}`, { method: 'DELETE', keepalive: true }),
   };
 }

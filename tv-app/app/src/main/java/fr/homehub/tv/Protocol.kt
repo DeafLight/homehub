@@ -1,5 +1,5 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
-// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus, séance de sport), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus, séance de sport, parler en direct), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -58,6 +58,8 @@ data class Events(
     val remote: List<RemoteEvent> = emptyList(),
     val messages: List<MessageEvent> = emptyList(),
     val bus: List<BusEvent> = emptyList(),
+    /** Parler en direct (fonction 9, LiveTalk.kt). */
+    val talks: List<TalkEvent> = emptyList(),
 )
 
 /** Une appli du lanceur, pour le tiroir de la télécommande ; `banner` : PNG en base64. */
@@ -111,7 +113,10 @@ fun parseEvents(json: String): Events {
     val bus = all.filter { it.optString("kind") == "bus" }.map {
         BusEvent(it.getString("id"), it.getString("title"), it.getString("subtitle"), it.optInt("seconds", 45).coerceIn(5, 120))
     }
-    return Events(voices, o.getInt("last"), remote, messages, bus)
+    val talks = all.filter { it.optString("kind") == "talk" }.map {
+        TalkEvent(it.getString("id"), it.getString("title"), it.getString("audio"), it.optInt("rate", TALK_RATE))
+    }
+    return Events(voices, o.getInt("last"), remote, messages, bus, talks)
 }
 
 /** État de la télé pour HomeHub (shared/screen.ts, ScreenStateReport) ; `volume` : « adjustable » ou « fixed » (Volume.kt). */

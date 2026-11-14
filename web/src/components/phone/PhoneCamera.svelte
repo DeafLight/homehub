@@ -5,6 +5,7 @@
   import type { ScreenTarget } from '../../../../shared/screen.ts';
   import { createLiveViewer, type LiveViewer, type ViewerState } from '../../lib/live-camera.ts';
   import { createVoiceRecorder, VOICE_MAX_SECONDS, type VoiceState } from '../../lib/voice-message.ts';
+  import { createScreenTalker, type TalkState } from '../../lib/screen-talk.ts';
   import Icon from '../Icon.svelte';
 
   // Onglet Caméra (parents) : la caméra de face de la tablette en direct, avec le son. La diffusion démarre à
@@ -16,7 +17,9 @@
   // Google Home, une télé : message enregistré (un appui pour commencer, un pour envoyer), lu une ou deux secondes après.
   // Une télé appairée avec l'appli HomeHub TV (`screens`) lit le message par-dessus la vidéo, le son du programme
   // baissé, au lieu de la couper comme le récepteur Cast. Éteinte (écran en veille) ou injoignable, le message part sur
-  // son appareil de secours (Google Home, réglé sur la tablette), et l'onglet le dit.
+  // son appareil de secours (Google Home, réglé sur la tablette), et l'onglet le dit. Allumée, elle peut aussi recevoir
+  // la voix en direct (« Parler en direct », relayée par HomeHub, docs/appli-tele.md section 11) : bandeau « Alex vous
+  // parle », son du programme baissé ; le son de la tablette est coupé ici pendant ce temps (pas d'écho).
   type Props = { api: Api; bannerShown: boolean; castDevices?: CastDevice[]; screens?: ScreenTarget[] };
   let { api, bannerShown, castDevices = [], screens = [] }: Props = $props();
 
@@ -34,6 +37,16 @@
     api: { sendVoice: (device, audio) => (device.startsWith(SCREEN) ? api.sendScreenVoice(device.slice(SCREEN.length), audio) : api.sendVoice(device, audio)) },
     onState: (s) => (voice = s),
   });
+  let screenTalk = $state<TalkState>({ phase: 'idle' });
+  const talker = createScreenTalker({
+    api: {
+      startScreenTalk: (id) => api.startScreenTalk(id),
+      sendScreenTalk: (id, talk, seq, pcm) => api.sendScreenTalk(id, talk, seq, pcm),
+      stopScreenTalk: (id, talk) => api.stopScreenTalk(id, talk),
+    },
+    onState: (s) => (screenTalk = s),
+  });
+  const liveToScreen = $derived(screenTalk.phase === 'starting' || screenTalk.phase === 'live');
   const recording = $derived(voice.phase === 'recording');
   const targetDevice = $derived(destinations.find((d) => d.id === target) ?? null);
 
@@ -46,12 +59,18 @@
   let viewer: LiveViewer | null = null;
 
   const talking = $derived(view.phase === 'live' && view.talking);
-  const locked = $derived(talking || talkBusy || recording || voice.phase === 'sending');
+  const locked = $derived(talking || talkBusy || recording || voice.phase === 'sending' || liveToScreen);
 
   function choose(id: string) {
     if (locked) return;
     target = id;
     voice = { phase: 'idle' };
+    screenTalk = { phase: 'idle' };
+  }
+
+  function toggleScreenTalk(device: Destination) {
+    if (liveToScreen) talker.stop();
+    else void talker.start(device.id.slice(SCREEN.length));
   }
 
   async function toggleTalk() {
@@ -89,7 +108,11 @@
 
   onMount(() => {
     if (document.visibilityState === 'visible') start();
-    const onVisibility = () => (document.visibilityState === 'visible' ? start() : stop());
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') return start();
+      talker.stop();
+      stop();
+    };
     document.addEventListener('visibilitychange', onVisibility);
     // Fermeture de l'appli : la demande part quand même (keepalive).
     window.addEventListener('pagehide', stop);
@@ -97,6 +120,7 @@
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', stop);
       recorder.cancel();
+      talker.stop();
       stop();
     };
   });
@@ -118,7 +142,7 @@
 <div class="camera">
   <div class="screen">
     <!-- svelte-ignore a11y_media_has_caption -->
-    <video bind:this={video} autoplay playsinline muted={muted || recording} class:hidden={view.phase !== 'live'}></video>
+    <video bind:this={video} autoplay playsinline muted={muted || recording || liveToScreen} class:hidden={view.phase !== 'live'}></video>
     {#if view.phase === 'connecting'}
       <p class="overlay">Connexion à la tablette…</p>
     {:else if view.phase === 'ended' || view.phase === 'error'}
@@ -162,7 +186,25 @@
         <button type="button" class="btn" onclick={() => recorder.cancel()}>Annuler</button>
       </div>
       <p class="talking" role="status"><span class="rec-dot" aria-hidden="true"></span> Enregistrement… Appuie sur Envoyer quand tu as fini (envoi automatique au bout de {VOICE_MAX_SECONDS} secondes).</p>
+    {:else if liveToScreen}
+      <button type="button" class="btn talk on" aria-pressed="true" onclick={() => toggleScreenTalk(targetDevice)}>
+        <Icon name="mic" size={24} />
+        Arrêter de parler
+      </button>
+      <p class="talking" role="status">
+        {#if screenTalk.phase === 'live'}
+          <span class="rec-dot" aria-hidden="true"></span> {screenTalk.device} diffuse ta voix en direct, le son du programme baissé, avec ton prénom en bandeau. Le son de la tablette est coupé ici pendant ce temps.
+        {:else}
+          Connexion à la télé…
+        {/if}
+      </p>
     {:else}
+      {#if targetDevice.screen}
+        <button type="button" class="btn talk" disabled={voice.phase === 'sending' || !targetDevice.on} onclick={() => toggleScreenTalk(targetDevice)}>
+          <Icon name="mic" size={24} />
+          Parler en direct
+        </button>
+      {/if}
       <button type="button" class="btn talk" disabled={voice.phase === 'sending'} onclick={() => recorder.start(targetDevice.id)}>
         <Icon name="mic" size={24} />
         {voice.phase === 'sending' ? 'Envoi…' : 'Enregistrer un message'}
@@ -171,11 +213,15 @@
         <p class="talking" role="status">{voice.notice ?? `Message lu sur ${voice.device}.`}</p>
       {:else if voice.phase === 'error'}
         <p class="error" role="alert">{voice.message}</p>
+      {:else if screenTalk.phase === 'error'}
+        <p class="error" role="alert">{screenTalk.message}</p>
+      {:else if screenTalk.phase === 'ended'}
+        <p class="talking" role="status">Fin du direct : {screenTalk.message}.</p>
       {:else}
         {#if targetDevice.screen}
           <p class="talking">
             {targetDevice.on
-              ? `${targetDevice.name} lit ton message par-dessus ce qui passe, le son du programme baissé, avec ton prénom en bandeau.`
+              ? `${targetDevice.name} diffuse ta voix en direct ou lit ton message par-dessus ce qui passe, le son du programme baissé, avec ton prénom en bandeau.`
               : targetDevice.fallback
                 ? `${targetDevice.name} est éteinte : ton message part sur ${targetDevice.fallback}.`
                 : `${targetDevice.name} semble éteinte, ou l’appli HomeHub TV n’est pas lancée.`}

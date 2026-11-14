@@ -325,7 +325,11 @@ personne depuis son propre téléphone.
       jusqu'à 21 h ; choisi par `installer.ps1`.
   - [ ] À vérifier sur la vraie télé : WebView d'Android 11 (page affichée, polices), délai de la veille, retour à
         l'écran de veille d'origine, écran de veille lancé télé en veille rapide.
-- [ ] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé.
+- [x] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé : « Parler en direct »
+      dans l'onglet Caméra des parents, bandeau « Alex vous parle » ; sans WebRTC ni bibliothèque, la voix (PCM 16 kHz)
+      relayée par HomeHub, lue par `AudioTrack` (choix dans `docs/appli-tele.md`, section 11). À vérifier sur la vraie
+      télé : délai ressenti, son baissé sous YouTube, Netflix et l'appli de la box, en Wi-Fi puis en 4G ; refus
+      « écran éteint » quand la télé est en veille (bouton grisé sur le téléphone).
 - [ ] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le
       téléphone de l'expéditeur.
 - [x] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone : « Montrer sur la

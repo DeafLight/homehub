@@ -16,6 +16,8 @@
 // Photo ou vidéo partagée depuis un téléphone : téléchargée puis montrée en plein écran (MediaActivity), compte rendu.
 // Séance de sport (fonction 12) : la page de la séance s'ouvre dans SportActivity, et se ferme à la fin.
 // Mode cuisine d'une recette (fonction 13) : ouvre la vue cuisine (CuisineActivity).
+// Parler en direct (fonction 9) : l'événement `talk` ouvre le son (LiveTalk.kt), affiche « Alex vous parle » et rend
+// compte ; la voix arrive ensuite par sa propre attente longue, jusqu'à la fin de la prise de parole.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -60,6 +62,9 @@ class HubService : Service() {
     /** Envois de l'état et de la liste des applis. */
     private val reports = Executors.newSingleThreadExecutor()
     private lateinit var telecommande: Telecommande
+    private lateinit var talker: LiveTalkPlayer
+    /** Prises de parole en direct, l'une après l'autre (à part des messages et de la télécommande). */
+    private val talks = Executors.newSingleThreadExecutor()
     @Volatile private var running = false
     private var worker: Thread? = null
     @Volatile private var screenOn = true
@@ -98,6 +103,7 @@ class HubService : Service() {
         player = VoicePlayer(this)
         banner = OverlayBanner(this)
         minuteurs = MinuteurAlertes(this, prefs)
+        talker = LiveTalkPlayer(this)
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         telecommande = Telecommande(this) { sendState() }
         HomeHubAccessibility.listener = { sendState() }
@@ -132,6 +138,7 @@ class HubService : Service() {
         rappels.shutdownNow()
         media.shutdownNow()
         MediaActivity.closeCurrent()
+        talks.shutdownNow()
         reports.shutdownNow()
         telecommande.stop()
         HomeHubAccessibility.listener = null
@@ -176,6 +183,7 @@ class HubService : Service() {
                 if (shared.isNotEmpty()) MediaActivity.closeCurrent()
                 shared.forEach { event -> media.execute { handleMedia(server, token, event) } }
                 cookEventIds(json).forEach { id -> remote.execute { openCook(server, token, id) } }
+                events.talks.forEach { event -> talks.execute { handleTalk(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -275,6 +283,26 @@ class HubService : Service() {
 
     private fun send(client: HubClient, event: VoiceEvent, report: String) {
         runCatching { client.call("POST", "/api/screen/events/${event.id}/report", report) }
+    }
+
+    /** Une prise de parole en direct : son ouvert, bandeau et compte rendu, puis la voix jusqu'à la fin. */
+    private fun handleTalk(server: String, token: String, event: TalkEvent) {
+        val client = HubClient(server, token)
+        val report = { json: String -> runCatching { client.call("POST", "/api/screen/events/${event.id}/report", json) } }
+        // Écran éteint : personne n'entendrait, refus comme pour un message vocal (le téléphone grise déjà le bouton).
+        voiceRefusal(screenOn)?.let { report(it); return }
+        var started = false
+        try {
+            talker.listen(client, event) {
+                started = true
+                banner.show(event.title, getString(R.string.banner_subtitle))
+                report(reportJson(true))
+            }
+        } catch (e: Exception) {
+            if (!started) report(reportJson(false, e.message ?: "son indisponible"))
+        } finally {
+            if (started) banner.hide()
+        }
     }
 
     /** Un ordre de la télécommande, puis son compte rendu ; l'état est renvoyé s'il a changé (appli, veille). */

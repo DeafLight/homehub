@@ -360,7 +360,7 @@ avant l'envoi.
 
 La télé se met en veille (la fausse appli annonce son écran éteint) : le message d'Alex destiné à la télé part sur le
 Google Home du salon, son appareil de secours, et le téléphone affiche « Télé éteinte : lu sur Google Home du salon ».
-Même chose quand la télé est injoignable.
+Même chose quand la télé est injoignable. **Parler en direct** est grisé : la voix en direct ne part que vers une télé allumée.
 
 <img src="images/telephone-camera-tele-eteinte.png" alt="Onglet Caméra du téléphone d'Alex : « Télé éteinte : lu sur Google Home du salon »" width="260">
 
@@ -369,6 +369,17 @@ s'affiche en haut à droite pendant le message, avec des barres de niveau ; le s
 message, puis revient.
 
 ![Maquette d'une télé : bandeau « Message d'Alex, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-message.png)
+
+Vers une télé qui a l'appli, **Parler en direct** envoie la voix au fur et à mesure (environ une demi-seconde de
+décalage) jusqu'à **Arrêter de parler**. Le bouton devient rouge, un point rouge rappelle que le micro part vers la
+télé, et le son de la tablette est coupé sur le téléphone pendant ce temps.
+
+<img src="images/telephone-camera-tele-direct.png" alt="Onglet Caméra du téléphone d'Alex : Arrêter de parler, la Télé du salon diffuse sa voix en direct" width="260">
+
+Sur la télé (**maquette**), le bandeau dit « Alex vous parle » tant que le parent parle ; le son du programme reste
+baissé jusqu'à la fin, puis revient.
+
+![Maquette d'une télé : bandeau « Alex vous parle, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-parle.png)
 
 Tant qu'un **minuteur** tourne, la télé le montre en petit en bas à droite (**maquette** : « Pâtes » et « Écrans »
 lancés par Alex, reçus par la fausse appli) : le plus proche de la fin avec son temps restant, « +1 » pour l'autre.

@@ -363,6 +363,16 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   tout de suite. Un rappel part une fois par jour ; télé en veille ou injoignable à l'heure dite : il part quand une
   télé s'allume dans la demi-heure, sinon pas du tout ce jour-là. Un message vocal en cours garde son bandeau : le
   rappel passe après.
+- **Parler en direct à la télé** (même onglet Caméra, parents, `camera.talk`, télé avec l'appli HomeHub TV) : la
+  télé choisie dans **Ta voix sur**, **Parler en direct** envoie le micro au fur et à mesure ; la télé baisse le son
+  du programme, diffuse la voix (environ une demi-seconde de décalage) et affiche « Alex vous parle » en haut à
+  droite, jusqu'à **Arrêter de parler** (ou l'onglet quitté). Bouton grisé si la télé est éteinte (l'appli refuse
+  aussi « écran éteint »). Le son de la tablette est coupé sur le téléphone pendant
+  ce temps (pas d'écho). Sans WebRTC : le téléphone envoie sa voix à HomeHub par morceaux (PCM 16 kHz, un tous les
+  quarts de seconde), qui la relaie à la télé par interrogation longue ; rien n'est enregistré, et cela marche aussi
+  hors de la maison sans TURN. Une voix à la fois par télé (« Sam parle déjà à Télé du salon ») ; fin aussi après 6 s
+  sans nouvelles du téléphone ou de la télé, ou au bout de `camera.maxMinutes`. Choix et raisons :
+  [`docs/appli-tele.md`](docs/appli-tele.md), section 11.
 - **Télécommande de la télé** (téléphone d'un parent, bouton télé en haut de l'appli, `/m/tele`) : pour une télé qui a
   l'appli HomeHub TV. En-tête : nom et état de la télé (**allumée**, **en veille**, **injoignable**) et bouton
   marche/arrêt. Onglet **Touches** : pavé de flèches avec **OK** au centre, Retour, Accueil, lecture/pause, volume −,
@@ -906,6 +916,8 @@ server/
   ecran-api.ts             route de l'écran de veille de la télé (jeton de la télé)
   services/shared-media.ts photos et vidéos partagées vers la télé, en mémoire : boîte de réception, adresse au hasard
   screen-share-api.ts      routes du partage d'une photo ou d'une vidéo vers la télé
+  services/screen-talk.ts  parler en direct à la télé : voix relayée par morceaux, fin par silence ou durée
+  screen-talk-api.ts       parler en direct à la télé : prise de parole du téléphone, voix demandée par la télé
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
@@ -925,6 +937,7 @@ shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut
 shared/screen-media.ts     photo ou vidéo vers la télé : formats, taille au plus, durées, événement « media »
 shared/screen-workout.ts   séance de sport sur la télé : plan sans rien de personnel, horloge (pause, suivant, arrêt)
 shared/screen-cook.ts      vue cuisine de la télé : étape, durées, minuteurs de la maison (même logique que la tablette)
+shared/screen-talk.ts      parler en direct à la télé : format du son (PCM 16 kHz), événement talk
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -995,6 +1008,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/screens/cook`, `POST /api/screens/:id/cook`, `POST /api/screens/:id/cook/step`, `DELETE /api/screens/:id/cook` | mode cuisine sur la télé, depuis la fiche (tablette, ou téléphone appairé) : télés `[{ id, name, online, cook }]` (`cook` : vue ci-dessous, ou `null`) ; « Sur la télé » `{ recipeId, index }` → la télé, dès qu'elle a ouvert sa vue cuisine (503 télé absente ; 502 avec la raison, le mode cuisine d'avant reste) ; étape `{ index }` → `{ cook }` (ramenée dans la recette ; 404 sans mode cuisine) ; fin |
 | `GET /api/screen/cook?after=`, `POST /api/screen/cook/step`, `POST /api/screen/cook/timers`, `DELETE /api/screen/cook/timers/:id`, `DELETE /api/screen/cook` | la télé, avec son jeton : sa vue cuisine `{ cook: { rev, recipeId, title, index, total, step: { number, text, section, mode, durations: [{ seconds, text, timerId }] }, next, timers: [{ id, label, durationSeconds, remainingSeconds, ended, step }] } }` (`null` sans mode cuisine ; avec `after`, attend 5 s au plus que `rev` change) ; étape `{ index }` ; minuteur `{ seconds }` d'une durée citée par l'étape (400 sinon, 409 au-delà de 6 minuteurs ; auteur : qui a lancé le mode cuisine) ; arrêt d'un minuteur qui sonne (403 s'il tourne encore) ; fin (Retour) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Événement `message` à chaque télé appairée et joignable, `screens` = celles qui l'ont affiché ; 404 aucune télé appairée, 503 aucune joignable, 502 aucune ne l'a affiché (raisons) |
+| `POST /api/screens/:id/talk`, `POST …/talk/:talk/audio?seq=`, `DELETE …/talk/:talk` | parler en direct, téléphone d'un parent (`camera.talk`) : ouvre une prise de parole → `{ id, device, rate, maxSeconds }` (la télé reçoit l'événement `talk` et rend compte ; 409 si un autre parent parle déjà à cette télé, 502 avec la raison de la télé, 503 télé absente) ; morceau de voix numéroté (corps : PCM 16 bits mono 16 kHz, 64 ko au plus ; doublons ignorés ; 410 avec la raison quand la prise est finie) ; arrêt |
+| `GET /api/screen/talk/:talk?after=` | la télé, avec son jeton : la voix reçue depuis le morceau `after`, d'un bloc (`application/octet-stream`, numéro du dernier morceau dans `X-HomeHub-Seq`), 204 sans rien au bout de 3 s, 410 avec la raison à la fin (le parent a arrêté, plus de nouvelles depuis 6 s, `camera.maxMinutes`) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |

@@ -181,7 +181,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 
 | # | Idée | Avis |
 |---|---|---|
-| 9 | Parler en direct (WebRTC, comme la 0.66.0) | Utile mais lourd (bibliothèque WebRTC native, plusieurs Mo) : après les autres |
+| 9 | Parler en direct (comme la 0.66.0) | Faite sans WebRTC : son relayé par HomeHub, voir section 11 |
 | 10 | Réponses rapides à la télécommande (« OK », « J'arrive ») renvoyées au téléphone | Peu coûteux une fois 2 fait : à faire tôt |
 | 11 | Partager une photo ou une vidéo vers la télé | Simple (même chemin que le message vocal) : moyen. **Fait** : cible de partage de la PWA (champ `media`), fichier en mémoire (10 min, 2 places, puis 5 min derrière une adresse au hasard), plein écran `MediaActivity`, routes dans `server/screen-share-api.ts` ; **qui envoie : tout téléphone appairé, enfants compris** (comme montrer son téléphone à la famille ; `access.mediaSender`) ; 50 Mo au plus ; télé en veille refusée |
 | 12 | Séance de sport guidée sur la télé, lancée depuis le téléphone | Données personnelles affichées sur un écran partagé : seulement sur demande de la personne, à cadrer |
@@ -361,6 +361,56 @@ qu'elle affiche.
   n'importe qui à la tablette). L'alerte du minuteur fini sur la télé reste la fonction 3.
 - **Fin** : Retour (la vue est dans sa propre tâche : la télé revient à ce qui passait), « Arrêter » sur la fiche, ou
   recette retirée. Le mode cuisine vit en mémoire du serveur : un redémarrage l'arrête (la vue se ferme).
+## 11. Parler en direct à la télé (fonction 9)
+
+Comme à la tablette en 0.66.0 : un parent appuie sur « Parler en direct » dans l'onglet Caméra de son téléphone, la
+télé baisse le son du programme et diffuse sa voix au fur et à mesure, avec le bandeau « Alex vous parle ». Un seul
+sens (la télé n'a pas de micro) ; parents seulement, `camera.talk` (`access.talker` dans `server/access.ts`).
+
+### Solutions comparées (15 novembre 2026)
+
+| Solution | Poids dans l'APK | Délai | Pour | Contre |
+|---|---|---|---|---|
+| Bibliothèque WebRTC native (libwebrtc) | 10 à 20 Mo par architecture | ≈ 0,15 s | Le délai le plus court, comme la tablette | L'APK passe de 2 Mo à plus de 12 ; une bibliothèque, contraire au choix « sans bibliothèque » ; signalisation à réécrire en Kotlin ; TURN pour le dehors |
+| WebView avec WebRTC dans l'appli | 0 | ≈ 0,15 s | Reprend le code de la tablette | Une WebView (≈ 100 Mo de mémoire) dans une fenêtre par-dessus, depuis un service ; version de la WebView d'Android TV incertaine (risque déjà noté pour la fonction 8) ; la WebView ne demande pas le focus audio pour un flux WebRTC, il faudrait le faire à côté ; rien de testable sur la JVM ; TURN pour le dehors |
+| **Son relayé par HomeHub** | **0** | **≈ 0,4 à 0,6 s** | Kotlin sans bibliothèque (`HttpURLConnection`, `AudioTrack`) ; même chemin que le reste (attente longue, jeton, proxy sans réglage) ; marche aussi hors de la maison sans TURN ; découpage et tampon testés sur la JVM | Un peu plus de délai ; le son passe par le serveur (en mémoire, jamais enregistré) ; ≈ 32 ko/s montants depuis le téléphone |
+
+**Choix : le son relayé par HomeHub.** Pour une annonce à sens unique (« À table ! », « Éteignez, il est l'heure »),
+une demi-seconde de délai ne gêne pas : personne ne répond depuis la télé. Les deux autres solutions coûtent soit le
+poids et la règle « sans bibliothèque », soit une WebView lourde et intestable pour un simple flux de voix.
+
+### Comment
+
+```
+Téléphone ──POST /api/screens/:id/talk──────────────▶ HomeHub ──événement talk──▶ télé : bandeau, son baissé
+          ──POST …/talk/:talk/audio?seq=n (0,25 s)──▶  file   ◀──GET /api/screen/talk/:talk?after=n── AudioTrack
+          ──DELETE …/talk/:talk────────────────────▶  fin    ──410──────────────▶ bandeau retiré, son rendu
+```
+
+- **Format** : PCM 16 bits, mono, 16 kHz (32 ko/s), sans compression : rien à décoder sur la télé, et la voix reste
+  claire. Le téléphone prend le micro (`getUserMedia`, suppression d'écho et de bruit), réduit à 16 kHz
+  (`web/src/lib/screen-talk.ts`) et envoie un morceau toutes les 0,25 s ; pendant qu'un envoi est en route, la suite
+  attend et part avec le suivant (comme les touches de la télécommande).
+- **Télé** : l'événement `talk` arrive par l'attente longue habituelle ; l'appli demande le focus audio transitoire avec
+  baisse du son (comme le message vocal), ouvre un `AudioTrack` en flux, affiche le bandeau et rend compte. Elle
+  demande ensuite le son par une attente longue courte (3 s), `?after=n` : la réponse porte tous les morceaux arrivés
+  depuis, d'un bloc. Elle attend 0,3 s de son avant de jouer, et jette ce qui dépasse 1 s de retard (réseau qui a
+  hoqueté) pour ne pas parler de plus en plus en décalé (`TalkPacer` dans `LiveTalk.kt`, testé sur la JVM).
+- **Fin** : le parent arrête (ou quitte l'onglet), le téléphone n'envoie plus rien depuis 6 s, la télé ne demande
+  plus rien depuis 6 s, ou `camera.maxMinutes` est atteint. La télé reçoit 410 et rend le son ; le téléphone, 410 avec
+  la raison (« La télé a arrêté d'écouter »).
+- **Une voix à la fois** par télé : un second parent reçoit « Sam parle déjà à la télé ».
+- **Écran éteint** (fonction 7) : le bouton est grisé sur le téléphone, et l'appli refuse l'événement « écran
+  éteint » comme un message vocal ; pas de bascule vers le Google Home, qui ne sait pas lire un flux en direct.
+- **Pourquoi pas de WebSocket** (décision 6 l'aurait permis) : l'envoi par morceaux et l'attente longue suffisent à ce
+  débit, gardent zéro dépendance côté serveur et passent par le proxy sans réglage. Elle reste possible si le délai
+  gêne sur la vraie télé.
+- **Rien n'est enregistré** : les morceaux restent en mémoire quelques secondes, le temps que la télé les lise.
+
+### À vérifier sur la vraie télé
+
+Délai ressenti (but : moins d'une seconde), son baissé sous YouTube, Netflix et l'appli de la box, voix claire sur
+les haut-parleurs de la télé, depuis le Wi-Fi de la maison puis en 4G.
 
 ## Décisions (14 novembre 2026)
 

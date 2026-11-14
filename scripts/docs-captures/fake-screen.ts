@@ -30,6 +30,7 @@ import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE } from './fake-screen-reminder.ts';
 import type { ScreenMediaEvent } from '../../shared/screen-media.ts';
 import { FAKE_SCREEN_MEDIA_FILE, type FakeScreenMedia } from './fake-photo.ts';
+import { fakeTalk } from './fake-screen-talk.ts';
 
 export const FAKE_SCREEN_TOKEN = 'docs-tele';
 export const FAKE_SCREEN_ID = 'docs-tele';
@@ -154,6 +155,11 @@ export function startFakeScreen(base: string) {
       const { events, last } = (await res.json()) as ScreenEvents;
       after = last;
       for (const event of events) {
+        // Parler en direct : écouté à part (fake-screen-talk.ts), sans retenir les autres événements.
+        if (event.kind === 'talk') {
+          void fakeTalk(base, headers, event);
+          continue;
+        }
         if (event.kind === 'media') {
           await receiveMedia(event);
           continue;

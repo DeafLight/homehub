@@ -1,5 +1,5 @@
 // Appels HTTP à HomeHub, sans bibliothèque (HttpURLConnection) : en-tête de version du protocole, jeton de la télé,
-// réponse lue en texte ; les erreurs portent le message du serveur et son statut (401 : télé retirée).
+// réponse lue en texte (ou en octets : voix de « Parler en direct ») ; les erreurs portent le message du serveur et son statut (401 : télé retirée).
 package fr.homehub.tv
 
 import java.io.File
@@ -35,6 +35,22 @@ class HubClient(private val server: String, private val token: String? = null) {
             val status = conn.responseCode
             if (status >= 400) throw HubError(status, errorMessage(status, conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }))
             conn.inputStream.use { input -> target.outputStream().use { input.copyTo(it) } }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** Réponse binaire (son de « Parler en direct ») : statut, corps (vide pour 204) et un en-tête demandé. */
+    class Bytes(val status: Int, val body: ByteArray, val header: String?)
+
+    /** GET binaire ; une erreur (≥ 400) lève HubError avec le message du serveur (410 : fin de la prise de parole). */
+    fun bytes(path: String, header: String, readTimeoutMs: Int): Bytes {
+        val conn = open(path, "GET", readTimeoutMs)
+        try {
+            val status = conn.responseCode
+            if (status >= 400) throw HubError(status, errorMessage(status, conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }))
+            val body = if (status == 204) ByteArray(0) else conn.inputStream.use { it.readBytes() }
+            return Bytes(status, body, conn.getHeaderField(header))
         } finally {
             conn.disconnect()
         }

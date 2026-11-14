@@ -12,7 +12,8 @@ trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y 
 message vocal en cours). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
 famille, menu du soir). Elle montre aussi **en plein écran** une photo ou une vidéo partagée depuis un téléphone, et la **séance de sport
 guidée** lancée depuis le téléphone d'une personne (rien d'autre que la séance en cours ; tout est effacé à la fin). Elle affiche enfin
-le **mode cuisine** d'une recette lancé depuis la fiche recette (« Sur la télé »).
+le **mode cuisine** d'une recette lancé depuis la fiche recette (« Sur la télé »), et diffuse la **voix d'un parent
+en direct** (« Alex vous parle », son du programme baissé, voix relayée par HomeHub sans WebRTC).
 Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
@@ -23,6 +24,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `MainActivity.kt` | Écran d'accueil : adresse de HomeHub, code d'appairage, état, « Essayer le bandeau » |
 | `HubService.kt` | Service au premier plan : événements, téléchargement, lecture, message écrit, compte rendu ; écran allumé ou éteint (`ACTION_SCREEN_ON/OFF`) envoyé à HomeHub, message vocal refusé écran éteint (« écran éteint » : HomeHub le fait lire par le Google Home) |
 | `VoicePlayer.kt` | Lecture avec focus audio transitoire « avec baisse du son » |
+| `LiveTalk.kt` | Parler en direct : voix PCM 16 kHz demandée par attente longue, jouée par `AudioTrack` son baissé ; attente de 0,3 s de son avant de jouer, retard au-delà d'1 s jeté (`TalkPacer`) |
 | `OverlayBanner.kt` | Bandeau par-dessus les autres applis : message vocal ou avis (en haut à droite), message écrit (en haut au centre, s'en va seul), alertes du bus et de la pluie (en haut à droite) |
 | `Pluie.kt` | Alerte pluie du matin : lecture des événements `rain`, durée du bandeau |
 | `HubClient.kt`, `Protocol.kt` | Appels HTTP et protocole (`shared/screen.ts` côté serveur) |
