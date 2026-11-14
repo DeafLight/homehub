@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_MENU_PATH, phoneScanPath, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
+import { PHONE_MENU_PATH, PHONE_REMOTE_PATH, phoneScanPath, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
 
 describe('stock du téléphone', () => {
   it('a sa propre adresse, aller et retour', () => {
@@ -14,11 +14,14 @@ describe('stock du téléphone', () => {
 });
 
 describe('menu de la semaine', () => {
-  it('a sa page sur la tablette (avec son retour) et sur le téléphone', () => {
+  it('a sa page sur la tablette (avec son retour) et sur le téléphone, comme la télécommande de la télé', () => {
     expect(parseRoute('/menu')).toEqual({ name: 'menu', back: { name: 'home' } });
     expect(parseRoute('/menu/p/alex')).toEqual({ name: 'menu', back: { name: 'dashboard', ownerId: 'alex' } });
     expect(parseRoute(PHONE_MENU_PATH)).toEqual({ name: 'phonemenu' });
     expect(routePath({ name: 'phonemenu' })).toBe('/m/menu');
+    expect(parseRoute(PHONE_REMOTE_PATH)).toEqual({ name: 'phoneremote' });
+    expect(routePath({ name: 'phoneremote' })).toBe('/m/tele');
+    expect(isPhoneRoute({ name: 'phoneremote' })).toBe(true);
     expect(isPhoneRoute(parseRoute('/m/menu'))).toBe(true);
     expect(returnsHomeWhenIdle(parseRoute('/menu'))).toBe(true);
   });

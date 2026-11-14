@@ -1,5 +1,6 @@
 // Bandeau par-dessus les autres applis, en haut à droite de l'écran, pendant un message vocal : icône micro, « Message
-// d'Alex », « Le son du programme est baissé », barres de niveau qui bougent. Couleurs du thème sombre de HomeHub. Il ne
+// d'Alex », « Le son du programme est baissé », barres de niveau qui bougent. Pour un avis (« À table ! » de la
+// télécommande) : icône cloche, sans barres. Couleurs du thème sombre de HomeHub. Il ne
 // prend ni le focus ni la télécommande. Il faut l'autorisation « afficher par-dessus » (adb : appops SYSTEM_ALERT_WINDOW).
 package fr.homehub.tv
 
@@ -32,11 +33,11 @@ class OverlayBanner(private val context: Context) {
     private fun color(id: Int) = context.getColor(id)
 
     /** Affiche le bandeau (remplace le précédent) ; false si l'autorisation manque. */
-    fun show(title: String, subtitle: String): Boolean {
+    fun show(title: String, subtitle: String, voice: Boolean = true): Boolean {
         if (!allowed()) return false
         main.post {
             hideNow()
-            val view = build(title, subtitle)
+            val view = build(title, subtitle, voice)
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -66,7 +67,7 @@ class OverlayBanner(private val context: Context) {
         shown = null
     }
 
-    private fun build(title: String, subtitle: String): View {
+    private fun build(title: String, subtitle: String, voice: Boolean): View {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -78,7 +79,7 @@ class OverlayBanner(private val context: Context) {
             elevation = dp(8).toFloat()
         }
         val icon = ImageView(context).apply {
-            setImageResource(R.drawable.ic_mic)
+            setImageResource(if (voice) R.drawable.ic_mic else R.drawable.ic_bell)
             setPadding(dp(9), dp(9), dp(9), dp(9))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -101,6 +102,7 @@ class OverlayBanner(private val context: Context) {
         })
         row.addView(texts, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(12) })
 
+        if (!voice) return row
         // Barres de niveau : animation régulière (le vrai niveau du son demanderait le micro), décalée d'une barre à l'autre.
         val bars = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL

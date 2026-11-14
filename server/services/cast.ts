@@ -298,3 +298,100 @@ export function castPlay(
     else socket.once('connect', start);
   });
 }
+
+/** Après le lancement du récepteur, temps laissé à la télé pour s'allumer avant de le refermer. */
+export const CAST_WAKE_STOP_MS = 2_000;
+
+/**
+ * Allume une télé en veille par son Chromecast intégré (« Wake on wireless LAN ») : lancer le récepteur par défaut
+ * la rallume ; on le referme aussitôt (STOP), la télé reste allumée sur son écran d'accueil. Résout quand le récepteur
+ * est lancé ; rejette avec une CastError (connexion ou lancement).
+ */
+export function castWake(
+  target: CastTarget,
+  {
+    connect = tlsCastConnect,
+    launchTimeoutMs = CAST_LAUNCH_TIMEOUT_MS,
+    stopAfterMs = CAST_WAKE_STOP_MS,
+    log = () => {},
+  }: { connect?: CastConnect; launchTimeoutMs?: number; stopAfterMs?: number; log?: (step: string) => void } = {},
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t0 = Date.now();
+    const step = (text: string) => log(`${text} (${Date.now() - t0} ms)`);
+    const sender = `sender-homehub-${Math.random().toString(36).slice(2, 10)}`;
+    let connected = false;
+    let settled = false;
+    let closed = false;
+    let launchId = 0;
+    const socket = connect(target);
+    const hangUp = () => {
+      if (closed) return;
+      closed = true;
+      clearTimeout(timer);
+      socket.destroy();
+      step('déconnecté');
+    };
+    const settle = (err?: CastError) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) {
+        step(`échec (${err.stage}) : ${err.message}`);
+        hangUp();
+        reject(err);
+      } else resolve();
+    };
+    const timer = setTimeout(() => settle(new CastError(connected ? 'launch' : 'connect', connected ? 'le lecteur Cast ne démarre pas (délai dépassé)' : 'l’appareil ne répond pas')), launchTimeoutMs);
+    const send = (destination: string, namespace: string, payload: Record<string, unknown>) => {
+      if (!closed) socket.write(encodeCastMessage({ source: sender, destination, namespace, payload: JSON.stringify(payload) }));
+    };
+    const framer = castFramer((m) => {
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(m.payload) as Record<string, unknown>;
+      } catch {
+        return;
+      }
+      if (m.namespace === NS.heartbeat && data.type === 'PING') {
+        send(m.source, NS.heartbeat, { type: 'PONG' });
+      } else if (m.namespace === NS.receiver && data.type === 'RECEIVER_STATUS' && !settled) {
+        const apps = (data.status as { applications?: { appId?: string; sessionId?: string }[] } | undefined)?.applications ?? [];
+        const app = apps.find((a) => a.appId === DEFAULT_MEDIA_RECEIVER && a.sessionId);
+        if (!app) return;
+        step('lecteur Cast lancé : la télé s’allume');
+        settle();
+        // Refermé un peu plus tard : la télé a le temps de sortir de veille, puis revient à son écran d'accueil.
+        setTimeout(() => {
+          send('receiver-0', NS.receiver, { type: 'STOP', sessionId: app.sessionId, requestId: launchId + 1 });
+          setTimeout(hangUp, 500);
+        }, stopAfterMs);
+      } else if (m.namespace === NS.receiver && (data.type === 'LAUNCH_ERROR' || data.type === 'INVALID_REQUEST') && data.requestId === launchId) {
+        settle(new CastError('launch', 'le lecteur Cast ne démarre pas'));
+      }
+    });
+    socket.on('data', (chunk: Buffer) => {
+      try {
+        framer(chunk);
+      } catch (err) {
+        settle(new CastError(connected ? 'launch' : 'connect', (err as Error).message));
+      }
+    });
+    socket.on('error', (err: NodeJS.ErrnoException) =>
+      settle(new CastError(connected ? 'launch' : 'connect', err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH' || err.code === 'ETIMEDOUT' ? 'appareil injoignable' : `connexion impossible (${err.code ?? err.message})`)),
+    );
+    socket.on('close', () => {
+      settle(new CastError(connected ? 'launch' : 'connect', 'connexion fermée par l’appareil'));
+      hangUp();
+    });
+    const start = () => {
+      connected = true;
+      step('connecté, lancement du lecteur Cast pour allumer la télé');
+      send('receiver-0', NS.connection, { type: 'CONNECT' });
+      launchId = 1;
+      send('receiver-0', NS.receiver, { type: 'LAUNCH', appId: DEFAULT_MEDIA_RECEIVER, requestId: launchId });
+    };
+    if ('encrypted' in socket) socket.once('secureConnect', start);
+    else socket.once('connect', start);
+  });
+}

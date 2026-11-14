@@ -34,7 +34,7 @@
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
   import { handoff, searchRecipes, type SharedRecipe } from '../lib/recipes.ts';
-  import { PHONE_MENU_PATH, PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
+  import { PHONE_MENU_PATH, PHONE_REMOTE_PATH, PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
@@ -46,7 +46,8 @@
 
   // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
   // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes, pour un adulte qui
-  // a un programme le sport, et pour un parent la caméra de la tablette en direct. Tout ce qui est coché ou ajouté
+  // a un programme le sport, et pour un parent la caméra de la tablette en direct (et, dans l’en-tête, la télécommande
+  // de la télé quand une télé est appairée). Tout ce qui est coché ou ajouté
   // l’est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout ; `sharedRecipe` :
   // lien, texte copié d'une page ou page enregistrée reçus, qui ouvrent l'import de recette (l'ajout à une liste reste
   // proposé pour un lien) ; `sharedProduct` : lien d'une fiche produit du drive, qui propose de le relier à un article
@@ -90,6 +91,8 @@
   const schoolLife = createResource(async () => (member?.parent ? api.schoolLife() : null), SCHOOL_LIFE_REFRESH_MS);
   // Télés HomeHub TV où un parent peut envoyer sa voix (onglet Caméra), et si elles sont allumées.
   const screenTargets = createResource(async () => (member?.parent && config.camera.live && config.camera.talk ? api.screenTargets() : []), 30_000);
+  // Télés appairées, pour le bouton de la télécommande dans l'en-tête (parents seulement, revérifié par le serveur).
+  const remotes = createResource(async () => (member?.parent ? api.remoteScreens() : []), 5 * 60_000);
   let schoolLifeOpen = $state(false);
   // Rouverte (téléphone sorti de la poche) : la routine a pu changer de période ou être cochée sur la tablette.
   const onVisible = () => document.visibilityState === 'visible' && void routine.refresh();
@@ -100,6 +103,7 @@
     homework.destroy();
     schoolLife.destroy();
     screenTargets.destroy();
+    remotes.destroy();
     lists.destroy();
     agenda.destroy();
     holidays.destroy();
@@ -218,6 +222,9 @@
       <Avatar profile={me} size={40} />
       <h1>{TABS.find((t) => t.tab === tab)?.label}</h1>
       <span class="who">{me.name}</span>
+      {#if remotes.data?.length}
+        <button type="button" class="remote-link" aria-label="Télécommande de la télé" onclick={() => navigate(PHONE_REMOTE_PATH)}><Icon name="tv" size={24} /></button>
+      {/if}
     </header>
 
     <main bind:this={scroller}>
@@ -462,6 +469,17 @@
   .who {
     margin-left: auto;
     color: var(--fg-muted);
+  }
+
+  .remote-link {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--fg);
   }
 
   main {

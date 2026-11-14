@@ -2,7 +2,7 @@
 // listes, stock, scanner, téléphones reliés, visages, routines, transports, vacances scolaires, sport et séance guidée,
 // recettes, menu de la semaine). Une recette : /recette/<id>, /recette/<id>/modifier, /recette/<id>/cuisine (retour : le carnet), et
 // /recette/nouvelle. Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots, /m/sport, /m/recettes, /m/camera), son
-// scanner (/m/scanner), son stock (/m/stock), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
+// scanner (/m/scanner), son stock (/m/stock), la télécommande de la télé (/m/tele), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
 // /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager). Le scanner du téléphone peut s'ouvrir
 // directement dans un mode : /m/scanner?mode=ranger ou ?mode=jete (QR des affichettes).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
@@ -22,6 +22,7 @@ export type Route =
   | { name: 'phonescan'; mode?: ScanMode }
   | { name: 'phonestock' }
   | { name: 'phonemenu' }
+  | { name: 'phoneremote' }
   | { name: 'recipe'; id: string | null; mode: RecipeMode }
   | { name: 'phonerecipe'; id: string | null; mode: Exclude<RecipeMode, 'cook'> }
   | { name: 'share' };
@@ -46,6 +47,7 @@ export function scanModeOfParam(value: string | null): ScanMode | undefined {
 export const phoneScanPath = (mode?: ScanMode) => (mode ? `${PHONE_SCAN_PATH}?mode=${SCAN_MODE_PARAMS[mode]}` : PHONE_SCAN_PATH);
 export const PHONE_STOCK_PATH = '/m/stock';
 export const PHONE_MENU_PATH = '/m/menu';
+export const PHONE_REMOTE_PATH = '/m/tele';
 const NEW_RECIPE = 'nouvelle';
 const RECIPE_SUFFIX: Record<RecipeMode, string> = { view: '', edit: '/modifier', cook: '/cuisine' };
 
@@ -72,6 +74,7 @@ const TRAITS: Partial<Record<Route['name'], RouteTraits>> = {
   phonescan: { phone: true },
   phonestock: { phone: true },
   phonemenu: { phone: true },
+  phoneremote: { phone: true },
   phonerecipe: { phone: true },
   recipe: { awake: true },
   scan: { holdsActor: true },
@@ -113,6 +116,7 @@ export function routePath(route: Route): string {
   if (route.name === 'phonescan') return phoneScanPath(route.mode);
   if (route.name === 'phonestock') return PHONE_STOCK_PATH;
   if (route.name === 'phonemenu') return PHONE_MENU_PATH;
+  if (route.name === 'phoneremote') return PHONE_REMOTE_PATH;
   if (route.name === 'recipe') return recipePath(route.id, route.mode);
   if (route.name === 'phonerecipe') return phoneRecipePath(route.id, route.mode);
   const prefix = DETAIL_PREFIXES[route.name];
@@ -151,6 +155,7 @@ export function parseRoute(location: string): Route {
   }
   if (path === PHONE_STOCK_PATH) return { name: 'phonestock' };
   if (path === PHONE_MENU_PATH) return { name: 'phonemenu' };
+  if (path === PHONE_REMOTE_PATH) return { name: 'phoneremote' };
   const recipe = /^(\/m)?\/recette\/([^/]+)(?:\/(modifier|cuisine))?$/u.exec(path);
   if (recipe) {
     const [, phone, rawId, suffix] = recipe;

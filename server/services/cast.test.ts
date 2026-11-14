@@ -1,9 +1,9 @@
 // Tests du client Cast v2 : encodage et décodage des messages, découpage du flux, et lecture complète contre le faux
 // appareil (vraie connexion TLS locale) : lecture démarrée sans jamais envoyer CLOSE (qui arrête le vrai récepteur par
-// défaut : bip, puis rien), média refusé ou illisible, appareil injoignable, appareil muet.
+// défaut : bip, puis rien), média refusé ou illisible, appareil injoignable, appareil muet ; allumage d’une télé (récepteur lancé puis refermé).
 import { createServer } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { castFramer, castPlay, type CastMessage, decodeCastMessage, encodeCastMessage } from './cast.ts';
+import { castFramer, castPlay, castWake, type CastMessage, decodeCastMessage, encodeCastMessage } from './cast.ts';
 import { type FakeCastDevice, startFakeCastDevice } from './cast-fake.ts';
 
 const message: CastMessage = { source: 'sender-0', destination: 'receiver-0', namespace: 'urn:x-cast:com.google.cast.tp.connection', payload: JSON.stringify({ type: 'CONNECT', texte: 'éà' }) };
@@ -94,5 +94,30 @@ describe('lecture sur un appareil', () => {
     const port = (silent.address() as { port: number }).port;
     await expect(castPlay({ host: '127.0.0.1', port }, media, { launchTimeoutMs: 200 })).rejects.toMatchObject({ stage: 'connect', message: 'l’appareil ne répond pas' });
     silent.close();
+  });
+});
+
+describe('allumage d’une télé par Cast', () => {
+  let device: FakeCastDevice | null = null;
+  afterEach(async () => {
+    await device?.close();
+    device = null;
+  });
+
+  it('lance le récepteur par défaut (la télé s’allume), puis le referme', async () => {
+    device = await startFakeCastDevice();
+    await castWake({ host: '127.0.0.1', port: device.port }, { stopAfterMs: 20 });
+    expect(device.launches).toBe(1);
+    await new Promise((r) => setTimeout(r, 120));
+    expect(device.stops).toBe(1);
+    expect(device.plays).toEqual([]);
+  });
+
+  it('appareil injoignable : étape « connect »', async () => {
+    device = await startFakeCastDevice();
+    const port = device.port;
+    await device.close();
+    device = null;
+    await expect(castWake({ host: '127.0.0.1', port })).rejects.toMatchObject({ stage: 'connect' });
   });
 });

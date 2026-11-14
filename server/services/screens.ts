@@ -2,7 +2,9 @@
 // interrogation longue, comme la page tablette de la caméra en direct ; une télé qui ne demande plus rien depuis
 // GONE_MS est absente (éteinte, appli fermée, réseau perdu). Un envoi attend le compte rendu de la télé (lecture
 // commencée, ou échec et sa raison) pour répondre au téléphone ; sans nouvelles, il échoue au bout de `reportMs`.
-import type { ScreenEvent, ScreenEvents, ScreenReport, ScreenVoiceEvent } from '../../shared/screen.ts';
+// L'appli dit aussi où en est la télé (écran allumé, appli au premier plan, moyen d'action) : avec la présence, cela
+// donne l'état montré par la télécommande (allumée, en veille, injoignable).
+import type { RemotePower, ScreenEvent, ScreenEventBody, ScreenEvents, ScreenReport, ScreenStateReport } from '../../shared/screen.ts';
 import { fail } from '../http.ts';
 import type { Clock } from '../sources/types.ts';
 import { GONE_MS, WAIT_MS } from './live-camera.ts';
@@ -23,6 +25,8 @@ type Box = {
   polling: number;
   /** Envois qui attendent le compte rendu de la télé, par identifiant d'événement. */
   reports: Map<string, (report: ScreenReport) => void>;
+  /** Dernier état annoncé par l'appli. */
+  state: ScreenStateReport | null;
 };
 
 export type ScreenHub = ReturnType<typeof createScreenHub>;
@@ -44,7 +48,7 @@ export function createScreenHub({
   const boxOf = (id: string) => {
     let box = boxes.get(id);
     if (!box) {
-      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map() };
+      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null };
       boxes.set(id, box);
     }
     return box;
@@ -62,6 +66,19 @@ export function createScreenHub({
 
   return {
     online,
+
+    /** État annoncé par l'appli de la télé `id` (null : rien reçu depuis le démarrage du serveur). */
+    stateOf: (id: string): ScreenStateReport | null => boxes.get(id)?.state ?? null,
+
+    setState(id: string, state: ScreenStateReport) {
+      boxOf(id).state = state;
+    },
+
+    /** Allumée, en veille (écran éteint mais appli joignable), ou injoignable. Sans état annoncé : allumée. */
+    power(id: string): RemotePower {
+      if (!online(id)) return 'offline';
+      return boxes.get(id)?.state?.screenOn === false ? 'standby' : 'on';
+    },
 
     /** Événements de la télé `id` après `after` (null : télé qui démarre, tout ce qui est encore frais). */
     async events(id: string, after: number | null, abort?: AbortSignal): Promise<ScreenEvents> {
@@ -96,8 +113,11 @@ export function createScreenHub({
       }
     },
 
-    /** Envoie un événement à la télé et attend son compte rendu ; 503 si elle est absente. */
-    async send(id: string, event: ScreenVoiceEvent): Promise<ScreenReport> {
+    /**
+     * Envoie un événement à la télé et attend son compte rendu ; 503 si elle est absente. `waitMs` : attente du compte
+     * rendu pour cet envoi (une touche n'attend pas autant qu'un message vocal à télécharger).
+     */
+    async send(id: string, event: ScreenEventBody, waitMs = reportMs): Promise<ScreenReport> {
       if (!online(id)) return fail(503, SCREEN_OFFLINE);
       const box = boxOf(id);
       sweep(box);
@@ -105,14 +125,14 @@ export function createScreenHub({
         const timer = setTimeout(() => {
           box.reports.delete(event.id);
           resolve({ ok: false, reason: SCREEN_SILENT });
-        }, reportMs);
+        }, waitMs);
         box.reports.set(event.id, (r) => {
           clearTimeout(timer);
           box.reports.delete(event.id);
           resolve(r);
         });
       });
-      box.items.push({ ...event, seq: ++box.seq, at: now() });
+      box.items.push({ ...event, seq: ++box.seq, at: now() } as ScreenEvent & { at: number });
       for (const wake of box.waiters) wake();
       box.waiters.clear();
       return report;

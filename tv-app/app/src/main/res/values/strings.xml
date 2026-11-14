@@ -17,4 +17,8 @@
     <string name="version">Version %1$s</string>
     <string name="channel_name">Connexion à HomeHub</string>
     <string name="notification_text">Prête à lire les messages de la famille</string>
+    <string name="accessibility_description">Télécommande du téléphone : sait quelle appli est à l’écran, et fait Retour ou Accueil si le débogage est coupé. Ne lit rien de ce qui est affiché.</string>
+    <string name="remote_ready">Télécommande prête</string>
+    <string name="remote_authorize">Télécommande : accepter « Autoriser le débogage ? » (Toujours autoriser)</string>
+    <string name="remote_off">Télécommande : débogage réseau coupé, flèches et clavier indisponibles</string>
 </resources>

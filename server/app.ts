@@ -37,6 +37,7 @@ import { createVoiceMessages, type VoiceMessages } from './services/voice-messag
 import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
+import type { ScreenAppStore } from './sources/screen-apps.ts';
 import type { ScreenStore } from './sources/screens.ts';
 import type { DriveReader } from './sources/drive-page.ts';
 import type { DriveStore } from './sources/drive.ts';
@@ -72,6 +73,8 @@ export type AppDeps = {
   devices: DeviceStore;
   /** Télés appairées (appli HomeHub TV). */
   screens: ScreenStore;
+  /** Applis du lanceur de chaque télé (tiroir de la télécommande). */
+  screenApps: ScreenAppStore;
   pins: PinStore;
   faces: FaceStore;
   sessions: ActorSessions;
@@ -159,7 +162,7 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createCameraApi({ camera, household, access }));
   api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv }), household, access }));
   api.route('/', createCastApi({ voice, config, household, access }));
-  api.route('/', createScreenApi({ screens: deps.screens, hub: createScreenHub({ clock }), voice, config, household, access }));
+  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: createScreenHub({ clock }), voice, config, household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

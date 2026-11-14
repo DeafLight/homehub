@@ -1,7 +1,8 @@
 // Écran d'accueil de HomeHub TV, en trois états. Sans adresse de HomeHub : la commande adb qui la donne
 // (`--es server …`, reçue ici). Pas encore appairée : un code en grand, à taper sur la tablette (Téléphones → Télés),
 // renouvelé quand il expire ; la télé attend la réponse par interrogation longue. Appairée : son nom, l'état de la
-// connexion, l'autorisation du bandeau (sinon la commande adb), la version, et « Essayer le bandeau ».
+// connexion, l'état de la télécommande, l'autorisation du bandeau (sinon la commande adb), la version, et « Essayer le
+// bandeau ».
 package fr.homehub.tv
 
 import android.app.Activity
@@ -88,7 +89,7 @@ class MainActivity : Activity() {
 
     private fun render() {
         val server = prefs.server
-        val key = listOf(server, prefs.token != null, prefs.screenName, pairingCode, pairingError, prefs.status, banner.allowed()).joinToString("|")
+        val key = listOf(server, prefs.token != null, prefs.screenName, pairingCode, pairingError, prefs.status, prefs.remoteStatus, banner.allowed()).joinToString("|")
         if (key == shownKey) {
             if (server != null && prefs.token == null) startPairing(server)
             return
@@ -117,6 +118,7 @@ class MainActivity : Activity() {
             else -> {
                 title(prefs.screenName ?: getString(R.string.app_name))
                 text(prefs.status ?: getString(R.string.status_starting))
+                prefs.remoteStatus?.let { text(it, muted = true) }
                 text(server, muted = true)
                 if (banner.allowed()) {
                     button(getString(R.string.try_banner)) { tryBanner() }

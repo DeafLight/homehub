@@ -153,7 +153,14 @@ export type Access = {
    * de télé n'est jamais reconnu comme téléphone, et inversement ; télé retirée : 401.
    */
   screen(c: Context): Promise<ScreenRecord>;
+  /**
+   * La télécommande d'une télé (touches, texte, applis, marche/arrêt) : un parent seulement, depuis son téléphone ou
+   * reconnu à la tablette (un enfant ne lance pas une appli pendant le film). À revoir avec l'heure du coucher.
+   */
+  remote(c: Context): Promise<Author>;
 };
+
+export const REMOTE_PARENTS_ONLY = 'La télécommande de la télé est réservée aux parents';
 
 export const UNKNOWN_SCREEN = 'Télé non reconnue : à appairer de nouveau';
 
@@ -245,6 +252,11 @@ export function createAccess({
       const token = /^Bearer (\S+)$/.exec(c.req.header('authorization') ?? '')?.[1];
       const found = token && screens ? await screens.authenticate(token) : null;
       return found ?? fail(401, UNKNOWN_SCREEN);
+    },
+
+    async remote(c) {
+      const author = await writer(c, null);
+      return household.member(author.ownerId)?.parent ? author : fail(403, REMOTE_PARENTS_ONLY);
     },
   };
 }

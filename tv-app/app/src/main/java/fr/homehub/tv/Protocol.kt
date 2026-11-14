@@ -1,5 +1,5 @@
-// Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON,
-// compte rendu. Fonctions pures, testées sur la JVM (ProtocolTest).
+// Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
+// (messages vocaux et ordres de la télécommande), compte rendu, état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -21,7 +21,22 @@ sealed interface PairingState {
 /** Message vocal à télécharger à `audio` (chemin de l'API) ; `title` : « Message d'Alex ». */
 data class VoiceEvent(val seq: Int, val id: String, val title: String, val audio: String, val contentType: String)
 
-data class Events(val voices: List<VoiceEvent>, val last: Int)
+/** Ordres de la télécommande du téléphone (shared/screen.ts : key, text, launch, power). */
+sealed interface RemoteEvent {
+    val id: String
+    data class Keys(override val id: String, val keys: List<String>, val notice: Notice?) : RemoteEvent
+    data class Text(override val id: String, val text: String, val submit: Boolean) : RemoteEvent
+    data class Launch(override val id: String, val pkg: String) : RemoteEvent
+    data class Power(override val id: String, val on: Boolean) : RemoteEvent
+}
+
+/** Bandeau qui accompagne des touches (« À table ! », « De la part d'Alex »). */
+data class Notice(val title: String, val subtitle: String)
+
+data class Events(val voices: List<VoiceEvent>, val last: Int, val remote: List<RemoteEvent> = emptyList())
+
+/** Une appli du lanceur, pour le tiroir de la télécommande ; `banner` : PNG en base64. */
+data class AppEntry(val pkg: String, val name: String, val banner: String?)
 
 fun parsePairingStart(json: String): PairingStart {
     val o = JSONObject(json)
@@ -43,11 +58,42 @@ fun parsePairingState(json: String): PairingState {
 fun parseEvents(json: String): Events {
     val o = JSONObject(json)
     val list: JSONArray = o.getJSONArray("events")
-    val voices = (0 until list.length()).map { list.getJSONObject(it) }.filter { it.optString("kind") == "voice" }.map {
+    val all = (0 until list.length()).map { list.getJSONObject(it) }
+    val voices = all.filter { it.optString("kind") == "voice" }.map {
         VoiceEvent(it.getInt("seq"), it.getString("id"), it.getString("title"), it.getString("audio"), it.getString("contentType"))
     }
-    return Events(voices, o.getInt("last"))
+    val remote = all.mapNotNull { e ->
+        val id = e.getString("id")
+        when (e.optString("kind")) {
+            "key" -> {
+                val keys = e.getJSONArray("keys")
+                val notice = e.optJSONObject("notice")?.let { Notice(it.getString("title"), it.getString("subtitle")) }
+                RemoteEvent.Keys(id, (0 until keys.length()).map { keys.getString(it) }, notice)
+            }
+            "text" -> RemoteEvent.Text(id, e.getString("text"), e.optBoolean("submit"))
+            "launch" -> RemoteEvent.Launch(id, e.getString("package"))
+            "power" -> RemoteEvent.Power(id, e.getBoolean("on"))
+            else -> null
+        }
+    }
+    return Events(voices, o.getInt("last"), remote)
 }
+
+/** État de la télé pour HomeHub (shared/screen.ts, ScreenStateReport). */
+fun stateJson(screenOn: Boolean, foreground: String?, control: String, addresses: List<String>): String =
+    JSONObject().apply {
+        put("screenOn", screenOn)
+        put("foreground", foreground ?: JSONObject.NULL)
+        put("control", control)
+        put("addresses", JSONArray(addresses.take(8)))
+    }.toString()
+
+/** Liste des applis pour HomeHub (shared/screen.ts, ScreenAppsReport), au plus 80. */
+fun appsJson(apps: List<AppEntry>): String =
+    JSONObject().put(
+        "apps",
+        JSONArray(apps.take(80).map { JSONObject().put("package", it.pkg).put("name", it.name).put("banner", it.banner ?: JSONObject.NULL) }),
+    ).toString()
 
 /** Message d'erreur de HomeHub ({ "error": "…" }), ou le statut HTTP. */
 fun errorMessage(status: Int, body: String?): String =

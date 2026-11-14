@@ -34,6 +34,8 @@ export type FakeCastDevice = {
   readonly closes: number;
   /** STOP reçus : le lecteur fermé une fois le message lu. */
   readonly stops: number;
+  /** Lancements du récepteur (un allumage par Cast en fait un, sans média). */
+  readonly launches: number;
   /** Attend la prochaine lecture (ou la renvoie si elle a déjà eu lieu depuis le dernier appel). */
   nextPlay(): Promise<FakeCastPlay>;
   close(): Promise<void>;
@@ -56,6 +58,7 @@ export async function startFakeCastDevice({
   const plays: FakeCastPlay[] = [];
   let closesBeforeEnd = 0;
   let stops = 0;
+  let launches = 0;
   let seen = 0;
   const waiters: ((p: FakeCastPlay) => void)[] = [];
   const record = (p: FakeCastPlay) => {
@@ -75,6 +78,7 @@ export async function startFakeCastDevice({
     const framer = castFramer((m) => {
       const data = JSON.parse(m.payload) as Record<string, unknown>;
       if (data.type === 'LAUNCH' && data.appId === DEFAULT_MEDIA_RECEIVER) {
+        launches++;
         reply(m, 'receiver-0', m.namespace, {
           type: 'RECEIVER_STATUS',
           requestId: data.requestId,
@@ -132,6 +136,9 @@ export async function startFakeCastDevice({
     },
     get stops() {
       return stops;
+    },
+    get launches() {
+      return launches;
     },
     nextPlay: () =>
       new Promise((resolve) => {

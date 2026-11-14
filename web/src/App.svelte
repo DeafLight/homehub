@@ -28,6 +28,7 @@
   import Pair from './screens/Pair.svelte';
   import Phone from './screens/Phone.svelte';
   import Phones from './screens/Phones.svelte';
+  import Remote from './screens/Remote.svelte';
   import Recipe from './screens/Recipe.svelte';
   import Recipes from './screens/Recipes.svelte';
   import Weather from './screens/Weather.svelte';
@@ -107,6 +108,8 @@
   <Scan back={null} startMode={router.route.mode} />
 {:else if router.route.name === 'phonestock'}
   <Stock back={null} />
+{:else if router.route.name === 'phoneremote'}
+  <Remote />
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} />
 {:else if router.route.name === 'share'}

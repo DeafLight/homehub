@@ -2,37 +2,80 @@
 // télé fictive écrit dans screens.json par docs-captures.ts : attente longue des événements, téléchargement du message
 // vocal, compte rendu « lecture commencée ». Le dernier message reçu va dans fake-screen.json (dossier d'état) ; les
 // captures en font une maquette d'écran de télé : un programme inventé, et le bandeau de l'appli par-dessus.
+// Télécommande : elle envoie son état (écran allumé, appli au premier plan, injecteur prêt) et ses applis inventées
+// (fake-banners.ts), reçoit touches, texte, lancement et marche/arrêt, en tient compte (appli lancée, veille) et le
+// note dans fake-screen-remote.json.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvents } from '../../shared/screen.ts';
+import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenStateReport } from '../../shared/screen.ts';
+import { fakeScreenApps } from './fake-banners.ts';
 
 export const FAKE_SCREEN_TOKEN = 'docs-tele';
 export const FAKE_SCREEN_ID = 'docs-tele';
 export const FAKE_SCREEN_FILE = 'fake-screen.json';
+export const FAKE_SCREEN_REMOTE_FILE = 'fake-screen-remote.json';
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
+/** Ordres de la télécommande reçus, en clair (« touches : bas bas ok »), et l'état qui en résulte. */
+export type FakeScreenRemote = { received: string[]; screenOn: boolean; foreground: string };
+
+/** Ce que fait la fausse télé d'un ordre de la télécommande : la ligne du journal, et l'état qui change. */
+export function applyRemote(event: ScreenEvent, state: ScreenStateReport): string | null {
+  switch (event.kind) {
+    case 'key':
+      return `touches : ${event.keys.join(' ')}${event.notice ? ` (bandeau « ${event.notice.title} »)` : ''}`;
+    case 'text':
+      return `texte : ${event.text}${event.submit ? ' ⏎' : ''}`;
+    case 'launch':
+      state.foreground = event.package;
+      return `appli : ${event.package}`;
+    case 'power':
+      state.screenOn = event.on;
+      return event.on ? 'allumer' : 'veille';
+    default:
+      return null;
+  }
+}
 
 /** Démarre la fausse appli contre le serveur `base` (http://127.0.0.1:port) ; elle tourne jusqu'à la fin du processus. */
 export function startFakeScreen(base: string) {
   const headers = { Authorization: `Bearer ${FAKE_SCREEN_TOKEN}`, [SCREEN_PROTOCOL_HEADER]: String(SCREEN_PROTOCOL) };
+  const post = (method: string, path: string, body: unknown) =>
+    fetch(`${base}${path}`, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const dir = process.env.HOMEHUB_STATE_DIR ?? '.';
+  const state: ScreenStateReport = { screenOn: true, foreground: 'fr.exemple.video', control: 'adb', addresses: ['127.0.0.1'] };
+  const remote: FakeScreenRemote = { received: [], screenOn: true, foreground: state.foreground! };
   let after: number | null = null;
+  let introduced = false;
   const loop = async (): Promise<void> => {
     try {
+      if (!introduced) {
+        // Comme l'appli à son démarrage : son état, puis la liste des applis du lanceur.
+        introduced = (await post('POST', '/api/screen/state', state)).ok && (await post('PUT', '/api/screen/apps', { apps: fakeScreenApps() })).ok;
+      }
       const res = await fetch(`${base}/api/screen/events${after === null ? '' : `?after=${after}`}`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { events, last } = (await res.json()) as ScreenEvents;
       after = last;
       for (const event of events) {
+        if (event.kind !== 'voice') {
+          const line = applyRemote(event, state);
+          await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
+          if (event.kind === 'launch' || event.kind === 'power') await post('POST', '/api/screen/state', state);
+          if (line) {
+            remote.received.push(line);
+            Object.assign(remote, { screenOn: state.screenOn, foreground: state.foreground });
+            writeFileSync(join(dir, FAKE_SCREEN_REMOTE_FILE), JSON.stringify(remote));
+            console.log(`Fausse appli HomeHub TV, télécommande : ${line}`);
+          }
+          continue;
+        }
         const clip = await fetch(`${base}${event.audio}`, { headers });
         const bytes = clip.ok ? (await clip.arrayBuffer()).byteLength : 0;
-        writeFileSync(join(process.env.HOMEHUB_STATE_DIR ?? '.', FAKE_SCREEN_FILE), JSON.stringify({ title: event.title, bytes } satisfies FakeScreenMessage));
+        writeFileSync(join(dir, FAKE_SCREEN_FILE), JSON.stringify({ title: event.title, bytes } satisfies FakeScreenMessage));
         console.log(`Fausse appli HomeHub TV : ${event.title}, ${bytes} octets`);
-        await fetch(`${base}/api/screen/events/${event.id}/report`, {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify(clip.ok ? { ok: true } : { ok: false, reason: `message introuvable (HTTP ${clip.status})` }),
-        });
+        await post('POST', `/api/screen/events/${event.id}/report`, clip.ok ? { ok: true } : { ok: false, reason: `message introuvable (HTTP ${clip.status})` });
       }
     } catch {
       // Serveur pas encore prêt : on réessaie un peu plus tard.

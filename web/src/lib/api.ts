@@ -53,7 +53,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { Screen, ScreenTarget } from '../../../shared/screen.ts';
+import type { RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenTarget } from '../../../shared/screen.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -301,6 +301,14 @@ export type Api = {
   /** Téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (lu par l'appli, son du programme baissé). */
   screenTargets(): Promise<ScreenTarget[]>;
   sendScreenVoice(id: string, audio: Blob): Promise<{ device: string }>;
+  /** Télécommande d'une télé (parents) : état, applis, touches, texte, lancement, « À table ! », marche/arrêt. */
+  remoteScreens(): Promise<RemoteScreen[]>;
+  remoteApps(id: string): Promise<RemoteApps>;
+  remoteKeys(id: string, keys: RemoteKey[]): Promise<void>;
+  remoteText(id: string, text: string, submit: boolean): Promise<void>;
+  remoteLaunch(id: string, pkg: string): Promise<void>;
+  remoteDinner(id: string): Promise<void>;
+  remotePower(id: string, on: boolean): Promise<RemotePowerResult>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -499,6 +507,13 @@ export function createApi(
     pairScreen: (code, name) => send('POST', '/screens', { code, name }),
     removeScreen: (id) => send('DELETE', `/screens/${encodeURIComponent(id)}`),
     screenTargets: () => request('/screens/targets'),
+    remoteScreens: () => request('/screens/remote'),
+    remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),
+    remoteKeys: async (id, keys) => void (await send('POST', `/screens/${encodeURIComponent(id)}/keys`, { keys })),
+    remoteText: async (id, text, submit) => void (await send('POST', `/screens/${encodeURIComponent(id)}/text`, { text, submit })),
+    remoteLaunch: async (id, pkg) => void (await send('POST', `/screens/${encodeURIComponent(id)}/launch`, { package: pkg })),
+    remoteDinner: async (id) => void (await send('POST', `/screens/${encodeURIComponent(id)}/dinner`)),
+    remotePower: (id, on) => send('POST', `/screens/${encodeURIComponent(id)}/power`, { on }),
     sendScreenVoice: (id, audio) => request(`/screens/${encodeURIComponent(id)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
   };
 }

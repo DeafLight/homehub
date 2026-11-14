@@ -1,6 +1,6 @@
 ﻿# Construit HomeHub TV et l'installe (ou la met à jour) sur la télé par adb, sur le réseau de la maison.
 # Première fois : -Serveur donne l'adresse de HomeHub à l'appli et autorise le bandeau (appops).
-# À chaque fois : l'appli est mise dans la liste blanche Doze (deviceidle).
+# À chaque fois : l'appli est mise dans la liste blanche Doze (deviceidle) et son service d'accessibilité activé.
 #   .\tv-app\installer.ps1 -Tele 192.168.1.50 -Serveur http://192.168.1.10:3000
 # Ensuite : .\tv-app\installer.ps1 -Tele 192.168.1.50
 # Outils attendus (docs/appli-tele.md) : JDK 17 et SDK Android dans C:\Android, sauf JAVA_HOME / ANDROID_HOME définis.
@@ -38,6 +38,20 @@ if ($LASTEXITCODE -ne 0) { throw 'Installation refusée par la télé' }
 # coupe ni le réseau ni le processeur. Réglage gardé après un redémarrage de la télé.
 Write-Host "Liste blanche Doze : $paquet."
 & $adb -s "${Tele}:5555" shell dumpsys deviceidle whitelist "+$paquet"
+
+# Service d'accessibilité de la télécommande (appli en cours, secours Retour/Accueil sans adb), à chaque fois : ajouté
+# à la liste des services déjà actifs, jamais à leur place.
+$service = "$paquet/$paquet.HomeHubAccessibility"
+$actifs = (& $adb -s "${Tele}:5555" shell settings get secure enabled_accessibility_services | Out-String).Trim()
+if ($actifs -eq 'null' -or -not $actifs) { $actifs = '' }
+if (($actifs -split ':') -notcontains $service) {
+    $liste = (@($actifs -split ':' | Where-Object { $_ }) + $service) -join ':'
+    Write-Host "Accessibilité : $service."
+    & $adb -s "${Tele}:5555" shell settings put secure enabled_accessibility_services $liste
+    & $adb -s "${Tele}:5555" shell settings put secure accessibility_enabled 1
+}
+# Télécommande : au premier lancement, l'appli se connecte à l'adb de la télé elle-même (127.0.0.1:5555) ; la télé
+# demande alors « Autoriser le débogage ? » : cocher « Toujours autoriser » et accepter à la télécommande.
 
 if ($Serveur) {
     & $adb -s "${Tele}:5555" shell appops set $paquet SYSTEM_ALERT_WINDOW allow

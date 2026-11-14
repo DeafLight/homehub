@@ -678,6 +678,11 @@ const fakeQrDetector = `globalThis.BarcodeDetector = class {
 };`;
 await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeQrDetector, camera: true, wait: 4000 });
 
+// Télécommande de la télé (fausse appli de fake-screen.ts, qui a envoyé son état et ses applis inventées) : onglet
+// Touches après « À table ! », puis onglet Applis (appli en cours et tiroir).
+await shoot('telephone-telecommande', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('À table !'), settle: 1500 });
+await shoot('telephone-telecommande-applis', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Applis') });
+
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
 const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message'];
