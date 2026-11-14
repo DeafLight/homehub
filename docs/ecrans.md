@@ -223,7 +223,8 @@ sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 
 ### Téléphones
 
-Relier un téléphone à un profil (QR code), voir et retirer les téléphones reliés.
+Relier un téléphone à un profil (QR code), voir et retirer les téléphones reliés. En dessous, **Télés** : appairer
+une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, la retirer.
 
 ![Téléphones](images/tablette-telephones.png)
 
@@ -314,6 +315,19 @@ enregistré. Alex choisit le Google Home, appuie sur « Enregistrer un message �
 le lit une ou deux secondes plus tard, et le téléphone confirme « Message lu sur Google Home du salon ».
 
 <img src="images/telephone-camera-google-home.png" alt="Onglet Caméra du téléphone d'Alex, message vocal lu sur le Google Home du salon" width="260">
+
+La **Télé du salon** a l'appli HomeHub TV (ici la fausse appli du monde fictif) : elle passe en tête de **Ta voix
+sur**. Le message enregistré est lu par-dessus le programme, sans le couper ; le téléphone confirme « Message lu sur
+Télé du salon » dès que la télé a commencé la lecture. Une télé éteinte, ou dont l'appli est fermée, est signalée
+avant l'envoi.
+
+<img src="images/telephone-camera-tele-appli.png" alt="Onglet Caméra du téléphone d'Alex, message vocal lu sur la Télé du salon par l'appli HomeHub TV" width="260">
+
+Sur la télé (**maquette** : programme inventé, bandeau dessiné comme celui de l'appli), le bandeau « Message d'Alex »
+s'affiche en haut à droite pendant le message, avec des barres de niveau ; le son du programme baisse le temps du
+message, puis revient.
+
+![Maquette d'une télé : bandeau « Message d'Alex, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-message.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 

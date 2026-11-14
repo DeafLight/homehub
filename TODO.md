@@ -258,7 +258,12 @@ port ouvert sur la télé). La télé est un écran partagé : rien de personnel
 personne depuis son propre téléphone.
 
 - [x] Plan de l'appli (`docs/appli-tele.md`) : architecture, outils à installer, mise en place sur la télé, ordre.
-- [ ] 1. Message vocal sans couper la vidéo : son du programme baissé pendant le message, bandeau « Message d'Alex ».
+- [x] 1. Message vocal sans couper la vidéo : son du programme baissé pendant le message, bandeau « Message d'Alex »
+      (0.69.0) : appli `tv-app/` (Kotlin, sans bibliothèque), appairage par code tapé sur la tablette (Téléphones ›
+      Télés), interrogation longue, compte rendu au téléphone, télé absente signalée ; destination « Télé du salon »
+      dans l'onglet Caméra des parents ; fausse appli dans le monde fictif.
+- [ ] 1 bis. À vérifier sur la vraie télé : le son baisse-t-il sous Netflix, YouTube, la télé en direct (tuner, HDMI) ?
+      Sinon, baisser le volume nous-mêmes le temps du message. Appli vivante après veille et redémarrage ?
 - [ ] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0).
 - [ ] 3. Alerte du minuteur de cuisine sur la télé.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
