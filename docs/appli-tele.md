@@ -283,6 +283,12 @@ Résultats (14 novembre 2026) :
   appli → compte rendu en **63 à 84 ms** : l'attente longue suffit, **pas de WebSocket**. Le téléphone groupe une
   rafale : pendant qu'un envoi est en route, les touches suivantes attendent et partent ensemble au suivant (20 au
   plus). Reste la mesure sur la vraie télé.
+- **E8 : texte sur la vraie télé (0.73.2).** En 0.73.1, la recherche de YouTube gardait l'ancien texte (le nouveau
+  s'ajoutait au bout) et **perdait la deuxième lettre** à chaque essai : l'injecteur envoyait toutes les lettres d'un
+  coup, et la première ouvre ou rafraîchit les suggestions. Depuis, l'injecteur **vide d'abord le champ** (curseur au
+  bout, puis 40 retours arrière ; Ctrl+A n'est pas pris partout et peut écrire un « a ») et **espace les lettres** :
+  0,35 s après le vidage et après la première lettre, 40 ms ensuite (`Typing.plan` dans `Remote.kt`, testé sur la JVM).
+  Un mot de 6 lettres prend environ 1,4 s. Reste à vérifier sur la vraie télé.
 
 **Conséquence pour la méthode** : le moyen retenu pour les touches, le texte et la veille est un **petit programme
 résident lancé par l'appli à travers son `adb` local**, comme le serveur de scrcpy :

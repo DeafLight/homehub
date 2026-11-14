@@ -2,7 +2,7 @@
 // l'adb de sa propre télé (`CLASSPATH=<APK> app_process / fr.homehub.tv.Injecteur`), comme le serveur de scrcpy. Il
 // tourne sous l'identité « shell », qui a le droit d'injecter des événements : touches par
 // InputManager.injectInputEvent (API cachée, atteinte par réflexion), texte changé en touches du clavier virtuel
-// (KeyCharacterMap). Il lit ses ordres sur son entrée, une ligne chacun, et répond une ligne (langage : Remote.kt).
+// (KeyCharacterMap), après avoir vidé le champ et avec des pauses entre les caractères (Typing.plan). Il lit ses ordres sur son entrée, une ligne chacun, et répond une ligne (langage : Remote.kt).
 // Il ne démarre qu'une fois (environ 1 s) ; ensuite une touche coûte quelques millisecondes.
 package fr.homehub.tv
 
@@ -17,8 +17,6 @@ import java.lang.reflect.Method
 object Injecteur {
     /** INJECT_INPUT_EVENT_MODE_ASYNC : sans attendre que l'appli au premier plan ait traité la touche. */
     private const val MODE_ASYNC = 0
-    /** Pause entre deux touches d'une rafale : certaines applis ignorent des touches trop rapprochées. */
-    private const val KEY_GAP_MS = 12L
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -38,10 +36,16 @@ object Injecteur {
             val reply = try {
                 when (val command = parseCommand(line)) {
                     is InjectorCommand.Keys -> command.codes.forEachIndexed { i, code ->
-                        if (i > 0) Thread.sleep(KEY_GAP_MS)
+                        if (i > 0) Thread.sleep(Typing.KEY_GAP_MS)
                         injector.key(code)
                     }
-                    is InjectorCommand.Text -> injector.text(command.text)
+                    is InjectorCommand.Text -> Typing.plan(command.text).forEach { step ->
+                        when (step) {
+                            is TypingStep.Key -> injector.key(step.code)
+                            is TypingStep.Char -> injector.char(step.char)
+                            is TypingStep.Pause -> Thread.sleep(step.ms)
+                        }
+                    }
                     InjectorCommand.Ping -> Unit
                     null -> throw IllegalArgumentException("ordre inconnu")
                 }
@@ -75,15 +79,14 @@ object Injecteur {
             send(KeyEvent(now, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, code, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD))
         }
 
-        /** Chaque caractère en touches du clavier virtuel (majuscules comprises) ; un caractère sans touche est sauté. */
-        fun text(text: String) {
-            val map = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
-            for (c in text) {
-                val events = map.getEvents(charArrayOf(c)) ?: continue
-                for (event in events) {
-                    val now = SystemClock.uptimeMillis()
-                    send(KeyEvent.changeTimeRepeat(event, now, 0).also { it.source = InputDevice.SOURCE_KEYBOARD })
-                }
+        private val map: KeyCharacterMap by lazy { KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD) }
+
+        /** Un caractère en touches du clavier virtuel (majuscules comprises) ; un caractère sans touche est sauté. */
+        fun char(c: Char) {
+            val events = map.getEvents(charArrayOf(c)) ?: return
+            for (event in events) {
+                val now = SystemClock.uptimeMillis()
+                send(KeyEvent.changeTimeRepeat(event, now, 0).also { it.source = InputDevice.SOURCE_KEYBOARD })
             }
         }
     }

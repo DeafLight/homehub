@@ -20,7 +20,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `BootReceiver.kt` | Redémarrage avec la télé et après une mise à jour |
 | `AdbProtocol.kt`, `AdbClient.kt` | Client `adb` minimal vers la télé elle-même (`127.0.0.1:5555`) : messages, clé RSA gardée par l'appli, flux `shell:` |
 | `Injecteur.kt` | Programme résident lancé par ce flux (`app_process`, identité `shell`) : injecte touches et texte |
-| `Remote.kt` | Langage de l'injecteur : noms des touches → codes Android, lignes d'ordre et de réponse |
+| `Remote.kt` | Langage de l'injecteur : noms des touches → codes Android, lignes d'ordre et de réponse, plan de frappe d'un texte (champ vidé, pauses entre les lettres) |
 | `Telecommande.kt` | Garde l'injecteur lancé (relance s'il tombe), touches, texte, veille et réveil, secours sans `adb` |
 | `Applis.kt` | Applis du lanceur (nom, paquet, bannière PNG) envoyées à HomeHub, lancement d'une appli |
 | `HomeHubAccessibility.kt` | Service d'accessibilité : appli en cours, secours Retour/Accueil |

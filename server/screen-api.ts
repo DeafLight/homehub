@@ -60,6 +60,11 @@ const powerSchema = z.object({ on: z.boolean() });
 export const APPS_MAX_BYTES = 10_000_000;
 /** Attente du compte rendu d'une touche, d'un texte, d'un lancement : la télé répond en quelques dizaines de ms. */
 export const REMOTE_REPORT_MS = 4_000;
+/**
+ * Attente du compte rendu d'un texte : la télé vide le champ puis écrit lettre à lettre avec des pauses (Typing.plan
+ * dans tv-app/…/Remote.kt : environ 0,5 s de vidage, 0,35 s après la première lettre, 40 ms par lettre ensuite).
+ */
+export const remoteTextReportMs = (text: string) => REMOTE_REPORT_MS + 1_500 + 60 * text.length;
 /** Réveil par l'appli : au-delà, on essaie par Cast. */
 export const WAKE_REPORT_MS = 5_000;
 export const NO_CAST_TO_WAKE = 'Télé injoignable, et aucun appareil Cast connu pour l’allumer (cast.devices, kind: tv)';
@@ -252,8 +257,8 @@ export function createScreenApi({
   };
 
   /** Envoie un ordre de la télécommande et attend le compte rendu ; échec : 502 avec la raison donnée par la télé. */
-  async function command(c: Context, screen: ScreenRecord, event: ScreenEventBody) {
-    const report = await hub.send(screen.id, event, REMOTE_REPORT_MS);
+  async function command(c: Context, screen: ScreenRecord, event: ScreenEventBody, waitMs = REMOTE_REPORT_MS) {
+    const report = await hub.send(screen.id, event, waitMs);
     return report.ok ? c.json({ ok: true }) : fail(502, `${screen.name} : ${report.reason}`);
   }
 
@@ -284,7 +289,7 @@ export function createScreenApi({
     await access.remote(c);
     const screen = await screenOf(c.req.param('id'));
     const { text, submit } = await readBody(c, textSchema, `Texte attendu (${REMOTE_TEXT_MAX} caractères max)`);
-    return command(c, screen, { kind: 'text', id: randomUUID(), text, submit });
+    return command(c, screen, { kind: 'text', id: randomUUID(), text, submit }, remoteTextReportMs(text));
   });
 
   api.post('/screens/:id/launch', async (c) => {

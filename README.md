@@ -335,8 +335,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 - **Télécommande de la télé** (téléphone d'un parent, bouton télé en haut de l'appli, `/m/tele`) : pour une télé qui a
   l'appli HomeHub TV. En-tête : nom et état de la télé (**allumée**, **en veille**, **injoignable**) et bouton
   marche/arrêt. Onglet **Touches** : pavé de flèches avec **OK** au centre, Retour, Accueil, lecture/pause, volume −,
-  muet, volume + ; **Clavier** : le texte tapé sur le téléphone s'écrit dans le champ de recherche ouvert sur la télé,
-  puis la recherche se lance (lettres accentuées écrites sans accent) ; **À table !** met en pause ce qui passe et
+  muet, volume + ; **Clavier** : le texte tapé sur le téléphone remplace ce qu'il y avait dans le champ de recherche
+  ouvert sur la télé (champ vidé d'abord), lettre à lettre avec une courte pause pour que la recherche n'en perde
+  aucune (un mot de 6 lettres en 1,5 s environ), puis la recherche se lance (lettres accentuées écrites sans accent) ; **À table !** met en pause ce qui passe et
   affiche un bandeau « À table ! De la part d'Alex ». Onglet **Applis** : l'appli **en cours** et le tiroir des
   **applis de la télé** (bannière et nom, 3 colonnes), à ouvrir d'un geste ; la télé envoie sa liste à l'appairage et
   quand elle change. **Allumer** : une télé en veille mais joignable rallume son écran (touche de réveil) ; sinon, ou

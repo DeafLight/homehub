@@ -7,14 +7,14 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { SCREEN_PROTOCOL_HEADER, type RemoteApps, type RemoteScreen, type Screen, type ScreenEvents, type ScreenPairingStart, type ScreenPairingState } from '../shared/screen.ts';
+import { REMOTE_TEXT_MAX, SCREEN_PROTOCOL_HEADER, type RemoteApps, type RemoteScreen, type Screen, type ScreenEvents, type ScreenPairingStart, type ScreenPairingState } from '../shared/screen.ts';
 import { createAccess, kioskKeyMatcher, REMOTE_PARENTS_ONLY, UNKNOWN_SCREEN } from './access.ts';
 import { VOICE_OFF, VOICE_PARENTS_ONLY, VOICE_PHONE_ONLY } from './cast-api.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
-import { NO_CAST_TO_WAKE, OUTDATED_APP, SCREENS_PARENTS_ONLY, UNKNOWN_APP, createScreenApi } from './screen-api.ts';
+import { NO_CAST_TO_WAKE, OUTDATED_APP, REMOTE_REPORT_MS, SCREENS_PARENTS_ONLY, UNKNOWN_APP, createScreenApi, remoteTextReportMs } from './screen-api.ts';
 import type { CastTarget } from './services/cast.ts';
 import { createScreenHub, SCREEN_OFFLINE, SCREEN_SILENT } from './services/screens.ts';
 import { createVoiceMessages } from './services/voice-messages.ts';
@@ -330,5 +330,14 @@ describe('API HomeHub TV : télécommande', () => {
     env.advance(41_000);
     expect(await (await env.call('POST', `/screens/${tv.id}/power`, { token: env.alex, body: { on: true } })).json()).toEqual({ power: 'offline', via: 'cast' });
     expect(env.wakes).toEqual([{ host: '192.168.1.60', port: 8009 }]);
+  });
+});
+
+describe('attente du compte rendu d’un texte', () => {
+  it('grandit avec le texte : la télé vide le champ puis écrit lettre à lettre', () => {
+    expect(remoteTextReportMs('a')).toBeGreaterThan(REMOTE_REPORT_MS + 1_000);
+    expect(remoteTextReportMs('chaton')).toBeLessThan(remoteTextReportMs('chaton et chiens'));
+    // Le plus long texte : vidage (≈ 0,5 s) + 0,7 s + 198 × 40 ms ≈ 9 s de pauses sur la télé, qui attend 4 s de plus.
+    expect(remoteTextReportMs('a'.repeat(REMOTE_TEXT_MAX))).toBeGreaterThan(4_000 + 9_200);
   });
 });

@@ -82,12 +82,12 @@ class Telecommande(private val context: Context, private val onChange: () -> Uni
 
     /** Un ordre à l'injecteur ; null si c'est fait, sinon la raison de l'échec. */
     @Synchronized
-    private fun order(line: String): String? {
+    private fun order(line: String, waitMs: Long = 4_000): String? {
         val current = stream ?: return UNAVAILABLE
         replies.clear()
         return try {
             current.write((line + "\n").toByteArray(Charsets.UTF_8))
-            when (val reply = replies.take(4_000)?.let(::parseReply)) {
+            when (val reply = replies.take(waitMs)?.let(::parseReply)) {
                 InjectorReply.Ok -> null
                 is InjectorReply.Failed -> reply.reason
                 else -> "l’injecteur ne répond pas"
@@ -107,10 +107,10 @@ class Telecommande(private val context: Context, private val onChange: () -> Uni
         return null
     }
 
-    /** Texte écrit dans le champ qui a le focus, puis Entrée si `submit`. */
+    /** Champ qui a le focus vidé, texte écrit, puis Entrée si `submit`. */
     fun text(value: String, submit: Boolean): String? {
         if (stream == null) return UNAVAILABLE
-        return order(textLine(value)) ?: if (submit) order(keysLine(listOf(RemoteKeys.ENTER))) else null
+        return order(textLine(value), 4_000 + Typing.pausesMs(Typing.plan(plainText(value)))) ?: if (submit) order(keysLine(listOf(RemoteKeys.ENTER))) else null
     }
 
     /** Allumer (touche de réveil) ou mettre en veille (touche de veille, sinon verrouillage par l'accessibilité). */

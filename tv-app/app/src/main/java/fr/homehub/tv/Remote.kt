@@ -1,7 +1,8 @@
 // Langage entre l'appli et son injecteur (Injecteur.kt, lancé par adb sous l'identité shell) : une ligne par ordre sur
 // l'entrée du programme (« key 20 20 23 », « text <base64> », « ping »), une ligne de réponse sur sa sortie (« ready »
 // au démarrage, puis « ok » ou « err <raison> »). Et les touches de la télécommande (shared/screen.ts, REMOTE_KEYS)
-// traduites en codes Android. Fonctions pures, testées sur la JVM (RemoteTest).
+// traduites en codes Android, et le plan de frappe d'un texte (vidage du champ, pauses entre les caractères). Fonctions
+// pures, testées sur la JVM (RemoteTest).
 package fr.homehub.tv
 
 import java.text.Normalizer
@@ -19,6 +20,8 @@ object RemoteKeys {
     const val VOLUME_UP = 24
     const val VOLUME_DOWN = 25
     const val ENTER = 66
+    const val DEL = 67
+    const val MOVE_END = 123
     const val MEDIA_PLAY_PAUSE = 85
     const val MEDIA_PAUSE = 127
     const val VOLUME_MUTE = 164
@@ -60,6 +63,48 @@ fun plainText(text: String): String =
     Normalizer.normalize(text.replace("œ", "oe").replace("Œ", "OE").replace("æ", "ae").replace("Æ", "AE"), Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "")
         .replace(Regex("[\\r\\n\\t]+"), " ")
+
+/** Une étape de la frappe d'un texte par l'injecteur. */
+sealed interface TypingStep {
+    /** Touche (code Android). */
+    data class Key(val code: Int) : TypingStep
+    /** Caractère, changé en touches du clavier virtuel par l'injecteur. */
+    data class Char(val char: kotlin.Char) : TypingStep
+    data class Pause(val ms: Long) : TypingStep
+}
+
+object Typing {
+    /** Pause entre deux touches d'une rafale : certaines applis ignorent des touches trop rapprochées. */
+    const val KEY_GAP_MS = 12L
+    /**
+     * Retours arrière pour vider le champ : de quoi effacer une recherche précédente (les recherches des applis tiennent
+     * en quelques mots). Ctrl+A n'est pas pris par tous les champs des applis de la télé et peut écrire un « a ».
+     */
+    const val CLEAR_DELETES = 40
+    /** Pause entre deux caractères : le champ de recherche se met à jour à chaque lettre. */
+    const val CHAR_GAP_MS = 40L
+    /**
+     * Pause après le vidage et après le premier caractère : la recherche ouvre ou rafraîchit ses suggestions et perd la
+     * touche suivante si elle arrive trop tôt (deuxième lettre perdue sur la vraie télé en 0.73.1).
+     */
+    const val SETTLE_MS = 350L
+
+    /** Vider le champ qui a le focus (curseur au bout, puis retours arrière), puis écrire `text` caractère par caractère. */
+    fun plan(text: String): List<TypingStep> = buildList {
+        add(TypingStep.Key(RemoteKeys.MOVE_END))
+        repeat(CLEAR_DELETES) {
+            add(TypingStep.Pause(KEY_GAP_MS))
+            add(TypingStep.Key(RemoteKeys.DEL))
+        }
+        text.forEachIndexed { i, c ->
+            add(TypingStep.Pause(if (i <= 1) SETTLE_MS else CHAR_GAP_MS))
+            add(TypingStep.Char(c))
+        }
+    }
+
+    /** Somme des pauses d'un plan : l'appli attend le compte rendu de l'injecteur au moins ce temps-là. */
+    fun pausesMs(plan: List<TypingStep>): Long = plan.sumOf { (it as? TypingStep.Pause)?.ms ?: 0L }
+}
 
 sealed interface InjectorCommand {
     data class Keys(val codes: List<Int>) : InjectorCommand
