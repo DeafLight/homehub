@@ -84,6 +84,24 @@ class ProtocolTest {
     }
 
     @Test
+    fun alerteDuBus() {
+        val events = parseEvents(
+            """{"events":[
+              {"seq":11,"kind":"bus","id":"b1","title":"Bus dans 11 min","subtitle":"Léa · ligne 3 vers Collège · pars dans 7 min","seconds":45},
+              {"seq":12,"kind":"bus","id":"b2","title":"Le bus arrive","subtitle":"Tom · ligne 3 · pars maintenant","seconds":9999}
+            ],"last":12}""",
+        )
+        assertEquals(
+            listOf(
+                BusEvent("b1", "Bus dans 11 min", "Léa · ligne 3 vers Collège · pars dans 7 min", 45),
+                BusEvent("b2", "Le bus arrive", "Tom · ligne 3 · pars maintenant", 120),
+            ),
+            events.bus,
+        )
+        assertEquals(emptyList<RemoteEvent>(), events.remote)
+    }
+
+    @Test
     fun etatEtApplis() {
         val state = JSONObject(stateJson(false, null, "adb", listOf("192.168.1.60")))
         assertEquals(false, state.getBoolean("screenOn"))

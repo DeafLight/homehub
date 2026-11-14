@@ -5,7 +5,7 @@
   import { type Api, ApiError } from '../../lib/api.ts';
   import { WEEK } from '../../lib/routine-edit.ts';
   import { isTram } from '../../lib/transit.ts';
-  import { boundedMinutes, endsKey, newCommute, routeChoices, routeKey, toggleDay, walkMinutes } from '../../lib/transit-edit.ts';
+  import { boundedMinutes, DEFAULT_TV_ALERT, endsKey, MAX_TV_ALERT, newCommute, routeChoices, routeKey, toggleDay, tvAlertMinutes, walkMinutes } from '../../lib/transit-edit.ts';
   import Icon from '../Icon.svelte';
   import SaveStatus from '../SaveStatus.svelte';
   import type { SaveState } from '../../lib/autosave.ts';
@@ -79,6 +79,11 @@
   function setMinutes(c: CommuteSettings, field: 'arriveBefore' | 'showBefore', value: string) {
     const n = boundedMinutes(field, value);
     if (n !== null) c[field] = n;
+    onEdit();
+  }
+
+  function setTvAlert(c: CommuteSettings, value: number | null) {
+    c.tvAlert = value;
     onEdit();
   }
 
@@ -177,6 +182,32 @@
           <input type="time" bind:value={c.window.to} oninput={onEdit} />
         </label>
       </div>
+    {/if}
+
+    <div class="settings">
+      <label>
+        <input type="checkbox" checked={c.tvAlert != null} onchange={(e) => setTvAlert(c, e.currentTarget.checked ? DEFAULT_TV_ALERT : null)} />
+        Alerte sur la télé
+      </label>
+      {#if c.tvAlert != null}
+        <label>
+          <input
+            type="number"
+            min="1"
+            max={MAX_TV_ALERT}
+            value={c.tvAlert}
+            aria-label="Alerte sur la télé, minutes avant de partir"
+            oninput={(e) => {
+              const n = tvAlertMinutes(e.currentTarget.value);
+              if (n !== null) setTvAlert(c, n);
+            }}
+          />
+          min avant de partir
+        </label>
+      {/if}
+    </div>
+    {#if c.tvAlert != null}
+      <p class="muted small">« Bus dans N min » en bandeau sur la télé (appli HomeHub TV), une fois par jour d’école.</p>
     {/if}
 
     <h3>Ligne <span class="muted small">(directe, sans changement)</span></h3>

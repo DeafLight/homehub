@@ -13,7 +13,7 @@ const config = createConfigStore(
     members: [
       { id: 'alex', name: 'Alex', color: '#5b8def' },
       { id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1ANRO', line: 'A', label: 'Collège', walkMinutes: 6, from: '07:15', to: '08:15' } },
-      { id: 'tom', name: 'Tom', color: '#d96aa7', commute: { stop: '1MAIR', line: '3', towards: 'Centre', days: ['mer'] } },
+      { id: 'tom', name: 'Tom', color: '#d96aa7', commute: { stop: '1MAIR', line: '3', towards: 'Centre', days: ['mer'], tvAlert: 4 } },
     ],
     transit: { stops: [{ id: '1MAIR', label: 'Mairie' }] },
   }),
@@ -70,8 +70,9 @@ describe('tant que la page n’a pas été enregistrée', () => {
       window: { from: '07:15', to: '08:15' },
       arriveBefore: DEFAULT_ARRIVE_BEFORE,
       showBefore: 30,
+      tvAlert: null,
     });
-    expect(store.commuteFor('tom')).toMatchObject({ headsigns: ['Centre'], oneWay: false, days: [3] });
+    expect(store.commuteFor('tom')).toMatchObject({ headsigns: ['Centre'], oneWay: false, days: [3], tvAlert: 4 });
   });
 });
 
@@ -108,7 +109,10 @@ describe('après enregistrement', () => {
       window: { from: '07:00', to: '09:00' },
       arriveBefore: 10,
       showBefore: 30,
+      tvAlert: null,
     });
+    await store.save(settings({ commutes: { lea: { ...commute, tvAlert: 7 } } }), by);
+    expect(store.commuteFor('lea')?.tvAlert).toBe(7); // alerte du bus sur la télé
     await store.save(settings({ commutes: { lea: { ...commute, route: null } } }), by);
     expect(store.commuteFor('lea')).toBeNull();
   });
@@ -129,6 +133,9 @@ describe('validation de la page', () => {
     expect(problem({ ...base, commutes: { lea: { ...commute, window: { from: '09:00', to: '07:00' } } } })).toBe('le début doit précéder la fin');
     expect(problem({ ...base, commutes: { lea: { ...commute, showBefore: 2 } } })).toBe('carte affichée au moins 5 min avant');
     expect(problem({ ...base, commutes: { lea: { ...commute, days: [] } } })).toBe('au moins un jour');
+    expect(problem({ ...base, commutes: { lea: { ...commute, tvAlert: 0 } } })).toBe('alerte télé : au moins 1 min');
+    expect(problem({ ...base, commutes: { lea: { ...commute, tvAlert: 31 } } })).toBe('alerte télé : 30 min au plus');
+    expect(problem({ ...base, commutes: { lea: { ...commute, tvAlert: null } } })).toBeUndefined();
   });
 
   it('limite le nombre d’arrêts de l’accueil', () => {

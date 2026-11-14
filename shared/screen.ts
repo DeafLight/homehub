@@ -76,6 +76,12 @@ export type ScreenRunningTimer = { timerId: string; label: string; endsAt: strin
  */
 export type ScreenTimersEvent = { kind: 'timers'; id: string; serverNow: string; timers: ScreenRunningTimer[] };
 
+/**
+ * Alerte du bus du matin (fonction 4) : bandeau « Bus dans 9 min » par-dessus le programme, `seconds` secondes. Le
+ * serveur l'envoie de lui-même (server/services/screen-bus.ts), selon le réglage du trajet (page Transports).
+ */
+export type ScreenBusEvent = { kind: 'bus'; id: string; title: string; subtitle: string; seconds: number };
+
 export type ScreenEventBody =
   | ScreenVoiceEvent
   | ScreenKeysEvent
@@ -85,7 +91,8 @@ export type ScreenEventBody =
   | ScreenMessageEvent
   | ScreenTimerEvent
   | ScreenTimerClearEvent
-  | ScreenTimersEvent;
+  | ScreenTimersEvent
+  | ScreenBusEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

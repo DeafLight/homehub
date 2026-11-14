@@ -1,6 +1,6 @@
 // Bandeau par-dessus les autres applis, en haut à droite de l'écran, pendant un message vocal : icône micro, « Message
 // d'Alex », « Le son du programme est baissé », barres de niveau qui bougent. Pour un avis (« À table ! » de la
-// télécommande) : icône cloche, sans barres. Pour un message écrit (showMessage) : en haut au centre, icône bulle, le
+// télécommande) : icône cloche, sans barres ; pour l'alerte du bus : icône bus (`icon`). Pour un message écrit (showMessage) : en haut au centre, icône bulle, le
 // titre en petit et le texte en gros, qui s'en va seul au bout de sa durée. Couleurs du thème sombre de HomeHub. Il ne
 // prend ni le focus ni la télécommande. Il faut l'autorisation « afficher par-dessus » (adb : appops SYSTEM_ALERT_WINDOW).
 package fr.homehub.tv
@@ -36,11 +36,11 @@ class OverlayBanner(private val context: Context) {
     private fun color(id: Int) = context.getColor(id)
 
     /** Affiche le bandeau (remplace le précédent) ; false si l'autorisation manque. */
-    fun show(title: String, subtitle: String, voice: Boolean = true): Boolean {
+    fun show(title: String, subtitle: String, voice: Boolean = true, icon: Int? = null): Boolean {
         if (!allowed()) return false
         main.post {
             hideNow()
-            val view = build(title, subtitle, voice)
+            val view = build(title, subtitle, voice, icon)
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -101,7 +101,7 @@ class OverlayBanner(private val context: Context) {
         shown = null
     }
 
-    private fun build(title: String, subtitle: String, voice: Boolean): View {
+    private fun build(title: String, subtitle: String, voice: Boolean, iconRes: Int?): View {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -113,7 +113,7 @@ class OverlayBanner(private val context: Context) {
             elevation = dp(8).toFloat()
         }
         val icon = ImageView(context).apply {
-            setImageResource(if (voice) R.drawable.ic_mic else R.drawable.ic_bell)
+            setImageResource(iconRes ?: if (voice) R.drawable.ic_mic else R.drawable.ic_bell)
             setPadding(dp(9), dp(9), dp(9), dp(9))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL

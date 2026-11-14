@@ -37,6 +37,7 @@ export function newCommute(places: TransitPlace[]): CommuteSettings {
     showBefore: 30,
     walkFrom: null,
     walkTo: null,
+    tvAlert: null,
   };
 }
 
@@ -113,4 +114,14 @@ export function walkMinutes(value: string): number | null {
 export function boundedMinutes(field: 'arriveBefore' | 'showBefore', value: string): number | null {
   const n = Math.round(Number(value));
   return Number.isFinite(n) ? Math.max(0, Math.min(field === 'showBefore' ? 120 : 60, n)) : null;
+}
+
+/** Alerte du bus sur la télé : avance proposée quand on l'active, et bornes (comme le serveur). */
+export const DEFAULT_TV_ALERT = 5;
+export const MAX_TV_ALERT = 30;
+
+/** Minutes saisies pour l'alerte sur la télé (1 à 30) ; null si illisible (la valeur précédente reste). */
+export function tvAlertMinutes(value: string): number | null {
+  const n = Math.round(Number(value));
+  return value === '' || !Number.isFinite(n) ? null : Math.max(1, Math.min(MAX_TV_ALERT, n));
 }

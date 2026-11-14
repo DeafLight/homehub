@@ -259,6 +259,23 @@ describe('bus et tram', () => {
     expect((await make({ from: '17:30', to: '18:30', days: ['mar'] }).dashboard('lea'))?.commute).toBeNull();
     expect((await service.dashboard('alex'))?.commute).toBeNull();
   });
+
+  it('alerte du bus sur la télé : seulement si le trajet la demande, à ses heures', async () => {
+    const make = (commute: object) =>
+      createDashboardService({
+        config: createConfigStore(parseConfig({ members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', ...commute } }] })),
+        sources,
+        clock: fixedClock,
+        logger: silentLogger(),
+        transit,
+      });
+    expect(await make({ from: '17:30', to: '18:30' }).busAlert('lea')).toBeNull();
+    const alert = await make({ from: '17:30', to: '18:30', tvAlert: 8, label: 'Collège' }).busAlert('lea');
+    expect(alert?.minutes).toBe(8);
+    expect(alert?.commute).toMatchObject({ line: '3', label: 'Collège' });
+    expect(await make({ from: '07:00', to: '08:30', tvAlert: 8 }).busAlert('lea')).toBeNull();
+    expect(await service.busAlert('alex')).toBeNull();
+  });
 });
 
 describe('trajet selon l’emploi du temps', () => {
@@ -468,7 +485,7 @@ describe('vacances scolaires', () => {
 
   function setup(list: (typeof NOEL)[] | 'panne', clock = fixedClock) {
     const store = createConfigStore(parseConfig({
-      members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', from: '17:30', to: '18:30' } }],
+      members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', commute: { stop: '1MAIR', line: '03', from: '17:30', to: '18:30', tvAlert: 5 } }],
     }));
     const dir = mkdtempSync(join(tmpdir(), 'homehub-vacances-'));
     const routines = createRoutineStore({ path: join(dir, 'routines.json'), clock });
@@ -500,6 +517,7 @@ describe('vacances scolaires', () => {
     const data = await svc.dashboard('lea');
     expect(data?.holiday).toBeNull();
     expect(data?.commute).not.toBeNull();
+    expect(await svc.busAlert('lea')).toMatchObject({ minutes: 5 });
     expect(data?.school?.today.map((c) => c.id)).toEqual(['maths']);
     expect(await svc.holidays()).toEqual({ holiday: null, zone: 'Zone B', holidays: [TOUSSAINT, NOEL] });
   });
@@ -518,6 +536,7 @@ describe('vacances scolaires', () => {
     const data = await svc.dashboard('lea');
     expect(data?.holiday).toEqual(during);
     expect(data?.commute).toBeNull();
+    expect(await svc.busAlert('lea')).toBeNull(); // pas d'alerte du bus sur la télé non plus
     expect(data?.school).toEqual({ today: [], tomorrow: [] });
     expect(data?.routine?.items.map((i) => i.label)).toEqual(['Pyjama']);
     expect(data?.homework?.map((h) => h.id)).toEqual(['svt', 'eps']); // après la reprise seulement

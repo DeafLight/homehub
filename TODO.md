@@ -300,7 +300,9 @@ personne depuis son propre téléphone.
       Réglage « Minuteurs » dans Téléphones › Télés › Alertes sur la télé (parent). Fausse appli et maquette dans le
       monde fictif. Vérifié sur la vraie télé (0.78.0). En 0.79.0 : minuteurs en cours décomptés en petit en bas à
       droite de chaque télé allumée (le plus proche, « +1 »), à l'heure du serveur, sans contrôle à la télécommande.
-- [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
+- [x] 4. Alerte du bus du matin (« Bus dans 5 min ») : bandeau icône bus par-dessus le programme, réglé par trajet
+      (page Transports, « Alerte sur la télé », 1 à 30 min avant de partir ; `tvAlert` dans le YAML), mêmes règles que
+      le bandeau du dashboard (plage ou emploi du temps, rien un jour sans école), une fois par membre et par jour.
 - [ ] 5. Rappels des routines du soir et des nouveaux mots.
 - [ ] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause).
 - [ ] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home.

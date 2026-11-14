@@ -13,7 +13,7 @@ members:
     name: Léa
     color: "#3fb8a8"
     ecoledirecte: Léa
-    commute: { stop: RALL, line: "03", towards: Lycée, label: Collège, walkMinutes: 4, from: "07:00", to: "08:30", days: [lun, mar, mer, jeu, ven] }
+    commute: { stop: RALL, line: "03", towards: Lycée, label: Collège, walkMinutes: 4, from: "07:00", to: "08:30", days: [lun, mar, mer, jeu, ven], tvAlert: 8 }
     routines:
       morning: [S'habiller, Petit-déjeuner, Dents, Cartable]
       evening: [Douche, Pyjama, { step: Devoirs, days: [lun, mar, jeu] }]

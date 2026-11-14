@@ -214,6 +214,11 @@ Lieux de la famille, trajet de chacun, arrêts de l'accueil. Ici, avant le premi
 
 ![Transports](images/tablette-transports.png)
 
+Page enregistrée, trajet de Léa : sous les jours et la plage horaire, **Alerte sur la télé**, ici 8 min avant de
+partir (« Bus dans N min » sur la télé, voir plus bas).
+
+![Transports : trajet de Léa avec l'alerte sur la télé](images/tablette-transports-tele.png)
+
 ### Vacances scolaires (réglages)
 
 Calendrier de l'académie (liste regroupée par zone, filtrée par la saisie), d'une zone entière, ou aucun ; à droite,
@@ -347,6 +352,12 @@ Alex, reçu par la fausse appli) : bandeau en haut à droite avec un carillon co
 focus de la télécommande. OK l'arrête partout (tablette, téléphones), Retour masque le bandeau ; la vidéo continue.
 
 ![Maquette d'une télé : bandeau « Cuisson, C'est l'heure ! » avec le bouton Arrêter en haut à droite d'un programme](images/tele-minuteur.png)
+
+**Alerte du bus du matin** : Léa doit partir dans 7 min (alerte réglée 8 min avant dans le monde fictif ; bus dans
+11 min, 4 min de marche). HomeHub l'envoie de lui-même à la télé, qui l'affiche en haut à droite pendant 45 s, sans
+toucher au son (**maquette**, même programme inventé). Rien les jours sans école.
+
+![Maquette d'une télé : bandeau « Bus dans 11 min, Léa, ligne 3 vers Collège, pars dans 7 min » en haut à droite d'un programme](images/tele-bus.png)
 
 ### Télécommande de la télé (téléphone d'un parent)
 

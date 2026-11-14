@@ -400,6 +400,14 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   lignes ; sous l'horloge de la veille, ceux du premier arrêt. Trajet du matin d'un membre (`commute`) : à ses heures
   et ses jours, un bandeau en haut de son dashboard dit quand partir de la maison, marche comprise (« Pars dans
   6 min pour le bus 3 de 07:42 », orange la dernière minute, puis le suivant ou « Trop tard »).
+- **Alerte du bus sur la télé** (appli HomeHub TV) : réglée par trajet (page « Transports », **Alerte sur la télé**,
+  1 à 30 min avant l'heure de partir ; dans le YAML, `tvAlert` du `commute`). Ce moment venu, la télé affiche par-dessus
+  le programme, en haut à droite, pendant 45 s : « Bus dans 11 min · Léa · ligne 3 vers Collège · pars dans 7 min »
+  (« pars maintenant », « Le bus arrive » au dernier moment). Mêmes règles que le bandeau du dashboard : jours et heures
+  du trajet, ou course calée sur l'emploi du temps (celle du temps réel si elle est retardée) ; rien un jour sans
+  école (vacances, férié). Une alerte par membre et par jour, envoyée à toutes les télés appairées et allumées ; si
+  aucune ne répond, HomeHub réessaie tant qu'il est encore temps de partir. Rien de plus personnel que ce que montre
+  déjà la tablette (prénom, ligne, lieu d'arrivée).
 - **Vacances scolaires** (page « Vacances scolaires » de la roue dentée, sinon `holidays` du YAML : l'académie, ou
   la zone A, B ou C) : calendrier officiel du ministère
   (data.education.gouv.fr, sans clé), relu au plus une fois par jour et gardé dans `school-holidays.json` (une panne
@@ -427,7 +435,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   lieu). Un trajet **selon l'emploi du temps** prend chaque jour la dernière course qui fait arriver avant le premier
   cours non annulé (marge réglable), affiche le bandeau un moment avant l'heure de partir et reconnaît cette course
   dans le temps réel (« annoncé à 07:53 », supprimée, manquée) ; rien les jours sans cours. Sinon, plage horaire
-  fixe. Tant que la page n'a pas été enregistrée, `transit.stops` et `commute` du YAML s'appliquent.
+  fixe. Option **Alerte sur la télé** : « Bus dans N min » sur la télé (voir plus haut). Tant que la page n'a pas
+  été enregistrée, `transit.stops` et `commute` du YAML s'appliquent.
 - **Sport** (téléphone, onglet Sport, `/m/sport` ; adulte avec `fitness: true` dans homehub.yaml) : programme de
   renforcement au poids du corps, trois séances qui tournent sans jour fixe, six exercices chacune (cardio, jambes,
   poussée, fessiers ou une jambe, dos, gainage), trois paliers (Base 3 tours, Volume 4, Intensité 4). Rythme de départ
@@ -796,6 +805,7 @@ server/
   lists-api.ts             routes des listes, de l'appairage et des téléphones
   stock-api.ts             routes du stock et du scanner
   services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
+  services/screen-bus.ts   alerte du bus du matin sur les télés HomeHub TV (« Bus dans 9 min »)
   screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
   screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
   services/timer-alerts.ts guetteur des minuteurs : liste `timers` en cours, alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
@@ -867,7 +877,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/cast/clips/:token` | le message, pour l'appareil Cast (sans authentification : adresse aléatoire, valable 5 minutes ; 404 ensuite) |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `POST /api/screen/pairing`, `GET /api/screen/pairing/:id` | appli HomeHub TV, sans jeton (en-tête `X-HomeHub-Screen: 1`, 426 sinon) : demande d'appairage `{ system, app }` → `{ id, code, expiresAt }` (5 minutes) ; attente de la confirmation (25 s au plus) → `{ status: "pending" }` ou `{ status: "paired", token, screen }` (jeton remis une fois ; 410 code expiré) |
-| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }` ; minuteurs en cours `{ kind: "timers", id, serverNow, timers: [{ timerId, label, endsAt, durationSeconds }] }` à chaque lancement ou arrêt et à une télé qui revient ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
+| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }`, alerte du bus `{ kind: "bus", id, title, subtitle, seconds }` ; minuteurs en cours `{ kind: "timers", id, serverNow, timers: [{ timerId, label, endsAt, durationSeconds }] }` à chaque lancement ou arrêt et à une télé qui revient ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
 | `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteurs en cours décomptés, minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
 | `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |

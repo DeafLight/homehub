@@ -312,6 +312,8 @@ export type CommuteSettings = {
   showBefore: number;
   walkFrom: number | null;
   walkTo: number | null;
+  /** Alerte sur la télé (appli HomeHub TV), en minutes avant l'heure de partir ; null ou absent : pas d'alerte. */
+  tvAlert?: number | null;
 };
 export type HomeStop = { id: string; label?: string; lines?: string[] };
 export type TransitSettings = {

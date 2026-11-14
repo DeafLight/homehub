@@ -31,6 +31,8 @@ const commuteSchema = z
     from: hhmm.default('07:00'),
     to: hhmm.default('08:30'),
     days: z.array(z.enum(WEEK_DAYS)).min(1).default(['lun', 'mar', 'mer', 'jeu', 'ven']),
+    /** Alerte « Bus dans N min » sur la télé (appli HomeHub TV), tant de minutes avant de partir ; absent : aucune. */
+    tvAlert: z.number().int().min(1).max(30).optional(),
   })
   .refine((c) => c.from < c.to, { message: '`from` doit précéder `to`' });
 

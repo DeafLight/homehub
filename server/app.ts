@@ -31,6 +31,7 @@ import type { DashboardService } from './services/dashboard.ts';
 import { createSchoolLifeService, type SchoolLifeService } from './services/school-life.ts';
 import { createFaceRecognition } from './services/faces.ts';
 import { createLiveCamera } from './services/live-camera.ts';
+import { BUS_TICK_MS, createScreenBusAlerts } from './services/screen-bus.ts';
 import { createScreenHub } from './services/screens.ts';
 import { createVoiceMessages, type VoiceMessages } from './services/voice-messages.ts';
 import type { RecipeImporter } from './services/recipes.ts';
@@ -173,6 +174,16 @@ export function createApp(deps: AppDeps): Hono {
   const screenAlerts = deps.screenAlerts ?? createScreenAlertStore();
   api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock }));
   createTimerAlerts({ timers: deps.timers, screens: deps.screens, hub: screenHub, alerts: screenAlerts, clock }).start();
+  // Alerte du bus du matin sur la télé (réglage par trajet, page Transports).
+  const busAlerts = createScreenBusAlerts({
+    members: () => household.members().map((m) => ({ id: m.id, name: m.name })),
+    alertOf: deps.service.busAlert,
+    screens: async () => (await deps.screens.list()).map((s) => s.id),
+    hub: screenHub,
+    clock,
+    logger: console,
+  });
+  setInterval(() => void busAlerts.tick().catch((err: unknown) => console.error('Alerte du bus sur la télé :', err)), BUS_TICK_MS).unref();
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

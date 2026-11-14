@@ -8,7 +8,8 @@
 // captures en font la maquette du bandeau de l'appli.
 // Minuteur terminé (fonction 3) : l'alerte reçue va dans fake-screen-timer.json (retirée quand le minuteur est
 // arrêté), pour la maquette du bandeau « Arrêter ». Minuteurs en cours : la dernière liste reçue va dans
-// fake-screen-timers.json, pour la maquette du petit décompte en bas à droite.
+// fake-screen-timers.json, pour la maquette du petit décompte en bas à droite. Alerte du bus du matin (fonction 4) :
+// le dernier bandeau reçu va dans fake-screen-bus.json (maquette : fake-screen-bus.ts).
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
@@ -21,6 +22,7 @@ export const FAKE_SCREEN_REMOTE_FILE = 'fake-screen-remote.json';
 export const FAKE_SCREEN_TEXT_FILE = 'fake-screen-text.json';
 export const FAKE_SCREEN_TIMER_FILE = 'fake-screen-timer.json';
 export const FAKE_SCREEN_TIMERS_FILE = 'fake-screen-timers.json';
+export const FAKE_SCREEN_BUS_FILE = 'fake-screen-bus.json';
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
@@ -91,6 +93,12 @@ export function startFakeScreen(base: string) {
           else rmSync(join(dir, FAKE_SCREEN_TIMER_FILE), { force: true });
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           console.log(`Fausse appli HomeHub TV, minuteur : ${event.kind === 'timer' ? `${event.title}, ${event.subtitle}` : 'arrêté, bandeau retiré'}`);
+          continue;
+        }
+        if (event.kind === 'bus') {
+          writeFileSync(join(dir, FAKE_SCREEN_BUS_FILE), JSON.stringify({ title: event.title, subtitle: event.subtitle }));
+          console.log(`Fausse appli HomeHub TV, bus : ${event.title} (${event.subtitle})`);
+          await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           continue;
         }
         if (event.kind !== 'voice') {

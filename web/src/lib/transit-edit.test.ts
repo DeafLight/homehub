@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TransitPlace, TransitSettings } from '../../../shared/types.ts';
 import {
   boundedMinutes,
+  tvAlertMinutes,
   endsKey,
   nearKey,
   newCommute,
@@ -81,5 +82,10 @@ describe('page « Transports » : saisies', () => {
     expect(boundedMinutes('showBefore', '75')).toBe(75);
     expect(boundedMinutes('showBefore', '500')).toBe(120);
     expect(boundedMinutes('arriveBefore', 'x')).toBeNull();
+    // Alerte du bus sur la télé : de 1 à 30 min avant de partir.
+    expect(tvAlertMinutes('7')).toBe(7);
+    expect(tvAlertMinutes('0')).toBe(1);
+    expect(tvAlertMinutes('45')).toBe(30);
+    expect(tvAlertMinutes('')).toBeNull();
   });
 });

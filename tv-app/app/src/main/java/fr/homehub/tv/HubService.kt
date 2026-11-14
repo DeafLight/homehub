@@ -132,6 +132,7 @@ class HubService : Service() {
                 events.messages.forEach { event -> remote.execute { handleMessage(server, token, event) } }
                 minuteurs.running(parseRunningTimers(json))
                 minuteurs.handle(parseTimerEvents(json))
+                events.bus.forEach { event -> remote.execute { handleBus(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -233,6 +234,14 @@ class HubService : Service() {
     private fun handleMessage(server: String, token: String, event: MessageEvent) {
         val shown = banner.showMessage(event.title, event.text, event.seconds)
         val report = if (shown) reportJson(true) else reportJson(false, getString(R.string.message_not_allowed))
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
+    }
+
+    /** Alerte du bus du matin : bandeau icône bus pendant `seconds` s, puis compte rendu. */
+    private fun handleBus(server: String, token: String, event: BusEvent) {
+        val shown = banner.show(event.title, event.subtitle, voice = false, icon = R.drawable.ic_bus)
+        if (shown) Handler(mainLooper).postDelayed({ banner.hide() }, event.seconds * 1_000L)
+        val report = if (shown) reportJson(true) else reportJson(false, getString(R.string.bus_overlay_missing))
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 

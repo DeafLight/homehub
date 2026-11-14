@@ -42,6 +42,7 @@ members:
     # ecoledirecte: Léa
     # pronote: Léa
     # commute: { stop: 1ANRO, line: A, label: Collège, walkMinutes: 6, from: "07:15", to: "08:15" }
+    # tvAlert dans commute : « Bus dans N min » sur la télé (appli HomeHub TV), N min avant de partir (1 à 30)
   - id: tom
     name: Tom
     color: "#d96aa7"

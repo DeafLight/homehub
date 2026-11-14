@@ -14,6 +14,8 @@ export const MAX_PLACES = 8;
 export const MAX_HOME_STOPS = 4;
 export const DEFAULT_ARRIVE_BEFORE = 10;
 export const DEFAULT_SHOW_BEFORE = 30;
+/** Alerte du bus sur la télé : au plus ce nombre de minutes avant l'heure de partir. */
+export const MAX_TV_ALERT = 30;
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'heure HH:MM');
 const stopId = z.string().trim().regex(/^[A-Za-z0-9_:.-]{1,40}$/, 'arrêt inconnu');
@@ -56,6 +58,7 @@ const commuteSchema = z
     showBefore: minutes(120).refine((m) => m >= 5, 'carte affichée au moins 5 min avant'),
     walkFrom: minutes(60).nullable(),
     walkTo: minutes(60).nullable(),
+    tvAlert: z.number().int().min(1, 'alerte télé : au moins 1 min').max(MAX_TV_ALERT, `alerte télé : ${MAX_TV_ALERT} min au plus`).nullish(),
   })
   .refine((c) => c.from !== c.to, 'départ et arrivée identiques');
 
@@ -98,6 +101,8 @@ export type CommuteTrip = {
   window: TimeWindow;
   arriveBefore: number;
   showBefore: number;
+  /** Alerte sur la télé, en minutes avant l'heure de partir ; absent ou null : pas d'alerte. */
+  tvAlert?: number | null;
 };
 
 export type TransitSettingsStore = {
@@ -128,6 +133,7 @@ function commuteFromYaml(config: ConfigProvider, ownerId: string): CommuteTrip |
     window: { from: c.from, to: c.to },
     arriveBefore: DEFAULT_ARRIVE_BEFORE,
     showBefore: DEFAULT_SHOW_BEFORE,
+    tvAlert: c.tvAlert ?? null,
   };
 }
 
@@ -169,6 +175,7 @@ export function createTransitSettingsStore({ path, clock, config }: { path: stri
       window: c.window,
       arriveBefore: c.arriveBefore,
       showBefore: c.showBefore,
+      tvAlert: c.tvAlert ?? null,
     };
   }
 

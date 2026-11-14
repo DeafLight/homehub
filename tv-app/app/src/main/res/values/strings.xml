@@ -11,6 +11,7 @@
     <string name="status_unreachable">HomeHub injoignable (%1$s) : nouvel essai bientôt</string>
     <string name="status_removed">Télé retirée depuis la tablette : un nouveau code va s’afficher</string>
     <string name="overlay_missing">Le bandeau n’est pas autorisé. Depuis l’ordinateur :</string>
+    <string name="bus_overlay_missing">bandeau non autorisé sur la télé (afficher par-dessus les autres applis)</string>
     <string name="try_banner">Essayer le bandeau</string>
     <string name="try_banner_title">Message d’Alex</string>
     <string name="message_not_allowed">bandeau non autorisé sur la télé (afficher par-dessus les autres applis)</string>

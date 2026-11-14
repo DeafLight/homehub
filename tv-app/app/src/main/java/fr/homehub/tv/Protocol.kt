@@ -1,5 +1,5 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
-// (messages vocaux, messages écrits et ordres de la télécommande), compte rendu, état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus), compte rendu, état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -39,11 +39,15 @@ data class Notice(val title: String, val subtitle: String)
  */
 data class MessageEvent(val id: String, val title: String, val text: String, val seconds: Int)
 
+/** Alerte du bus du matin (shared/screen.ts, ScreenBusEvent) : bandeau « Bus dans 9 min » pendant `seconds` s. */
+data class BusEvent(val id: String, val title: String, val subtitle: String, val seconds: Int)
+
 data class Events(
     val voices: List<VoiceEvent>,
     val last: Int,
     val remote: List<RemoteEvent> = emptyList(),
     val messages: List<MessageEvent> = emptyList(),
+    val bus: List<BusEvent> = emptyList(),
 )
 
 /** Une appli du lanceur, pour le tiroir de la télécommande ; `banner` : PNG en base64. */
@@ -90,7 +94,10 @@ fun parseEvents(json: String): Events {
     val messages = all.filter { it.optString("kind") == "message" }.map {
         MessageEvent(it.getString("id"), it.getString("title"), it.getString("text"), it.optInt("seconds", 10).coerceIn(3, 60))
     }
-    return Events(voices, o.getInt("last"), remote, messages)
+    val bus = all.filter { it.optString("kind") == "bus" }.map {
+        BusEvent(it.getString("id"), it.getString("title"), it.getString("subtitle"), it.optInt("seconds", 45).coerceIn(5, 120))
+    }
+    return Events(voices, o.getInt("last"), remote, messages, bus)
 }
 
 /** État de la télé pour HomeHub (shared/screen.ts, ScreenStateReport). */

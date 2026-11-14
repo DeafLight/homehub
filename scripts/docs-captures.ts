@@ -18,7 +18,8 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -686,6 +687,19 @@ await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhon
 await shoot('telephone-telecommande', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('À table !'), settle: 1500 });
 await shoot('telephone-telecommande-applis', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Applis') });
 
+// Alerte du bus du matin sur la télé : Léa doit partir dans 7 min (trajet du YAML, `tvAlert: 8`, faux temps réel :
+// bus dans 11 min, 4 min de marche) ; le serveur l'envoie de lui-même à la fausse télé (vérification toutes les 20 s),
+// qui note le bandeau. Maquette de la télé avec ce bandeau.
+if (!only || only.test('tele-bus')) {
+  const busFile = join(state, FAKE_SCREEN_BUS_FILE);
+  for (let i = 0; i < 90 && !existsSync(busFile); i++) await sleep(1000);
+  if (existsSync(busFile)) {
+    const busTv = join(work, 'tele-bus.html');
+    writeFileSync(busTv, fakeScreenBusTv(JSON.parse(readFileSync(busFile, 'utf8'))));
+    await shoot('tele-bus', pathToFileURL(busTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }, { wait: 500 });
+  } else console.warn('Alerte du bus non reçue par la fausse appli HomeHub TV');
+}
+
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
 const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message'];
@@ -943,6 +957,26 @@ if (!only || only.test('vacances') || only.test('ferie')) {
     for (const [name, path, metrics, init] of captures) await shoot(name, BASE + path, metrics, { init });
   }
   browserNow = DOCS_NOW;
+}
+
+// Page Transports enregistrée (en dernier : le trajet de Léa vient ensuite de la page, plus du YAML) : son trajet,
+// pareil à celui du YAML, avec l'alerte sur la télé 8 min avant de partir.
+if (!only || only.test('tablette-transports-tele')) {
+  const place = (id: string, label: string, icon: string, lat: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon: -0.55 });
+  await call(A, 'PUT', '/transit/settings', {
+    places: [place('maison', 'Maison', 'home', 47.47), place('college', 'Collège', 'school', 47.48)],
+    commutes: {
+      lea: {
+        from: 'maison', to: 'college',
+        route: { line: '03', origin: 'RALL', originName: 'Ralliement', destination: 'LYCE', destinationName: 'Lycée', towards: 'Lycée', headsigns: ['Lycée'], oneWay: false, rideMinutes: 12, walkFrom: 4, walkTo: 3 },
+        mode: 'window', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: null, tvAlert: 8,
+      },
+    },
+    stops: [],
+  });
+  await shoot('tablette-transports-tele', `${BASE}/transports`, TABLET, {
+    after: `${click('Léa')}; setTimeout(() => [...document.querySelectorAll('label')].find((l) => l.textContent.includes('Alerte sur la télé'))?.scrollIntoView({ block: 'center' }), 300)`,
+  });
 }
 
 // --- Planche du design :variables de web/src/app.css, profils de la configuration fictive.

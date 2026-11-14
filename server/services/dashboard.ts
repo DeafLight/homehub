@@ -13,6 +13,7 @@ import {
   type SchoolDays,
   type Task,
   type Author,
+  type Commute,
   type WeatherForecast,
   type WeekData,
 } from '../../shared/types.ts';
@@ -62,6 +63,11 @@ export type DashboardService = {
   holidays(preview?: HolidaysConfig): Promise<HolidaysData>;
   /** Coche une étape de la routine du jour (`itemId` : `<période>-<rang>`) ; null si elle n'existe pas. */
   setRoutineDone(ownerId: string, itemId: string, done: boolean, by: Author): Promise<Task | null>;
+  /**
+   * Alerte du bus sur la télé (services/screen-bus.ts) : trajet du moment de `ownerId` et minutes d'avance réglées ;
+   * null sans alerte réglée, un jour sans école, ou hors des heures du trajet (mêmes règles que la carte du dashboard).
+   */
+  busAlert(ownerId: string): Promise<{ commute: Commute; minutes: number } | null>;
 };
 
 export type DashboardServiceDeps = {
@@ -124,10 +130,11 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
     return list && list.filter((h) => !isNoSchoolDay(holidays, h.due));
   };
 
+  const transitSettings = deps.transitSettings ?? transitSettingsFromConfig(config);
   const board = createTransitBoard({
     transit,
     gtfs,
-    settings: deps.transitSettings ?? transitSettingsFromConfig(config),
+    settings: transitSettings,
     coursesFor: coursesIn,
     clock,
     logger,
@@ -315,6 +322,15 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       if (!step || stepsOn([step], now, off).length === 0) return null; // pas prévue aujourd'hui
       await routines.setDone(localDay(now), stepKey(ownerId, period, step.id), done, by);
       return { id: itemId, label: step.label, done };
+    },
+
+    async busAlert(ownerId) {
+      const minutes = transitSettings.commuteFor(ownerId)?.tvAlert;
+      if (!minutes) return null;
+      // Pas d'école : pas de bus à prendre (comme la carte du dashboard).
+      if ((await holidayToday()).off) return null;
+      const commute = await board.commute(ownerId);
+      return commute && { commute, minutes };
     },
   };
 }
