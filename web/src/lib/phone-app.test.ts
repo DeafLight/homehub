@@ -1,7 +1,7 @@
 // Tests de l'appli du téléphone : onglets selon le profil, mots reçus et pastille des mots à voir.
 import { describe, expect, it } from 'vitest';
 import { FAMILY_ID, type Note } from '../../../shared/types.ts';
-import { canMarkSeen, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from './phone-app.ts';
+import { canMarkSeen, canRemoveNote, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from './phone-app.ts';
 
 const note = (id: string, to: string, from: string | null, seenAt?: string): Note => ({ id, text: id, to, from: { ownerId: from, via: 'tablet' }, at: '2026-11-10T08:00:00Z', seenAt });
 const lea = { id: 'lea', parent: false };
@@ -37,6 +37,15 @@ describe('appli du téléphone', () => {
     expect(canMarkSeen(lea, note('a', FAMILY_ID, 'alex'))).toBe(false);
     expect(canMarkSeen(alex, note('a', FAMILY_ID, 'sam'))).toBe(true);
     expect(canMarkSeen(undefined, note('a', 'lea', 'alex'))).toBe(false);
+  });
+
+  it('croix : un mot déjà vu, que je peux marquer vu', () => {
+    const seen = '2026-11-10T09:00:00Z';
+    expect(canRemoveNote(lea, note('a', 'lea', 'alex', seen))).toBe(true);
+    expect(canRemoveNote(lea, note('a', 'lea', 'alex'))).toBe(false); // pas encore vu
+    expect(canRemoveNote(lea, note('a', FAMILY_ID, 'alex', seen))).toBe(false); // la famille : un parent
+    expect(canRemoveNote(alex, note('a', FAMILY_ID, 'sam', seen))).toBe(true);
+    expect(canRemoveNote(undefined, note('a', 'lea', 'alex', seen))).toBe(false);
   });
 
   it('pastille : mots pas vus que je peux marquer vus', () => {

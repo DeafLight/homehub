@@ -1,6 +1,6 @@
 // Mots de la famille : un membre en laisse un à un autre (ou à toute la famille), depuis son téléphone ou la
 // tablette. Enregistrés dans le dossier d'état (notes.json), comme les listes. Un mot s'efface quand son destinataire
-// l'a vu, et au plus tard au bout de NOTE_KEPT_DAYS jours.
+// l'a vu, et au plus tard au bout de NOTE_KEPT_DAYS jours ; un mot déjà vu peut aussi être supprimé tout de suite.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Author, Note } from '../../shared/types.ts';
@@ -35,6 +35,8 @@ export type NotesStore = NoteSource & {
   add(to: string, text: string, from: Author): Promise<Note>;
   /** Marque le mot comme vu ; null s'il n'existe pas (ou plus). */
   markSeen(id: string, by: Author): Promise<Note | null>;
+  /** Supprime le mot ; le mot supprimé, ou null s'il n'existe pas (ou plus). */
+  remove(id: string): Promise<Note | null>;
 };
 
 export function createNotesStore({ path, clock }: { path: string; clock: Clock }): NotesStore {
@@ -73,6 +75,13 @@ export function createNotesStore({ path, clock }: { path: string; clock: Clock }
         if (!note) return null;
         if (!note.seenAt) Object.assign(note, { seenAt: clock().toISOString(), seenBy: by });
         return { ...note };
+      });
+    },
+
+    remove(id) {
+      return change((file) => {
+        const index = file.notes.findIndex((n) => n.id === id);
+        return index < 0 ? null : file.notes.splice(index, 1)[0];
       });
     },
   };

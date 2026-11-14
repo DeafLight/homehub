@@ -140,6 +140,8 @@ export type Api = {
   /** `from` : profil ouvert sur la tablette (un téléphone envoie toujours depuis le sien). */
   addNote(to: string, text: string, from?: string | null): Promise<Note>;
   markNoteSeen(id: string): Promise<Note>;
+  /** Supprimer un mot déjà vu (mêmes droits que « Vu »). */
+  removeNote(id: string): Promise<void>;
   /** Visages enregistrés (tablette seule). */
   faces(): Promise<FacesOverview>;
   identifyFace(reading: FaceReadingInput): Promise<FaceSession>;
@@ -396,6 +398,7 @@ export function createApi(
     notes: () => request('/notes'),
     addNote: (to, text, from) => send('POST', '/notes', { to, text, from }),
     markNoteSeen: (id) => send('PUT', `/notes/${encodeURIComponent(id)}/seen`),
+    removeNote: (id) => send('DELETE', `/notes/${encodeURIComponent(id)}`),
     faces: () => request('/faces'),
     identifyFace: (reading) => send('POST', '/faces/identify', reading),
     diagnoseFace: (reading) => send('POST', '/faces/diagnose', reading),

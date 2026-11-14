@@ -3,8 +3,10 @@
   import { formatAgo } from '../../lib/format.ts';
   import type { Profile } from '../../lib/profiles.ts';
   import Avatar from '../Avatar.svelte';
+  import Icon from '../Icon.svelte';
 
-  // Onglet Mots du téléphone : les mots reçus (pour moi ou pour toute la famille), les nouveaux d'abord, avec « Vu ».
+  // Onglet Mots du téléphone : les mots reçus (pour moi ou pour toute la famille), les nouveaux d'abord, avec « Vu »,
+  // et une croix pour supprimer ceux déjà vus.
   type Props = {
     /** Mots reçus, déjà triés ; null tant qu'ils ne sont pas chargés. */
     received: Note[] | null;
@@ -14,8 +16,11 @@
     profileOf: (id: string) => Profile | undefined;
     canSee: (note: Note) => boolean;
     onSee: (note: Note) => void;
+    /** Croix : mot déjà vu, que je peux marquer vu (le serveur revérifie). */
+    canRemove: (note: Note) => boolean;
+    onRemove: (note: Note) => void;
   };
-  let { received, loadError, actionError, now, profileOf, canSee, onSee }: Props = $props();
+  let { received, loadError, actionError, now, profileOf, canSee, onSee, canRemove, onRemove }: Props = $props();
 </script>
 
 {#if actionError}<p class="error">{actionError}</p>{/if}
@@ -33,6 +38,8 @@
         </div>
         {#if !note.seenAt && canSee(note)}
           <button type="button" class="seen" onclick={() => onSee(note)}>Vu</button>
+        {:else if canRemove(note)}
+          <button type="button" class="remove" aria-label="Supprimer le mot" title="Supprimer le mot" onclick={() => onRemove(note)}><Icon name="close" size={22} /></button>
         {/if}
       </li>
     {:else}
@@ -93,6 +100,19 @@
 
   .small {
     font-size: 0.9rem;
+  }
+
+  .remove {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    margin: -6px -8px -6px 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--fg);
   }
 
   .seen {

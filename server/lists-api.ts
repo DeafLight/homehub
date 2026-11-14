@@ -115,5 +115,13 @@ export function createListsApi({ household, lists, notes, access, menu }: ListsA
     return c.json(await notes.markSeen(note.id, author));
   });
 
+  /** Supprimer un mot déjà vu : mêmes droits que « Vu » ; un mot pas encore vu reste (409). */
+  api.delete('/notes/:id', async (c) => {
+    const note = (await notes.list()).find((n) => n.id === c.req.param('id')) ?? fail(404, 'Mot inconnu');
+    await access.writer(c, note.to);
+    if (!note.seenAt) return fail(409, 'Mot pas encore vu');
+    return (await notes.remove(note.id)) ? c.body(null, 204) : fail(404, 'Mot inconnu');
+  });
+
   return api;
 }

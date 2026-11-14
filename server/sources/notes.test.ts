@@ -35,6 +35,16 @@ describe('mots de la famille', () => {
     expect(await store.markSeen('inconnu', TOM)).toBeNull();
   });
 
+  it('supprimé à la demande', async () => {
+    const { store } = setup();
+    const note = await store.add('alex', 'Pense à ton goûter', TOM);
+    const other = await store.add('alex', 'Bravo', TOM);
+    expect(await store.remove(note.id)).toMatchObject({ id: note.id, text: 'Pense à ton goûter' });
+    expect((await store.list()).map((n) => n.id)).toEqual([other.id]);
+    expect(await store.remove(note.id)).toBeNull();
+    expect(await store.remove('inconnu')).toBeNull();
+  });
+
   it('effacé au bout de quelques jours, même pas vu', async () => {
     const { store, wait } = setup();
     await store.add('alex', 'Vieux mot', TOM);

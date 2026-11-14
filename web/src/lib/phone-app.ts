@@ -40,6 +40,9 @@ export function receivedNotes(notes: Note[], meId: string): Note[] {
 /** « Vu » : sur les mots de mon profil ; ceux de toute la famille, seulement pour un parent. */
 export const canMarkSeen = (member: Pick<Member, 'id' | 'parent'> | undefined, note: Note) => member !== undefined && canWrite(member, note.to);
 
+/** Croix « Supprimer le mot » : un mot déjà vu, avec les mêmes droits que « Vu » (le serveur revérifie). */
+export const canRemoveNote = (member: Pick<Member, 'id' | 'parent'> | undefined, note: Note) => Boolean(note.seenAt) && canMarkSeen(member, note);
+
 /** Pastille de l'onglet Mots : mots pas encore vus que je peux marquer vus. */
 export const unseenCount = (received: Note[], member: Pick<Member, 'id' | 'parent'> | undefined) =>
   received.filter((n) => !n.seenAt && canMarkSeen(member, n)).length;

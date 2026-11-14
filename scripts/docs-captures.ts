@@ -196,6 +196,9 @@ for (const task of [
   { label: 'Prendre rendez-vous chez le dentiste', ownerId: 'alex', due: null },
   { label: 'Vider le lave-vaisselle', ownerId: 'lea', due: day(0), repeat: { every: 1, unit: 'day' } },
 ]) await call(A, 'POST', '/lists/tasks', task);
+// Un mot déjà vu par Alex : il reste en grisé sur son téléphone, avec la croix qui le supprime.
+const seenNote = (await call(L, 'POST', '/notes', { to: 'alex', text: 'Tu peux me récupérer au club à 18 h ?' })) as { id: string };
+await call(A, 'PUT', `/notes/${seenNote.id}/seen`);
 await call(L, 'POST', '/notes', { to: 'alex', text: 'Je rentre à 17 h 30 ce soir, j’ai théâtre' });
 await call(A, 'POST', '/notes', { to: 'lea', text: 'Pense à ta tenue de sport pour demain' });
 await call(A, 'POST', '/notes', { to: 'famille', text: 'Pizza ce soir 🍕' });

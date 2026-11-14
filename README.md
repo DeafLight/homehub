@@ -217,8 +217,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
 - **Mots** : envoyés depuis un profil à un autre, ou à toute la famille (200 caractères) : depuis son téléphone
   (onglet Mots) ou la tablette (bloc « Mots » d'un dashboard, envoyé depuis ce profil ; on choisit seulement à qui). Le
-  destinataire le voit sur son dashboard et son téléphone, touche « Vu » et il disparaît ; sinon il s'efface au bout
-  de 7 jours (`notes.json`).
+  destinataire le voit sur son dashboard et son téléphone, touche « Vu » et il disparaît du dashboard ; sur le
+  téléphone il reste en grisé, avec une **croix** qui le supprime tout de suite (mêmes droits que « Vu », un mot pas
+  encore vu ne se supprime pas) ; sinon il s'efface au bout de 7 jours (`notes.json`).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches` (avec, en tête, la
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`

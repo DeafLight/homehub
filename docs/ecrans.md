@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.73.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.74.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -275,6 +275,9 @@ relient depuis le menu.
 | Courses | Tâches et devoirs | Agenda | Mots |
 |---|---|---|---|
 | ![Courses](images/telephone-courses.png) | ![Tâches](images/telephone-taches.png) | ![Agenda](images/telephone-agenda.png) | ![Mots](images/telephone-mots.png) |
+
+Dans l'onglet Mots, les mots pas encore vus d'abord, avec « Vu » ; ceux déjà vus restent en grisé, avec une croix qui
+les supprime tout de suite (ici le mot de Léa « Tu peux me récupérer au club à 18 h ? »).
 
 Les tâches s'ouvrent filtrées sur la personne du téléphone (ici Léa) ; si elle n'a rien à faire, sur « Tous ». Son
 bouton reste affiché après « Tous », même à 0, pour revenir à ses tâches ; les autres n'ont un bouton que s'ils ont

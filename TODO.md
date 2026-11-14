@@ -255,6 +255,9 @@ Reste :
       récepteur est fermé une fois le message lu, l'appareil revient à ce qu'il faisait.
 - [ ] Destination du micro, à vérifier sur les vrais appareils : retour à l'appli d'avant sur la télé (télé en
       direct, Netflix : reprise ou pause ?), télé en veille, l'enregistrement d'un iPhone (mp4), volume.
+- [x] Mots, 0.74.0 : une croix en face de chaque mot déjà vu, dans l'onglet Mots du téléphone, le supprime tout de
+      suite (mêmes droits que « Vu », un mot pas encore vu reste). La tablette n'affiche que les mots pas encore vus :
+      rien à supprimer.
 - [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
       retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
 

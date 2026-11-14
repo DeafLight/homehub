@@ -250,6 +250,20 @@ describe('API des listes', () => {
     expect((await call('PUT', '/notes/inconnu/seen', { key: KEY, actor: alex })).status).toBe(404);
     const all = await (await call('GET', '/notes')).json();
     expect(all.filter((n: { seenAt?: string }) => !n.seenAt)).toHaveLength(1); // « Repas à 19 h », pas encore vu
+
+    // Supprimer un mot déjà vu : mêmes droits que « Vu ».
+    const unseen = all.find((n: { seenAt?: string }) => !n.seenAt);
+    expect((await call('DELETE', `/notes/${unseen.id}`, { key: KEY, actor: alex })).status).toBe(409); // pas encore vu
+    expect((await call('DELETE', `/notes/${fromPhone.id}`, { token })).status).toBe(403); // pour Alex, pas Tom
+    expect((await call('DELETE', `/notes/${fromPhone.id}`, { key: KEY, actor: tom })).status).toBe(403);
+    expect((await call('DELETE', `/notes/${family.id}`, { token })).status).toBe(403); // à toute la famille : un parent
+    expect((await call('DELETE', `/notes/${fromPhone.id}`)).status).toBe(403); // personne de reconnu
+    expect((await call('DELETE', `/notes/${fromTablet.id}`, { token })).status).toBe(204);
+    expect((await call('DELETE', `/notes/${family.id}`, { key: KEY, actor: alex })).status).toBe(204);
+    expect((await call('DELETE', `/notes/${family.id}`, { key: KEY, actor: alex })).status).toBe(404);
+    expect((await call('DELETE', '/notes/inconnu', { key: KEY, actor: alex })).status).toBe(404);
+    const left = await (await call('GET', '/notes')).json();
+    expect(left.map((n: { id: string }) => n.id).sort()).toEqual([fromPhone.id, unseen.id].sort());
   });
 
   it('visages : enregistrés avec le code parent, reconnus avec une marge sur la personne suivante', async () => {

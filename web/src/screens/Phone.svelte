@@ -29,7 +29,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { clearPairing, loadPairing } from '../lib/phone.ts';
-  import { canMarkSeen, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
+  import { canMarkSeen, canRemoveNote, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
@@ -155,6 +155,18 @@
     }
   }
 
+  async function removeNote(note: Note) {
+    noteError = null;
+    try {
+      notes.set((notes.data ?? []).filter((n) => n.id !== note.id));
+      await api.removeNote(note.id);
+    } catch (err) {
+      noteError = (err as Error).message;
+    } finally {
+      await notes.refresh();
+    }
+  }
+
   async function writeNote({ to, text }: { to: string; text: string }) {
     await api.addNote(to, text);
     writing = false;
@@ -239,6 +251,8 @@
           {profileOf}
           canSee={(note) => canMarkSeen(member, note)}
           onSee={seeNote}
+          canRemove={(note) => canRemoveNote(member, note)}
+          onRemove={removeNote}
         />
       {:else if tab === 'agenda'}
         {#if hasSchoolLife(schoolLife.data)}
