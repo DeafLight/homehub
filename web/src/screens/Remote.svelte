@@ -5,7 +5,7 @@
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
-  import { appsDate, capabilities, controlHint, createKeyQueue, statusLine } from '../lib/remote.ts';
+  import { appsDate, capabilities, controlHint, createFeedbackTimer, createKeyQueue, statusLine } from '../lib/remote.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { phonePath } from '../lib/route.ts';
 
@@ -13,7 +13,8 @@
   // (allumée, en veille, injoignable) et bouton marche/arrêt (une télé injoignable s'allume par Cast). Onglet Touches :
   // pavé de flèches avec OK au centre, Retour, Accueil, lecture/pause, volume, muet, clavier (texte écrit dans le champ
   // qui a le focus sur la télé) et « À table ! » (pause et bandeau). Onglet Applis : l'appli en cours et le tiroir des
-  // applis de la télé, à lancer d'un geste. Le serveur vérifie les droits (parents) ; règles : lib/remote.ts.
+  // applis de la télé, à lancer d'un geste. Le compte rendu de chaque ordre s'efface seul après quelques secondes. La page
+  // défile d'un bloc (le body ne défile pas). Le serveur vérifie les droits (parents) ; règles : lib/remote.ts.
   const STATE_REFRESH_MS = 5_000;
   /** La liste des applis se recharge surtout quand la télé en envoie une nouvelle (date de la liste). */
   const APPS_REFRESH_MS = 10 * 60_000;
@@ -43,14 +44,21 @@
       void apps.refresh();
     }
   });
+  const feedback = createFeedbackTimer(() => {
+    error = null;
+    notice = null;
+  });
   onDestroy(() => {
     screens.destroy();
     apps.destroy();
+    feedback.stop();
   });
 
+  /** Erreur d'un ordre (exception, ou message de la file des touches), effacée seule un peu plus tard. */
   const fail = (err: unknown) => {
-    error = (err as Error).message;
+    error = typeof err === 'string' ? err : (err as Error).message;
     notice = null;
+    feedback.show('error');
   };
   const buzz = () => navigator.vibrate?.(12);
 
@@ -72,6 +80,7 @@
     buzz();
     try {
       notice = await action();
+      if (notice) feedback.show('notice');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) navigate(phonePath('shopping'));
       fail(err);
@@ -237,10 +246,19 @@
     flex-direction: column;
     gap: var(--space-3);
     max-width: 640px;
-    min-height: 100dvh;
+    height: 100dvh;
     margin: 0 auto;
     padding: calc(12px + env(safe-area-inset-top)) 16px calc(88px + env(safe-area-inset-bottom));
     box-sizing: border-box;
+    /* Le body ne défile pas (app.css) : l'écran est son propre conteneur de défilement, comme main dans Phone. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* Hauteur fixe : sans cela, la colonne flexible écraserait le pavé et les rangées au lieu de défiler. */
+  .remote > :global(*) {
+    flex-shrink: 0;
   }
 
   header {
@@ -462,7 +480,7 @@
 
   .row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -544,14 +562,16 @@
     width: 112px;
   }
 
+  /* minmax(0, 1fr) : ni une bannière ni un long nom n'élargissent la colonne au-delà de l'écran. */
   .grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
 
   .app {
     display: flex;
+    min-width: 0;
     flex-direction: column;
     gap: 6px;
     padding: 6px;
@@ -564,7 +584,9 @@
 
   .app img,
   .no-banner {
+    display: block;
     width: 100%;
+    height: auto;
     aspect-ratio: 16 / 9;
     border-radius: var(--radius-sm);
     object-fit: cover;

@@ -1,8 +1,8 @@
 // Tests de la télécommande du téléphone : boutons permis selon l'état et le moyen d'action de la télé, textes d'état,
-// file des touches qui regroupe une rafale.
-import { describe, expect, it } from 'vitest';
+// file des touches qui regroupe une rafale, compte rendu qui s'efface seul.
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteKey } from '../../../shared/screen.ts';
-import { appsDate, capabilities, controlHint, createKeyQueue, statusLine } from './remote.ts';
+import { appsDate, capabilities, controlHint, createFeedbackTimer, createKeyQueue, FEEDBACK_MS, statusLine } from './remote.ts';
 
 describe('télécommande : état de la télé', () => {
   it('ligne d’état', () => {
@@ -76,5 +76,44 @@ describe('télécommande : file des touches', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(errors).toEqual(['Touches indisponibles']);
     expect(sent).toEqual([['up'], ['down']]);
+  });
+});
+
+describe('télécommande : compte rendu', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('une réussite s’efface après 3 s, une erreur après 6 s', () => {
+    vi.useFakeTimers();
+    const dismiss = vi.fn();
+    const feedback = createFeedbackTimer(dismiss);
+    feedback.show('notice');
+    vi.advanceTimersByTime(FEEDBACK_MS.notice - 1);
+    expect(dismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+
+    feedback.show('error');
+    vi.advanceTimersByTime(FEEDBACK_MS.notice);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(FEEDBACK_MS.error - FEEDBACK_MS.notice);
+    expect(dismiss).toHaveBeenCalledTimes(2);
+  });
+
+  it('un nouveau message relance le compte à rebours, stop l’annule', () => {
+    vi.useFakeTimers();
+    const dismiss = vi.fn();
+    const feedback = createFeedbackTimer(dismiss);
+    feedback.show('notice');
+    vi.advanceTimersByTime(2_000);
+    feedback.show('notice');
+    vi.advanceTimersByTime(2_000);
+    expect(dismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+
+    feedback.show('error');
+    feedback.stop();
+    vi.advanceTimersByTime(FEEDBACK_MS.error);
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 });

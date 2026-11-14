@@ -76,3 +76,28 @@ export function createKeyQueue(send: (keys: RemoteKey[]) => Promise<void>, onErr
     },
   };
 }
+
+/** Durée d'affichage du compte rendu d'un ordre : une réussite part vite, une erreur reste un peu plus. */
+export const FEEDBACK_MS = { notice: 3_000, error: 6_000 } as const;
+
+/**
+ * Minuteur du compte rendu : `show` (re)lance le compte à rebours à chaque nouveau message, `dismiss` est appelé à la
+ * fin pour l'effacer ; `stop` l'annule (démontage de l'écran).
+ */
+export function createFeedbackTimer(dismiss: () => void) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+  };
+  return {
+    show(kind: keyof typeof FEEDBACK_MS) {
+      stop();
+      timer = setTimeout(() => {
+        timer = undefined;
+        dismiss();
+      }, FEEDBACK_MS[kind]);
+    },
+    stop,
+  };
+}
