@@ -123,7 +123,8 @@ class HubService : Service() {
             if (!started.await(15, TimeUnit.SECONDS)) error = "lecture pas commencée au bout de 15 s"
             val result = error?.let { reportJson(false, it) } ?: reportJson(true)
             send(client, event, result)
-            done.await(90, TimeUnit.SECONDS)
+            // Le lecteur a son garde-fou (40 s au plus) ; si la fin n'arrive quand même pas, le bandeau s'en va.
+            if (!done.await(90, TimeUnit.SECONDS)) banner.hide()
             null
         } catch (e: InterruptedException) {
             return
