@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_MENU_PATH, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
+import { PHONE_MENU_PATH, phoneScanPath, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
 
 describe('stock du téléphone', () => {
   it('a sa propre adresse, aller et retour', () => {
@@ -106,5 +106,32 @@ describe('recettes', () => {
     expect(traitsOf('/recette/abc')).toEqual([false, false, true, true]);
     expect(traitsOf('/recettes')).toEqual([true, true, true, true]);
     expect(traitsOf('/m/recette/abc')).toEqual([false, false, false, false]);
+  });
+});
+
+describe('scanner du téléphone ouvert dans un mode', () => {
+  it('lit ?mode=ranger et ?mode=jete, valeurs promises aux affichettes', () => {
+    expect(parseRoute('/m/scanner?mode=ranger')).toEqual({ name: 'phonescan', mode: 'in' });
+    expect(parseRoute('/m/scanner?mode=jete')).toEqual({ name: 'phonescan', mode: 'out' });
+    expect(parseRoute('/m/scanner/?autre=1&mode=jete')).toEqual({ name: 'phonescan', mode: 'out' });
+    expect(phoneScanPath('in')).toBe('/m/scanner?mode=ranger');
+    expect(phoneScanPath('out')).toBe('/m/scanner?mode=jete');
+  });
+
+  it('sans mode, ou avec une valeur inconnue : le scanner habituel', () => {
+    for (const path of ['/m/scanner', '/m/scanner?mode=', '/m/scanner?mode=Jete', '/m/scanner?mode=out']) {
+      expect(parseRoute(path)).toEqual({ name: 'phonescan' });
+    }
+    expect(routePath({ name: 'phonescan' })).toBe('/m/scanner');
+  });
+
+  it('aller et retour', () => {
+    for (const path of ['/m/scanner', '/m/scanner?mode=ranger', '/m/scanner?mode=jete']) expect(routePath(parseRoute(path))).toBe(path);
+  });
+
+  it('une requête ne change pas les autres routes', () => {
+    expect(parseRoute('/m/stock?mode=jete')).toEqual({ name: 'phonestock' });
+    expect(parseRoute('/scanner?mode=jete')).toEqual({ name: 'scan', back: { name: 'home' } });
+    expect(parseRoute('/partager?text=bonjour')).toEqual({ name: 'share' });
   });
 });

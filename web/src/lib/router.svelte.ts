@@ -1,4 +1,5 @@
-// Routeur minimal basé sur l'History API : la route courante est un état réactif.
+// Routeur minimal basé sur l'History API : la route courante est un état réactif. L'adresse lue comprend la requête
+// (`?mode=` du scanner du téléphone) : y naviguer alors que la page est ouverte met la route à jour.
 import { parseRoute, type Route } from './route.ts';
 
 export type Router = {
@@ -8,9 +9,10 @@ export type Router = {
 };
 
 export function createRouter(win: Window = window): Router {
-  let route = $state<Route>(parseRoute(win.location.pathname));
+  const here = () => win.location.pathname + win.location.search;
+  let route = $state<Route>(parseRoute(here()));
   const onPopState = () => {
-    route = parseRoute(win.location.pathname);
+    route = parseRoute(here());
   };
   win.addEventListener('popstate', onPopState);
 
@@ -19,7 +21,7 @@ export function createRouter(win: Window = window): Router {
       return route;
     },
     navigate(path) {
-      if (path === win.location.pathname) return;
+      if (path === here()) return;
       win.history.pushState(null, '', path);
       route = parseRoute(path);
     },

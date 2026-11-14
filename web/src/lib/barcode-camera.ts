@@ -1,5 +1,7 @@
 // Caméra du scanner du stock : ouvre la caméra choisie (avant ou arrière), lit les codes-barres avec le
-// BarcodeDetector du navigateur toutes les `DETECT_EVERY_MS`, et rend la caméra à l'arrêt. Un changement de caméra
+// BarcodeDetector du navigateur toutes les `DETECT_EVERY_MS`, et rend la caméra à l'arrêt. Il lit aussi les QR codes
+// (format `qr_code`, quand le navigateur le connaît) : leur texte brut est rendu à part, pour les affichettes qui
+// changent le mode du scanner (lib/scan-mode.ts) ; rien n'est jamais ouvert. Un changement de caméra
 // pendant l'ouverture de la précédente l'emporte (numéro de génération) : aucune piste ne reste allumée. La caméra est
 // demandée au partage de l'appareil (camera-share.ts), sans l'ouvrir une seconde fois.
 import { normalizeProductCode, PRODUCT_FORMATS, validProductCode } from '../../../shared/barcode.ts';
@@ -15,13 +17,14 @@ const DetectorApi = (globalThis as { BarcodeDetector?: DetectorClass }).BarcodeD
 export const canDetectBarcodes = Boolean(DetectorApi);
 
 const DETECT_EVERY_MS = 150;
+const QR_FORMAT = 'qr_code';
 
 export type BarcodeCameraOptions = {
   video: () => HTMLVideoElement | undefined;
   /** Une question à l'écran : on n'écoute plus la caméra (le produit reste peut-être devant). */
   paused: () => boolean;
-  /** Codes valides vus sur une image (peut être vide). */
-  onFrame: (codes: string[]) => void;
+  /** Codes-barres valides et textes des QR codes vus sur une image (peuvent être vides). */
+  onFrame: (codes: string[], qrTexts: string[]) => void;
   /** L'image de la caméra s'affiche (avant même que le lecteur de codes soit prêt). */
   onOpen: () => void;
 };
@@ -50,8 +53,10 @@ export function createBarcodeCamera({ video, paused, onFrame, onOpen }: BarcodeC
       if (mine !== generation || !el) return;
       if (!paused()) {
         try {
-          const codes = (await detector.detect(el)).filter((d) => validProductCode(d.rawValue, d.format)).map((d) => normalizeProductCode(d.rawValue, d.format));
-          if (mine === generation) onFrame(codes);
+          const found = await detector.detect(el);
+          const qrTexts = found.filter((d) => d.format === QR_FORMAT).map((d) => d.rawValue);
+          const codes = found.filter((d) => d.format !== QR_FORMAT && validProductCode(d.rawValue, d.format)).map((d) => normalizeProductCode(d.rawValue, d.format));
+          if (mine === generation) onFrame(codes, qrTexts);
         } catch {
           // Image pas encore prête : on réessaie au tour suivant.
         }
@@ -90,7 +95,7 @@ export function createBarcodeCamera({ video, paused, onFrame, onOpen }: BarcodeC
     onOpen();
     if (DetectorApi) {
       const supported = await DetectorApi.getSupportedFormats().catch(() => [] as string[]);
-      if (mine === generation) loop(mine, new DetectorApi({ formats: PRODUCT_FORMATS.filter((f) => supported.includes(f)) }));
+      if (mine === generation) loop(mine, new DetectorApi({ formats: [...PRODUCT_FORMATS, QR_FORMAT].filter((f) => supported.includes(f)) }));
     }
     return 'on';
   }

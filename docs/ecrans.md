@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.70.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.71.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -386,6 +386,13 @@ Les scans sont au nom du profil du téléphone (Alex), chaque passage avec son h
 Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
 
 <img src="images/telephone-scanner.png" alt="Scanner du téléphone" width="260">
+
+Le QR d'une affichette « Poubelle · tri » présenté au scanner ouvert en mode Ranger : un bip, le scanner passe en
+mode Jeté / épuisé et le bandeau le dit. Le QR « Frigo · placard » ramène en mode Ranger. Un QR qui ne mène pas au
+scanner de ce HomeHub est ignoré, jamais ouvert. Ouvert par l'appareil photo du téléphone, le même QR lance le
+scanner directement dans son mode (`/m/scanner?mode=ranger` ou `?mode=jete`).
+
+<img src="images/telephone-scanner-mode.png" alt="Scanner du téléphone, passé en mode Jeté / épuisé par le QR d'une affichette" width="260">
 
 ### Affichettes du scanner (à imprimer)
 

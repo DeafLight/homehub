@@ -30,6 +30,7 @@
     type ScanMode,
   } from '../lib/scan.ts';
   import { createReadGate } from '../lib/scan-gate.ts';
+  import { modeSwitchFlash, scanReads, tokenMode } from '../lib/scan-mode.ts';
   import { productDetail, stockText } from '../lib/stock.ts';
 
   // Scanner du stock (tablette : bouton Scanner ; téléphone : onglet Courses). Deux modes : « Ranger les courses »
@@ -37,10 +38,12 @@
   // le produit avant d'en lire un autre (lib/scan-gate.ts) : pas de double comptage. Chaque mouvement s'annule.
   // Date de péremption : jamais demandée d'office ; la ligne d'une entrée porte « Date ? » (produit frais ou déjà daté),
   // qu'on touche quand on veut pour ouvrir le pavé. Une sortie prend le lot à la date la plus proche, sauf « Lequel ? ».
+  // Le mode se choisit aussi par l'adresse (/m/scanner?mode=ranger ou ?mode=jete : `startMode`, suivi même page ouverte)
+  // ou en présentant à la caméra le QR d'une affichette HomeHub (lib/scan-mode.ts) : bip, bandeau « Mode … ».
   // Règles du journal et des bandeaux : lib/scan.ts ; caméra : lib/barcode-camera.ts ; affichage : components/stock/Scan*.
   // `back` : page de la tablette à laquelle revenir ; null sur le téléphone.
-  type Props = { back: PageRoute | null };
-  let { back }: Props = $props();
+  type Props = { back: PageRoute | null; startMode?: ScanMode };
+  let { back, startMode }: Props = $props();
 
   type OutOptions = { refill?: string; remaining?: number; lotId?: string };
 
@@ -59,7 +62,12 @@
   let facing = $state<Facing>(phone ? 'environment' : 'user');
   let cameraState = $state<'starting' | 'on' | 'error'>('starting');
   let cameraMessage = $state('');
-  let mode = $state<ScanMode>('in');
+  let mode = $state<ScanMode>(untrack(() => startMode) ?? 'in');
+  /** Adresse changée alors que le scanner est ouvert (lien vers ?mode=…) : on suit. */
+  $effect(() => {
+    const asked = startMode;
+    if (asked) untrack(() => asked !== mode && setMode(asked));
+  });
   let gateState = $state<'ready' | 'hold'>('ready');
   let busy = $state(false);
   let flash = $state<Flash | null>(null);
@@ -76,16 +84,21 @@
   /** Bandeau du dernier code lu : tant que le produit est devant la caméra, qu'une question est posée, ou une erreur. */
   const shown = $derived(gateState === 'hold' || dialog !== null || flash?.tone === 'error');
   let flashCount = 0;
+  /** Le bandeau annonce une bascule de mode (QR) : pas de « Retire le produit ». */
+  let switched = $state(false);
 
   const gate = createReadGate();
   const camera = createBarcodeCamera({
     video: () => video,
     paused: () => dialog !== null,
     onOpen: () => (cameraState = 'on'),
-    onFrame: (codes) => {
-      const code = gate.frame(codes, performance.now());
+    onFrame: (codes, qrTexts) => {
+      const read = gate.frame(scanReads(codes, qrTexts, location.origin), performance.now());
       gateState = gate.state;
-      if (code && !busy) void handle(code);
+      if (!read || busy) return;
+      const asked = tokenMode(read);
+      if (asked) switchMode(asked);
+      else void handle(read);
     },
   });
   let idleTimer: ReturnType<typeof setInterval> | undefined;
@@ -106,6 +119,7 @@
   function show(tone: BeepKind, title: string, detail = '', info = '') {
     const id = ++flashCount;
     flash = { tone, title, detail, info };
+    switched = false;
     // Une erreur reste lisible même sans produit devant la caméra (saisie à la main, Annuler…), puis s'efface.
     if (tone === 'error') setTimeout(() => id === flashCount && (flash = null), ERROR_SHOW_MS);
   }
@@ -312,6 +326,16 @@
     mode = next;
     flash = null;
   }
+
+  /** QR d'une affichette lu par la caméra : le mode change, avec un bip et le bandeau tant que le QR est devant. */
+  function switchMode(next: ScanMode) {
+    lastActivity = Date.now();
+    mode = next;
+    beep('ok');
+    const { title, detail } = modeSwitchFlash(next);
+    show('ok', title, detail);
+    switched = true;
+  }
 </script>
 
 <div class="scan" class:phone>
@@ -341,7 +365,7 @@
       {cameraState}
       {cameraMessage}
       flash={shown ? flash : null}
-      remove={gateState === 'hold' && !dialog}
+      remove={gateState === 'hold' && !dialog && !switched}
       {mode}
       {phone}
       onSwitch={() => startCamera(facing === 'user' ? 'environment' : 'user')}

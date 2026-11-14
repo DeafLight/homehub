@@ -104,7 +104,7 @@
     <Recipe id={router.route.id} mode={router.route.mode} phone />
   {/key}
 {:else if router.route.name === 'phonescan'}
-  <Scan back={null} />
+  <Scan back={null} startMode={router.route.mode} />
 {:else if router.route.name === 'phonestock'}
   <Stock back={null} />
 {:else if router.route.name === 'phone'}

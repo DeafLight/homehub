@@ -32,6 +32,11 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   - **Qui et quand** : chaque entrée et sortie garde son heure et qui a scanné : le profil du téléphone, ou sur la
     tablette la personne reconnue en ouvrant le scanner (« Scans au nom de Léa », « Pas moi » pour scanner
     anonymement) ; personne de reconnu : anonyme. Chaque passage montre l'heure et le nom.
+  - **Mode par l'adresse ou par QR** : `/m/scanner?mode=ranger` ouvre le scanner en mode Ranger, `?mode=jete` en
+    mode Jeté / épuisé (sans paramètre ou valeur inconnue : comme d'habitude ; suivi même scanner déjà ouvert). La
+    caméra du scanner lit aussi les QR codes (format `qr_code` du `BarcodeDetector`) : présenter le QR d'une affichette
+    fait basculer dans son mode, avec un bip et le bandeau « Mode Jeté / épuisé ». Seule une adresse de la même
+    origine que la page et du chemin `/m/scanner` compte ; tout autre QR est ignoré, jamais ouvert ni suivi.
   - Produit **inconnu** de la base : on le décrit (nom, marque, contenance, rayon), il est gardé.
   - **Affichettes** à scotcher sur le frigo et la poubelle (« scanne avant de ranger / jeter »), avec un QR code qui
     ouvre le scanner du téléphone dans le bon mode : `npm run affichettes`, voir [Affichettes du scanner](#affichettes-du-scanner).

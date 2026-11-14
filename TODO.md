@@ -159,6 +159,8 @@ Fait en 0.33.0 (scanner et page Stock, voir README) :
       et par qui, lignes qui ne débordent plus (0.34.1).
 - [x] Écran de scan : bip et éclair à chaque lecture, bordure qui pulse et « Retire le produit » : rien n'est relu
       tant que le code reste devant la caméra.
+- [x] Scanner ouvert directement dans un mode (`/m/scanner?mode=ranger` ou `?mode=jete`, QR des affichettes), et QR
+      des affichettes lu par le scanner lui-même pour changer de mode sans se tromper (0.71.0).
 
 Reste :
 

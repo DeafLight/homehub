@@ -661,6 +661,12 @@ const fakeDetector = `globalThis.BarcodeDetector = class {
   async detect() { return [{ rawValue: '${DOCS_PRODUCTS.pates}', format: 'ean_13' }]; }
 };`;
 await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeDetector, camera: true, wait: 4000 });
+// Le QR d'une affichette « Poubelle » présenté au scanner ouvert en mode Ranger : il passe en mode Jeté / épuisé.
+const fakeQrDetector = `globalThis.BarcodeDetector = class {
+  static async getSupportedFormats() { return ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code']; }
+  async detect() { return [{ rawValue: location.origin + '/m/scanner?mode=jete', format: 'qr_code' }]; }
+};`;
+await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeQrDetector, camera: true, wait: 4000 });
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.

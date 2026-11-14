@@ -3,9 +3,11 @@
 // recettes, menu de la semaine). Une recette : /recette/<id>, /recette/<id>/modifier, /recette/<id>/cuisine (retour : le carnet), et
 // /recette/nouvelle. Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots, /m/sport, /m/recettes, /m/camera), son
 // scanner (/m/scanner), son stock (/m/stock), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
-// /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager).
+// /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager). Le scanner du téléphone peut s'ouvrir
+// directement dans un mode : /m/scanner?mode=ranger ou ?mode=jete (QR des affichettes).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
+import type { ScanMode } from './scan.ts';
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
 export type DetailName = 'weather' | 'week' | 'nas' | 'lists' | 'phones' | 'faces' | 'routines' | 'transit' | 'holidays' | 'scan' | 'stock' | 'sport' | 'workout' | 'recipes' | 'menu';
@@ -17,7 +19,7 @@ export type Route =
   | { name: DetailName; back: PageRoute }
   | { name: 'phone'; tab: PhoneTab }
   | { name: 'pair' }
-  | { name: 'phonescan' }
+  | { name: 'phonescan'; mode?: ScanMode }
   | { name: 'phonestock' }
   | { name: 'phonemenu' }
   | { name: 'recipe'; id: string | null; mode: RecipeMode }
@@ -34,6 +36,14 @@ export const phonePath = (tab: PhoneTab) => PHONE_PATHS[tab];
 export const PAIR_PATH = '/appairer';
 export const SHARE_PATH = '/partager';
 export const PHONE_SCAN_PATH = '/m/scanner';
+/** Valeurs de `?mode=` du scanner : un contrat (QR des affichettes imprimées), à ne jamais changer. */
+export const SCAN_MODE_PARAMS: Record<ScanMode, string> = { in: 'ranger', out: 'jete' };
+/** Mode demandé par la valeur de `?mode=` ; rien pour une valeur absente ou inconnue. */
+export function scanModeOfParam(value: string | null): ScanMode | undefined {
+  return (Object.keys(SCAN_MODE_PARAMS) as ScanMode[]).find((mode) => SCAN_MODE_PARAMS[mode] === value);
+}
+/** Scanner du téléphone, ouvert dans un mode ou non. */
+export const phoneScanPath = (mode?: ScanMode) => (mode ? `${PHONE_SCAN_PATH}?mode=${SCAN_MODE_PARAMS[mode]}` : PHONE_SCAN_PATH);
 export const PHONE_STOCK_PATH = '/m/stock';
 export const PHONE_MENU_PATH = '/m/menu';
 const NEW_RECIPE = 'nouvelle';
@@ -100,7 +110,7 @@ export function routePath(route: Route): string {
   if (route.name === 'phone') return phonePath(route.tab);
   if (route.name === 'pair') return PAIR_PATH;
   if (route.name === 'share') return SHARE_PATH;
-  if (route.name === 'phonescan') return PHONE_SCAN_PATH;
+  if (route.name === 'phonescan') return phoneScanPath(route.mode);
   if (route.name === 'phonestock') return PHONE_STOCK_PATH;
   if (route.name === 'phonemenu') return PHONE_MENU_PATH;
   if (route.name === 'recipe') return recipePath(route.id, route.mode);
@@ -126,14 +136,19 @@ function parsePage(pathname: string): PageRoute {
   }
 }
 
-export function parseRoute(pathname: string): Route {
+/** Route d'une adresse (chemin, éventuellement suivi de `?…` : seul le scanner du téléphone en lit le mode). */
+export function parseRoute(location: string): Route {
+  const [pathname, search = ''] = location.split('?', 2);
   const path = pathname.replace(/\/$/, '') || HOME_PATH;
   for (const [tab, phone] of Object.entries(PHONE_PATHS) as [PhoneTab, string][]) {
     if (path === phone) return { name: 'phone', tab };
   }
   if (path === PAIR_PATH) return { name: 'pair' };
   if (path === SHARE_PATH) return { name: 'share' };
-  if (path === PHONE_SCAN_PATH) return { name: 'phonescan' };
+  if (path === PHONE_SCAN_PATH) {
+    const mode = scanModeOfParam(new URLSearchParams(search).get('mode'));
+    return mode ? { name: 'phonescan', mode } : { name: 'phonescan' };
+  }
   if (path === PHONE_STOCK_PATH) return { name: 'phonestock' };
   if (path === PHONE_MENU_PATH) return { name: 'phonemenu' };
   const recipe = /^(\/m)?\/recette\/([^/]+)(?:\/(modifier|cuisine))?$/u.exec(path);
