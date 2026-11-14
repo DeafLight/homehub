@@ -18,7 +18,7 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
@@ -744,7 +744,7 @@ if (!only || only.test('tele-appli-rappel')) {
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message', 'telephone-camera-tele-eteinte'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
   // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
@@ -837,6 +837,30 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(500);
   await tvApp.capture('tele-appli-message');
   await tvApp.close();
+  // La télé se met en veille (fausse appli : écran éteint annoncé à HomeHub) : l'onglet le dit, et le message d'Alex
+  // part sur le Google Home du salon (appareil de secours par défaut), « Télé éteinte : lu sur Google Home du salon ».
+  writeFileSync(join(state, FAKE_SCREEN_MODE_FILE), JSON.stringify({ mode: 'veille' }));
+  await sleep(1000);
+  await phone.evaluate('location.reload()');
+  for (let i = 0; i < 40; i++) {
+    await sleep(500);
+    const ready = await phone.evaluate(`[...document.querySelectorAll('.camera button')].some((b) => b.textContent.trim() === 'Télé du salon')`);
+    if (ready.result?.value) break;
+  }
+  await sleep(1000);
+  await clickText('Télé du salon');
+  await sleep(300);
+  await clickText('Enregistrer un message');
+  await sleep(2000);
+  await clickText('Envoyer');
+  for (let i = 0; i < 20; i++) {
+    await sleep(500);
+    const sent = await phone.evaluate(`document.querySelector('.camera [role=status]')?.textContent.includes('Télé éteinte')`);
+    if (sent.result?.value) break;
+    if (i === 19) console.warn('Message vocal non basculé sur le Google Home');
+  }
+  await phone.capture('telephone-camera-tele-eteinte');
+  writeFileSync(join(state, FAKE_SCREEN_MODE_FILE), JSON.stringify({ mode: 'allumee' }));
   await phone.close();
   await tablet.close();
   await send('Browser.resetPermissions');

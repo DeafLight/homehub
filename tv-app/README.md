@@ -17,7 +17,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | Fichier | Rôle |
 |---|---|
 | `MainActivity.kt` | Écran d'accueil : adresse de HomeHub, code d'appairage, état, « Essayer le bandeau » |
-| `HubService.kt` | Service au premier plan : événements, téléchargement, lecture, message écrit, compte rendu |
+| `HubService.kt` | Service au premier plan : événements, téléchargement, lecture, message écrit, compte rendu ; écran allumé ou éteint (`ACTION_SCREEN_ON/OFF`) envoyé à HomeHub, message vocal refusé écran éteint (« écran éteint » : HomeHub le fait lire par le Google Home) |
 | `VoicePlayer.kt` | Lecture avec focus audio transitoire « avec baisse du son » |
 | `OverlayBanner.kt` | Bandeau par-dessus les autres applis : message vocal ou avis (en haut à droite), message écrit (en haut au centre, s'en va seul), alertes du bus et de la pluie (en haut à droite) |
 | `Pluie.kt` | Alerte pluie du matin : lecture des événements `rain`, durée du bandeau |

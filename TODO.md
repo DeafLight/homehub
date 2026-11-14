@@ -312,7 +312,13 @@ personne depuis son propre téléphone.
       volume fixe (barre de son HDMI ARC / eARC, `AudioManager.isVolumeFixed`) annoncé par l'appli, volume grisé
       et expliqué sur la tablette et le téléphone, refusé par le serveur. À vérifier sur la vraie télé : pause et
       reprise dans Netflix, YouTube, la télé en direct ; la barre de son est-elle vue comme sortie ARC ?
-- [ ] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home.
+- [x] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home. L'appli annonce l'écran allumé ou éteint
+      (déjà en 0.73) et refuse un message vocal écran éteint ; télé en veille, injoignable ou qui refuse : le message
+      part sur l'appareil de secours (Cast), « Télé éteinte : lu sur Google Home du salon » sur le téléphone ; réglage
+      « Si éteinte » sur la tablette (Téléphones › Télés), première enceinte par défaut ; fausse télé du monde fictif
+      allumée, en veille ou absente (`fake-screen-mode.json`). Mécanisme réutilisable pour le mode film (15).
+- [ ] 7 bis. À vérifier sur la vraie télé : écran éteint à la télécommande puis message vocal (bascule immédiate),
+      télé débranchée (bascule après 40 s), écran qui s'éteint pendant l'envoi.
 - [ ] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir.
 - [ ] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé.
 - [ ] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le

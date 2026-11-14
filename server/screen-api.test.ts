@@ -160,7 +160,7 @@ describe('API HomeHub TV : message vocal', () => {
     const { call, pairTv, listen, nextEvents, alex } = await setup();
     const tv = await pairTv();
     await listen(tv.token);
-    expect(await (await call('GET', '/screens/targets', { token: alex })).json()).toEqual([{ id: tv.id, name: 'Télé du salon', online: true }]);
+    expect(await (await call('GET', '/screens/targets', { token: alex })).json()).toEqual([{ id: tv.id, name: 'Télé du salon', online: true, on: true, fallback: null }]);
 
     const sending = call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio('audio/webm;codecs=opus') });
     const { events } = await nextEvents(tv.token, '0');
@@ -175,7 +175,7 @@ describe('API HomeHub TV : message vocal', () => {
     expect(new Uint8Array(await clip.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
 
     expect((await call('POST', `/screen/events/${event.id}/report`, { from: TV, token: tv.token, headers: PROTOCOL, body: { ok: true } })).status).toBe(204);
-    expect(await (await sending).json()).toEqual({ device: 'Télé du salon' });
+    expect(await (await sending).json()).toEqual({ device: 'Télé du salon', fallback: null });
   });
 
   it('échec rapporté par la télé, ou pas de nouvelles : 502 avec la raison', async () => {

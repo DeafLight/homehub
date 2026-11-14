@@ -53,7 +53,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenTarget } from '../../../shared/screen.ts';
+import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
@@ -310,7 +310,10 @@ export type Api = {
   testScreenReminder(kind: ScreenReminderKind): Promise<{ title: string; subtitle: string; screens: number }>;
   /** Téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (lu par l'appli, son du programme baissé). */
   screenTargets(): Promise<ScreenTarget[]>;
-  sendScreenVoice(id: string, audio: Blob): Promise<{ device: string }>;
+  sendScreenVoice(id: string, audio: Blob): Promise<ScreenVoiceResult>;
+  /** Appareil de secours de chaque télé éteinte (tablette). */
+  screenFallbacks(): Promise<ScreenFallbackSettings>;
+  setScreenFallback(id: string, device: string | null): Promise<ScreenFallbackSettings>;
   /** Télécommande d'une télé (parents) : état, applis, touches, texte, lancement, « À table ! », marche/arrêt. */
   remoteScreens(): Promise<RemoteScreen[]>;
   remoteApps(id: string): Promise<RemoteApps>;
@@ -535,6 +538,8 @@ export function createApi(
     remotePower: (id, on) => send('POST', `/screens/${encodeURIComponent(id)}/power`, { on }),
     mediaScreens: () => request('/screens/media'),
     screenMedia: async (id, action, pin) => void (await send('POST', `/screens/${encodeURIComponent(id)}/media`, { action, ...(pin && { pin }) })),
+    screenFallbacks: () => request('/screens/fallbacks'),
+    setScreenFallback: (id, device) => send('PUT', `/screens/${encodeURIComponent(id)}/fallback`, { device }),
     sendScreenVoice: (id, audio) => request(`/screens/${encodeURIComponent(id)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
   };
 }

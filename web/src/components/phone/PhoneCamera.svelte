@@ -15,17 +15,18 @@
   // Destination du micro (s'il y a des appareils Cast, `cast` dans homehub.yaml) : la tablette, en direct, ou un
   // Google Home, une télé : message enregistré (un appui pour commencer, un pour envoyer), lu une ou deux secondes après.
   // Une télé appairée avec l'appli HomeHub TV (`screens`) lit le message par-dessus la vidéo, le son du programme
-  // baissé, au lieu de la couper comme le récepteur Cast.
+  // baissé, au lieu de la couper comme le récepteur Cast. Éteinte (écran en veille) ou injoignable, le message part sur
+  // son appareil de secours (Google Home, réglé sur la tablette), et l'onglet le dit.
   type Props = { api: Api; bannerShown: boolean; castDevices?: CastDevice[]; screens?: ScreenTarget[] };
   let { api, bannerShown, castDevices = [], screens = [] }: Props = $props();
 
   const TABLET = 'tablet';
   /** Préfixe des télés HomeHub TV parmi les destinations (les appareils Cast gardent leur identifiant). */
   const SCREEN = 'screen:';
-  type Destination = { id: string; name: string; kind: 'tv' | 'speaker'; screen: boolean; online: boolean };
+  type Destination = { id: string; name: string; kind: 'tv' | 'speaker'; screen: boolean; online: boolean; on: boolean; fallback: string | null };
   const destinations = $derived<Destination[]>([
-    ...screens.map((s) => ({ id: `${SCREEN}${s.id}`, name: s.name, kind: 'tv' as const, screen: true, online: s.online })),
-    ...castDevices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, screen: false, online: true })),
+    ...screens.map((s) => ({ id: `${SCREEN}${s.id}`, name: s.name, kind: 'tv' as const, screen: true, online: s.online, on: s.on ?? s.online, fallback: s.fallback ?? null })),
+    ...castDevices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, screen: false, online: true, on: true, fallback: null })),
   ]);
   let target = $state(TABLET);
   let voice = $state<VoiceState>({ phase: 'idle' });
@@ -167,15 +168,17 @@
         {voice.phase === 'sending' ? 'Envoi…' : 'Enregistrer un message'}
       </button>
       {#if voice.phase === 'sent'}
-        <p class="talking" role="status">Message lu sur {voice.device}.</p>
+        <p class="talking" role="status">{voice.notice ?? `Message lu sur ${voice.device}.`}</p>
       {:else if voice.phase === 'error'}
         <p class="error" role="alert">{voice.message}</p>
       {:else}
         {#if targetDevice.screen}
           <p class="talking">
-            {targetDevice.online
+            {targetDevice.on
               ? `${targetDevice.name} lit ton message par-dessus ce qui passe, le son du programme baissé, avec ton prénom en bandeau.`
-              : `${targetDevice.name} semble éteinte, ou l’appli HomeHub TV n’est pas lancée.`}
+              : targetDevice.fallback
+                ? `${targetDevice.name} est éteinte : ton message part sur ${targetDevice.fallback}.`
+                : `${targetDevice.name} semble éteinte, ou l’appli HomeHub TV n’est pas lancée.`}
           </p>
         {:else}
           <p class="talking">{targetDevice.name} lit ton message une ou deux secondes après l’envoi{targetDevice.kind === 'tv' ? ', par-dessus ce que montre la télé' : ' (la musique en cours s’arrête)'}.</p>

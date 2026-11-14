@@ -231,7 +231,9 @@ sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 ### Téléphones
 
 Relier un téléphone à un profil (QR code), voir et retirer les téléphones reliés. En dessous, **Télés** : appairer
-une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, la retirer.
+une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, en veille (point
+jaune) ou éteinte, la retirer. **Si éteinte** : le Google Home qui lit les messages vocaux quand la télé est éteinte
+(ici celui du salon, par défaut), ou « Aucun appareil ».
 **Alertes sur la télé** : la case **Minuteurs** (cochée par défaut, changée par un parent reconnu) fait décompter en petit
 sur les télés allumées les minuteurs en cours, et afficher et sonner celui qui se termine.
 
@@ -340,6 +342,12 @@ Télé du salon » dès que la télé a commencé la lecture. Une télé éteint
 avant l'envoi.
 
 <img src="images/telephone-camera-tele-appli.png" alt="Onglet Caméra du téléphone d'Alex, message vocal lu sur la Télé du salon par l'appli HomeHub TV" width="260">
+
+La télé se met en veille (la fausse appli annonce son écran éteint) : le message d'Alex destiné à la télé part sur le
+Google Home du salon, son appareil de secours, et le téléphone affiche « Télé éteinte : lu sur Google Home du salon ».
+Même chose quand la télé est injoignable.
+
+<img src="images/telephone-camera-tele-eteinte.png" alt="Onglet Caméra du téléphone d'Alex : « Télé éteinte : lu sur Google Home du salon »" width="260">
 
 Sur la télé (**maquette** : programme inventé, bandeau dessiné comme celui de l'appli), le bandeau « Message d'Alex »
 s'affiche en haut à droite pendant le message, avec des barres de niveau ; le son du programme baisse le temps du

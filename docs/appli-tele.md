@@ -26,7 +26,11 @@ fonctions plus bas.
   proxys), et l'appli redemande aussitôt. Aucun port ouvert sur la télé, rien de plus à configurer dans le proxy, et ça
   marche aussi bien en direct (`http://<NAS>:<port>`) que derrière Nginx Proxy Manager.
 - **Présence** : une télé qui n'a pas redemandé depuis 40 s (`GONE_MS`) est « absente » (éteinte, appli tuée, réseau
-  perdu). C'est la base de la fonction 7 (basculer vers le Google Home).
+  perdu). C'est la base de la fonction 7 (basculer vers le Google Home), avec l'écran allumé ou éteint que l'appli
+  annonce (`POST /api/screen/state`, `screenOn`) : la veille rapide garde le réseau, la présence seule ne suffit pas.
+  Fait : `server/services/screen-fallback.ts` décide (télé allumée : la télé ; en veille, injoignable, ou refus
+  « écran éteint » de l'appli : l'appareil de secours de cette télé, réglé sur la tablette, première enceinte par
+  défaut) ; le mode film (15) y ajoutera sa raison de basculer.
 - **Compte rendu** : après chaque événement, l'appli répond `POST /api/screen/events/:seq/done` avec `played`,
   `shown` ou `failed` + raison. Le téléphone qui a envoyé attend ce compte rendu (quelques secondes au plus) pour
   afficher « Lu sur la télé » ou l'erreur, comme aujourd'hui pour Cast.

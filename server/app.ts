@@ -38,6 +38,8 @@ import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import type { ScreenAppStore } from './sources/screen-apps.ts';
+import type { ScreenFallbackStore } from './sources/screen-fallbacks.ts';
+import { createScreenFallback } from './services/screen-fallback.ts';
 import type { ScreenStore } from './sources/screens.ts';
 import type { DriveReader } from './sources/drive-page.ts';
 import type { DriveStore } from './sources/drive.ts';
@@ -88,6 +90,8 @@ export type AppDeps = {
   screenHub?: ScreenHub;
   /** Réglages des rappels sur la télé ; absent (tests) : ni rappels, ni leurs routes. */
   screenReminders?: ScreenReminderStore;
+  /** Appareil de secours de chaque télé éteinte (Google Home) ; absent : pas de secours. */
+  screenFallbacks?: ScreenFallbackStore;
   pins: PinStore;
   faces: FaceStore;
   sessions: ActorSessions;
@@ -177,7 +181,8 @@ export function createApp(deps: AppDeps): Hono {
   const screenHub = deps.screenHub ?? createScreenHub({ clock });
   api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access }));
   api.route('/', createCastApi({ voice, config, household, access }));
-  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access }));
+  const fallback = deps.screenFallbacks && createScreenFallback({ hub: screenHub, cast: () => config.current().cast, store: deps.screenFallbacks });
+  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access, fallback }));
   // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
   const screenAlerts = deps.screenAlerts ?? createScreenAlertStore();
   api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock }));

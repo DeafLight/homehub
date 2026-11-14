@@ -1,5 +1,5 @@
 // Tests JVM du protocole de HomeHub TV : réponses du serveur (shared/screen.ts) lues telles qu'il les envoie, genres
-// d'événements inconnus ignorés, messages écrits, ordres de la télécommande, message d'erreur, compte rendu, état de la télé, liste des
+// d'événements inconnus ignorés, messages écrits, ordres de la télécommande, message d'erreur, compte rendu (et refus écran éteint), état de la télé, liste des
 // applis, adresse de HomeHub donnée par adb.
 package fr.homehub.tv
 
@@ -46,6 +46,14 @@ class ProtocolTest {
         val failed = JSONObject(reportJson(false, "x".repeat(300)))
         assertEquals(false, failed.getBoolean("ok"))
         assertEquals(200, failed.getString("reason").length)
+    }
+
+    @Test
+    fun messageVocalRefuseEcranEteint() {
+        assertNull(voiceRefusal(screenOn = true))
+        val refused = JSONObject(voiceRefusal(screenOn = false)!!)
+        assertEquals(false, refused.getBoolean("ok"))
+        assertEquals("écran éteint", refused.getString("reason"))
     }
 
     @Test

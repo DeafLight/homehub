@@ -20,10 +20,15 @@ export type Screen = {
   pairedAt: string;
   lastSeenAt: string;
   online: boolean;
+  /** Allumée, en veille (écran éteint, appli joignable) ou injoignable ; absent : serveur plus ancien. */
+  power?: RemotePower;
 };
 
-/** Une télé où un parent peut envoyer sa voix (onglet Caméra du téléphone). */
-export type ScreenTarget = { id: string; name: string; online: boolean };
+/**
+ * Une télé où un parent peut envoyer sa voix (onglet Caméra du téléphone). `on` : allumée, écran compris ; `fallback` :
+ * appareil où part le message quand elle ne l'est pas (null : aucun).
+ */
+export type ScreenTarget = { id: string; name: string; online: boolean; on?: boolean; fallback?: string | null };
 
 /** Demande d'appairage, côté télé : le code à afficher et l'identifiant pour attendre la réponse. */
 export type ScreenPairingStart = { id: string; code: string; expiresAt: string };
@@ -194,3 +199,28 @@ export type MediaScreens = { screens: MediaScreen[]; parentCode: boolean };
 
 /** Compte rendu de la télé : lecture commencée, ou échec avec sa raison. */
 export type ScreenReport = { ok: true } | { ok: false; reason: string };
+
+// --- Télé éteinte : l'annonce part sur un autre appareil (fonction 7 ; le mode film, fonction 15, s'y ajoutera) ---
+
+/**
+ * Raison donnée par l'appli quand elle refuse un message vocal parce que l'écran est éteint (veille rapide : le réseau
+ * reste, mais personne ne verrait ni n'entendrait rien). Le serveur reconnaît ce refus et bascule vers le secours.
+ */
+export const SCREEN_OFF_REASON = 'écran éteint';
+
+/** Pourquoi une annonce destinée à la télé part ailleurs : télé injoignable, ou allumée mais écran éteint. */
+export type ScreenFallbackReason = 'offline' | 'standby';
+
+/** Réponse à l'envoi d'un message vocal vers une télé : l'appareil qui l'a lu, et la phrase à montrer s'il a basculé. */
+export type ScreenVoiceResult = { device: string; fallback: { reason: ScreenFallbackReason; notice: string } | null };
+
+/** Phrase montrée au téléphone quand le message est parti sur l'appareil de secours. */
+export const screenFallbackNotice = (device: string) => `Télé éteinte : lu sur ${device}.`;
+
+/**
+ * Appareil de secours d'une télé (réglage de la tablette) : `device` est un appareil Cast de `cast.devices`, ou null
+ * (aucun : le message échoue comme avant). `auto` : jamais réglé, la première enceinte de la liste s'applique.
+ */
+export type ScreenFallbackChoice = { id: string; device: string | null; auto: boolean };
+/** Réglages des télés et appareils Cast proposés (vide si les messages Cast ne sont pas possibles). */
+export type ScreenFallbackSettings = { devices: { id: string; name: string; kind: 'speaker' | 'tv' }[]; screens: ScreenFallbackChoice[] };

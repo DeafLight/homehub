@@ -15,9 +15,12 @@
 // (maquette : fake-screen-reminder.ts).
 // Pause et reprise (fonction 6) : elle retient si le programme est en pause et le
 // dernier bandeau (« À table ! »), pour la maquette de fake-screen-pause.ts ; son volume est réglable.
-import { rmSync, writeFileSync } from 'node:fs';
+// Allumée, en veille ou absente (fonction 7) : fake-screen-mode.json (dossier d'état) le dit, relu à chaque tour. En
+// veille, l'écran est annoncé éteint et un message vocal est refusé comme le fait l'appli (« écran éteint ») ; absente,
+// elle ne demande plus rien (HomeHub la voit partie au bout de GONE_MS).
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
+import { SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
 import { fakeScreenApps } from './fake-banners.ts';
 import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE } from './fake-screen-reminder.ts';
@@ -30,6 +33,28 @@ export const FAKE_SCREEN_TEXT_FILE = 'fake-screen-text.json';
 export const FAKE_SCREEN_TIMER_FILE = 'fake-screen-timer.json';
 export const FAKE_SCREEN_TIMERS_FILE = 'fake-screen-timers.json';
 export const FAKE_SCREEN_BUS_FILE = 'fake-screen-bus.json';
+export const FAKE_SCREEN_MODE_FILE = 'fake-screen-mode.json';
+
+/** Allumée (par défaut), en veille (écran éteint, appli joignable) ou absente (appli muette). */
+export type FakeScreenMode = 'allumee' | 'veille' | 'absente';
+
+/** Mode écrit dans fake-screen-mode.json ({ "mode": "veille" }) ; sans fichier ou illisible : allumée. */
+export function readFakeScreenMode(dir: string): FakeScreenMode {
+  const path = join(dir, FAKE_SCREEN_MODE_FILE);
+  if (!existsSync(path)) return 'allumee';
+  try {
+    const { mode } = JSON.parse(readFileSync(path, 'utf8')) as { mode?: string };
+    return mode === 'veille' || mode === 'absente' ? mode : 'allumee';
+  } catch {
+    return 'allumee';
+  }
+}
+
+/** Compte rendu d'un message vocal, comme l'appli (voiceRefusal dans tv-app) : refusé écran éteint, sinon lu ou introuvable. */
+export function fakeVoiceReport(screenOn: boolean, clipStatus: number): { ok: true } | { ok: false; reason: string } {
+  if (!screenOn) return { ok: false, reason: SCREEN_OFF_REASON };
+  return clipStatus >= 200 && clipStatus < 300 ? { ok: true } : { ok: false, reason: `message introuvable (HTTP ${clipStatus})` };
+}
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
@@ -78,8 +103,24 @@ export function startFakeScreen(base: string) {
   const remote: FakeScreenRemote = { received: [], screenOn: true, foreground: state.foreground! };
   let after: number | null = null;
   let introduced = false;
+  let mode: FakeScreenMode = 'allumee';
+  // Changement de mode, vu en 0,3 s : l'écran s'allume ou s'éteint et l'appli le dit aussitôt à HomeHub (comme
+  // ACTION_SCREEN_ON/OFF), même pendant une attente longue ; absente, la boucle cesse de demander.
+  setInterval(() => {
+    const wanted = readFakeScreenMode(dir);
+    if (wanted === mode) return;
+    mode = wanted;
+    if (mode === 'absente') return;
+    state.screenOn = mode === 'allumee';
+    remote.screenOn = state.screenOn;
+    if (introduced) void post('POST', '/api/screen/state', state).catch(() => {});
+  }, 300);
   const loop = async (): Promise<void> => {
     try {
+      if (mode === 'absente') {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return loop();
+      }
       if (!introduced) {
         // Comme l'appli à son démarrage : son état, puis la liste des applis du lanceur.
         introduced = (await post('POST', '/api/screen/state', state)).ok && (await post('PUT', '/api/screen/apps', { apps: fakeScreenApps() })).ok;
@@ -140,11 +181,16 @@ export function startFakeScreen(base: string) {
           }
           continue;
         }
+        if (!state.screenOn) {
+          console.log(`Fausse appli HomeHub TV : ${event.title} refusé, écran éteint`);
+          await post('POST', `/api/screen/events/${event.id}/report`, fakeVoiceReport(false, 0));
+          continue;
+        }
         const clip = await fetch(`${base}${event.audio}`, { headers });
         const bytes = clip.ok ? (await clip.arrayBuffer()).byteLength : 0;
         writeFileSync(join(dir, FAKE_SCREEN_FILE), JSON.stringify({ title: event.title, bytes } satisfies FakeScreenMessage));
         console.log(`Fausse appli HomeHub TV : ${event.title}, ${bytes} octets`);
-        await post('POST', `/api/screen/events/${event.id}/report`, clip.ok ? { ok: true } : { ok: false, reason: `message introuvable (HTTP ${clip.status})` });
+        await post('POST', `/api/screen/events/${event.id}/report`, fakeVoiceReport(true, clip.status));
       }
     } catch {
       // Serveur pas encore prêt : on réessaie un peu plus tard.

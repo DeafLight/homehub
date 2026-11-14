@@ -3,7 +3,8 @@
 // messages vocaux. La tablette : liste, appairage (code affiché sur la télé), nom, retrait, par un parent reconnu. Le
 // téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (mêmes règles que vers un appareil Cast). La
 // télécommande (fonction 17, parents seulement) : état de la télé, tiroir des applis, touches, texte, lancement d'une
-// appli, « À table ! », marche/arrêt ; une télé injoignable ou en veille s'allume par son appareil Cast.
+// appli, « À table ! », marche/arrêt ; une télé injoignable ou en veille s'allume par son appareil Cast. Télé éteinte
+// ou injoignable : le message vocal part sur son appareil de secours (fonction 7, réglé sur la tablette).
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
@@ -22,6 +23,7 @@ import {
   type Screen,
   type ScreenEventBody,
   type ScreenTarget,
+  type ScreenVoiceResult,
 } from '../shared/screen.ts';
 import { tvTitle } from '../shared/tv.ts';
 import type { Access } from './access.ts';
@@ -31,6 +33,7 @@ import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { CastError, type CastTarget, castWake } from './services/cast.ts';
 import { dinnerEvent, refusesVolume, VOLUME_FIXED } from './services/screen-media.ts';
+import type { ScreenFallback } from './services/screen-fallback.ts';
 import { SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 import { screenAppSchema, type ScreenAppStore } from './sources/screen-apps.ts';
@@ -58,6 +61,7 @@ const keysSchema = z.object({ keys: z.array(z.enum(REMOTE_KEYS)).min(1).max(REMO
 const textSchema = z.object({ text: z.string().min(1).max(REMOTE_TEXT_MAX), submit: z.boolean().default(false) });
 const launchSchema = z.object({ package: z.string().min(1).max(200) });
 const powerSchema = z.object({ on: z.boolean() });
+const fallbackSchema = z.object({ device: z.string().max(32).nullable() });
 
 /** Liste des applis envoyée par la télé : bannières comprises, quelques Mo au plus. */
 export const APPS_MAX_BYTES = 10_000_000;
@@ -72,6 +76,7 @@ export const remoteTextReportMs = (text: string) => REMOTE_REPORT_MS + 1_500 + 6
 export const WAKE_REPORT_MS = 5_000;
 export const NO_CAST_TO_WAKE = 'Télé injoignable, et aucun appareil Cast connu pour l’allumer (cast.devices, kind: tv)';
 export const UNKNOWN_APP = 'Appli inconnue sur cette télé';
+export const UNKNOWN_FALLBACK = 'Appareil de secours inconnu (cast.devices, avec cast.mediaUrl)';
 
 /** Une télé ne parle que la version du protocole du serveur (426 sinon : l'appli dit de se mettre à jour). */
 function checkProtocol(c: Context) {
@@ -94,6 +99,7 @@ export function createScreenApi({
   household,
   access,
   wake = (target) => castWake(target, { log: (step) => console.log(`Allumage par Cast : ${step}`) }),
+  fallback,
 }: {
   screens: ScreenStore;
   /** Applis du lanceur de chaque télé (tiroir de la télécommande). */
@@ -105,6 +111,8 @@ export function createScreenApi({
   access: Access;
   /** Allumage par l'appareil Cast de la télé (remplaçable dans les tests). */
   wake?: (target: CastTarget) => Promise<void>;
+  /** Secours d'une télé éteinte (Google Home) ; absent : le message échoue comme avant. */
+  fallback?: ScreenFallback;
 }) {
   const api = createRouter();
 
@@ -119,7 +127,7 @@ export function createScreenApi({
     const found = devices.find((d) => addresses.includes(d.host)) ?? (tvs.length === 1 ? tvs[0] : undefined);
     return found ? { host: found.host, port: found.port } : null;
   };
-  const withPresence = (s: ScreenRecord): Screen => ({ ...s, online: hub.online(s.id) });
+  const withPresence = (s: ScreenRecord): Screen => ({ ...s, online: hub.online(s.id), power: hub.power(s.id) });
   const screenOf = async (id: string) => (await screens.list()).find((s) => s.id === id) ?? fail(404, 'Télé inconnue');
   /** La tablette, avec un parent reconnu devant elle. */
   const tabletParent = async (c: Context) => {
@@ -206,6 +214,7 @@ export function createScreenApi({
     const screen = await screenOf(c.req.param('id'));
     await screens.remove(screen.id);
     await apps.remove(screen.id);
+    await fallback?.forget(screen.id);
     hub.forget(screen.id);
     return c.body(null, 204);
   });
@@ -222,7 +231,10 @@ export function createScreenApi({
 
   api.get('/screens/targets', async (c) => {
     await speaker(c);
-    return c.json((await screens.list()).map((s): ScreenTarget => ({ id: s.id, name: s.name, online: hub.online(s.id) })));
+    const targets = (await screens.list()).map(
+      async (s): Promise<ScreenTarget> => ({ id: s.id, name: s.name, online: hub.online(s.id), on: hub.power(s.id) === 'on', fallback: (await fallback?.deviceOf(s.id))?.name ?? null }),
+    );
+    return c.json(await Promise.all(targets));
   });
 
   api.post('/screens/:id/voice', async (c) => {
@@ -231,21 +243,51 @@ export function createScreenApi({
     const declared = Number(c.req.header('content-length') ?? 0);
     if (declared > VOICE_MAX_BYTES) return fail(400, 'Message trop long');
     const audio = new Uint8Array(await c.req.arrayBuffer());
-    let kept: ReturnType<VoiceMessages['keep']>;
+    const type = c.req.header('content-type') ?? '';
+    const toScreen = () => {
+      let kept: ReturnType<VoiceMessages['keep']>;
+      try {
+        kept = voice.keep(audio, type);
+      } catch (err) {
+        if (err instanceof VoiceError) return fail(err.status, err.message);
+        throw err;
+      }
+      return hub.send(screen.id, {
+        kind: 'voice',
+        id: randomUUID(),
+        title: tvTitle(sender),
+        audio: `/api/screen/clips/${kept.token}.${kept.extension}`,
+        contentType: kept.contentType,
+      });
+    };
     try {
-      kept = voice.keep(audio, c.req.header('content-type') ?? '');
+      if (!fallback) {
+        const report = await toScreen();
+        return report.ok ? c.json({ device: screen.name, fallback: null } satisfies ScreenVoiceResult) : fail(502, `${screen.name} : ${report.reason}`);
+      }
+      const done = await fallback.announce(screen.id, toScreen, async (device) => void (await voice.send(device.id, audio, type, sender)), screen.name);
+      if ('refused' in done) return fail(502, `${screen.name} : ${done.refused.reason}`);
+      return c.json(done satisfies ScreenVoiceResult);
     } catch (err) {
       if (err instanceof VoiceError) return fail(err.status, err.message);
       throw err;
     }
-    const report = await hub.send(screen.id, {
-      kind: 'voice',
-      id: randomUUID(),
-      title: tvTitle(sender),
-      audio: `/api/screen/clips/${kept.token}.${kept.extension}`,
-      contentType: kept.contentType,
-    });
-    return report.ok ? c.json({ device: screen.name }) : fail(502, `${screen.name} : ${report.reason}`);
+  });
+
+  // --- Le secours d'une télé éteinte (tablette) ---
+
+  api.get('/screens/fallbacks', async (c) => {
+    await access.kiosk(c);
+    const ids = (await screens.list()).map((s) => s.id);
+    return c.json(fallback ? await fallback.settings(ids) : { devices: [], screens: [] });
+  });
+
+  api.put('/screens/:id/fallback', async (c) => {
+    await tabletParent(c);
+    const screen = await screenOf(c.req.param('id'));
+    const { device } = await readBody(c, fallbackSchema, 'Attendu : { "device": "<appareil Cast>" } ou { "device": null }');
+    if (!fallback || !(await fallback.choose(screen.id, device))) return fail(400, UNKNOWN_FALLBACK);
+    return c.json(await fallback.settings((await screens.list()).map((s) => s.id)));
   });
 
   // --- La télécommande (un parent) ---

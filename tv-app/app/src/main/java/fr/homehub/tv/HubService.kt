@@ -1,7 +1,8 @@
 // Service au premier plan qui garde la télé reliée à HomeHub : il attend ses événements par interrogation longue
 // (GET /api/screen/events, 25 s côté serveur), télécharge chaque message vocal, le lit son du programme baissé avec le
 // bandeau, et rend compte au serveur dès que la lecture commence (ou de l'échec). Les messages passent l'un après
-// l'autre. HomeHub injoignable : nouvel essai de plus en plus espacé (jusqu'à 1 min). Télé retirée (401) : jeton
+// l'autre ; écran éteint (veille), un message est refusé pour que HomeHub le fasse lire par le Google Home (fonction
+// 7). HomeHub injoignable : nouvel essai de plus en plus espacé (jusqu'à 1 min). Télé retirée (401) : jeton
 // oublié, l'écran d'accueil propose un nouveau code.
 // Télécommande du téléphone : les ordres (touches, texte, appli, marche/arrêt) passent à Telecommande (injecteur par
 // l'adb local, ou secours), l'un après l'autre, avec compte rendu. Le service dit à HomeHub où en est la télé (écran
@@ -194,9 +195,18 @@ class HubService : Service() {
         false
     }
 
-    /** Un message vocal : téléchargement, lecture avec bandeau, compte rendu ; attend la fin avant le suivant. */
+    /**
+     * Un message vocal : téléchargement, lecture avec bandeau, compte rendu ; attend la fin avant le suivant. Écran
+     * éteint : refusé sans le télécharger (HomeHub le fait lire par le Google Home), et l'état est renvoyé.
+     */
     private fun handleVoice(server: String, token: String, event: VoiceEvent) {
         val client = HubClient(server, token)
+        screenOn = getSystemService(PowerManager::class.java).isInteractive
+        voiceRefusal(screenOn)?.let {
+            send(client, event, it)
+            sendState()
+            return
+        }
         val file = File(cacheDir, "message.${event.audio.substringAfterLast('.', "audio")}")
         speaking = true
         val report = try {

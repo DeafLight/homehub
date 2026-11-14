@@ -1,5 +1,5 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
-// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus), compte rendu, état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -9,7 +9,15 @@ object Protocol {
     /** Doit valoir SCREEN_PROTOCOL de shared/screen.ts. */
     const val VERSION = 1
     const val HEADER = "X-HomeHub-Screen"
+    /** Refus d'un message vocal écran éteint ; doit valoir SCREEN_OFF_REASON de shared/screen.ts (HomeHub bascule alors vers le Google Home). */
+    const val SCREEN_OFF = "écran éteint"
 }
+
+/**
+ * Compte rendu d'un message vocal avant de le lire : écran éteint (veille rapide, réseau gardé), personne ne le verrait
+ * ni ne l'entendrait, il est refusé pour que HomeHub le fasse lire ailleurs ; écran allumé : null, on le lit.
+ */
+fun voiceRefusal(screenOn: Boolean): String? = if (screenOn) null else reportJson(false, Protocol.SCREEN_OFF)
 
 data class PairingStart(val id: String, val code: String, val expiresAt: String)
 
