@@ -41,7 +41,8 @@ Also bump the version in the first line of `docs/ecrans.md` ("Captures de HomeHu
 ## 3. Clean up capture noise
 Captures are reshot every time; many differ only by noise. Keep a changed image only if the release changed that
 screen; otherwise restore it.
-- Always noise: tablet captures (`tablette-*.png`, real weather of the day), `planche-design.png`,
+- Always noise: tablet captures (`tablette-*.png`; the weather is fake and stable since the TV rain alert, keep a
+  weather change only if `fake-weather.ts` changed), `planche-design.png`,
   `telephone-scanner.png` (fake camera frame), and any capture with a running animation
   (`telephone-sport-exercice.png`: frozen at another instant).
 - Restore only *tracked* files (new captures are untracked and must be kept):

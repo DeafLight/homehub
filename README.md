@@ -332,6 +332,14 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   code. Installation par `adb`, hors du Play Store : voir [`tv-app/README.md`](tv-app/README.md) et le plan
   [`docs/appli-tele.md`](docs/appli-tele.md) (message écrit en bandeau : voir plus haut ; prochaines versions : réponses à la télécommande,
   bascule vers le Google Home quand la télé est éteinte…).
+- **Alerte pluie sur la télé** (appli HomeHub TV, section `rainAlert`) : le matin, de 7 h à 8 h 30 les jours d'école
+  (lundi à vendredi par défaut, ni vacances scolaires ni jours fériés, comme le trajet du bus), si la météo déjà
+  chargée prévoit de la pluie dans les 3 heures (au moins 0,5 mm sur une heure), chaque télé appairée affiche en haut
+  à droite, par-dessus le programme, un bandeau parapluie « **Pluie vers 8 h** · Prenez un parapluie » (« **Il
+  pleut** » si elle a commencé), pendant 60 s, **une fois par matin**. Le serveur vérifie toutes les 30 s : une télé
+  allumée plus tard dans la plage le reçoit à son tour, une pluie annoncée en cours de plage aussi ; une télé éteinte
+  toute la plage ne reçoit rien après. Plage, jours, horizon, seuil, durée et arrêt : voir [Configuration](#configuration).
+  Rien de personnel : seulement la météo de la maison.
 - **Télécommande de la télé** (téléphone d'un parent, bouton télé en haut de l'appli, `/m/tele`) : pour une télé qui a
   l'appli HomeHub TV. En-tête : nom et état de la télé (**allumée**, **en veille**, **injoignable**) et bouton
   marche/arrêt. Onglet **Touches** : pavé de flèches avec **OK** au centre, Retour, Accueil, lecture/pause, volume −,
@@ -683,6 +691,14 @@ weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
   longitude: 2.35
+rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV), valeurs par défaut
+  enabled: true      # false : plus d'alerte
+  from: "07:00"      # plage du matin, jours d'école seulement (ni vacances scolaires ni jours fériés)
+  to: "08:30"
+  days: [lun, mar, mer, jeu, ven]
+  hours: 3           # pluie cherchée dans les 3 heures qui viennent…
+  thresholdMm: 0.5   # … à partir de 0,5 mm sur une heure
+  seconds: 60        # durée du bandeau sur la télé
 ```
 
 | Variable | Défaut | Rôle |
@@ -806,6 +822,7 @@ server/
   stock-api.ts             routes du stock et du scanner
   services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
   services/screen-bus.ts   alerte du bus du matin sur les télés HomeHub TV (« Bus dans 9 min »)
+  services/rain-alert.ts   alerte pluie du matin sur les télés : plage, jours d'école, seuil, une fois par matin
   screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
   screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
   services/timer-alerts.ts guetteur des minuteurs : liste `timers` en cours, alerte `timer` aux télés allumées, `timer-clear` à l'arrêt

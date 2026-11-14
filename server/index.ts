@@ -11,6 +11,8 @@ import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
+import { createRainAlert } from './services/rain-alert.ts';
+import { createScreenHub } from './services/screens.ts';
 import { createSchoolLifeService } from './services/school-life.ts';
 import { createVoiceMessages } from './services/voice-messages.ts';
 import { type Credentials, createEcoleDirecteClient, createEcoleDirecteSource } from './sources/ecoledirecte.ts';
@@ -190,7 +192,18 @@ const nas = createNasService({
 const schoolLife = createSchoolLifeService({ household, school: sources.school, logger: console });
 // Messages vocaux vers les appareils Cast : partagés entre l'application et le port des médias.
 const voice = createVoiceMessages({ rules: () => config.current().cast, clock });
-const app = createApp({ voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
+// Événements des télés (appli HomeHub TV) : partagés entre l'application et l'alerte pluie du matin.
+const screenHub = createScreenHub({ clock });
+createRainAlert({
+  rules: () => config.current().rainAlert,
+  hours: async () => (await sources.weather.forecast())?.hours ?? null,
+  holidays: () => holidays.list(),
+  screens: async () => (await screens.list()).map((s) => s.id),
+  hub: screenHub,
+  clock,
+  logger: console,
+}).start();
+const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

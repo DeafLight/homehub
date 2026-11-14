@@ -38,6 +38,10 @@ weather:
   label: Angers
   latitude: 47.47
   longitude: -0.55
+# Alerte pluie (fausse météo de fake-weather.ts : pluie vers 8 h) sur la fausse appli HomeHub TV, dès 7 h 35.
+rainAlert:
+  from: "07:00"
+  to: "08:30"
 transit:
   stops:
     - { id: RALL, label: Ralliement }

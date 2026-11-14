@@ -1,11 +1,12 @@
 // Monde fictif des captures de la doc : horloge arrêtée un jeudi matin, faux ÉcoleDirecte (emploi du temps, devoirs,
 // notes, absences et retards, messagerie du compte Famille), faux temps réel Irigo,
 // fausses bases de produits (Open Food Facts et ses sœurs), calendrier scolaire d'exemple, faux site de
-// recettes (fake-recipes.ts), fausse enseigne de drive (fake-drive.ts).
-// Aucune connexion réelle à l'école ni à Irigo ; la météo (Open-Meteo) et les horaires GTFS restent les vrais.
+// recettes (fake-recipes.ts), fausse enseigne de drive (fake-drive.ts), fausse météo
+// pluvieuse (fake-weather.ts). Aucune connexion réelle à l'école ni à Irigo ; seuls les horaires GTFS restent les vrais.
 import { readFileSync } from 'node:fs';
 import { DRIVE_HOST, fakeDriveSite } from './fake-drive.ts';
 import { fakeRecipeSite, RECIPE_HOST } from './fake-recipes.ts';
+import { fakeOpenMeteo } from './fake-weather.ts';
 
 /** Jeudi 5 novembre 2026, 07:35 (heure locale) : cours du jour, routine du matin, bandeau du bus. */
 export const DOCS_NOW = new Date(2026, 10, 5, 7, 35, 0).getTime();
@@ -197,8 +198,8 @@ function fakeSchoolCalendar(): Response {
 }
 
 /**
- * Remplace ÉcoleDirecte, le temps réel Irigo, les bases de produits, le calendrier scolaire, les sites de recettes et
- * la télé par des réponses d'exemple ; le reste passe au vrai `fetch`.
+ * Remplace ÉcoleDirecte, le temps réel Irigo, les bases de produits, le calendrier scolaire, les sites de recettes,
+ * la télé et la météo par des réponses d'exemple ; le reste passe au vrai `fetch`.
  */
 export function installFakeSources(): void {
   const realFetch = globalThis.fetch;
@@ -210,6 +211,7 @@ export function installFakeSources(): void {
     if (url.hostname === 'data.education.gouv.fr') return fakeSchoolCalendar();
     if (url.hostname === RECIPE_HOST) return fakeRecipeSite(url);
     if (url.hostname === DRIVE_HOST) return fakeDriveSite(url);
+    if (url.hostname === 'api.open-meteo.com') return fakeOpenMeteo();
     return realFetch(input, init);
   }) as typeof fetch;
   process.env.ECOLEDIRECTE_IDENTIFIANT = 'docs';

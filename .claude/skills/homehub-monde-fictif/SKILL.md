@@ -9,7 +9,8 @@ description: Run HomeHub in its fictional world (test family, fake school and tr
 configuration (`scripts/docs-captures/homehub.yaml`: Alex, Sam, Léa, Tom, Angers), fake services
 (`scripts/docs-captures/fake-world.ts`: ÉcoleDirecte, Irigo real time, product databases) and a fresh state folder
 written by the script (paired phones, sport programme, fictional face…). Nothing real: never point it at real
-accounts. Weather (Open-Meteo) and GTFS timetables are the real ones, hence capture noise.
+accounts. Weather is fake too (`scripts/docs-captures/fake-weather.ts`: grey Thursday, rain from 8 a.m., which also
+triggers the TV rain alert); GTFS timetables are the real ones, hence some capture noise.
 
 ## Look at a screen
 ```bash

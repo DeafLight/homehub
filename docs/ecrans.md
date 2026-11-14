@@ -359,6 +359,14 @@ toucher au son (**maquette**, même programme inventé). Rien les jours sans éc
 
 ![Maquette d'une télé : bandeau « Bus dans 11 min, Léa, ligne 3 vers Collège, pars dans 7 min » en haut à droite d'un programme](images/tele-bus.png)
 
+### Alerte pluie sur la télé
+
+Le matin, les jours d'école, si la météo annonce de la pluie dans les heures qui viennent, HomeHub envoie de lui-même
+à la télé un bandeau parapluie, une fois par matin : ici la fausse météo du monde fictif, pluie vers 8 h, reçue à
+7 h 35 par-dessus le dessin animé du matin (**maquette**, bandeau dessiné comme celui de l'appli).
+
+![Maquette d'une télé : bandeau parapluie « Pluie vers 8 h, prenez un parapluie » en haut à droite d'un dessin animé](images/tele-appli-pluie.png)
+
 ### Télécommande de la télé (téléphone d'un parent)
 
 Le bouton télé en haut de l'appli ouvre la **Télécommande** de la télé du salon (appli HomeHub TV) : son état

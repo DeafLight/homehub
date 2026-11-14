@@ -5,7 +5,7 @@
 //   node scripts/docs-captures.ts <regex>    seulement les captures dont le nom correspond (ex. « telephone »)
 //   DOCS_SERVE=1 node scripts/docs-captures.ts   le monde fictif reste ouvert (http://localhost:3190), sans captures
 // Chrome est cherché aux emplacements habituels ; sinon : CHROME=<chemin> node scripts/docs-captures.ts
-// Rien de réel : famille de test, faux ÉcoleDirecte, faux temps réel Irigo ; seule la météo est la vraie du jour.
+// Rien de réel : famille de test, faux ÉcoleDirecte, faux temps réel Irigo, fausse météo pluvieuse.
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -20,6 +20,7 @@ import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
 import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
+import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -848,6 +849,21 @@ if (!only || only.test('tele-minuteur')) {
   if (stop.status !== 204) console.warn(`« Arrêter » depuis la fausse télé : HTTP ${stop.status}`);
   for (let i = 0; i < 10 && existsSync(timerFile); i++) await sleep(500);
   if (existsSync(timerFile)) console.warn('Bandeau du minuteur pas retiré de la fausse télé');
+}
+
+// Alerte pluie du matin (fausse météo : pluie vers 8 h) : le serveur l'envoie de lui-même à la fausse appli HomeHub TV,
+// dans sa plage de 7 h à 8 h 30 (vérification toutes les 30 s) ; maquette de l'écran de la télé avec le bandeau.
+if (!only || only.test('tele-appli-pluie')) {
+  for (let i = 0; i < 160 && !existsSync(join(state, FAKE_SCREEN_RAIN_FILE)); i++) await sleep(500);
+  if (!existsSync(join(state, FAKE_SCREEN_RAIN_FILE))) console.warn('Alerte pluie non reçue par la fausse appli HomeHub TV');
+  else {
+    const rainTv = join(work, 'tele-pluie.html');
+    writeFileSync(rainTv, fakeScreenRainTv(JSON.parse(readFileSync(join(state, FAKE_SCREEN_RAIN_FILE), 'utf8'))));
+    const tvRain = await openTarget(pathToFileURL(rainTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(500);
+    await tvRain.capture('tele-appli-pluie');
+    await tvRain.close();
+  }
 }
 
 // Frais à acheter plus tard : deux repas de la semaine prochaine, ajoutés en dernier (les autres captures gardent la

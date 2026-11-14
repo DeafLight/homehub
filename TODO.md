@@ -313,7 +313,10 @@ personne depuis son propre téléphone.
 - [ ] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone.
 - [ ] 12. Séance de sport guidée sur la télé, lancée depuis le téléphone de la personne (seule elle peut la lancer).
 - [ ] 13. Mode cuisine d'une recette sur la télé : étapes en grand, minuteurs intégrés.
-- [ ] 14. Alerte pluie avant de sortir, par-dessus le programme du matin.
+- [x] 14. Alerte pluie avant de sortir, par-dessus le programme du matin : de 7 h à 8 h 30 les jours d'école (ni
+      vacances ni jours fériés), pluie prévue dans les 3 h (0,5 mm sur une heure) → bandeau parapluie « Pluie vers
+      8 h · Prenez un parapluie » sur chaque télé, une fois par matin (section `rainAlert` : plage, jours, horizon,
+      seuil, durée, arrêt) ; fausse météo pluvieuse dans le monde fictif.
 - [ ] 15. Mode « film » : pendant un film, les annonces partent sur le Google Home ou en bandeau discret.
 - [ ] 16. Heure du coucher des enfants : rappel, puis pause, puis écran de veille ; un parent garde la main depuis
       son téléphone.

@@ -182,3 +182,16 @@ weather:
   label: Paris
   latitude: 48.85
   longitude: 2.35
+
+# Alerte pluie sur la télé (appli HomeHub TV) : le matin, de `from` à `to`, les jours `days` qui ne sont ni en
+# vacances scolaires ni fériés, si la météo prévoit au moins `thresholdMm` mm de pluie sur une heure dans les `hours`
+# heures qui viennent, bandeau « Pluie vers 8 h : prenez un parapluie » sur les télés appairées, une fois par matin,
+# pendant `seconds` secondes. Il faut la section weather. Valeurs par défaut ci-dessous ; enabled: false l'arrête.
+# rainAlert:
+#   enabled: true
+#   from: "07:00"
+#   to: "08:30"
+#   days: [lun, mar, mer, jeu, ven]
+#   hours: 3
+#   thresholdMm: 0.5
+#   seconds: 60

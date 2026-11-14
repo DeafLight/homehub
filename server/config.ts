@@ -220,6 +220,24 @@ export const configSchema = z.object({
         .refine((list) => new Set(list.map((d) => d.id)).size === list.length, { message: 'identifiants en double' }),
     })
     .default({ devices: [] }),
+  /**
+   * Alerte pluie sur la télé (appli HomeHub TV, fonction 14) : le matin, de `from` à `to`, les jours `days` qui ne sont
+   * ni en vacances scolaires ni fériés, si la météo prévoit au moins `thresholdMm` mm de pluie sur une heure dans les
+   * `hours` heures qui viennent, bandeau « Pluie vers 8 h : prenez un parapluie » sur chaque télé appairée, une fois
+   * par matin, pendant `seconds` secondes. Il faut la section `weather`. `enabled: false` l'arrête.
+   */
+  rainAlert: z
+    .object({
+      enabled: z.boolean().default(true),
+      from: hhmm.default('07:00'),
+      to: hhmm.default('08:30'),
+      days: z.array(z.enum(WEEK_DAYS)).min(1).default(['lun', 'mar', 'mer', 'jeu', 'ven']),
+      hours: z.number().int().min(1).max(12).default(3),
+      thresholdMm: z.number().min(0.1).max(20).default(0.5),
+      seconds: z.number().int().min(5).max(300).default(60),
+    })
+    .refine((r) => r.from < r.to, { message: 'rainAlert : le début doit précéder la fin' })
+    .prefault({}),
   /** Absent : pas de météo affichée. */
   weather: z
     .object({

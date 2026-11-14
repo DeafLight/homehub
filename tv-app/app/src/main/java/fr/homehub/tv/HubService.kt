@@ -133,6 +133,7 @@ class HubService : Service() {
                 minuteurs.running(parseRunningTimers(json))
                 minuteurs.handle(parseTimerEvents(json))
                 events.bus.forEach { event -> remote.execute { handleBus(server, token, event) } }
+                parseRainEvents(json).forEach { event -> remote.execute { handleRain(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -228,6 +229,14 @@ class HubService : Service() {
         }
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", reportJson(failure == null, failure)) }
         if (event is RemoteEvent.Launch || event is RemoteEvent.Power) sendState()
+    }
+
+    /** Alerte pluie du matin : bandeau parapluie pendant la durée demandée, puis compte rendu. */
+    private fun handleRain(server: String, token: String, event: RainEvent) {
+        val shown = banner.show(event.title, event.subtitle, voice = false, icon = R.drawable.ic_umbrella)
+        if (shown) Handler(mainLooper).postDelayed({ banner.hide() }, rainBannerMs(event))
+        val report = if (shown) reportJson(true) else reportJson(false, "autorisation « afficher par-dessus » manquante")
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 
     /** Un message écrit : bandeau qui s'en va seul au bout de sa durée, puis compte rendu (affiché, ou pourquoi pas). */

@@ -82,6 +82,12 @@ export type ScreenTimersEvent = { kind: 'timers'; id: string; serverNow: string;
  */
 export type ScreenBusEvent = { kind: 'bus'; id: string; title: string; subtitle: string; seconds: number };
 
+/**
+ * Alerte pluie du matin (fonction 14, server/services/rain-alert.ts) : bandeau « Pluie vers 8 h » / « Prenez un
+ * parapluie » par-dessus le programme, icône parapluie, pendant `seconds` secondes. Rien de personnel.
+ */
+export type ScreenRainEvent = { kind: 'rain'; id: string; title: string; subtitle: string; seconds: number };
+
 export type ScreenEventBody =
   | ScreenVoiceEvent
   | ScreenKeysEvent
@@ -92,7 +98,8 @@ export type ScreenEventBody =
   | ScreenTimerEvent
   | ScreenTimerClearEvent
   | ScreenTimersEvent
-  | ScreenBusEvent;
+  | ScreenBusEvent
+  | ScreenRainEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

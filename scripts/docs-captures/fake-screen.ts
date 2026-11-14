@@ -9,11 +9,13 @@
 // Minuteur terminé (fonction 3) : l'alerte reçue va dans fake-screen-timer.json (retirée quand le minuteur est
 // arrêté), pour la maquette du bandeau « Arrêter ». Minuteurs en cours : la dernière liste reçue va dans
 // fake-screen-timers.json, pour la maquette du petit décompte en bas à droite. Alerte du bus du matin (fonction 4) :
-// le dernier bandeau reçu va dans fake-screen-bus.json (maquette : fake-screen-bus.ts).
+// le dernier bandeau reçu va dans fake-screen-bus.json (maquette : fake-screen-bus.ts). Alerte pluie
+// du matin (fonction 14) : le bandeau reçu va dans fake-screen-rain.json (maquette : fake-screen-rain.ts).
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
 import { fakeScreenApps } from './fake-banners.ts';
+import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
 
 export const FAKE_SCREEN_TOKEN = 'docs-tele';
 export const FAKE_SCREEN_ID = 'docs-tele';
@@ -74,6 +76,12 @@ export function startFakeScreen(base: string) {
       const { events, last } = (await res.json()) as ScreenEvents;
       after = last;
       for (const event of events) {
+        if (event.kind === 'rain') {
+          writeFileSync(join(dir, FAKE_SCREEN_RAIN_FILE), JSON.stringify({ title: event.title, subtitle: event.subtitle }));
+          console.log(`Fausse appli HomeHub TV, alerte pluie : ${event.title}`);
+          await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
+          continue;
+        }
         if (event.kind === 'message') {
           writeFileSync(join(dir, FAKE_SCREEN_TEXT_FILE), JSON.stringify({ title: event.title, text: event.text, seconds: event.seconds } satisfies FakeScreenText));
           console.log(`Fausse appli HomeHub TV, message écrit : ${event.title}, « ${event.text} »`);

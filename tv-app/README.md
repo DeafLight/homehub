@@ -8,7 +8,7 @@ le son du programme baissé**, avec un bandeau « Message d'Alex », et affiche 
 haut de l'écran pendant `tv.seconds` (10 s par défaut), en rendant compte au téléphone. Elle sert aussi de **télécommande** depuis le
 téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs** de la maison en cours s'y décomptent en petit en bas à droite ; celui qui se termine s'y affiche avec un carillon court ;
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). L'**alerte du bus du matin** s'y affiche (« Bus dans 9 min », bandeau icône bus pendant 45 s, réglée par
-trajet sur la page Transports de la tablette). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
+trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
 (`package.json`).
@@ -18,7 +18,8 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `MainActivity.kt` | Écran d'accueil : adresse de HomeHub, code d'appairage, état, « Essayer le bandeau » |
 | `HubService.kt` | Service au premier plan : événements, téléchargement, lecture, message écrit, compte rendu |
 | `VoicePlayer.kt` | Lecture avec focus audio transitoire « avec baisse du son » |
-| `OverlayBanner.kt` | Bandeau par-dessus les autres applis : message vocal ou avis (en haut à droite), message écrit (en haut au centre, s'en va seul), alerte du bus (en haut à droite) |
+| `OverlayBanner.kt` | Bandeau par-dessus les autres applis : message vocal ou avis (en haut à droite), message écrit (en haut au centre, s'en va seul), alertes du bus et de la pluie (en haut à droite) |
+| `Pluie.kt` | Alerte pluie du matin : lecture des événements `rain`, durée du bandeau |
 | `HubClient.kt`, `Protocol.kt` | Appels HTTP et protocole (`shared/screen.ts` côté serveur) |
 | `BootReceiver.kt` | Redémarrage avec la télé et après une mise à jour |
 | `AdbProtocol.kt`, `AdbClient.kt` | Client `adb` minimal vers la télé elle-même (`127.0.0.1:5555`) : messages, clé RSA gardée par l'appli, flux `shell:` |
