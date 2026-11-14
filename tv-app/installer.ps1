@@ -1,5 +1,6 @@
 ﻿# Construit HomeHub TV et l'installe (ou la met à jour) sur la télé par adb, sur le réseau de la maison.
 # Première fois : -Serveur donne l'adresse de HomeHub à l'appli et autorise le bandeau (appops).
+# À chaque fois : l'appli est mise dans la liste blanche Doze (deviceidle).
 #   .\tv-app\installer.ps1 -Tele 192.168.1.50 -Serveur http://192.168.1.10:3000
 # Ensuite : .\tv-app\installer.ps1 -Tele 192.168.1.50
 # Outils attendus (docs/appli-tele.md) : JDK 17 et SDK Android dans C:\Android, sauf JAVA_HOME / ANDROID_HOME définis.
@@ -32,6 +33,11 @@ if (-not $apk) { throw 'APK introuvable : clé de signature absente (%USERPROFIL
 & $adb -s "${Tele}:5555" wait-for-device
 & $adb -s "${Tele}:5555" install -r $apk.FullName
 if ($LASTEXITCODE -ne 0) { throw 'Installation refusée par la télé' }
+
+# Liste blanche Doze, à chaque fois (sans effet si l'appli y est déjà) : pendant une longue veille, Android ne lui
+# coupe ni le réseau ni le processeur. Réglage gardé après un redémarrage de la télé.
+Write-Host "Liste blanche Doze : $paquet."
+& $adb -s "${Tele}:5555" shell dumpsys deviceidle whitelist "+$paquet"
 
 if ($Serveur) {
     & $adb -s "${Tele}:5555" shell appops set $paquet SYSTEM_ALERT_WINDOW allow

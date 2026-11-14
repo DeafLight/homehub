@@ -140,7 +140,8 @@ approximatives, à confirmer au téléchargement :
    affiche alors le code d'appairage, à taper sur la tablette.
 8. **Éviter qu'elle soit tuée** : vérifier qu'elle repart après un redémarrage et une mise en veille ; si le fabricant
    tue les applis en arrière-plan, l'exclure de l'optimisation de batterie
-   (`adb shell dumpsys deviceidle whitelist +fr.homehub.tv`).
+   (`adb shell dumpsys deviceidle whitelist +fr.homehub.tv`). `tv-app/installer.ps1` le fait à chaque installation
+   (liste blanche Doze, gardée après un redémarrage) ; la commande à la main ne sert que sans le script.
 
 Les commandes exactes iront dans le README de `tv-app/` (avec des adresses d'exemple, rien de réel dans le dépôt).
 

@@ -43,10 +43,14 @@ C:\Android\gradle-8.11.1\bin\gradle.bat -p tv-app test assembleRelease   # APK :
 4. La télé affiche un code : sur la tablette, roue dentée → Téléphones → **Télés**, taper le code et le nom, un
    parent devant la tablette.
 
-Le script installe l'APK, autorise le bandeau (`appops set fr.homehub.tv SYSTEM_ALERT_WINDOW allow`) et donne
-l'adresse de HomeHub (`am start … --es server …`). Une autre adresse plus tard fait oublier l'appairage.
+Le script installe l'APK, autorise le bandeau (`appops set fr.homehub.tv SYSTEM_ALERT_WINDOW allow`), met l'appli
+dans la liste blanche Doze et donne l'adresse de HomeHub (`am start … --es server …`). Une autre adresse plus tard
+fait oublier l'appairage.
 
-Si la télé tue l'appli en arrière-plan : `adb shell dumpsys deviceidle whitelist +fr.homehub.tv`.
+Liste blanche Doze : à chaque installation ou mise à jour, le script passe
+`dumpsys deviceidle whitelist +fr.homehub.tv`, pour qu'Android ne coupe ni le réseau ni le processeur de l'appli
+pendant une longue veille ; la télé garde ce réglage après un redémarrage. La commande à la main
+(`adb shell dumpsys deviceidle whitelist +fr.homehub.tv`) ne sert qu'après une installation sans le script.
 
 ## Mise à jour
 
