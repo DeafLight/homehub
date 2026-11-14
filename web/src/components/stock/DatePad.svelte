@@ -1,17 +1,20 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { shortDay } from '../../../../shared/expiry.ts';
   import type { DateKind, LotChange, LotView } from '../../../../shared/types.ts';
-  import { digitsOf, type PadMode, padDate, padDisplay, padHint, typeDigit } from '../../lib/date-pad.ts';
+  import { digitsOf, type PadMode, padDate, padDisplay, padExtras, padHint, typeDigit } from '../../lib/date-pad.ts';
   import Icon from '../Icon.svelte';
 
-  // Pavé de la date d'un lot (scanner, page Stock, téléphone) : DLC ou DDM (retenu par produit), jour et mois au pavé
-  // (l'année se devine), « Mois et année seuls » pour une DDM « 03/2027 », « Même date que le précédent », « N à une
-  // autre date… » (une partie du lot), « Passer » : rien n'est jamais exigé. Logique : lib/date-pad.ts.
+  // Pavé de la date d'un lot (scanner, page Stock, téléphone) : DLC ou DDM (retenu par produit), clavier 3 × 4 façon
+  // téléphone (jour et mois, l'année se devine ; touche « Mois / an » pour une DDM « 03/2027 » ; touche d'effacement),
+  // « Même date : 12/11 » (la dernière donnée), et sous « Plus » les options rares (une partie du lot à une autre date,
+  // retirer la date, ne plus demander). « Passer » et « Enregistrer » restent fixés en bas de la fenêtre, même quand
+  // elle défile sur un petit téléphone : rien n'est jamais exigé. Logique : lib/date-pad.ts.
   type Props = {
     title: string;
     lot: LotView;
     today: string;
-    /** Dernière date donnée pendant ce passage (« Même date que le précédent »). */
+    /** Dernière date donnée pendant ce passage (« Même date »). */
     previous?: string | null;
     busy: boolean;
     onSave: (change: LotChange) => void;
@@ -26,13 +29,21 @@
   let mode = $state<PadMode>('day');
   /** Unités à une autre date (null : tout le lot). */
   let split = $state<number | null>(null);
+  /** Options rares dépliées. */
+  let more = $state(false);
 
   const date = $derived(padDate(digits, mode, today));
   const unit = $derived(lot.count > 1 ? `${lot.count} unités` : '1 unité');
+  const extras = $derived(padExtras(lot, split !== null, onNeverAsk !== undefined));
 
   function save() {
     if (!date) return;
     onSave(split !== null ? { kind, split: { count: split, date } } : { kind, date });
+  }
+
+  function toggleMonth() {
+    mode = mode === 'month' ? 'day' : 'month';
+    digits = '';
   }
 </script>
 
@@ -50,34 +61,47 @@
   </div>
 
   <div class="keys">
-    {#each ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as d (d)}
+    {#each ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as d (d)}
       <button type="button" onclick={() => (digits = typeDigit(digits, d))}>{d}</button>
     {/each}
+    <button type="button" class="word" class:on={mode === 'month'} aria-pressed={mode === 'month'} aria-label="Mois et année seuls" onclick={toggleMonth}>Mois / an</button>
+    <button type="button" onclick={() => (digits = typeDigit(digits, '0'))}>0</button>
+    <button type="button" aria-label="Effacer un chiffre" disabled={!digits} onclick={() => (digits = digits.slice(0, -1))}><Icon name="erase" size={26} /></button>
   </div>
 
-  <div class="row">
-    <button type="button" class="btn small" aria-label="Effacer un chiffre" disabled={!digits} onclick={() => (digits = digits.slice(0, -1))}><Icon name="back" size={20} /> Effacer</button>
-    {#if previous}
-      <button
-        type="button"
-        class="btn small"
-        onclick={() => {
-          mode = 'day';
-          digits = digitsOf(previous);
-        }}>Même date que le précédent</button
-      >
-    {/if}
-    <button
-      type="button"
-      class="btn small"
-      class:on={mode === 'month'}
-      aria-pressed={mode === 'month'}
-      onclick={() => {
-        mode = mode === 'month' ? 'day' : 'month';
-        digits = '';
-      }}>Mois et année seuls</button
-    >
-  </div>
+  {#if previous || extras.length}
+    <div class="row">
+      {#if previous}
+        <button
+          type="button"
+          class="chip same"
+          onclick={() => {
+            mode = 'day';
+            digits = digitsOf(previous);
+          }}>Même date : {shortDay(previous)}</button
+        >
+      {/if}
+      {#if extras.length}
+        <button type="button" class="chip" aria-expanded={more} onclick={() => (more = !more)}>
+          Plus <span class="caret" class:open={more}><Icon name="chevron" size={16} /></span>
+        </button>
+      {/if}
+    </div>
+  {/if}
+
+  {#if more && extras.length}
+    <div class="row extras">
+      {#if extras.includes('split')}
+        <button type="button" class="btn small" onclick={() => (split = 1)}>{lot.count > 2 ? 'Une partie' : '1'} à une autre date…</button>
+      {/if}
+      {#if extras.includes('clear')}
+        <button type="button" class="btn small" disabled={busy} onclick={() => onSave({ date: null })}>Retirer la date</button>
+      {/if}
+      {#if extras.includes('never') && onNeverAsk}
+        <button type="button" class="btn small" disabled={busy} onclick={onNeverAsk}>Ne plus demander</button>
+      {/if}
+    </div>
+  {/if}
 
   {#if split !== null}
     <div class="row split">
@@ -89,17 +113,8 @@
     </div>
   {/if}
 
-  <div class="row actions">
+  <div class="foot">
     <button type="button" class="btn" onclick={onSkip}>Passer</button>
-    {#if lot.count > 1 && split === null}
-      <button type="button" class="btn" onclick={() => (split = 1)}>{lot.count > 2 ? 'Une partie' : '1'} à une autre date…</button>
-    {/if}
-    {#if onNeverAsk}
-      <button type="button" class="btn" disabled={busy} onclick={onNeverAsk}>Ne plus demander</button>
-    {/if}
-    {#if lot.date && split === null}
-      <button type="button" class="btn" disabled={busy} onclick={() => onSave({ date: null })}>Retirer la date</button>
-    {/if}
     <button type="button" class="btn primary" disabled={busy || !date} onclick={save}>Enregistrer</button>
   </div>
 </div>
@@ -131,7 +146,7 @@
 
   .kinds button {
     flex: 1;
-    min-height: 48px;
+    min-height: 44px;
     border: 0;
     border-radius: 999px;
     background: none;
@@ -161,12 +176,14 @@
 
   .keys {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-1);
   }
 
   .keys button {
-    min-height: 56px;
+    display: grid;
+    min-height: 52px;
+    place-items: center;
     border: 0;
     border-radius: var(--radius-sm);
     background: var(--surface-2);
@@ -176,6 +193,19 @@
     font-weight: 600;
   }
 
+  .keys button:disabled {
+    color: var(--fg-muted);
+  }
+
+  .keys .word {
+    font-size: var(--text-small);
+  }
+
+  .keys .on {
+    background: var(--rain);
+    color: var(--bg);
+  }
+
   .row {
     display: flex;
     flex-wrap: wrap;
@@ -183,9 +213,35 @@
     gap: var(--space-1);
   }
 
-  .row .on {
-    background: var(--rain);
-    color: var(--bg);
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: none;
+    color: var(--fg-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+
+  .chip.same {
+    border: 1px dashed var(--rain-soft);
+    background: var(--rain-bg);
+    color: var(--rain-soft);
+  }
+
+  .caret {
+    display: inline-grid;
+    transform: rotate(90deg);
+    transition: transform 0.15s;
+  }
+
+  .caret.open {
+    transform: rotate(-90deg);
   }
 
   .split strong {
@@ -194,7 +250,24 @@
     text-align: center;
   }
 
-  .actions .primary {
-    margin-left: auto;
+  /* Passer et Enregistrer : fixés au bas de la fenêtre (Modal, qui défile), par-dessus sa marge du bas. */
+  .foot {
+    position: sticky;
+    bottom: calc(-1 * var(--space-3));
+    display: flex;
+    gap: var(--space-1);
+    margin-bottom: calc(-1 * var(--space-3));
+    padding: var(--space-2) 0 var(--space-3);
+    border-top: 1px solid var(--surface-2);
+    background: var(--surface);
+  }
+
+  .foot .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .foot .primary {
+    flex: 2;
   }
 </style>

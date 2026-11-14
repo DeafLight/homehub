@@ -1,7 +1,7 @@
 // Tests des règles du scanner : journal du passage, bandeau après une sortie, saisie à la main, caméra en panne.
 import { describe, expect, it } from 'vitest';
 import type { Container, LotView, Product, StockMovementResult } from '../../../shared/types.ts';
-import { addEntry, afterOut, cameraProblem, entryDateChip, entryOf, noteLot, entrySubtitle, MAX_ENTRIES, markUndone, noteShoppingAdded, pendingEntry, readManualCode, refillContainer, renameProduct } from './scan.ts';
+import { addEntry, afterOut, cameraProblem, entryActions, entryDateChip, entryOf, noteLot, entrySubtitle, MAX_ENTRIES, markUndone, noteShoppingAdded, pendingEntry, readManualCode, refillContainer, renameProduct } from './scan.ts';
 
 const product = (over: Partial<Product> = {}): Product => ({
   code: '3560070446117',
@@ -61,6 +61,11 @@ describe('journal du scanner', () => {
     const dated = { ...lot, date: '2026-11-07', due: '2026-11-07', level: 'urgent' as const };
     expect(entryDateChip({ ...entry, lot: dated })).toEqual({ label: 'DLC 7/11', tone: 'warn' });
     expect(entryDateChip({ ...entry, kind: 'out' })).toBeNull();
+    // Corrections : fiche et annuler ; « Recharge ? » pour une sortie seulement ; rien une fois annulée.
+    expect(entryActions(entry)).toEqual(['sheet', 'undo']);
+    expect(entryActions({ ...entry, kind: 'out' })).toEqual(['sheet', 'refill', 'undo']);
+    expect(entryActions({ ...entry, kind: 'empty', product: null })).toEqual(['undo']);
+    expect(entryActions({ ...entry, undone: true })).toEqual([]);
     // Deux pots sur quatre à une autre date : l'entrée garde les deux autres.
     const [split] = noteLot([entry], entry.id, { ...dated, id: 'l2', count: 2 }, fresh, 2);
     expect(split.lot).toMatchObject({ id: 'l1', count: 2 });

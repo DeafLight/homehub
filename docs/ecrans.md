@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.71.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.72.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -175,7 +175,8 @@ dans Chrome sans fenêtre : codes saisis à la main.)
 
 **Dates de péremption** : des yaourts rangés, déjà datés une fois, portent la pastille « Date ? » ; le scan continue
 sans elle. Touchée, elle ouvre le pavé : DLC ou DDM, jour puis mois (ici 09/11, « lundi 9 novembre 2026 · dans 4
-jours »), une partie à une autre date, « Ne plus demander » pour ce produit.
+jours ») sur un clavier 3 × 4 (touches « Mois / an » et d'effacement) ; sous « Plus », une partie à une autre date,
+« Ne plus demander » pour ce produit. Passer et Enregistrer restent en bas de la fenêtre.
 
 | Pastille « Date ? » | Pavé de date |
 |---|---|
@@ -380,12 +381,19 @@ avec la courbe de ses répétitions.
 
 ### Scanner du téléphone
 
-Bouton code-barres de l'onglet Courses. Un paquet vient d'être lu et reste devant la caméra : le bandeau donne le
-nom, la marque et la contenance, ce qui a été fait, et demande de retirer le produit (il n'est compté qu'une fois).
-Les scans sont au nom du profil du téléphone (Alex), chaque passage avec son heure.
-Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
+Bouton code-barres de l'onglet Courses. L'aperçu tient en un bandeau en haut ; le passage prend le reste de l'écran.
+Du riz et du lait viennent d'être tapés (icône du clavier dans l'aperçu, qui déplie le champ du code à la main), puis
+un paquet de coquillettes lu reste devant la caméra : le bandeau donne le nom, la marque et la contenance, ce qui a
+été fait, et demande de le retirer (il n'est compté qu'une fois). Les scans sont au nom du profil du téléphone
+(Alex) ; chaque ligne porte sa pastille de date (ici un calendrier : produits sans date d'habitude) et ses
+corrections derrière ⋮ (fiche, recharge, annuler). Ensuite, le pavé de date : la crème vient d'être datée du 12/11,
+les yaourts le sont du 09/11 sur le clavier 3 × 4, « Même date : 12/11 » à côté, les options rares dépliées sous
+« Plus » ; Passer et Enregistrer restent fixés en bas, même quand la fenêtre défile.
+Captures faites avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
 
-<img src="images/telephone-scanner.png" alt="Scanner du téléphone" width="260">
+| Scanner | Pavé de date |
+|---|---|
+| <img src="images/telephone-scanner.png" alt="Scanner du téléphone, aperçu en bandeau et passage" width="260"> | <img src="images/telephone-scanner-date.png" alt="Pavé de date du téléphone, Enregistrer fixé en bas" width="260"> |
 
 Le QR d'une affichette « Poubelle · tri » présenté au scanner ouvert en mode Ranger : un bip, le scanner passe en
 mode Jeté / épuisé et le bandeau le dit. Le QR « Frigo · placard » ramène en mode Ranger. Un QR qui ne mène pas au

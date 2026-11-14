@@ -4,7 +4,8 @@
   import Icon from '../Icon.svelte';
 
   // Image de la caméra du scanner : cadre à viser et consigne, ou, une fois un code lu, l'éclair puis le bandeau du
-  // produit (et « Retire le produit » tant qu'il est devant la caméra). Bouton pour changer de caméra.
+  // produit (et « Retire le produit » tant qu'il est devant la caméra). Bouton pour changer de caméra. Téléphone :
+  // l'image tient en un bandeau, bandeau du produit sur deux lignes au plus, bouton du code à la main (clavier).
   type Props = {
     video?: HTMLVideoElement;
     facing: Facing;
@@ -17,8 +18,11 @@
     mode: ScanMode;
     phone: boolean;
     onSwitch: () => void;
+    /** Téléphone : déplier ou replier le champ du code à la main. */
+    onManual?: () => void;
+    manualOpen?: boolean;
   };
-  let { video = $bindable(), facing, cameraState, cameraMessage, flash, remove, mode, phone, onSwitch }: Props = $props();
+  let { video = $bindable(), facing, cameraState, cameraMessage, flash, remove, mode, phone, onSwitch, onManual, manualOpen = false }: Props = $props();
 </script>
 
 <div class="viewer {flash ? `hold ${flash.tone}` : ''}" class:phone>
@@ -39,15 +43,22 @@
         {#if flash.info}<span class="band-info">{flash.info}</span>{/if}
         {#if flash.detail}<span>{flash.detail}</span>{/if}
       </span>
-      {#if remove}<span class="remove">Retire le produit</span>{/if}
+      {#if remove}<span class="remove">{phone ? 'Retire-le' : 'Retire le produit'}</span>{/if}
     </div>
   {:else}
-    <div class="guide" aria-hidden="true"></div>
-    <div class="hint">{mode === 'in' ? 'Présente le code-barres d’un produit à ranger' : 'Présente le code-barres du paquet vide'}</div>
+    {#if !phone || cameraState === 'on'}<div class="guide" aria-hidden="true"></div>
+    <div class="hint">{mode === 'in' ? 'Présente le code-barres d’un produit à ranger' : 'Présente le code-barres du paquet vide'}</div>{/if}
   {/if}
-  <button type="button" class="switch" aria-label="Changer de caméra" onclick={onSwitch}>
-    <Icon name="refresh" size={26} />
-  </button>
+  <div class="tools">
+    {#if onManual}
+      <button type="button" class:on={manualOpen} aria-label="Code-barres à la main" aria-pressed={manualOpen} onclick={onManual}>
+        <Icon name="keyboard" size={phone ? 22 : 26} />
+      </button>
+    {/if}
+    <button type="button" aria-label="Changer de caméra" onclick={onSwitch}>
+      <Icon name="refresh" size={phone ? 22 : 26} />
+    </button>
+  </div>
 </div>
 
 <style>
@@ -218,8 +229,22 @@
 
   /* Téléphone : texte plus petit, une information par ligne, l'invitation à retirer le produit en dessous. */
   .viewer.phone .band {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    flex-wrap: nowrap;
     gap: var(--space-1);
-    padding: 12px var(--space-2);
+    padding: 8px 12px;
+  }
+
+  .viewer.phone .band-text > * {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .viewer.phone .band-text strong {
+    display: block;
   }
 
   .viewer.phone .band-text {
@@ -232,10 +257,9 @@
   }
 
   .viewer.phone .remove {
-    flex-basis: 100%;
-    padding: 8px 14px;
-    font-size: var(--text-label);
-    text-align: center;
+    flex: none;
+    padding: 6px 12px;
+    font-size: var(--text-small);
   }
 
   @keyframes nudge {
@@ -244,10 +268,15 @@
     }
   }
 
-  .switch {
+  .tools {
     position: absolute;
     top: var(--space-2);
     right: var(--space-2);
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .tools button {
     display: grid;
     width: 56px;
     height: 56px;
@@ -256,5 +285,45 @@
     border-radius: 50%;
     background: rgb(15 17 21 / 0.75);
     color: var(--fg);
+  }
+
+  .tools button.on {
+    background: var(--rain);
+    color: var(--bg);
+  }
+
+  /* Téléphone, image en bandeau : consigne à gauche des boutons, cadre plus large que haut, tout plus petit. */
+  .viewer.phone {
+    border-width: 4px;
+  }
+
+  .viewer.phone .tools {
+    top: 8px;
+    right: 8px;
+  }
+
+  .viewer.phone .tools button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .viewer.phone .hint {
+    top: 8px;
+    left: 8px;
+    max-width: calc(100% - 128px);
+    padding: 6px 12px;
+    transform: none;
+    border-radius: var(--radius-md);
+    text-align: left;
+  }
+
+  .viewer.phone .message {
+    top: 50%;
+    max-width: 80%;
+    transform: translate(-50%, -50%);
+  }
+
+  .viewer.phone .guide {
+    inset: 40% 18% 14%;
   }
 </style>

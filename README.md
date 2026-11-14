@@ -29,9 +29,13 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   dernier mouvement du produit), « Ce n'est pas ça ? » (fiche du produit) et, pour une sortie, « Recharge ? ». La
   reconnaissance des visages et la veille sont coupées pendant le scan ; sans activité, la tablette revient à la page
   d'origine au bout de 3 min.
+  - **Sur le téléphone** : l'aperçu tient en un **bandeau** en haut (« Retire-le »), le champ du code à la main se
+    déplie depuis l'icône du **clavier** (toujours là sans caméra ni lecteur), et le passage prend le reste de l'écran :
+    une ligne courte par produit (« Rangé · 5 en stock »), sa pastille de date (un calendrier pour un produit sans date
+    d'habitude), et les corrections (fiche, recharge, annuler) derrière **⋮**.
   - **Qui et quand** : chaque entrée et sortie garde son heure et qui a scanné : le profil du téléphone, ou sur la
     tablette la personne reconnue en ouvrant le scanner (« Scans au nom de Léa », « Pas moi » pour scanner
-    anonymement) ; personne de reconnu : anonyme. Chaque passage montre l'heure et le nom.
+    anonymement) ; personne de reconnu : anonyme. Sur la tablette, chaque passage montre l'heure et le nom.
   - **Mode par l'adresse ou par QR** : `/m/scanner?mode=ranger` ouvre le scanner en mode Ranger, `?mode=jete` en
     mode Jeté / épuisé (sans paramètre ou valeur inconnue : comme d'habitude ; suivi même scanner déjà ouvert). La
     caméra du scanner lit aussi les QR codes (format `qr_code` du `BarcodeDetector`) : présenter le QR d'une affichette
@@ -51,9 +55,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   - **Dates de péremption** : une entrée porte une pastille de date, sans jamais arrêter le scan. « **Date ?** » pour
     les rayons frais (frais, crèmerie, boucherie, poissonnerie, boulangerie, fruits et légumes) et les produits déjà
     datés une fois ; « pas de date » (discret) pour les autres. La toucher ouvre un **pavé** : DLC (« À consommer
-    jusqu'au ») ou DDM (« De préférence avant »), jour puis mois (l'année se devine : la prochaine fois que ce jour
-    arrive), « Mois et année seuls » (DDM), « Même date que le précédent », une partie à une autre date, « Ne plus
-    demander » pour ce produit. En sortie, le lot à la date la plus proche part d'office (FEFO) ; s'il y a un lot
+    jusqu'au ») ou DDM (« De préférence avant »), jour puis mois sur un clavier 3 × 4 (l'année se devine : la prochaine
+    fois que ce jour arrive ; touche « Mois / an » pour une DDM, touche d'effacement), « Même date : 12/11 » (la
+    dernière donnée) ; sous « **Plus** », les options rares : une partie à une autre date, retirer la date, « Ne plus
+    demander » pour ce produit. **Passer** et **Enregistrer** restent fixés en bas, même sur un petit téléphone. En sortie, le lot à la date la plus proche part d'office (FEFO) ; s'il y a un lot
     passé, « Lequel ? » (le périmé est compté « jeté (périmé) »).
 - **Stock** (`/stock`, depuis le scanner ou la page Listes ; `/m/stock` sur le téléphone, depuis l'onglet Courses, pour
   voir au magasin ce qu'il reste, avec les dates de péremption mais sans historique ni auteur, contenants en lecture seule) : produits en stock, épuisés ou tous, recherche ; ± 1 et

@@ -654,13 +654,23 @@ await shoot('telephone-sport-reglages-carte', `${BASE}/m/sport`, PHONE, {
   init: asPhone('alex'),
   after: `[...document.querySelectorAll('h2')].find((h) => h.textContent === 'Réglages du programme')?.scrollIntoView({ block: 'center' })`,
 });
-// Scanner du téléphone, produit encore devant la caméra : un faux lecteur voit sans fin le même paquet de pâtes, qui
-// n'est compté qu'une fois ; le bandeau demande de le retirer.
-const fakeDetector = `globalThis.BarcodeDetector = class {
+// Scanner du téléphone, aperçu en bandeau : du riz et du lait saisis au clavier (icône dans l'aperçu), puis un faux
+// lecteur voit sans fin le même paquet de pâtes, qui n'est compté qu'une fois ; le bandeau demande de le retirer.
+// Le faux lecteur ne voit rien tant que `globalThis.docsCode` est vide.
+const fakeDetector = `globalThis.docsCode = null;
+globalThis.BarcodeDetector = class {
   static async getSupportedFormats() { return ['ean_13', 'ean_8', 'upc_a', 'upc_e']; }
-  async detect() { return [{ rawValue: '${DOCS_PRODUCTS.pates}', format: 'ean_13' }]; }
+  async detect() { return globalThis.docsCode ? [{ rawValue: globalThis.docsCode, format: 'ean_13' }] : []; }
 };`;
-await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeDetector, camera: true, wait: 4000 });
+const keyboard = `document.querySelector('[aria-label="Code-barres à la main"][aria-pressed]')?.click();`;
+const typed = (codes: string[]) => codes.map((code) => `${typeCode(code)} ${pause} ${pause} ${pause}`).join(' ');
+await shoot('telephone-scanner', `${BASE}/m/scanner`, PHONE, {
+  init: asPhone('alex') + fakeDetector,
+  camera: true,
+  wait: 4000,
+  settle: 4500,
+  after: `(async () => { ${keyboard} ${pause} ${typed([DOCS_PRODUCTS.riz, DOCS_PRODUCTS.lait])} ${keyboard} globalThis.docsCode = '${DOCS_PRODUCTS.pates}'; })()`,
+});
 // Le QR d'une affichette « Poubelle » présenté au scanner ouvert en mode Ranger : il passe en mode Jeté / épuisé.
 const fakeQrDetector = `globalThis.BarcodeDetector = class {
   static async getSupportedFormats() { return ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code']; }
@@ -842,6 +852,18 @@ await shoot('tablette-scanner-date', `${BASE}/scanner`, TABLET, {
   settle: 2500,
   after: `(async () => { ${typeCode(DOCS_FRESH.yaourts)} ${pause} document.querySelector('.date-chip')?.click(); ${pause} ${pause}
     for (const d of '0911') { [...document.querySelectorAll('.keys button')].find((b) => b.textContent.trim() === d)?.click(); ${pause} } })()`,
+});
+// Pavé de date du téléphone : la crème datée du 12/11, puis les yaourts : « Même date : 12/11 », 09/11 tapé, les
+// options rares dépliées sous « Plus » ; Passer et Enregistrer fixés en bas.
+const digits = (value: string) => `for (const d of '${value}') { [...document.querySelectorAll('.keys button')].find((b) => b.textContent.trim() === d)?.click(); ${pause} }`;
+await shoot('telephone-scanner-date', `${BASE}/m/scanner`, PHONE, {
+  init: asPhone('alex') + fakeDetector,
+  camera: true,
+  wait: 4000,
+  settle: 6000,
+  after: `(async () => { ${keyboard} ${pause} ${typed([DOCS_FRESH.creme])} document.querySelector('.date-chip')?.click(); ${pause} ${pause} ${digits('1211')}
+    ${click('Enregistrer')}; ${pause} ${pause} ${pause} ${typed([DOCS_FRESH.yaourts])} document.querySelector('.date-chip')?.click(); ${pause} ${pause}
+    ${digits('0911')} [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith('Plus'))?.click(); })()`,
 });
 
 // --- Vacances scolaires (calendrier d'exemple, zone B) : serveur et navigateur relancés à d'autres dates, même état.

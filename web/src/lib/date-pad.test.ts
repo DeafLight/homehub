@@ -1,6 +1,6 @@
 // Tests du pavé de date : chiffres tapés, jour et mois (année devinée), mois et année d'une DDM, indications.
 import { describe, expect, it } from 'vitest';
-import { digitsOf, padDate, padDisplay, padHint, typeDigit } from './date-pad.ts';
+import { digitsOf, padDate, padDisplay, padExtras, padHint, typeDigit } from './date-pad.ts';
 
 const TODAY = '2026-11-05';
 
@@ -30,5 +30,12 @@ describe('pavé de date', () => {
     expect(padHint('0611', 'day', TODAY)).toBe('vendredi 6 novembre 2026 · demain');
     expect(padHint('09', 'day', TODAY)).toBe('Jour puis mois');
     expect(padHint('3102', 'day', TODAY)).toBe('Date impossible');
+  });
+
+  it('replie sous « Plus » les options rares qui ont un sens pour ce lot', () => {
+    expect(padExtras({ count: 1, date: null }, false, true)).toEqual(['never']);
+    expect(padExtras({ count: 4, date: '2026-11-09' }, false, false)).toEqual(['split', 'clear']);
+    expect(padExtras({ count: 4, date: '2026-11-09' }, true, true)).toEqual(['never']);
+    expect(padExtras({ count: 1, date: null }, false, false)).toEqual([]);
   });
 });

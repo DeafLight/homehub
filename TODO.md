@@ -161,6 +161,9 @@ Fait en 0.33.0 (scanner et page Stock, voir README) :
       tant que le code reste devant la caméra.
 - [x] Scanner ouvert directement dans un mode (`/m/scanner?mode=ranger` ou `?mode=jete`, QR des affichettes), et QR
       des affichettes lu par le scanner lui-même pour changer de mode sans se tromper (0.71.0).
+- [x] Scanner du téléphone plus lisible : aperçu en bandeau, code à la main derrière l'icône du clavier, passage sur
+      tout le reste de l'écran (corrections derrière ⋮) ; pavé de date compact (clavier 3 × 4, options rares sous
+      « Plus ») avec Passer et Enregistrer fixés en bas (0.72.0).
 
 Reste :
 

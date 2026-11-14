@@ -40,6 +40,8 @@
   // qu'on touche quand on veut pour ouvrir le pavé. Une sortie prend le lot à la date la plus proche, sauf « Lequel ? ».
   // Le mode se choisit aussi par l'adresse (/m/scanner?mode=ranger ou ?mode=jete : `startMode`, suivi même page ouverte)
   // ou en présentant à la caméra le QR d'une affichette HomeHub (lib/scan-mode.ts) : bip, bandeau « Mode … ».
+  // Téléphone : l'aperçu tient en un bandeau en haut, le code à la main se déplie depuis l'icône du clavier, et le
+  // journal du passage prend le reste de l'écran (corrections d'une ligne derrière ⋮).
   // Règles du journal et des bandeaux : lib/scan.ts ; caméra : lib/barcode-camera.ts ; affichage : components/stock/Scan*.
   // `back` : page de la tablette à laquelle revenir ; null sur le téléphone.
   type Props = { back: PageRoute | null; startMode?: ScanMode };
@@ -76,6 +78,10 @@
   let containers = $state<Container[]>([]);
   let manualCode = $state('');
   let manualError = $state<string | null>(null);
+  /** Téléphone : champ du code à la main déplié (toujours montré sans caméra ou sans lecteur de codes). */
+  let manualOpen = $state(false);
+  let manualInput = $state<HTMLInputElement>();
+  const showManual = $derived(!phone || manualOpen || cameraState === 'error' || !canDetectBarcodes);
   /** Téléphone : son profil (les scans sont à son nom). */
   let phoneOwner = $state<string | null>(null);
   const nameOf = (ownerId: string | null) => (ownerId ? (config.members.find((m) => m.id === ownerId)?.name ?? null) : null);
@@ -321,6 +327,11 @@
     camera.stop();
   });
 
+  function toggleManual() {
+    manualOpen = !manualOpen;
+    if (manualOpen) setTimeout(() => manualInput?.focus());
+  }
+
   function setMode(next: ScanMode) {
     unlockAudio();
     mode = next;
@@ -343,14 +354,14 @@
     {#if back}
       <BackButton {back} />
     {:else}
-      <button type="button" class="btn" onclick={leave}><Icon name="back" size={24} /> Courses</button>
+      <button type="button" class="btn back" aria-label="Retour aux courses" onclick={leave}><Icon name="back" size={24} /></button>
     {/if}
     <div class="modes" role="radiogroup" aria-label="Mode du scanner">
       <button type="button" role="radio" aria-checked={mode === 'in'} class:on={mode === 'in'} onclick={() => setMode('in')}>
-        <Icon name="cart" size={26} /> {phone ? 'Ranger' : 'Ranger les courses'}
+        <Icon name="cart" size={phone ? 22 : 26} /> {phone ? 'Ranger' : 'Ranger les courses'}
       </button>
       <button type="button" role="radio" aria-checked={mode === 'out'} class:on={mode === 'out'} class:out={mode === 'out'} onclick={() => setMode('out')}>
-        <Icon name="trash" size={26} /> Jeté / épuisé
+        <Icon name="trash" size={phone ? 22 : 26} /> Jeté / épuisé
       </button>
     </div>
     {#if back}
@@ -369,15 +380,26 @@
       {mode}
       {phone}
       onSwitch={() => startCamera(facing === 'user' ? 'environment' : 'user')}
+      onManual={phone ? toggleManual : undefined}
+      {manualOpen}
     />
 
     <aside>
+      {#if showManual}
       <form class="manual" onsubmit={submitManual}>
-        <input bind:value={manualCode} inputmode="numeric" maxlength="16" placeholder="Code-barres à la main" aria-label="Code-barres à la main" />
+        <input bind:this={manualInput} bind:value={manualCode} inputmode="numeric" maxlength="16" placeholder="Code-barres à la main" aria-label="Code-barres à la main" />
         <button type="submit" class="btn small" disabled={busy || !manualCode.trim()}>OK</button>
       </form>
+      {/if}
       {#if manualError}<p class="error">{manualError}</p>{/if}
 
+      {#if phone}
+        <!-- Téléphone : titre du journal et nom de qui scanne sur une seule ligne. -->
+        <div class="passage">
+          <h2 class="card-label">{entries.length ? `Ce passage · ${entries.length}` : 'Rien de scanné'}</h2>
+          <span class="who" aria-label={scanner ? `Scans au nom de ${scanner}` : 'Scans anonymes'}><Icon name="face" size={18} /> {scanner ?? 'anonyme'}</span>
+        </div>
+      {:else}
       <p class="who">
         <Icon name="face" size={20} />
         {#if scanner}
@@ -389,8 +411,10 @@
       </p>
 
       <h2 class="card-label">{entries.length ? 'Ce passage' : 'Rien de scanné pour l’instant'}</h2>
+      {/if}
       <ScanEntries
         {entries}
+        compact={phone}
         {busy}
         {nameOf}
         onSheet={(product) => (dialog = { kind: 'sheet', product })}
@@ -490,24 +514,38 @@
     min-height: 0;
   }
 
+  /* Téléphone : l'aperçu en bandeau, le journal du passage prend tout le reste. */
   .phone .layout {
     grid-template-columns: 1fr;
-    grid-template-rows: 46dvh minmax(0, 1fr);
+    grid-template-rows: clamp(150px, 24dvh, 230px) minmax(0, 1fr);
     gap: var(--space-2);
   }
 
-  /* Téléphone : les deux modes sur leur propre ligne, sous le bouton de retour. */
-  .phone header {
-    flex-wrap: wrap;
-  }
-
-  .phone .modes {
-    flex-basis: 100%;
+  /* Téléphone : retour en icône et les deux modes sur la même ligne. */
+  .phone header .back {
+    flex: none;
+    width: 52px;
+    padding: 0;
   }
 
   .phone .modes button {
-    min-height: 52px;
+    min-height: 48px;
     font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .passage {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .passage .who {
+    flex-wrap: nowrap;
+    gap: 4px;
+    color: var(--fg);
+    white-space: nowrap;
   }
 
   aside {

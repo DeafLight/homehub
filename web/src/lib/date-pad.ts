@@ -34,3 +34,14 @@ export function padHint(digits: string, mode: PadMode, today: string): string {
   if (digits.length === 4) return 'Date impossible';
   return mode === 'month' ? 'Mois puis année (03 / 27)' : 'Jour puis mois';
 }
+
+/** Options rares du pavé, repliées sous « Plus » : une partie du lot à une autre date, retirer la date, ne plus demander. */
+export type PadExtra = 'split' | 'clear' | 'never';
+
+export function padExtras(lot: { count: number; date: string | null }, splitting: boolean, canNeverAsk: boolean): PadExtra[] {
+  const extras: PadExtra[] = [];
+  if (lot.count > 1 && !splitting) extras.push('split');
+  if (lot.date && !splitting) extras.push('clear');
+  if (canNeverAsk) extras.push('never');
+  return extras;
+}

@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { Product } from '../../../../shared/types.ts';
   import { formatTime } from '../../lib/format.ts';
-  import { entryDateChip, entrySubtitle, type ScanEntry } from '../../lib/scan.ts';
+  import { entryActions, entryDateChip, entrySubtitle, type ScanEntry } from '../../lib/scan.ts';
   import Icon from '../Icon.svelte';
 
   // Journal du passage au scanner : une ligne par mouvement (le plus récent en tête), avec quand et par qui, et de
   // quoi corriger : fiche du produit, « C'était une recharge », annuler. Une entrée porte sa pastille de date
-  // (« Date ? », sa date, « pas de date ») : la toucher ouvre le pavé, le scan continue sans elle.
+  // (« Date ? », sa date, « pas de date ») : la toucher ouvre le pavé, le scan continue sans elle. `compact`
+  // (téléphone) : deux lignes courtes par mouvement (nom, puis « Rangé · 5 en stock »), les corrections dépliées sous la ligne par le bouton ⋮.
   type Props = {
     entries: ScanEntry[];
     busy: boolean;
@@ -15,29 +16,43 @@
     onRefill: (entry: ScanEntry) => void;
     onDate: (entry: ScanEntry) => void;
     onUndo: (entry: ScanEntry) => void;
+    compact?: boolean;
   };
-  let { entries, busy, nameOf, onSheet, onRefill, onDate, onUndo }: Props = $props();
+  let { entries, busy, nameOf, onSheet, onRefill, onDate, onUndo, compact = false }: Props = $props();
+  /** Téléphone : ligne dont les corrections sont dépliées. */
+  let opened = $state<string | null>(null);
 </script>
 
-<ul class="entries">
+<ul class="entries" class:compact>
   {#each entries as entry (entry.id)}
     {@const chip = entryDateChip(entry)}
-    <li class:undone={entry.undone}>
+    {@const actions = entryActions(entry)}
+    {@const open = !compact || opened === entry.id}
+    <li class:undone={entry.undone} class:has-more={compact && actions.length > 0}>
       <span class="kind {entry.kind}"><Icon name={entry.kind === 'in' ? 'cart' : entry.kind === 'out' ? 'trash' : 'jar'} size={22} /></span>
       <span class="entry-text">
         <strong>{entry.title}</strong>
-        <span>{entrySubtitle(entry)}</span>
-        {#if entry.mark}<span class="when">{formatTime(new Date(entry.mark.at))} · {nameOf(entry.mark.by.ownerId) ?? 'anonyme'}</span>{/if}
+        <span>{compact ? entry.line : entrySubtitle(entry)}</span>
+        <!-- Téléphone : pas d'heure ni de nom, le passage est celui de la personne du téléphone, tout juste fait. -->
+        {#if entry.mark && !compact}<span class="when">{formatTime(new Date(entry.mark.at))} · {nameOf(entry.mark.by.ownerId) ?? 'anonyme'}</span>{/if}
       </span>
       {#if chip}
-        <button type="button" class="date-chip {chip.tone}" disabled={busy} onclick={() => onDate(entry)}>{chip.label}</button>
+        {#if compact && chip.tone === 'muted'}
+          <!-- Téléphone : produit sans date d'habitude, un simple calendrier pour lui en donner une quand même. -->
+          <button type="button" class="date-chip muted icon" aria-label="Ajouter une date" disabled={busy} onclick={() => onDate(entry)}><Icon name="calendar" size={20} /></button>
+        {:else}
+          <button type="button" class="date-chip {chip.tone}" disabled={busy} onclick={() => onDate(entry)}>{chip.label}</button>
+        {/if}
       {/if}
-      {#if !entry.undone}
+      {#if compact && actions.length}
+        <button type="button" class="more" aria-label="Corriger" aria-expanded={open} onclick={() => (opened = open ? null : entry.id)}><Icon name="more" size={22} /></button>
+      {/if}
+      {#if open && actions.length}
         <span class="entry-actions">
-          {#if entry.product}
+          {#if actions.includes('sheet')}
             <button type="button" class="btn small" onclick={() => entry.product && onSheet(entry.product)}>Ce n’est pas ça ?</button>
           {/if}
-          {#if entry.kind === 'out' && entry.product}
+          {#if actions.includes('refill')}
             <button type="button" class="btn small" onclick={() => onRefill(entry)}>Recharge ?</button>
           {/if}
           <button type="button" class="btn small" aria-label="Annuler" disabled={busy} onclick={() => onUndo(entry)}><Icon name="undo" size={20} /> Annuler</button>
@@ -68,6 +83,58 @@
     padding: 12px var(--space-2);
     border-radius: var(--radius-md);
     background: var(--surface);
+  }
+
+  /* Téléphone : pastille de date et bouton ⋮ au bout de la ligne, texte sur une ligne chacun. */
+  .entries li.has-more {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+
+  .compact li {
+    gap: 6px 10px;
+    padding: 8px 6px 8px 10px;
+  }
+
+  .compact .kind {
+    width: 34px;
+    height: 34px;
+  }
+
+  .compact .entry-text span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .compact .entry-actions {
+    grid-column: 1 / -1;
+  }
+
+  .compact .date-chip {
+    padding: 0 10px;
+  }
+
+  .date-chip.icon {
+    display: grid;
+    width: 40px;
+    padding: 0;
+    place-items: center;
+  }
+
+  .more {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--fg-muted);
+  }
+
+  .more[aria-expanded='true'] {
+    background: var(--surface-2);
+    color: var(--fg);
   }
 
   .entries li.undone {

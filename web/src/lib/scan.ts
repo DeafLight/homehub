@@ -80,6 +80,17 @@ export function entryDateChip(entry: ScanEntry): DateChip | null {
   return asksDate(entry.product) ? { label: 'Date ?', tone: 'ask' } : { label: 'pas de date', tone: 'muted' };
 }
 
+/** Corrections d'une ligne du journal : fiche du produit, « C'était une recharge » (sortie), annuler. Aucune une fois annulée. */
+export type EntryAction = 'sheet' | 'refill' | 'undo';
+
+export function entryActions(entry: ScanEntry): EntryAction[] {
+  if (entry.undone) return [];
+  const actions: EntryAction[] = [];
+  if (entry.product) actions.push('sheet');
+  if (entry.kind === 'out' && entry.product) actions.push('refill');
+  return [...actions, 'undo'];
+}
+
 /** Date donnée à un lot (ou partie à une autre date : le lot de l'entrée garde le reste) ; fiche à jour partout. */
 export function noteLot(entries: ScanEntry[], entryId: string, lot: LotView, product: Product, split: number | null): ScanEntry[] {
   return entries.map((e) => {
