@@ -1,12 +1,28 @@
-// Message à la télé : un parent écrit un court texte sur son téléphone, la télé Android TV l'affiche en gros au milieu
-// de l'écran, par-dessus ce qu'elle diffuse (appli « Notifications for Android TV » installée sur la télé). Règles
-// communes au téléphone (compteur, bouton) et au serveur (qui nettoie toujours le texte lui-même).
+// Message à la télé : un parent écrit un court texte sur son téléphone, la télé Android TV l'affiche en bandeau,
+// par-dessus ce qu'elle diffuse : par l'appli HomeHub TV si une télé est appairée, sinon par l'appli tierce
+// « Notifications for Android TV » (`tv.host`). Règles communes au téléphone (compteur, bouton, compte rendu) et au
+// serveur (qui nettoie toujours le texte lui-même).
 
 /** Longueur maximale d'un message, après nettoyage (il doit se lire d'un coup d'œil, en gros). */
 export const TV_MESSAGE_MAX = 140;
 
-/** Réponse de l'envoi : le texte tel qu'il est parti et le temps d'affichage (secondes). */
-export type TvMessageSent = { text: string; seconds: number };
+/** Temps d'affichage sans `tv.seconds` dans la configuration (secondes). */
+export const TV_SECONDS_DEFAULT = 10;
+
+/**
+ * Réponse de l'envoi : le texte tel qu'il est parti et le temps d'affichage (secondes) ; `screens` : les télés HomeHub
+ * TV qui l'ont affiché (absent : parti par l'appli tierce, qui ne rend pas compte de l'affichage).
+ */
+export type TvMessageSent = { text: string; seconds: number; screens?: string[] };
+
+/**
+ * Compte rendu montré au téléphone : « Affiché sur la télé pendant 10 s » (une télé HomeHub TV), « Affiché sur 2 télés
+ * (Télé du salon, Télé de la chambre) … », ou « Envoyé à la télé … » (appli tierce, sans compte rendu d'affichage).
+ */
+export function tvMessageReport(sent: TvMessageSent): string {
+  const where = !sent.screens ? null : sent.screens.length === 1 ? 'la télé' : `${sent.screens.length} télés (${sent.screens.join(', ')})`;
+  return where ? `Affiché sur ${where} pendant ${sent.seconds} s` : `Envoyé à la télé pour ${sent.seconds} s`;
+}
 
 // Caractères de contrôle, de mise en forme invisible (largeur nulle, sens d'écriture forcé ; le liant des emojis
 // composés, U+200D, est gardé) et chevrons : rien qui puisse cacher, retourner ou mettre en forme le texte sur la télé

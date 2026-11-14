@@ -53,7 +53,13 @@ export type ScreenLaunchEvent = { kind: 'launch'; id: string; package: string };
 /** Allumer (réveil de l'écran) ou mettre en veille. */
 export type ScreenPowerEvent = { kind: 'power'; id: string; on: boolean };
 
-export type ScreenEventBody = ScreenVoiceEvent | ScreenKeysEvent | ScreenTextEvent | ScreenLaunchEvent | ScreenPowerEvent;
+/**
+ * Message écrit (fonction 2) : bandeau par-dessus ce que montre la télé, `title` (« Message d'Alex ») et `text` (déjà
+ * nettoyé par le serveur, shared/tv.ts), affiché `seconds` secondes. Le compte rendu dit si le bandeau s'est affiché.
+ */
+export type ScreenMessageEvent = { kind: 'message'; id: string; title: string; text: string; seconds: number };
+
+export type ScreenEventBody = ScreenVoiceEvent | ScreenKeysEvent | ScreenTextEvent | ScreenLaunchEvent | ScreenPowerEvent | ScreenMessageEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

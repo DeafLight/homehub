@@ -281,7 +281,14 @@ personne depuis son propre téléphone.
 - [x] 1 ter. Vérifié après déploiement : appli vivante après une veille courte et un redémarrage de la télé, son
       baissé aussi sous Netflix. 0.71.1 : `installer.ps1` met l'appli dans la liste blanche Doze à chaque installation
       (`dumpsys deviceidle whitelist`), pour qu'une longue veille ne lui coupe ni le réseau ni le processeur.
-- [ ] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0).
+- [x] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0) : événement
+      `message` (texte nettoyé par le serveur, `tv.seconds`), bandeau en haut au centre (`OverlayBanner.showMessage`)
+      qui s'en va seul, compte rendu « Affiché sur la télé » au téléphone ; `/api/tv/message` passe par HomeHub TV dès
+      qu'une télé est appairée (parents seulement), l'appli tierce (`tv.host`) seulement sinon ; fausse appli du monde
+      fictif et maquette du bandeau.
+- [ ] 2 bis. Retirer l'appli tierce (`services/tv.ts`, `tv.host`, `tv.port`, `fake-tv.ts`) une version après la 2.
+- [ ] 2 ter. Message écrit, à vérifier sur la vraie télé : bandeau lisible de loin, texte long sur trois lignes,
+      accents et emojis, par-dessus Netflix / YouTube / la télé en direct, disparition au bout de `tv.seconds`.
 - [ ] 3. Alerte du minuteur de cuisine sur la télé.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
 - [ ] 5. Rappels des routines du soir et des nouveaux mots.

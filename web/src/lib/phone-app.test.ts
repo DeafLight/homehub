@@ -1,7 +1,7 @@
 // Tests de l'appli du téléphone : onglets selon le profil, mots reçus et pastille des mots à voir.
 import { describe, expect, it } from 'vitest';
 import { FAMILY_ID, type Note } from '../../../shared/types.ts';
-import { canMarkSeen, canRemoveNote, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from './phone-app.ts';
+import { canMarkSeen, canRemoveNote, hasCameraTab, hasTvMessage, phoneTabs, receivedNotes, unseenCount } from './phone-app.ts';
 
 const note = (id: string, to: string, from: string | null, seenAt?: string): Note => ({ id, text: id, to, from: { ownerId: from, via: 'tablet' }, at: '2026-11-10T08:00:00Z', seenAt });
 const lea = { id: 'lea', parent: false };
@@ -25,6 +25,15 @@ describe('appli du téléphone', () => {
     expect(hasCameraTab(alex, none)).toBe(false);
     expect(hasCameraTab(lea, tvOnly)).toBe(false);
     expect(hasCameraTab(undefined, on)).toBe(false);
+    // Télé appairée avec l'appli HomeHub TV : le message écrit passe par elle, sans tv dans la config.
+    expect(hasCameraTab(alex, none, true)).toBe(true);
+    expect(hasCameraTab(lea, none, true)).toBe(false);
+  });
+
+  it('message écrit à la télé : appli tierce configurée, ou télé appairée', () => {
+    expect(hasTvMessage({ tv: true }, false)).toBe(true);
+    expect(hasTvMessage({ tv: false }, true)).toBe(true);
+    expect(hasTvMessage({ tv: false }, false)).toBe(false);
   });
 
   it('mots reçus : pour moi ou la famille, pas les miens, les nouveaux d’abord', () => {

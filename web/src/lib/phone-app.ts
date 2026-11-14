@@ -24,11 +24,17 @@ export function phoneTabs(hasFitness: boolean, camera = false): PhoneTabItem[] {
 }
 
 /**
- * Onglet Caméra : pour un parent, dès qu'il y a la caméra en direct ou une télé qui reçoit les messages (le serveur
- * revérifie chaque appel).
+ * Message écrit à la télé : par l'appli tierce configurée (`tv.host`), ou par une télé appairée avec l'appli HomeHub
+ * TV (`screens` : il y en a au moins une).
  */
-export const hasCameraTab = (member: Pick<Member, 'parent'> | undefined, config: Pick<PublicConfig, 'camera' | 'tv'>) =>
-  Boolean(member?.parent && (config.camera.live || config.tv));
+export const hasTvMessage = (config: Pick<PublicConfig, 'tv'>, screens: boolean) => config.tv || screens;
+
+/**
+ * Onglet Caméra : pour un parent, dès qu'il y a la caméra en direct ou une télé qui reçoit les messages (le serveur
+ * revérifie chaque appel). `screens` : une télé est appairée avec l'appli HomeHub TV.
+ */
+export const hasCameraTab = (member: Pick<Member, 'parent'> | undefined, config: Pick<PublicConfig, 'camera' | 'tv'>, screens = false) =>
+  Boolean(member?.parent && (config.camera.live || hasTvMessage(config, screens)));
 
 /** Mots reçus (pour moi ou pour toute la famille, sauf les miens) : ceux pas encore vus d'abord. */
 export function receivedNotes(notes: Note[], meId: string): Note[] {

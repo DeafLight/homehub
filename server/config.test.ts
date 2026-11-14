@@ -36,6 +36,10 @@ describe('parseConfig', () => {
       expect(() => parseConfig({ members: [alex], tv: { host } })).toThrow();
     }
     expect(() => parseConfig({ members: [alex], tv: { host: 'tele', seconds: 600 } })).toThrow();
+    // Durée seule (appli HomeHub TV, sans appli tierce) : pas de bouton venu de la config, la télé appairée le donne.
+    const appOnly = parseConfig({ members: [alex], tv: { seconds: 15 } });
+    expect(appOnly.tv).toEqual({ port: 7676, seconds: 15 });
+    expect(toPublicConfig(appOnly, 'r').tv).toBe(false);
   });
 
   it('calcul des empreintes : choisi dans homehub.yaml, transmis à la tablette', () => {

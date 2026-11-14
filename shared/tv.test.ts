@@ -1,7 +1,7 @@
 // Tests du nettoyage d'un message à la télé : espaces et retours à la ligne aplatis, caractères invisibles et
-// chevrons retirés, emojis gardés et comptés pour un, limite de longueur.
+// chevrons retirés, emojis gardés et comptés pour un, limite de longueur ; compte rendu montré au téléphone.
 import { describe, expect, it } from 'vitest';
-import { cleanTvMessage, TV_MESSAGE_MAX, tvMessageLength, tvMessageValid } from './tv.ts';
+import { cleanTvMessage, TV_MESSAGE_MAX, tvMessageLength, tvMessageReport, tvMessageValid } from './tv.ts';
 
 describe('cleanTvMessage', () => {
   it('aplatit les retours à la ligne et les espaces répétées', () => {
@@ -30,5 +30,15 @@ describe('tvMessageLength et tvMessageValid', () => {
     expect(tvMessageValid(' \n\u{200B} ')).toBe(false);
     expect(tvMessageValid('a'.repeat(TV_MESSAGE_MAX))).toBe(true);
     expect(tvMessageValid('a'.repeat(TV_MESSAGE_MAX + 1))).toBe(false);
+  });
+});
+
+describe('tvMessageReport', () => {
+  it('dit où le message s’est affiché, ou qu’il est parti par l’appli tierce', () => {
+    expect(tvMessageReport({ text: 'Coucou', seconds: 10, screens: ['Télé du salon'] })).toBe('Affiché sur la télé pendant 10 s');
+    expect(tvMessageReport({ text: 'Coucou', seconds: 8, screens: ['Télé du salon', 'Télé de la chambre'] })).toBe(
+      'Affiché sur 2 télés (Télé du salon, Télé de la chambre) pendant 8 s',
+    );
+    expect(tvMessageReport({ text: 'Coucou', seconds: 10 })).toBe('Envoyé à la télé pour 10 s');
   });
 });

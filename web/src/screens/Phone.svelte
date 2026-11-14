@@ -29,7 +29,7 @@
   import { getAppContext } from '../lib/context.ts';
   import { createListsState } from '../lib/lists-state.svelte.ts';
   import { clearPairing, loadPairing } from '../lib/phone.ts';
-  import { canMarkSeen, canRemoveNote, hasCameraTab, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
+  import { canMarkSeen, canRemoveNote, hasCameraTab, hasTvMessage, phoneTabs, receivedNotes, unseenCount } from '../lib/phone-app.ts';
   import { ApiError } from '../lib/api.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
@@ -217,7 +217,9 @@
     if (sharedProduct !== undefined) navigate(phonePath('shopping'));
   }
 
-  const TABS = phoneTabs(Boolean(member?.fitness), hasCameraTab(member, config));
+  // Une télé appairée (appli HomeHub TV) reçoit les messages écrits : l'onglet Caméra apparaît alors aussi.
+  const paired = $derived(Boolean(remotes.data?.length));
+  const TABS = $derived(phoneTabs(Boolean(member?.fitness), hasCameraTab(member, config, paired)));
   let scroller = $state<HTMLElement | null>(null);
   const profileOf = (id: string) => profiles.find((p) => p.id === id);
 </script>
@@ -274,10 +276,10 @@
           <p class="muted">Impossible de charger le carnet : {recipes.error}</p>
         {/if}
       {:else if tab === 'camera'}
-        {#if hasCameraTab(member, config)}
+        {#if hasCameraTab(member, config, paired)}
           <div class="camera-tab">
             {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} castDevices={config.cast} screens={screenTargets.data ?? []} />{/if}
-            {#if config.tv}<PhoneTvMessage {api} />{/if}
+            {#if hasTvMessage(config, paired)}<PhoneTvMessage {api} />{/if}
           </div>
         {:else}
           <p class="muted">La caméra en direct est réservée aux parents.</p>

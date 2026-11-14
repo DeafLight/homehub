@@ -206,7 +206,9 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 - Serveur : `screens.ts` (magasin et service), `screen-api.ts`, `access.screen`, destination « Télé » dans
   `cast-api.ts` (vocal), page des appareils de la tablette (section Télé, saisie du code).
 - Front : « Ta voix sur » Tablette / **Télé** / appareils Cast dans l'onglet Caméra du téléphone. Le message écrit
-  (bouton « Message à la télé » par l'appli) vient à la version suivante.
+  (bouton « Message à la télé » par l'appli) vient à la version suivante : fait (fonction 2), événement `message`,
+  bandeau `OverlayBanner.showMessage`, compte rendu « Affiché sur la télé » ; l'appli tierce ne sert plus que sans
+  télé appairée, à retirer une version après.
 - Monde fictif : une fausse télé HomeHub TV (attente longue simulée, comptes rendus) pour les tests et les captures.
 - Appli : `tv-app/` minimal (appairage, service, bandeau, lecture atténuée), tests JVM du protocole.
 - Tests serveur (`*.test.ts`), README, `docs/ecrans.md` et captures, `TODO.md`, puis version avec `homehub-release`.

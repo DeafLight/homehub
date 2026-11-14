@@ -17,8 +17,7 @@ import { emptyFitness, FIRST_WAVE, PALIERS, type Palier, planSession, SECOND_WAV
 import { itemKey } from '../shared/drive.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_TV_FILE, fakeTvScreen } from './docs-captures/fake-tv.ts';
-import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TOKEN, fakeScreenTv } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TOKEN, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -715,8 +714,9 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(1000);
   await phone.capture('telephone-camera-parler');
   await tablet.capture('tablette-camera-parle');
-  // Message à la télé (fausse télé de fake-tv.ts) : Alex se tait, écrit un message, l'envoie ; la fausse télé le
-  // garde, et une maquette d'écran de télé le montre au centre, par-dessus un programme inventé.
+  // Message écrit à la télé (fausse appli HomeHub TV de fake-screen.ts, la télé du salon est appairée) : Alex se tait,
+  // écrit un message, l'envoie ; la fausse appli le garde et dit qu'il est affiché, et une maquette d'écran de télé
+  // montre le bandeau de l'appli par-dessus un programme inventé.
   await phone.evaluate(`[...document.querySelectorAll('.camera button')].find((b) => b.textContent.trim() === 'Arrêter de parler')?.click()`);
   await sleep(500);
   await phone.evaluate(`(() => {
@@ -732,13 +732,13 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(1000);
   await phone.capture('telephone-camera-tele');
   await phone.evaluate(`[...document.querySelectorAll('.tv button')].find((b) => b.textContent.trim() === 'Envoyer')?.click()`);
-  for (let i = 0; i < 20 && !existsSync(join(state, FAKE_TV_FILE)); i++) await sleep(250);
+  for (let i = 0; i < 20 && !existsSync(join(state, FAKE_SCREEN_TEXT_FILE)); i++) await sleep(250);
   await sleep(800);
   await phone.evaluate(`document.querySelector('.tv').scrollIntoView({ block: 'end' })`);
   await sleep(300);
   await phone.capture('telephone-camera-tele-envoye');
   const tvScreen = join(work, 'tele.html');
-  writeFileSync(tvScreen, fakeTvScreen(JSON.parse(readFileSync(join(state, FAKE_TV_FILE), 'utf8'))));
+  writeFileSync(tvScreen, fakeScreenTvText(JSON.parse(readFileSync(join(state, FAKE_SCREEN_TEXT_FILE), 'utf8'))));
   const tv = await openTarget(pathToFileURL(tvScreen).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
   await sleep(500);
   await tv.capture('tele-message');

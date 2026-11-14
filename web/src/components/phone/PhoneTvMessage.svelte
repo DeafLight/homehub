@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { TV_MESSAGE_MAX, tvMessageLength, tvMessageValid, type TvMessageSent } from '../../../../shared/tv.ts';
+  import { TV_MESSAGE_MAX, tvMessageLength, tvMessageReport, tvMessageValid, type TvMessageSent } from '../../../../shared/tv.ts';
   import type { Api } from '../../lib/api.ts';
   import Icon from '../Icon.svelte';
 
-  // Message à la télé (onglet Caméra, parents, si une télé est configurée) : on écrit un court texte, la télé Android
-  // TV l'affiche en gros au milieu de l'écran, par-dessus ce qu'elle diffuse, pendant quelques secondes. Le compteur
-  // suit la règle du serveur (shared/tv.ts), qui nettoie et limite de nouveau le texte.
+  // Message à la télé (onglet Caméra, parents, si une télé est appairée ou configurée) : on écrit un court texte, la
+  // télé Android TV l'affiche en bandeau par-dessus ce qu'elle diffuse, pendant quelques secondes, et le serveur dit
+  // sur quelle télé il s'est affiché. Le compteur suit la règle du serveur (shared/tv.ts), qui nettoie et limite de
+  // nouveau le texte.
   type Props = { api: Api };
   let { api }: Props = $props();
 
@@ -53,13 +54,13 @@
         <button type="button" class="btn" onclick={() => (open = false)}>Annuler</button>
         <button type="submit" class="btn primary" disabled={!valid || busy}><Icon name="tv" size={22} /> {busy ? 'Envoi…' : 'Envoyer'}</button>
       </div>
-      <p class="muted">Il s’affiche en gros au milieu de la télé, par-dessus l’image, avec ton prénom.</p>
+      <p class="muted">Il s’affiche en bandeau sur la télé, par-dessus l’image, avec ton prénom.</p>
     </form>
   {:else}
     <button type="button" class="btn wide" onclick={show}><Icon name="tv" size={24} /> Message à la télé</button>
   {/if}
   {#if sent}
-    <p class="sent" role="status">Affiché sur la télé pendant {sent.seconds} s : « {sent.text} »</p>
+    <p class="sent" role="status">{tvMessageReport(sent)} : « {sent.text} »</p>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>

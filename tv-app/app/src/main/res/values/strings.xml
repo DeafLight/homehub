@@ -13,6 +13,7 @@
     <string name="overlay_missing">Le bandeau n’est pas autorisé. Depuis l’ordinateur :</string>
     <string name="try_banner">Essayer le bandeau</string>
     <string name="try_banner_title">Message d’Alex</string>
+    <string name="message_not_allowed">bandeau non autorisé sur la télé (afficher par-dessus les autres applis)</string>
     <string name="banner_subtitle">Le son du programme est baissé</string>
     <string name="version">Version %1$s</string>
     <string name="channel_name">Connexion à HomeHub</string>

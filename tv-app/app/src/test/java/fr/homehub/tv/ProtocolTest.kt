@@ -1,5 +1,5 @@
 // Tests JVM du protocole de HomeHub TV : réponses du serveur (shared/screen.ts) lues telles qu'il les envoie, genres
-// d'événements inconnus ignorés, ordres de la télécommande, message d'erreur, compte rendu, état de la télé, liste des
+// d'événements inconnus ignorés, messages écrits, ordres de la télécommande, message d'erreur, compte rendu, état de la télé, liste des
 // applis, adresse de HomeHub donnée par adb.
 package fr.homehub.tv
 
@@ -96,5 +96,22 @@ class ProtocolTest {
         assertEquals("iVBORw0KGgo=", apps.getJSONObject(0).getString("banner"))
         assertEquals(true, apps.getJSONObject(1).isNull("banner"))
         assertEquals(80, JSONObject(appsJson(List(100) { AppEntry("fr.exemple.a$it", "A$it", null) })).getJSONArray("apps").length())
+    }
+
+    @Test
+    fun messagesEcrits() {
+        val events = parseEvents(
+            """{"events":[
+              {"seq":7,"kind":"message","id":"m1","title":"Message d’Alex","text":"À table ! 🍝","seconds":15},
+              {"seq":8,"kind":"message","id":"m2","title":"Message","text":"Trop long","seconds":600},
+              {"seq":9,"kind":"voice","id":"v1","title":"Message de Sam","audio":"/api/screen/clips/x.webm","contentType":"audio/webm"}
+            ],"last":9}""",
+        )
+        assertEquals(
+            listOf(MessageEvent("m1", "Message d’Alex", "À table ! 🍝", 15), MessageEvent("m2", "Message", "Trop long", 60)),
+            events.messages,
+        )
+        assertEquals(1, events.voices.size)
+        assertEquals(emptyList<RemoteEvent>(), events.remote)
     }
 }

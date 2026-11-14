@@ -160,9 +160,11 @@ export function createApp(deps: AppDeps): Hono {
 
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
   api.route('/', createCameraApi({ camera, household, access }));
-  api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv }), household, access }));
+  // Télés appairées (appli HomeHub TV) : leurs événements servent aux messages vocaux, à la télécommande et aux messages écrits.
+  const screenHub = createScreenHub({ clock });
+  api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv }), screens: deps.screens, hub: screenHub, config, household, access }));
   api.route('/', createCastApi({ voice, config, household, access }));
-  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: createScreenHub({ clock }), voice, config, household, access }));
+  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

@@ -179,9 +179,10 @@ export const configSchema = z.object({
     .default({ live: true, banner: true, audio: true, talk: true, maxMinutes: 10, stun: [], turn: [] }),
   /**
    * Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
-   * l'affiche en gros au milieu de l'écran, par-dessus l'image, pendant `seconds` secondes. Il faut l'appli
-   * « Notifications for Android TV » sur la télé (avec « Afficher par-dessus les autres applis »). `host` : adresse de
-   * la télé sur le réseau de la maison (IP fixée dans la box, ou nom) ; `port` : celui de l'appli. Absent : pas de bouton.
+   * l'affiche en bandeau, par-dessus l'image, pendant `seconds` secondes. Une télé appairée avec l'appli HomeHub TV le
+   * reçoit d'elle-même (pas besoin de `host`). Sinon, ancienne façon (retirée dans une prochaine version) : l'appli
+   * « Notifications for Android TV » sur la télé, `host` son adresse sur le réseau de la maison (IP fixée dans la box,
+   * ou nom), `port` celui de l'appli. Absent et aucune télé appairée : pas de bouton.
    */
   tv: z
     .object({
@@ -190,7 +191,8 @@ export const configSchema = z.object({
         .trim()
         .min(1)
         .max(253)
-        .regex(/^(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:.]+\])$/u, 'nom ou adresse IP de la télé, sans http:// ni port'),
+        .regex(/^(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:.]+\])$/u, 'nom ou adresse IP de la télé, sans http:// ni port')
+        .optional(),
       port: z.number().int().min(1).max(65535).default(7676),
       seconds: z.number().int().min(3).max(60).default(10),
     })
@@ -275,7 +277,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     camera: { live: config.camera.live, banner: config.camera.banner, talk: config.camera.talk },
-    tv: config.tv !== undefined,
+    tv: config.tv?.host !== undefined,
     cast: config.camera.talk && config.cast.mediaUrl ? config.cast.devices.map(({ id, name, kind }) => ({ id, name, kind })) : [],
     revision,
   };

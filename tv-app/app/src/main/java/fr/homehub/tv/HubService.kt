@@ -123,6 +123,7 @@ class HubService : Service() {
                 }
                 events.voices.forEach { event -> playback.execute { handleVoice(server, token, event) } }
                 events.remote.forEach { event -> remote.execute { handleRemote(server, token, event) } }
+                events.messages.forEach { event -> remote.execute { handleMessage(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -218,6 +219,13 @@ class HubService : Service() {
         }
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", reportJson(failure == null, failure)) }
         if (event is RemoteEvent.Launch || event is RemoteEvent.Power) sendState()
+    }
+
+    /** Un message écrit : bandeau qui s'en va seul au bout de sa durée, puis compte rendu (affiché, ou pourquoi pas). */
+    private fun handleMessage(server: String, token: String, event: MessageEvent) {
+        val shown = banner.showMessage(event.title, event.text, event.seconds)
+        val report = if (shown) reportJson(true) else reportJson(false, getString(R.string.message_not_allowed))
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 
     /** Adresses IPv4 de la télé sur le réseau local (pour que HomeHub retrouve son appareil Cast). */

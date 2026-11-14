@@ -301,18 +301,19 @@ coupé tant qu'Alex parle (pas d'écho) ; « Arrêter de parler » le rétablit.
 
 ![Accueil de la tablette avec le bandeau Alex parle](images/tablette-camera-parle.png)
 
-Plus bas, « Message à la télé » (si une télé est configurée) : Alex écrit un court message, avec le compteur des 140
-caractères permis, puis l'envoie ; le téléphone confirme le texte parti et sa durée d'affichage.
+Plus bas, « Message à la télé » (dès qu'une télé est appairée avec l'appli HomeHub TV) : Alex écrit un court message,
+avec le compteur des 140 caractères permis, puis l'envoie ; la télé rend compte, et le téléphone confirme « Affiché
+sur la télé pendant 10 s » avec le texte parti.
 
 | Écrire | Envoyé |
 |---|---|
 | <img src="images/telephone-camera-tele.png" alt="Onglet Caméra : message à la télé en cours d'écriture" width="260"> | <img src="images/telephone-camera-tele-envoye.png" alt="Onglet Caméra : message affiché sur la télé" width="260"> |
 
-Sur la télé (ici une **maquette** : la fausse télé du monde fictif reçoit la requête, et l'image de programme est
-inventée), le message s'affiche au centre, en gros, sur fond noir, par-dessus l'image, pendant 10 s. L'allure exacte
-est celle de l'appli *Notifications for Android TV* : à confirmer sur la vraie télé.
+Sur la télé (ici une **maquette** : la fausse appli HomeHub TV du monde fictif reçoit l'événement, et l'image de
+programme est inventée), le bandeau de l'appli s'affiche en haut au centre, par-dessus l'image qui continue : icône
+bulle, « Message d'Alex » en petit, le texte en gros ; il s'en va seul au bout de 10 s (`tv.seconds`).
 
-![Maquette d'une télé affichant « Message d'Alex » au centre, par-dessus un programme](images/tele-message.png)
+![Maquette d'une télé affichant le bandeau « Message d'Alex » en haut, par-dessus un programme](images/tele-message.png)
 Avec des appareils Cast déclarés (`cast` dans homehub.yaml ; ici deux faux appareils du monde fictif), **Ta voix sur**
 choisit la destination du micro : la tablette, en direct (« Parler »), ou le Google Home du salon, la télé : message
 enregistré. Alex choisit le Google Home, appuie sur « Enregistrer un message », parle, puis « Envoyer » : l'enceinte

@@ -151,13 +151,14 @@ holidays:
 #   turn: [turn:maison.example.org:3478?transport=udp, turn:maison.example.org:3478?transport=tcp]
 
 # Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
-# l'affiche en gros au milieu de l'écran, par-dessus l'image. Il faut sur la télé l'appli « Notifications for Android
-# TV » (Play Store), ouverte une fois avec « Afficher par-dessus les autres applis » autorisé.
-#   host : adresse de la télé sur le réseau de la maison (IP fixée dans la box, ou nom), sans http:// ni port
-#   port (facultatif, 7676 par défaut) : port de l'appli
+# l'affiche en bandeau par-dessus l'image. Une télé appairée avec l'appli HomeHub TV le reçoit d'elle-même : seule la
+# durée se règle ici. Ancienne façon, sans télé appairée (retirée dans une prochaine version) : l'appli « Notifications
+# for Android TV » (Play Store) sur la télé, ouverte une fois avec « Afficher par-dessus les autres applis » autorisé.
 #   seconds (facultatif, 10 par défaut, 3 à 60) : durée d'affichage
+#   host (ancienne façon) : adresse de la télé sur le réseau de la maison (IP fixée dans la box, ou nom), sans http:// ni port
+#   port (ancienne façon, facultatif, 7676 par défaut) : port de l'appli tierce
 # tv:
-#   host: 192.168.1.40
+#   seconds: 10
 
 # Appareils Google Cast (enceinte Google Home, télé Android TV) où un parent envoie un message vocal depuis l'onglet
 # Caméra (avec camera.talk). Par adresse IP (réservation DHCP sur la box) : pas de découverte, le conteneur garde son

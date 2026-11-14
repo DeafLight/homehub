@@ -1,7 +1,8 @@
 // Envoi d'un message à la télé Android TV : requête HTTP locale à l'appli « Notifications for Android TV » (port 7676
 // par défaut), au format de la bibliothèque notifications-android-tv qu'utilise Home Assistant (multipart : msg,
 // title, duration, fontsize, position, bkgcolor, transparency, filename). Le message s'affiche au centre, police la
-// plus grande, fond noir opaque, par-dessus l'image. Le texte arrive déjà nettoyé (shared/tv.ts).
+// plus grande, fond noir opaque, par-dessus l'image. Le texte arrive déjà nettoyé (shared/tv.ts). Ne sert plus que sans
+// télé appairée avec l'appli HomeHub TV (tv-api.ts) : à retirer une version après la fonction 2 de l'appli.
 import type { AppConfig } from '../config.ts';
 
 type TvRules = AppConfig['tv'];
@@ -51,7 +52,7 @@ export function createTvNotifier({
   return {
     async send(text, from) {
       const tv = rules();
-      if (!tv) throw new TvError('off', 'Aucune télé configurée (tv dans homehub.yaml)');
+      if (!tv?.host) throw new TvError('off', 'Aucune télé configurée (tv dans homehub.yaml)');
       const form = new FormData();
       form.set('filename', new Blob([BLANK_ICON], { type: 'application/octet-stream' }), 'icon.png');
       form.set('msg', text);

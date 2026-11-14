@@ -1,19 +1,23 @@
 // Tests du message à la télé : réservé aux parents (ni enfant, ni appareil non appairé, ni tablette sans personne
-// reconnue), texte nettoyé et limité côté serveur, requête multipart au format de l'appli Notifications for Android
-// TV (centre, police maximale, fond opaque, durée de la config), télé absente, injoignable ou qui refuse.
+// reconnue), texte nettoyé et limité côté serveur. Télé appairée (appli HomeHub TV) : événement `message` et compte
+// rendu de chaque télé joignable. Sinon, requête multipart au format de l'appli Notifications for Android TV (centre,
+// police maximale, fond opaque, durée de la config), télé absente, injoignable ou qui refuse.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { ScreenEvent, ScreenReport } from '../shared/screen.ts';
 import { TV_MESSAGE_MAX } from '../shared/tv.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
+import { createScreenHub, SCREEN_OFFLINE } from './services/screens.ts';
 import { createTvNotifier, tvTitle } from './services/tv.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
+import type { ScreenRecord, ScreenStore } from './sources/screens.ts';
 import { connectedFrom, NOW } from './testing.ts';
 import { createTvApi, TV_PARENTS_ONLY } from './tv-api.ts';
 
@@ -22,7 +26,15 @@ const OTHER = '192.168.1.20';
 
 type Sent = { url: string; form: FormData };
 
-async function setup({ tv = { host: '192.168.1.40' } as unknown, answer = (): Response | Promise<Response> => new Response('OK') } = {}) {
+/** Fausses télés HomeHub TV qui écoutent encore : arrêtées à la fin de chaque test. */
+const stops: (() => void)[] = [];
+afterEach(() => stops.splice(0).forEach((stop) => stop()));
+
+async function setup({
+  tv = { host: '192.168.1.40' } as unknown,
+  answer = (): Response | Promise<Response> => new Response('OK'),
+  paired = [] as { id: string; name: string }[],
+} = {}) {
   const clock = () => new Date(NOW);
   const config = createConfigStore(
     parseConfig({
@@ -44,8 +56,30 @@ async function setup({ tv = { host: '192.168.1.40' } as unknown, answer = (): Re
     sent.push({ url: String(input), form: init?.body as FormData });
     return answer();
   }) as typeof fetch;
+  const hub = createScreenHub({ clock, waitMs: 20, reportMs: 1_000 });
+  const at = NOW.toISOString();
+  const records = paired.map((p): ScreenRecord => ({ ...p, system: 'Android 10', app: '0.74.0', pairedAt: at, lastSeenAt: at }));
+  const screens = { list: async () => records } as unknown as ScreenStore;
   const api = createRouter();
-  api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv, fetchImpl }), household: createHousehold(config), access }));
+  api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv, fetchImpl }), screens, hub, config, household: createHousehold(config), access }));
+
+  /** Une télé HomeHub TV qui écoute ses événements et rend compte de chacun. */
+  const received: ScreenEvent[] = [];
+  const listen = (id: string, report: (e: ScreenEvent) => ScreenReport = () => ({ ok: true })) => {
+    let stopped = false;
+    stops.push(() => (stopped = true));
+    void (async () => {
+      let after: number | null = null;
+      while (!stopped) {
+        const found = await hub.events(id, after);
+        after = found.last;
+        for (const e of found.events) {
+          received.push(e);
+          hub.report(id, e.id, report(e));
+        }
+      }
+    })();
+  };
 
   const phone = async (ownerId: string) => {
     const { code } = devices.createCode(ownerId);
@@ -57,7 +91,7 @@ async function setup({ tv = { host: '192.168.1.40' } as unknown, answer = (): Re
       { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers, ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify(body) },
       connectedFrom(from),
     );
-  return { send, sent, sessions, alex: await phone('alex'), sam: await phone('sam'), lea: await phone('lea') };
+  return { send, sent, sessions, listen, received, alex: await phone('alex'), sam: await phone('sam'), lea: await phone('lea') };
 }
 
 describe('API message à la télé : droits', () => {
@@ -140,6 +174,62 @@ describe('API message à la télé : envoi', () => {
     const res2 = await refused.send({ text: 'Coucou' }, { token: refused.alex });
     expect(res2.status).toBe(502);
     expect((await res2.json()).error).toContain('refusé');
+  });
+});
+
+describe('API message à la télé : par l’appli HomeHub TV', () => {
+  const SALON = { id: 'salon', name: 'Télé du salon' };
+  const CHAMBRE = { id: 'chambre', name: 'Télé de la chambre' };
+
+  it('télé appairée : événement message (titre, texte nettoyé, durée de la config), l’appli tierce n’est pas appelée', async () => {
+    const { send, sent, listen, received, alex } = await setup({ tv: { host: '192.168.1.40', seconds: 15 }, paired: [SALON] });
+    listen(SALON.id);
+    const res = await send({ text: '  À table !\n\u{200B}' }, { token: alex });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ text: 'À table !', seconds: 15, screens: ['Télé du salon'] });
+    expect(received).toEqual([expect.objectContaining({ kind: 'message', title: 'Message d’Alex', text: 'À table !', seconds: 15 })]);
+    expect(sent).toEqual([]);
+  });
+
+  it('sans tv dans la config : 10 s par défaut ; un parent reconnu à la tablette aussi', async () => {
+    const { send, listen, received, sessions } = await setup({ tv: null, paired: [SALON] });
+    listen(SALON.id);
+    const { token } = sessions.open('sam', 10);
+    const res = await send({ text: 'Au lit' }, { from: TABLET, headers: { 'X-Actor-Session': token } });
+    expect(await res.json()).toEqual({ text: 'Au lit', seconds: 10, screens: ['Télé du salon'] });
+    expect(received[0]).toMatchObject({ title: 'Message de Sam' });
+  });
+
+  it('un enfant ne peut pas, même avec une télé appairée', async () => {
+    const { send, listen, received, lea } = await setup({ paired: [SALON] });
+    listen(SALON.id);
+    expect((await send({ text: 'Coucou' }, { token: lea })).status).toBe(403);
+    expect(received).toEqual([]);
+  });
+
+  it('plusieurs télés : affiché sur celles qui le disent, les injoignables sont passées', async () => {
+    const { send, listen, received, alex } = await setup({ paired: [SALON, CHAMBRE, { id: 'bureau', name: 'Télé du bureau' }] });
+    listen(SALON.id);
+    listen(CHAMBRE.id, () => ({ ok: false, reason: 'affichage par-dessus non autorisé' }));
+    const res = await send({ text: 'Coucou' }, { token: alex });
+    expect(await res.json()).toEqual({ text: 'Coucou', seconds: 10, screens: ['Télé du salon'] });
+    expect(received.map((e) => e.kind)).toEqual(['message', 'message']);
+  });
+
+  it('télé appairée mais injoignable : 503, pas de repli sur l’appli tierce', async () => {
+    const { send, sent, alex } = await setup({ paired: [SALON] });
+    const res = await send({ text: 'Coucou' }, { token: alex });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe(SCREEN_OFFLINE);
+    expect(sent).toEqual([]);
+  });
+
+  it('aucune télé ne l’a affiché : 502 avec la raison de chacune', async () => {
+    const { send, listen, alex } = await setup({ paired: [SALON] });
+    listen(SALON.id, () => ({ ok: false, reason: 'affichage par-dessus non autorisé' }));
+    const res = await send({ text: 'Coucou' }, { token: alex });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('Télé du salon : affichage par-dessus non autorisé');
   });
 });
 
