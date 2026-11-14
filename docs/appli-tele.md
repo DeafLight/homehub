@@ -149,7 +149,8 @@ Les commandes exactes iront dans le README de `tv-app/` (avec des adresses d'exe
 - Même clé de signature à chaque version, sinon `adb install -r` refuse et il faut désinstaller (et réappairer).
   **Clé dédiée** (`homehub-tv.jks`) générée une fois, **gardée hors du dépôt**, dans le dossier de l'utilisateur
   Windows (`%USERPROFILE%\.homehub-tv\`, avec `keystore.properties` qui donne ses mots de passe) ; une copie de sauvegarde
-  dans le dépôt privé de config du NAS. Perdre la clé n'est pas grave : il faut désinstaller l'appli et la réappairer.
+  dans le dossier des secrets du NAS (lisible par root seul), dont le dépôt privé de config note seulement l'emplacement
+  (jamais la clé ni ses mots de passe). Perdre la clé n'est pas grave : il faut désinstaller l'appli et la réappairer.
 - Mise à jour : `gradlew assembleRelease` puis `adb connect <ip>:5555` et `adb install -r …\homehub-tv.apk`. L'appairage
   et l'adresse sont conservés. Un petit script `tv-app/installer.ps1` enchaîne les trois.
 - L'appli montre sa version dans l'écran d'appairage et l'envoie au serveur ; la page des appareils de la tablette
@@ -212,7 +213,8 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 
 1. Code dans le sous-dossier `tv-app/` de ce dépôt.
 2. Appairage par code affiché sur la télé et tapé sur la tablette.
-3. Clé de signature dans `%USERPROFILE%\.homehub-tv\`, copie de sauvegarde dans le dépôt privé de config du NAS.
+3. Clé de signature dans `%USERPROFILE%\.homehub-tv\`, copie de sauvegarde dans le dossier des secrets du NAS
+   (le dépôt privé de config note seulement son emplacement).
 4. Ordre : celui proposé ; les idées restantes se choisissent ensuite dans `TODO.md`.
 5. Outils installés au moment de la première version.
 6. Attente longue plutôt que WebSocket : zéro dépendance, reprise sans perte par numéro d'événement, proxy sans réglage.

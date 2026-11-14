@@ -24,8 +24,9 @@ Dans `C:\Android` : JDK 17 (`jdk-17`), SDK Android (`sdk` : `platform-tools`, pl
 8.11.1 (`gradle-8.11.1`). `tv-app/local.properties` (ignoré par git) : `sdk.dir=C:/Android/sdk`.
 
 Clé de signature : `%USERPROFILE%\.homehub-tv\homehub-tv.jks` et `keystore.properties` (`storeFile`, `storePassword`,
-`keyAlias`, `keyPassword`), **hors du dépôt**, avec une copie de sauvegarde dans le dépôt privé de config du NAS. Sans
-la même clé, une mise à jour est refusée : il faut désinstaller puis réappairer.
+`keyAlias`, `keyPassword`), **hors du dépôt**. Une copie de sauvegarde est gardée dans le dossier des secrets du NAS
+(lisible par root seul) ; le dépôt privé de config du NAS ne contient pas la clé, il note seulement où est cette copie.
+Sans la même clé, une mise à jour est refusée : il faut désinstaller puis réappairer.
 
 ```powershell
 $env:JAVA_HOME = 'C:\Android\jdk-17'
