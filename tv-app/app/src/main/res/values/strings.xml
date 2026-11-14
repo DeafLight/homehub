@@ -25,4 +25,6 @@
     <string name="remote_off">Télécommande : débogage réseau coupé, flèches et clavier indisponibles</string>
     <string name="timer_stop">Arrêter</string>
     <string name="timer_hint">OK : arrêter partout · Retour : masquer</string>
+    <string name="dream_name">HomeHub : météo, agenda, menu</string>
+    <string name="dream_not_paired">HomeHub TV n’est pas encore appairée : ouvrir l’appli pour afficher le code</string>
 </resources>

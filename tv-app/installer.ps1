@@ -1,6 +1,7 @@
 ﻿# Construit HomeHub TV et l'installe (ou la met à jour) sur la télé par adb, sur le réseau de la maison.
 # Première fois : -Serveur donne l'adresse de HomeHub à l'appli et autorise le bandeau (appops).
-# À chaque fois : l'appli est mise dans la liste blanche Doze (deviceidle) et son service d'accessibilité activé.
+# À chaque fois : l'appli est mise dans la liste blanche Doze (deviceidle), son service d'accessibilité activé et son
+# écran de veille choisi (HomeHubDream).
 #   .\tv-app\installer.ps1 -Tele 192.168.1.50 -Serveur http://192.168.1.10:3000
 # Ensuite : .\tv-app\installer.ps1 -Tele 192.168.1.50
 # Outils attendus (docs/appli-tele.md) : JDK 17 et SDK Android dans C:\Android, sauf JAVA_HOME / ANDROID_HOME définis.
@@ -50,6 +51,12 @@ if (($actifs -split ':') -notcontains $service) {
     & $adb -s "${Tele}:5555" shell settings put secure enabled_accessibility_services $liste
     & $adb -s "${Tele}:5555" shell settings put secure accessibility_enabled 1
 }
+# Écran de veille HomeHub (fonction 8 : heure, météo, agenda de la famille, menu du soir), à chaque fois : choisi
+# comme écran de veille de la télé et activé. Sans effet sur le délai avant la veille, réglé dans les paramètres.
+Write-Host "Écran de veille : $paquet/.HomeHubDream."
+& $adb -s "${Tele}:5555" shell settings put secure screensaver_components "$paquet/.HomeHubDream"
+& $adb -s "${Tele}:5555" shell settings put secure screensaver_enabled 1
+
 # Télécommande : au premier lancement, l'appli se connecte à l'adb de la télé elle-même (127.0.0.1:5555) ; la télé
 # demande alors « Autoriser le débogage ? » : cocher « Toujours autoriser » et accepter à la télécommande.
 

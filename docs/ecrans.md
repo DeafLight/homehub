@@ -421,6 +421,16 @@ la fausse télé du monde fictif) :
 
 ![Maquette d'une télé en pause avec le bandeau « À table ! De la part d'Alex »](images/tele-a-table.png)
 
+### Écran de veille de la télé (appli HomeHub TV)
+
+Quand la télé passe en veille d'écran, l'appli HomeHub TV affiche la page `/ecran` de HomeHub : l'heure et la date,
+la météo du moment et des trois jours suivants, le **menu du soir** (en jaune, jusqu'à 21 h) et l'**agenda**
+d'aujourd'hui et de demain, de la famille et de chacun (avec le prénom). Rien de personnel ; tout l'écran se déplace un
+peu chaque minute. La première touche de la télécommande la ferme. (Dans le monde fictif, l'horloge est figée un jeudi
+mais la météo est la vraie prévision du jour : les jours de prévision ne suivent pas.)
+
+![Écran de veille de la télé : 07:35, jeudi 5 novembre, couvert 6°, trois jours de prévision ; ce soir au menu, agenda d'aujourd'hui et de demain](images/tele-ecran-veille.png)
+
 ### Vie scolaire sur le téléphone d'un parent
 
 En tête de l'onglet Agenda ; la toucher ouvre le détail.

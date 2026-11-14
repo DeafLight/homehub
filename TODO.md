@@ -319,7 +319,12 @@ personne depuis son propre téléphone.
       allumée, en veille ou absente (`fake-screen-mode.json`). Mécanisme réutilisable pour le mode film (15).
 - [ ] 7 bis. À vérifier sur la vraie télé : écran éteint à la télécommande puis message vocal (bascule immédiate),
       télé débranchée (bascule après 40 s), écran qui s'éteint pendant l'envoi.
-- [ ] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir.
+- [x] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir : `HomeHubDream` (écran de veille
+      Android de l'appli) ouvre la page `/ecran` dans une WebView avec le jeton de la télé (`GET /api/screen/ecran`,
+      télé appairée seulement, rien de personnel) ; agenda d'aujourd'hui et de demain, 3 jours de météo, menu du jour
+      jusqu'à 21 h ; choisi par `installer.ps1`.
+  - [ ] À vérifier sur la vraie télé : WebView d'Android 11 (page affichée, polices), délai de la veille, retour à
+        l'écran de veille d'origine, écran de veille lancé télé en veille rapide.
 - [ ] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé.
 - [ ] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le
       téléphone de l'expéditeur.

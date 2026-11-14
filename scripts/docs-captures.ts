@@ -399,6 +399,8 @@ const send = (method: string, params: object = {}, sessionId?: string): Promise<
 type Metrics = { width: number; height: number; deviceScaleFactor: number; mobile: boolean };
 const TABLET: Metrics = { width: 1280, height: 800, deviceScaleFactor: 1.5, mobile: false };
 const PHONE: Metrics = { width: 390, height: 844, deviceScaleFactor: 2, mobile: true };
+/** WebView d'une télé Full HD : 960 × 540 px CSS, densité 2. */
+const TV_SCREEN: Metrics = { width: 960, height: 540, deviceScaleFactor: 2, mobile: false };
 /** Instant de départ de l'horloge du navigateur : celui du serveur en cours. */
 let browserNow = DOCS_NOW;
 const fakeClock = () => `(() => {
@@ -460,6 +462,9 @@ for (const [name, path] of [
   ['tablette-telephones', '/telephones'],
   ['tablette-nas', '/nas'],
 ] as const) await shoot(name, BASE + path, TABLET);
+// Écran de veille de la télé (appli HomeHub TV, fonction 8) : la page /ecran telle que la WebView de HomeHubDream
+// l'ouvre, avec le jeton de la télé fictive.
+await shoot('tele-ecran-veille', `${BASE}/ecran#token=${FAKE_SCREEN_TOKEN}`, TV_SCREEN);
 // Ajout d'un produit sans code-barres sur la tablette : des œufs de la ferme, 6 pièces, rayon Frais (non validé).
 const typeInto = (selector: string, text: string) =>
   `{ const i = document.querySelector('${selector}'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, '${text}'); i.dispatchEvent(new Event('input', { bubbles: true })); }`;

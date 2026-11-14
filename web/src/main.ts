@@ -10,6 +10,8 @@ import { loadPairing } from './lib/phone.ts';
 import { buildProfiles } from './lib/profiles.ts';
 import { createRouter } from './lib/router.svelte.ts';
 import { createTimers } from './lib/timers.svelte.ts';
+import { isEcranPath, takeScreenToken } from './lib/ecran.ts';
+import Ecran from './screens/Ecran.svelte';
 import './app.css';
 
 const CONFIG_RETRY_MS = 10_000;
@@ -62,4 +64,9 @@ async function start() {
   }
 }
 
-void start();
+// Écran de veille de la télé (/ecran, appli HomeHub TV) : page à part, avec le jeton de la télé et rien d'autre (ni
+// configuration, ni personne reconnue, ni minuteurs).
+if (isEcranPath(location.pathname)) {
+  target.textContent = '';
+  mount(Ecran, { target, props: { token: takeScreenToken() } });
+} else void start();

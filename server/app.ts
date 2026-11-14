@@ -70,6 +70,8 @@ import { createScreenRemindersApi } from './screen-reminders-api.ts';
 import { createScreenReminders, reminderBuilders } from './services/screen-reminders.ts';
 import type { ScreenReminderStore } from './sources/screen-reminders.ts';
 import { createScreenMediaApi } from './screen-media-api.ts';
+import { createEcranApi } from './ecran-api.ts';
+import { createEcranService } from './services/ecran.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -210,6 +212,7 @@ export function createApp(deps: AppDeps): Hono {
     api.route('/', createScreenRemindersApi({ store: deps.screenReminders, reminders, access, clock }));
   }
   api.route('/', createScreenMediaApi({ screens: deps.screens, hub: screenHub, household, access, pins }));
+  api.route('/', createEcranApi({ ecran: createEcranService({ service: deps.service, menus: deps.menus, recipes: deps.recipes, household, clock }), access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

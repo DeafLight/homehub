@@ -9,7 +9,8 @@ haut de l'écran pendant `tv.seconds` (10 s par défaut), en rendant compte au t
 téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs** de la maison en cours s'y décomptent en petit en bas à droite ; celui qui se termine s'y affiche avec un carillon court ;
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). L'**alerte du bus du matin** s'y affiche (« Bus dans 9 min », bandeau icône bus pendant 45 s, réglée par
 trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche, après un
-message vocal en cours). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
+message vocal en cours). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
+famille, menu du soir). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
 (`package.json`).
@@ -33,6 +34,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `Minuteur.kt` | Minuteurs, sans Android : événements `timer`, `timer-clear` et `timers`, file des minuteurs qui sonnent, décompte à l'heure du serveur, carillon synthétisé |
 | `MinuteurDecompte.kt` | Petit décompte des minuteurs en cours en bas à droite, fenêtre non focalisable et non touchable |
 | `MinuteurBandeau.kt` | Bandeau du minuteur qui prend le focus de la télécommande (OK : « Arrêter » partout, Retour : masquer), carillon son baissé, compte rendu |
+| `HomeHubDream.kt`, `Ecran.kt` | Écran de veille (`DreamService`) : la page `/ecran` de HomeHub dans une WebView, avec le jeton de la télé |
 
 ## Minuteurs
 
@@ -107,7 +109,7 @@ signature (`apksigner verify --print-certs`, empreinte du certificat dans le jou
    parent devant la tablette.
 
 Le script installe l'APK, autorise le bandeau (`appops set fr.homehub.tv SYSTEM_ALERT_WINDOW allow`), met l'appli
-dans la liste blanche Doze, active son service d'accessibilité et donne l'adresse de HomeHub
+dans la liste blanche Doze, active son service d'accessibilité, choisit son écran de veille et donne l'adresse de HomeHub
 (`am start … --es server …`). Une autre adresse plus tard fait oublier l'appairage.
 
 Télécommande : au premier lancement, l'appli se connecte à l'`adb` de la télé elle-même ; la télé demande de nouveau
@@ -119,6 +121,12 @@ Liste blanche Doze : à chaque installation ou mise à jour, le script passe
 `dumpsys deviceidle whitelist +fr.homehub.tv`, pour qu'Android ne coupe ni le réseau ni le processeur de l'appli
 pendant une longue veille ; la télé garde ce réglage après un redémarrage. La commande à la main
 (`adb shell dumpsys deviceidle whitelist +fr.homehub.tv`) ne sert qu'après une installation sans le script.
+
+Écran de veille : à chaque installation, le script passe
+`settings put secure screensaver_components fr.homehub.tv/.HomeHubDream` et `screensaver_enabled 1`. Le délai avant
+la veille reste celui de la télé (Paramètres → Préférences de l'appareil → Économiseur d'écran, selon le fabricant) ;
+le même menu permet de revenir à l'écran de veille d'origine. Télé pas encore appairée : l'écran de veille le dit. La
+page vient de HomeHub (`/ecran`) : une nouvelle version de HomeHub la met à jour sans réinstaller l'appli.
 
 ## Mise à jour
 

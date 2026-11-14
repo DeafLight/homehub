@@ -382,6 +382,15 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   télécommande de la barre de son), et le serveur refuse les touches de volume (409).
   **Parents seulement** (le serveur refuse un enfant et un appareil non appairé ; un parent reconnu à la tablette peut
   s'en servir aussi). Rien de personnel : le tiroir ne montre que des noms d'applis.
+- **Écran de veille de la télé** (appli HomeHub TV) : quand la télé passe en veille d'écran, elle affiche HomeHub au
+  lieu des photos d'Android : l'heure et la date, la météo du moment (min, max, pluie à venir) et des 3 jours
+  suivants, les vacances, le **menu du soir** (recettes du jour au menu, jusqu'à 21 h) et l'**agenda** d'aujourd'hui
+  et de demain (famille et membres, avec leur prénom, 6 rendez-vous au plus). C'est la page `/ecran`, ouverte par
+  l'écran de veille Android de l'appli (`HomeHubDream`) dans une WebView, avec le jeton de la télé dans l'adresse
+  (`#token=…`, retiré aussitôt) ; elle relit ses données toutes les 5 minutes et se déplace un peu chaque minute (pour
+  ne pas marquer l'écran). Seule une télé appairée la lit, et rien de personnel n'y figure (ni tâches, ni mots, ni
+  sport, ni vie scolaire). La première touche de la télécommande la ferme. `tv-app/installer.ps1` la choisit comme
+  écran de veille ; le délai avant la veille reste celui des paramètres de la télé.
 - **Veille** (tablette) : après 5 min sans contact ni visage devant la caméra (`ui.screensaverMinutes`, 0 : jamais),
   écran noir où seuls restent l'horloge, la date et la météo du moment (température, ciel, min et max ou pluie à
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
@@ -857,6 +866,8 @@ server/
   sources/screen-reminders.ts   réglages des rappels et jour du dernier envoi (screen-reminders.json)
   screen-media-api.ts      pause, reprise, volume et « À table ! » depuis la tablette (parent reconnu ou code parent)
   services/screen-media.ts commandes de ce qui passe : touches, volume fixe refusé, événement « À table ! »
+  services/ecran.ts        écran de veille de la télé : météo, agenda d'aujourd'hui et de demain, menu du jour
+  ecran-api.ts             route de l'écran de veille de la télé (jeton de la télé)
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
@@ -870,6 +881,7 @@ shared/drive.ts            drive : enseignes, liens des fiches produit, JSON-LD 
 shared/drive-cart.ts       drive : panier copié pour l'extension et son compte rendu (format, relecture, prix affichés)
 shared/recipe-notes.ts     notes sur une recette : limites, ordre (ouvertes, puis résolues), qui les modifie
 shared/recipe-text.ts      recette dans un texte copié d'une page : sections, titre, portions, temps, bruit ignoré
+shared/ecran.ts            écran de veille de la télé : données de la page /ecran
 shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage, événements, comptes rendus, télécommande
 shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut, heure due, textes
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
@@ -929,6 +941,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online, power }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
 | `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteurs en cours décomptés, minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
 | `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |
+| `GET /api/screen/ecran` | écran de veille de la télé (page `/ecran`), avec son jeton (401 sinon) : `{ weather, days, agenda, dinner, holiday }` : météo du moment, 3 jours suivants, rendez-vous d'aujourd'hui et de demain `[{ id, title, start, end?, allDay?, who }]` (`who` : prénom, null pour la famille ; 6 au plus), recettes du jour au menu |
 | `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |
 | `GET /api/screens/reminders`, `PUT /api/screens/reminders`, `POST /api/screens/reminders/:kind/test` | rappels sur la télé, tablette : réglages `{ reminders: [{ kind, enabled, time }] }` (`kind` : `evening-routine` ou `notes`, `time` : HH:MM) ; enregistrement d'un ou plusieurs rappels (parent reconnu ; 400 heure ou genre inconnus) ; essai tout de suite (parent reconnu) → `{ title, subtitle, screens }` (409 rien à rappeler, 503 aucune télé allumée) |
 | `GET /api/screens/media`, `POST /api/screens/:id/media` | tablette seulement : télés `{ screens: [{ id, name, power, volume, control }], parentCode }` (`volume` : `adjustable`, `fixed` ou null) ; commande `{ action, pin? }` (`pause`, `play`, `voldown`, `volup`, `mute`, `dinner`), par un parent reconnu ou avec le code parent (403 enfant ou personne, 409 volume fixe, 502/503 comme la télécommande) |
