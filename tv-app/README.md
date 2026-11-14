@@ -8,7 +8,8 @@ le son du programme baissé**, avec un bandeau « Message d'Alex », et affiche 
 haut de l'écran pendant `tv.seconds` (10 s par défaut), en rendant compte au téléphone. Elle sert aussi de **télécommande** depuis le
 téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs** de la maison en cours s'y décomptent en petit en bas à droite ; celui qui se termine s'y affiche avec un carillon court ;
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). L'**alerte du bus du matin** s'y affiche (« Bus dans 9 min », bandeau icône bus pendant 45 s, réglée par
-trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
+trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche, après un
+message vocal en cours). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
 (`package.json`).
@@ -26,6 +27,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `Injecteur.kt` | Programme résident lancé par ce flux (`app_process`, identité `shell`) : injecte touches et texte |
 | `Remote.kt` | Langage de l'injecteur : noms des touches → codes Android, lignes d'ordre et de réponse, plan de frappe d'un texte (champ vidé, pauses entre les lettres) |
 | `Telecommande.kt` | Garde l'injecteur lancé (relance s'il tombe), touches, texte, veille et réveil, secours sans `adb` |
+| `Rappels.kt` | Rappels reçus (`kind: "reminder"`) et durée du bandeau (5 à 60 s) |
 | `Applis.kt` | Applis du lanceur (nom, paquet, bannière PNG) envoyées à HomeHub, lancement d'une appli |
 | `HomeHubAccessibility.kt` | Service d'accessibilité : appli en cours, secours Retour/Accueil |
 | `Minuteur.kt` | Minuteurs, sans Android : événements `timer`, `timer-clear` et `timers`, file des minuteurs qui sonnent, décompte à l'heure du serveur, carillon synthétisé |

@@ -9,6 +9,7 @@
 // lanceur quand elle change (installation, retrait).
 // Minuteurs (fonction 3) : petit décompte en bas à droite tant qu'il en tourne (sans contrôle à la télécommande), puis
 // à la fin bandeau qui prend la télécommande, carillon, « Arrêter » (MinuteurAlertes).
+// Rappels (routine du soir, mots à lire) : bandeau cloche pendant la durée demandée, après le message vocal en cours.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -38,6 +39,12 @@ class HubService : Service() {
     private val playback = Executors.newSingleThreadExecutor()
     /** Ordres de la télécommande, l'un après l'autre (à part des messages vocaux, qui durent). */
     private val remote = Executors.newSingleThreadExecutor()
+    /** Rappels, l'un après l'autre (chacun attend la fin d'un message vocal en cours). */
+    private val rappels = Executors.newSingleThreadExecutor()
+    /** Un message vocal est en cours : son bandeau ne doit pas être remplacé par un rappel. */
+    @Volatile private var speaking = false
+    /** Fin du bandeau du dernier rappel (annulée si un autre rappel le remplace). */
+    private val hideReminder = Runnable { banner.hide() }
     /** Envois de l'état et de la liste des applis. */
     private val reports = Executors.newSingleThreadExecutor()
     private lateinit var telecommande: Telecommande
@@ -97,6 +104,7 @@ class HubService : Service() {
         worker?.interrupt()
         playback.shutdownNow()
         remote.shutdownNow()
+        rappels.shutdownNow()
         reports.shutdownNow()
         telecommande.stop()
         HomeHubAccessibility.listener = null
@@ -134,6 +142,7 @@ class HubService : Service() {
                 minuteurs.handle(parseTimerEvents(json))
                 events.bus.forEach { event -> remote.execute { handleBus(server, token, event) } }
                 parseRainEvents(json).forEach { event -> remote.execute { handleRain(server, token, event) } }
+                parseReminders(json).forEach { event -> rappels.execute { handleReminder(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -170,6 +179,7 @@ class HubService : Service() {
     private fun handleVoice(server: String, token: String, event: VoiceEvent) {
         val client = HubClient(server, token)
         val file = File(cacheDir, "message.${event.audio.substringAfterLast('.', "audio")}")
+        speaking = true
         val report = try {
             client.download(event.audio, file)
             val started = CountDownLatch(1)
@@ -197,12 +207,28 @@ class HubService : Service() {
             if (!done.await(90, TimeUnit.SECONDS)) banner.hide()
             null
         } catch (e: InterruptedException) {
+            speaking = false
             return
         } catch (e: Exception) {
             reportJson(false, "message non téléchargé : ${e.message}")
         }
         report?.let { send(client, event, it) }
         file.delete()
+        speaking = false
+    }
+
+    /** Un rappel : bandeau cloche (après le message vocal en cours), compte rendu, puis bandeau retiré à la fin de sa durée. */
+    private fun handleReminder(server: String, token: String, event: ReminderEvent) {
+        val deadline = System.currentTimeMillis() + Rappels.WAIT_VOICE_MS
+        while (speaking && System.currentTimeMillis() < deadline) if (!pause(500)) return
+        val shown = banner.show(event.title, event.subtitle, voice = false)
+        if (shown) {
+            val main = Handler(mainLooper)
+            main.removeCallbacks(hideReminder)
+            main.postDelayed(hideReminder, Rappels.durationMs(event.seconds))
+        }
+        val report = if (shown) reportJson(true) else reportJson(false, "autorisation « afficher par-dessus » manquante")
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 
     private fun send(client: HubClient, event: VoiceEvent, report: String) {

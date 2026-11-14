@@ -303,7 +303,10 @@ personne depuis son propre téléphone.
 - [x] 4. Alerte du bus du matin (« Bus dans 5 min ») : bandeau icône bus par-dessus le programme, réglé par trajet
       (page Transports, « Alerte sur la télé », 1 à 30 min avant de partir ; `tvAlert` dans le YAML), mêmes règles que
       le bandeau du dashboard (plage ou emploi du temps, rien un jour sans école), une fois par membre et par jour.
-- [ ] 5. Rappels des routines du soir et des nouveaux mots.
+- [x] 5. Rappels des routines du soir et des nouveaux mots : bandeau cloche sur les télés allumées à l'heure réglée
+      (qui a encore des étapes, qui a des mots à lire, avec des nombres seulement), un réglage par rappel (actif ou
+      non, heure) et « Essayer » sur la tablette (Téléphones › Rappels sur la télé), une fois par jour, rattrapage
+      d'une demi-heure si la télé s'allume après ; mécanisme prêt pour l'heure du coucher (16).
 - [ ] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause).
 - [ ] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home.
 - [ ] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir.

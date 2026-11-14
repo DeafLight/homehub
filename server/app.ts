@@ -64,6 +64,9 @@ import { createScreenApi } from './screen-api.ts';
 import { createScreenAlertsApi } from './screen-alerts-api.ts';
 import { createTimerAlerts } from './services/timer-alerts.ts';
 import { createScreenAlertStore, type ScreenAlertStore } from './sources/screen-alerts.ts';
+import { createScreenRemindersApi } from './screen-reminders-api.ts';
+import { createScreenReminders, reminderBuilders } from './services/screen-reminders.ts';
+import type { ScreenReminderStore } from './sources/screen-reminders.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -82,6 +85,8 @@ export type AppDeps = {
   screenAlerts?: ScreenAlertStore;
   /** Événements des télés, partagés avec les alertes du serveur (pluie) ; absent (tests) : propre à l'application. */
   screenHub?: ScreenHub;
+  /** Réglages des rappels sur la télé ; absent (tests) : ni rappels, ni leurs routes. */
+  screenReminders?: ScreenReminderStore;
   pins: PinStore;
   faces: FaceStore;
   sessions: ActorSessions;
@@ -186,6 +191,18 @@ export function createApp(deps: AppDeps): Hono {
     logger: console,
   });
   setInterval(() => void busAlerts.tick().catch((err: unknown) => console.error('Alerte du bus sur la télé :', err)), BUS_TICK_MS).unref();
+  if (deps.screenReminders) {
+    // Rappels sur la télé (routine du soir, mots à lire) : vérifiés toutes les 30 s, poussés aux télés allumées.
+    const reminders = createScreenReminders({
+      store: deps.screenReminders,
+      hub: screenHub,
+      screenIds: async () => (await deps.screens.list()).map((s) => s.id),
+      builders: reminderBuilders({ household, routineOf: (id) => deps.service.routine(id), notes: deps.notes }),
+      clock,
+    });
+    reminders.start();
+    api.route('/', createScreenRemindersApi({ store: deps.screenReminders, reminders, access, clock }));
+  }
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });

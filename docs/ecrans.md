@@ -236,6 +236,11 @@ sur les télés allumées les minuteurs en cours, et afficher et sonner celui qu
 
 ![Téléphones](images/tablette-telephones.png)
 
+Plus bas (la page défile), **Rappels sur la télé** : la **Routine du soir** et les **Mots à lire**, chacun avec son
+interrupteur, son heure et **Essayer** (le bandeau part tout de suite sur les télés allumées).
+
+![Rappels sur la télé : Routine du soir à 19 h 30 et Mots à lire à 18 h 30, actifs](images/tablette-rappels-tele.png)
+
 ### Le NAS
 
 État général, jauges, points à surveiller, services, événements récents (relevé d'exemple).
@@ -366,6 +371,11 @@ Le matin, les jours d'école, si la météo annonce de la pluie dans les heures 
 7 h 35 par-dessus le dessin animé du matin (**maquette**, bandeau dessiné comme celui de l'appli).
 
 ![Maquette d'une télé : bandeau parapluie « Pluie vers 8 h, prenez un parapluie » en haut à droite d'un dessin animé](images/tele-appli-pluie.png)
+
+À l'heure réglée sur la tablette, un **rappel** s'affiche de même (bandeau cloche, 20 secondes) : ici la routine du
+soir, avec qui a encore des étapes à cocher (**maquette**, envoyée par « Essayer » dans le monde fictif).
+
+![Maquette d'une télé : bandeau « Routine du soir, Léa : encore 3 étapes · Tom : encore 3 étapes »](images/tele-appli-rappel.png)
 
 ### Télécommande de la télé (téléphone d'un parent)
 

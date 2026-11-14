@@ -21,6 +21,7 @@ import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/f
 import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
+import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -467,6 +468,8 @@ await shoot('tablette-stock-sans-code-barres', `${BASE}/stock`, TABLET, {
 // Drive, étape 2 : « Remplir le panier » sur la tablette (ouvert depuis les courses).
 await shoot('tablette-drive-panier', `${BASE}/listes`, TABLET, { after: click('Remplir le panier') });
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
+// Rappels sur la télé, en bas de la page Téléphones (la page défile).
+await shoot('tablette-rappels-tele', `${BASE}/telephones`, TABLET, { after: `document.querySelector('.reminders')?.scrollIntoView({ block: 'end' })` });
 // Réglage des vacances scolaires : académie de Nantes (celle du YAML fictif) et aperçu de ses prochaines vacances.
 await shoot('tablette-vacances-reglages', `${BASE}/vacances`, TABLET);
 // Sport de la tablette, Alex reconnu (pas de caméra sans fenêtre : la session ouverte par son visage fictif est
@@ -699,6 +702,22 @@ if (!only || only.test('tele-bus')) {
     writeFileSync(busTv, fakeScreenBusTv(JSON.parse(readFileSync(busFile, 'utf8'))));
     await shoot('tele-bus', pathToFileURL(busTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }, { wait: 500 });
   } else console.warn('Alerte du bus non reçue par la fausse appli HomeHub TV');
+}
+
+// Rappel de la routine du soir sur la télé : l'horloge fictive marque 7 h 35, la plage du soir est avancée le temps de
+// l'essai (« Essayer » de la tablette, Alex reconnu), puis les routines sont remises. Maquette de l'écran de la télé
+// avec le bandeau reçu par la fausse appli.
+if (!only || only.test('tele-appli-rappel')) {
+  await call(A, 'PUT', '/routines', { ...ROUTINES, windows: { morning: { from: '05:00', to: '06:00' }, evening: { from: '06:00', to: '23:00' } } });
+  const res = await fetch(`${BASE}/api/screens/reminders/evening-routine/test`, { method: 'POST', headers: { 'X-Actor-Session': faceToken } });
+  await call(A, 'PUT', '/routines', ROUTINES);
+  if (!res.ok) console.warn(`Rappel non envoyé à la fausse télé : ${res.status} ${await res.text()}`);
+  const reminderTv = join(work, 'tele-rappel.html');
+  writeFileSync(reminderTv, fakeScreenReminderTv(JSON.parse(readFileSync(join(state, FAKE_SCREEN_REMINDER_FILE), 'utf8'))));
+  const tvReminder = await openTarget(pathToFileURL(reminderTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  await sleep(500);
+  await tvReminder.capture('tele-appli-rappel');
+  await tvReminder.close();
 }
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;

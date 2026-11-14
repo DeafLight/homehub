@@ -54,6 +54,7 @@ import type {
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenTarget } from '../../../shared/screen.ts';
+import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -303,6 +304,10 @@ export type Api = {
   /** Alertes de la maison sur les télés (minuteur terminé…) : réglage lu par la tablette, changé par un parent. */
   screenAlerts(): Promise<ScreenAlerts>;
   setScreenAlerts(alerts: ScreenAlerts): Promise<ScreenAlerts>;
+  /** Rappels sur la télé (tablette) : réglages, enregistrement par un parent, essai tout de suite. */
+  screenReminders(): Promise<ScreenReminderSettings>;
+  saveScreenReminders(reminders: ScreenReminderSetting[]): Promise<ScreenReminderSettings>;
+  testScreenReminder(kind: ScreenReminderKind): Promise<{ title: string; subtitle: string; screens: number }>;
   /** Téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (lu par l'appli, son du programme baissé). */
   screenTargets(): Promise<ScreenTarget[]>;
   sendScreenVoice(id: string, audio: Blob): Promise<{ device: string }>;
@@ -514,6 +519,9 @@ export function createApi(
     removeScreen: (id) => send('DELETE', `/screens/${encodeURIComponent(id)}`),
     screenAlerts: () => request('/screens/alerts'),
     setScreenAlerts: (alerts) => send('PUT', '/screens/alerts', alerts),
+    screenReminders: () => request('/screens/reminders'),
+    saveScreenReminders: (reminders) => send('PUT', '/screens/reminders', { reminders }),
+    testScreenReminder: (kind) => send('POST', `/screens/reminders/${encodeURIComponent(kind)}/test`),
     screenTargets: () => request('/screens/targets'),
     remoteScreens: () => request('/screens/remote'),
     remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),

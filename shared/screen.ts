@@ -88,6 +88,10 @@ export type ScreenBusEvent = { kind: 'bus'; id: string; title: string; subtitle:
  */
 export type ScreenRainEvent = { kind: 'rain'; id: string; title: string; subtitle: string; seconds: number };
 
+/** Bandeau de rappel (routine du soir, mots à lire) : shared/screen-reminders.ts. */
+export type { ScreenReminderEvent } from './screen-reminders.ts';
+import type { ScreenReminderEvent } from './screen-reminders.ts';
+
 export type ScreenEventBody =
   | ScreenVoiceEvent
   | ScreenKeysEvent
@@ -99,7 +103,8 @@ export type ScreenEventBody =
   | ScreenTimerClearEvent
   | ScreenTimersEvent
   | ScreenBusEvent
-  | ScreenRainEvent;
+  | ScreenRainEvent
+  | ScreenReminderEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 
