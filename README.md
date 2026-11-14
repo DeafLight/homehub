@@ -33,6 +33,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
     tablette la personne reconnue en ouvrant le scanner (« Scans au nom de Léa », « Pas moi » pour scanner
     anonymement) ; personne de reconnu : anonyme. Chaque passage montre l'heure et le nom.
   - Produit **inconnu** de la base : on le décrit (nom, marque, contenance, rayon), il est gardé.
+  - **Affichettes** à scotcher sur le frigo et la poubelle (« scanne avant de ranger / jeter »), avec un QR code qui
+    ouvre le scanner du téléphone dans le bon mode : `npm run affichettes`, voir [Affichettes du scanner](#affichettes-du-scanner).
   - **Épuisé** (dernier exemplaire sorti) : « L'ajouter à la liste de courses ? » Oui / Oui, et toujours d'office /
     Non ; réglage par produit, et par défaut sur la page Stock. Un article ajouté d'office repart si on annule.
   - Sortie d'un produit **pas en stock** (entrée oubliée) : « Il en reste ? » (0 par défaut), ou « C'était une
@@ -931,11 +933,41 @@ npm start         # sert l'app compilée sur :3000
 npm run docs:captures   # refait les captures de docs/images (données fictives, Chrome sans fenêtre)
 npm run build:extension # construit l'extension « Remplir le panier » dans extension/dist
 npm run extension:check # essaie l'extension sur la fausse enseigne (Chrome sans fenêtre, ~2 min) et refait ses captures
+npm run affichettes     # PDF des affichettes du scanner (frigo, poubelle) avec QR code, voir plus bas
 ```
 
 `DOCS_PORT=3290 npm run docs:captures` si le port 3190 est déjà pris (monde fictif d'une autre copie du dépôt).
 
 Pour tester sur la tablette en dev : `http://<ip-du-pc>:5173`.
+
+### Affichettes du scanner
+
+Une page A4 de quatre affichettes à découper et scotcher : deux « Frigo · placard » (*Bip d'abord, on range après*)
+et deux « Poubelle · tri » (*Fini ? Bip, et hop à la poubelle*). Elles rappellent de scanner les courses avant de les
+ranger et les paquets vides avant de les jeter, pour que le stock et la liste de courses restent justes. Chacune porte
+un QR code vers le scanner du téléphone, déjà dans le bon mode : `<adresse>/m/scanner?mode=ranger` sur le frigo,
+`<adresse>/m/scanner?mode=jete` sur la poubelle.
+
+```bash
+npm run affichettes                                  # QR vers l'adresse fictive https://homehub.example
+npm run affichettes -- https://<adresse-de-homehub>  # QR vers le scanner de votre HomeHub
+npm run affichettes -- https://<adresse> --sortie frigo.pdf --apercu frigo.png
+```
+
+- **Sortie** : `affichettes-scan.pdf` à la racine du dépôt (ignoré par git), ou le fichier donné par `--sortie` ;
+  `--apercu` écrit aussi une capture PNG de la page.
+- **Adresse** : celle par laquelle les téléphones ouvrent HomeHub (http ou https, sous-dossier accepté, sans `?` ni
+  `#`). Sans argument, l'adresse fictive : le QR n'ouvre alors rien.
+- **Prérequis** : Edge ou Chrome (Windows, macOS) ou Chromium (Linux), utilisé sans fenêtre pour imprimer la page ;
+  ailleurs, `CHROME=<chemin du navigateur> npm run affichettes`. Les icônes viennent d'un CDN (Tabler Icons, version
+  fixe) : il faut être connecté à Internet.
+- **Impression** : à **100 %** (« taille réelle », sans « ajuster à la page »), sinon le QR rapetisse et les
+  affichettes ne tombent plus sur les traits de coupe ; puis découper selon les pointillés.
+- **Deux façons de scanner le QR** : avec l'appareil photo du téléphone, qui ouvre le scanner dans le mode de
+  l'affichette (**Ranger** ou **Jeté / épuisé**), ou dans le scanner HomeHub déjà ouvert, qui change de mode. Un
+  HomeHub plus ancien que le mode par l'URL ignore `?mode=` : on choisit alors le mode à la main.
+
+<img src="docs/images/affichettes-scan.png" alt="Affichettes du scanner (adresse fictive)" width="420">
 
 ## Release et déploiement
 

@@ -12,3 +12,5 @@ config/nas-status.json
 state/
 # Modèles de visage, copiés de node_modules par scripts/copy-face-models.ts
 web/public/models/
+# Affichettes « scanne avant de ranger / jeter » (npm run affichettes)
+/affichettes-scan.pdf

@@ -164,6 +164,8 @@ Reste :
 
 - [ ] Vérifier sur la tablette et un téléphone : lecture en continu, bip (son autorisé par Fully Kiosk ?), « Retire le
       produit » au bon moment, distance de lecture des petits codes (EAN-8), étiquette imprimée bien lue.
+- [x] Affichettes à imprimer pour le frigo et la poubelle (« scanne avant de ranger / jeter »), QR code vers le
+      scanner du téléphone dans le bon mode (`?mode=ranger` / `?mode=jete`) (`npm run affichettes`, 0.70.0).
 - [x] Inventaire consultable depuis le téléphone (page Stock de la PWA, `/m/stock`, 0.35.0 ; sans date ni auteur, 0.35.1).
 - [x] « J'en ai déjà » des recettes, d'après le stock (menu de la semaine, 0.51.0).
 - [x] « Épuisé » sur chaque produit de la page Stock, même s'il n'en reste qu'un (grisé une fois épuisé, 0.58.0).

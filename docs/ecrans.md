@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.69.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.70.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -386,6 +386,14 @@ Les scans sont au nom du profil du téléphone (Alex), chaque passage avec son h
 Capture faite avec la fausse caméra de Chrome et un faux lecteur de codes-barres.
 
 <img src="images/telephone-scanner.png" alt="Scanner du téléphone" width="260">
+
+### Affichettes du scanner (à imprimer)
+
+Page A4 de quatre affichettes à scotcher sur le frigo et la poubelle, avec un QR code qui ouvre ce scanner
+en mode Ranger (frigo) ou Jeté / épuisé (poubelle) (`npm run affichettes`, voir le README). Aperçu fait avec l'adresse fictive `https://homehub.example`
+(`npm run affichettes -- --apercu docs/images/affichettes-scan.png`), pas par `docs:captures`.
+
+<img src="images/affichettes-scan.png" alt="Affichettes du scanner" width="420">
 
 ### Recettes du téléphone
 
