@@ -183,7 +183,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 |---|---|---|
 | 9 | Parler en direct (WebRTC, comme la 0.66.0) | Utile mais lourd (bibliothèque WebRTC native, plusieurs Mo) : après les autres |
 | 10 | Réponses rapides à la télécommande (« OK », « J'arrive ») renvoyées au téléphone | Peu coûteux une fois 2 fait : à faire tôt |
-| 11 | Partager une photo ou une vidéo vers la télé | Simple (même chemin que le message vocal) : moyen |
+| 11 | Partager une photo ou une vidéo vers la télé | Simple (même chemin que le message vocal) : moyen. **Fait** : cible de partage de la PWA (champ `media`), fichier en mémoire (10 min, 2 places, puis 5 min derrière une adresse au hasard), plein écran `MediaActivity`, routes dans `server/screen-share-api.ts` ; **qui envoie : tout téléphone appairé, enfants compris** (comme montrer son téléphone à la famille ; `access.mediaSender`) ; 50 Mo au plus ; télé en veille refusée |
 | 12 | Séance de sport guidée sur la télé, lancée depuis le téléphone | Données personnelles affichées sur un écran partagé : seulement sur demande de la personne, à cadrer |
 | 13 | Mode cuisine d'une recette | La tablette le fait déjà mieux en cuisine : faible |
 | 14 | Alerte pluie | Peu coûteux (météo déjà là) : avec 4 |

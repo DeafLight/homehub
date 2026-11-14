@@ -43,6 +43,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Photo ou vidéo partagée depuis un téléphone (fonction 11) : plein écran, hors des récents, sa propre tâche
+             (l'écran d'accueil de l'appli ne revient pas à sa fermeture). -->
+        <activity
+            android:name=".MediaActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity="fr.homehub.tv.media" />
+
         <service
             android:name=".HubService"
             android:exported="false"

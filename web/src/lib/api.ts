@@ -55,6 +55,7 @@ import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '.
 import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
+import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-media.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -325,6 +326,12 @@ export type Api = {
   /** Tablette : télés et commandes de ce qui passe (pause, reprise, volume, « À table ! »), parent reconnu ou code parent. */
   mediaScreens(): Promise<MediaScreens>;
   screenMedia(id: string, action: MediaAction, pin?: string): Promise<void>;
+  /** Photo ou vidéo reçue par « Partager » (tout téléphone appairé) : ce qu'elle est, son fichier pour l'aperçu. */
+  sharedMedia(id: string): Promise<SharedMedia>;
+  sharedMediaFile(id: string): Promise<Blob>;
+  /** Télés où la montrer, et l'envoi (la télé l'affiche ou la lit) ; renvoie le nom de la télé. */
+  shareTargets(): Promise<ShareScreenTarget[]>;
+  sendSharedMedia(screenId: string, shared: string): Promise<{ device: string }>;
 };
 
 /** Produit à retenir pour un article (`role` : retenu, par défaut, ou secours). */
@@ -344,7 +351,7 @@ export function createApi(
   /** Appelé à chaque refus du serveur, avant que l'erreur remonte. */
   onError: (err: ApiError) => void = () => {},
 ): Api {
-  async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  async function request<T>(path: string, init?: RequestInit, as: 'json' | 'blob' = 'json'): Promise<T> {
     const { token, kioskKey, actor } = credentials();
     const auth = {
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -359,7 +366,7 @@ export function createApi(
       throw err;
     }
     if (res.status === 204) return undefined as T;
-    return res.json() as Promise<T>;
+    return (as === 'blob' ? res.blob() : res.json()) as Promise<T>;
   }
 
   const send = <T>(method: string, path: string, body?: unknown) =>
@@ -540,6 +547,10 @@ export function createApi(
     screenMedia: async (id, action, pin) => void (await send('POST', `/screens/${encodeURIComponent(id)}/media`, { action, ...(pin && { pin }) })),
     screenFallbacks: () => request('/screens/fallbacks'),
     setScreenFallback: (id, device) => send('PUT', `/screens/${encodeURIComponent(id)}/fallback`, { device }),
+    sharedMedia: (id) => request(`/screens/shared/${encodeURIComponent(id)}`),
+    sharedMediaFile: (id) => request(`/screens/shared/${encodeURIComponent(id)}/file`, undefined, 'blob'),
+    shareTargets: () => request('/screens/share-targets'),
+    sendSharedMedia: (screenId, shared) => send('POST', `/screens/${encodeURIComponent(screenId)}/share`, { shared }),
     sendScreenVoice: (id, audio) => request(`/screens/${encodeURIComponent(id)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
   };
 }

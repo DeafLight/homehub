@@ -23,6 +23,7 @@ import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
 import { fakeScreenPaused } from './docs-captures/fake-screen-pause.ts';
+import { FAKE_SCREEN_MEDIA_FILE, type FakeScreenMedia, fakePhotoHtml, fakeScreenPhotoTv } from './docs-captures/fake-photo.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -428,6 +429,8 @@ async function openTarget(url: string, metrics: Metrics, init = '') {
       writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
       console.log(`docs/images/${name}.png`);
     },
+    /** La page en JPEG, sans l'écrire (photo inventée du partage vers la télé). */
+    jpeg: async () => Buffer.from((await send('Page.captureScreenshot', { format: 'jpeg', quality: 85 }, sessionId)).data, 'base64'),
     close: () => send('Target.closeTarget', { targetId }),
   };
 }
@@ -745,6 +748,40 @@ if (!only || only.test('tele-appli-rappel')) {
   await sleep(500);
   await tvReminder.capture('tele-appli-rappel');
   await tvReminder.close();
+}
+
+// Photo partagée vers la télé (fonction 11) : une photo inventée (fake-photo.ts) partagée comme le ferait le menu
+// Partager de Léa (POST /partager), la page « Montrer sur la télé », l'envoi, puis l'écran de la télé qui l'affiche.
+const SHARE_SHOTS = ['telephone-tele-partage', 'telephone-tele-partage-envoye', 'tele-appli-photo'];
+if (!only || SHARE_SHOTS.some((name) => only.test(name))) {
+  const photoPage = join(work, 'photo.html');
+  writeFileSync(photoPage, fakePhotoHtml());
+  const camera = await openTarget(pathToFileURL(photoPage).href, { width: 1600, height: 1200, deviceScaleFactor: 1, mobile: false });
+  await sleep(300);
+  const photo = await camera.jpeg();
+  await camera.close();
+  const sharePhoto = async () => {
+    const form = new FormData();
+    form.set('media', new File([photo], 'IMG_20261114_163012.jpg', { type: 'image/jpeg' }));
+    const res = await fetch(`${BASE}/partager`, { method: 'POST', body: form, redirect: 'manual' });
+    return `${BASE}${res.headers.get('location')}`;
+  };
+  await shoot('telephone-tele-partage', await sharePhoto(), PHONE, { init: asPhone('lea') });
+  await shoot('telephone-tele-partage-envoye', await sharePhoto(), PHONE, { init: asPhone('lea'), after: click('Montrer sur Télé du salon'), settle: 2500 });
+  if (!only || only.test('tele-appli-photo')) {
+    if (!existsSync(join(state, FAKE_SCREEN_MEDIA_FILE))) {
+      // Sans la capture précédente, la photo n'a pas encore été envoyée : Léa l'envoie par l'API.
+      const shared = new URL(await sharePhoto()).searchParams.get('media');
+      await call(TOKENS.lea, 'POST', `/screens/${FAKE_SCREEN_ID}/share`, { shared });
+    }
+    const media = JSON.parse(readFileSync(join(state, FAKE_SCREEN_MEDIA_FILE), 'utf8')) as FakeScreenMedia;
+    const tvPage = join(work, 'tele-photo.html');
+    writeFileSync(tvPage, fakeScreenPhotoTv(media, readFileSync(media.file)));
+    const tvPhoto = await openTarget(pathToFileURL(tvPage).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(500);
+    await tvPhoto.capture('tele-appli-photo');
+    await tvPhoto.close();
+  }
 }
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;

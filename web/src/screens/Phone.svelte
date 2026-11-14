@@ -382,7 +382,7 @@
           note={sharedRecipe !== undefined ? 'Partagé depuis une autre appli' : undefined}
           sharedText={sharedRecipe?.kind === 'text' ? sharedRecipe : undefined}
           sharedPage={sharedRecipe?.kind === 'file' ? sharedRecipe.id : undefined}
-          initialError={sharedRecipe?.kind === 'too-large' ? 'Page enregistrée trop lourde pour HomeHub : copie plutôt le texte de la recette' : undefined}
+          initialError={sharedRecipe?.kind === 'too-large' ? 'Fichier trop lourd pour HomeHub (page enregistrée : 25 Mo au plus ; photo ou vidéo pour la télé : 50 Mo) : pour une recette, copie plutôt son texte' : undefined}
           onImport={(url) => api.importRecipe(url)}
           onText={(text, url, title) => api.importRecipeText(text, url, title)}
           onPage={(page) => api.importSavedPage(page)}

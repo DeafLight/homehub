@@ -13,6 +13,7 @@
 // Rappels (routine du soir, mots à lire) : bandeau cloche pendant la durée demandée, après le message vocal en cours.
 // Volume réglable ou fixe (barre de son par HDMI ARC, Volume.kt) : annoncé avec l'état, renvoyé quand une sortie
 // audio apparaît ou disparaît.
+// Photo ou vidéo partagée depuis un téléphone : téléchargée puis montrée en plein écran (MediaActivity), compte rendu.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -51,6 +52,8 @@ class HubService : Service() {
     @Volatile private var speaking = false
     /** Fin du bandeau du dernier rappel (annulée si un autre rappel le remplace). */
     private val hideReminder = Runnable { banner.hide() }
+    /** Photos et vidéos partagées, l'une après l'autre (une nouvelle ferme la précédente). */
+    private val media = Executors.newSingleThreadExecutor()
     /** Envois de l'état et de la liste des applis. */
     private val reports = Executors.newSingleThreadExecutor()
     private lateinit var telecommande: Telecommande
@@ -124,6 +127,8 @@ class HubService : Service() {
         playback.shutdownNow()
         remote.shutdownNow()
         rappels.shutdownNow()
+        media.shutdownNow()
+        MediaActivity.closeCurrent()
         reports.shutdownNow()
         telecommande.stop()
         HomeHubAccessibility.listener = null
@@ -163,6 +168,10 @@ class HubService : Service() {
                 events.bus.forEach { event -> remote.execute { handleBus(server, token, event) } }
                 parseRainEvents(json).forEach { event -> remote.execute { handleRain(server, token, event) } }
                 parseReminders(json).forEach { event -> rappels.execute { handleReminder(server, token, event) } }
+                val shared = parseMediaEvents(json)
+                // Une nouvelle photo ferme celle à l'écran : la file passe aussitôt à la suivante.
+                if (shared.isNotEmpty()) MediaActivity.closeCurrent()
+                shared.forEach { event -> media.execute { handleMedia(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -309,6 +318,39 @@ class HubService : Service() {
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 
+    /**
+     * Une photo ou une vidéo partagée (fonction 11) : téléchargement, écran plein écran (MediaActivity), compte rendu
+     * dès qu'elle est affichée ou lancée ; attend sa fermeture (Retour, fin, délai, ou la suivante) avant de passer.
+     */
+    private fun handleMedia(server: String, token: String, event: MediaEvent) {
+        val client = HubClient(server, token)
+        fun report(json: String) = runCatching { client.call("POST", "/api/screen/events/${event.id}/report", json) }
+        if (!screenOn) {
+            report(reportJson(false, getString(R.string.media_standby)))
+            return
+        }
+        val file = File(cacheDir, "partage-${event.seq}.${mediaExtension(event.url)}")
+        try {
+            client.download(event.url, file)
+            val session = MediaSession(event, file.absolutePath)
+            MediaSessions.put(session)
+            try {
+                startActivity(Intent(this, MediaActivity::class.java).putExtra(MediaActivity.EXTRA_EVENT, event.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                val shown = session.started.await(MEDIA_START_S, TimeUnit.SECONDS)
+                report(if (!shown) reportJson(false, getString(R.string.media_not_shown)) else session.error?.let { reportJson(false, it) } ?: reportJson(true))
+                if (!session.closed.await(closeDelayMs(event.seconds) + 30_000, TimeUnit.MILLISECONDS)) MediaActivity.closeCurrent()
+            } finally {
+                MediaSessions.remove(event.id)
+            }
+        } catch (_: InterruptedException) {
+            return
+        } catch (e: Exception) {
+            report(reportJson(false, getString(R.string.media_download_failed, e.message ?: "")))
+        } finally {
+            file.delete()
+        }
+    }
+
     /** Adresses IPv4 de la télé sur le réseau local (pour que HomeHub retrouve son appareil Cast). */
     private fun addresses(): List<String> = runCatching {
         NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
@@ -366,6 +408,8 @@ class HubService : Service() {
         /** Durée du bandeau d'un avis (« À table ! »). */
         private const val NOTICE_MS = 10_000L
         private const val STATE_REFRESH_MS = 5 * 60_000L
+        /** Attente de l'affichage d'une photo ou du début d'une vidéo, une fois téléchargée. */
+        private const val MEDIA_START_S = 20L
 
         /** Démarre le service si la télé est appairée. */
         fun startIfPaired(context: Context) {

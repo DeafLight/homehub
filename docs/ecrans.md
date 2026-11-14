@@ -430,6 +430,21 @@ peu chaque minute. La première touche de la télécommande la ferme.
 
 ![Écran de veille de la télé : 07:35, jeudi 5 novembre, couvert 8°, trois jours de prévision ; ce soir au menu, agenda d'aujourd'hui et de demain](images/tele-ecran-veille.png)
 
+### Photo ou vidéo sur la télé (tout téléphone appairé)
+
+Depuis la galerie, **Partager → HomeHub** ouvre **Montrer sur la télé** : l'aperçu de la photo (ici un dessin inventé
+du monde fictif) et sa taille, les télés avec leur état (la seule allumée est choisie d'avance), puis le gros bouton
+**Montrer sur Télé du salon**. Le compte rendu « Photo affichée sur Télé du salon » arrive dès que la télé l'affiche.
+
+<img src="images/telephone-tele-partage.png" alt="Page Montrer sur la télé sur le téléphone de Léa : aperçu de la photo, Télé du salon allumée, bouton Montrer sur Télé du salon" width="260">
+<img src="images/telephone-tele-partage-envoye.png" alt="Même page après l'envoi : Photo affichée sur Télé du salon" width="260">
+
+Sur la télé (**maquette** dessinée comme l'appli HomeHub TV), la photo occupe tout l'écran, sur fond noir, avec le
+bandeau « Photo de Léa » qui s'efface après quelques secondes. Retour à la télécommande la ferme ; sinon elle s'en va
+au bout d'une minute. Une vidéo se lit de même, le programme en pause.
+
+![Maquette d'une télé : la photo partagée en plein écran, bandeau « Photo de Léa » en haut à gauche](images/tele-appli-photo.png)
+
 ### Vie scolaire sur le téléphone d'un parent
 
 En tête de l'onglet Agenda ; la toucher ouvre le détail.

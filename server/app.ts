@@ -72,6 +72,9 @@ import type { ScreenReminderStore } from './sources/screen-reminders.ts';
 import { createScreenMediaApi } from './screen-media-api.ts';
 import { createEcranApi } from './ecran-api.ts';
 import { createEcranService } from './services/ecran.ts';
+import { createScreenShareApi, shareMediaHandler } from './screen-share-api.ts';
+import { createSharedMedia } from './services/shared-media.ts';
+import { SCREEN_MEDIA_MAX_BYTES } from '../shared/screen-media.ts';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -213,6 +216,9 @@ export function createApp(deps: AppDeps): Hono {
   }
   api.route('/', createScreenMediaApi({ screens: deps.screens, hub: screenHub, household, access, pins }));
   api.route('/', createEcranApi({ ecran: createEcranService({ service: deps.service, menus: deps.menus, recipes: deps.recipes, household, clock }), access }));
+  // Photo ou vidéo partagée vers la télé (fonction 11) : reçue par /partager, envoyée depuis la page du téléphone.
+  const sharedMedia = createSharedMedia({ clock });
+  api.route('/', createScreenShareApi({ screens: deps.screens, hub: screenHub, store: sharedMedia, household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));
   api.route('/', createFitnessApi({ fitness: deps.fitness, household, access }));
   const schoolLife = deps.schoolLife ?? createSchoolLifeService({ household, school: { coursesFor: async () => null }, logger: console });
@@ -228,7 +234,7 @@ export function createApp(deps: AppDeps): Hono {
   // Avant le front : une route d'API inconnue ne doit pas renvoyer index.html.
   app.all('/api/*', () => fail(404, 'Route inconnue'));
   // « Partager » vers l'appli (share_target en POST) : avant le front, qui ne sert que des GET.
-  app.route('/', createShareRoute(shareInbox));
+  app.route('/', createShareRoute(shareInbox, { maxBytes: SCREEN_MEDIA_MAX_BYTES, handle: shareMediaHandler(sharedMedia) }));
 
   if (staticRoot) {
     // index.html jamais mis en cache : après un déploiement, le rechargement doit récupérer la nouvelle version.

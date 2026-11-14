@@ -18,12 +18,15 @@
 // Allumée, en veille ou absente (fonction 7) : fake-screen-mode.json (dossier d'état) le dit, relu à chaque tour. En
 // veille, l'écran est annoncé éteint et un message vocal est refusé comme le fait l'appli (« écran éteint ») ; absente,
 // elle ne demande plus rien (HomeHub la voit partie au bout de GONE_MS).
+// Photo partagée (fonction 11) : téléchargée et notée dans fake-screen-media.json.
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
 import { fakeScreenApps } from './fake-banners.ts';
 import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE } from './fake-screen-reminder.ts';
+import type { ScreenMediaEvent } from '../../shared/screen-media.ts';
+import { FAKE_SCREEN_MEDIA_FILE, type FakeScreenMedia } from './fake-photo.ts';
 
 export const FAKE_SCREEN_TOKEN = 'docs-tele';
 export const FAKE_SCREEN_ID = 'docs-tele';
@@ -115,6 +118,20 @@ export function startFakeScreen(base: string) {
     remote.screenOn = state.screenOn;
     if (introduced) void post('POST', '/api/screen/state', state).catch(() => {});
   }, 300);
+
+  /** Photo ou vidéo partagée (fonction 11) : téléchargée, gardée dans le dossier d'état, « affichée ». */
+  const receiveMedia = async (event: ScreenMediaEvent) => {
+    const res = await fetch(`${base}${event.url}`, { headers });
+    const data = res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+    if (data) {
+      const file = join(dir, `fake-screen-media.${event.url.split('.').pop()}`);
+      writeFileSync(file, data);
+      const media: FakeScreenMedia = { title: event.title, media: event.media, file, contentType: event.contentType, bytes: data.byteLength };
+      writeFileSync(join(dir, FAKE_SCREEN_MEDIA_FILE), JSON.stringify(media));
+      console.log(`Fausse appli HomeHub TV : ${event.title}, ${data.byteLength} octets`);
+    }
+    await post('POST', `/api/screen/events/${event.id}/report`, data ? { ok: true } : { ok: false, reason: `fichier introuvable (HTTP ${res.status})` });
+  };
   const loop = async (): Promise<void> => {
     try {
       if (mode === 'absente') {
@@ -130,6 +147,10 @@ export function startFakeScreen(base: string) {
       const { events, last } = (await res.json()) as ScreenEvents;
       after = last;
       for (const event of events) {
+        if (event.kind === 'media') {
+          await receiveMedia(event);
+          continue;
+        }
         if (event.kind === 'reminder') {
           writeFileSync(join(dir, FAKE_SCREEN_REMINDER_FILE), JSON.stringify({ title: event.title, subtitle: event.subtitle }));
           console.log(`Fausse appli HomeHub TV, rappel : ${event.title} (${event.subtitle})`);

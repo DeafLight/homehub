@@ -24,6 +24,10 @@
         {
           "name": "page",
           "accept": ["multipart/related", "application/x-mimearchive", "message/rfc822", ".mhtml", ".mht"]
+        },
+        {
+          "name": "media",
+          "accept": ["image/*", "video/*"]
         }
       ]
     }

@@ -328,7 +328,9 @@ personne depuis son propre téléphone.
 - [ ] 9. Parler en direct à la télé (comme à la tablette en 0.66.0), son du programme baissé.
 - [ ] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le
       téléphone de l'expéditeur.
-- [ ] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone.
+- [x] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone : « Montrer sur la
+      télé », plein écran (photo une minute au plus, vidéo le programme en pause), Retour ferme ; tout téléphone
+      appairé, 50 Mo au plus. Reste à vérifier sur la vraie télé (vidéo par-dessus la télé en direct, HEIC).
 - [ ] 12. Séance de sport guidée sur la télé, lancée depuis le téléphone de la personne (seule elle peut la lancer).
 - [ ] 13. Mode cuisine d'une recette sur la télé : étapes en grand, minuteurs intégrés.
 - [x] 14. Alerte pluie avant de sortir, par-dessus le programme du matin : de 7 h à 8 h 30 les jours d'école (ni

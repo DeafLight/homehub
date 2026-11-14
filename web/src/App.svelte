@@ -10,6 +10,8 @@
   import { sharedText } from './lib/lists.ts';
   import { sharedRecipe } from './lib/recipes.ts';
   import { sharedProductLink } from './lib/drive.ts';
+  import { sharedMediaParam } from './lib/share-media.ts';
+  import ShareMedia from './screens/ShareMedia.svelte';
   import { HOME_PATH, returnsHomeWhenIdle, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
@@ -118,9 +120,13 @@
        l'aperçu de l'import ; le lien d'une fiche produit d'une enseigne de drive, le choix de l'article à relier ;
        un autre texte, l'ajout prérempli. -->
   {@const params = new URLSearchParams(location.search)}
+  {@const media = sharedMediaParam(params)}
   {@const product = sharedProductLink(params)}
   {@const found = product ? null : sharedRecipe(params)}
-  {#if product}
+  {#if media}
+    <!-- Une photo ou une vidéo (fonction 11) : la montrer sur la télé. -->
+    <ShareMedia {media} />
+  {:else if product}
     <Phone tab="shopping" shared={sharedText(params)} sharedProduct={product} />
   {:else}
     <Phone tab={found ? 'recipes' : 'tasks'} shared={sharedText(params)} sharedRecipe={found ?? undefined} />

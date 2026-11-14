@@ -158,9 +158,16 @@ export type Access = {
    * reconnu à la tablette (un enfant ne lance pas une appli pendant le film). À revoir avec l'heure du coucher.
    */
   remote(c: Context): Promise<Author>;
+  /**
+   * Montrer sur la télé une photo ou une vidéo partagée (fonction 11) : tout téléphone appairé, enfant compris (comme
+   * montrer son téléphone à la famille) ; ni la tablette, ni un appareil non appairé. Rend le profil du téléphone.
+   */
+  mediaSender(c: Context): Promise<Author & { ownerId: string }>;
 };
 
 export const REMOTE_PARENTS_ONLY = 'La télécommande de la télé est réservée aux parents';
+
+export const MEDIA_PHONE_ONLY = 'Les photos se partagent vers la télé depuis un téléphone appairé';
 
 export const UNKNOWN_SCREEN = 'Télé non reconnue : à appairer de nouveau';
 
@@ -257,6 +264,13 @@ export function createAccess({
     async remote(c) {
       const author = await writer(c, null);
       return household.member(author.ownerId)?.parent ? author : fail(403, REMOTE_PARENTS_ONLY);
+    },
+
+    async mediaSender(c) {
+      const who = await caller(c);
+      if (who.rejectedToken) return fail(401, REJECTED_PHONE);
+      const ownerId = who.device?.ownerId;
+      return ownerId ? { ownerId, via: 'phone' } : fail(403, MEDIA_PHONE_ONLY);
     },
   };
 }

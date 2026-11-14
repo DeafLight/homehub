@@ -10,7 +10,8 @@ téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). L'**alerte du bus du matin** s'y affiche (« Bus dans 9 min », bandeau icône bus pendant 45 s, réglée par
 trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche, après un
 message vocal en cours). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
-famille, menu du soir). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
+famille, menu du soir). Elle montre aussi **en plein écran** une photo ou une vidéo partagée depuis un téléphone.
+Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
 (`package.json`).
@@ -30,6 +31,8 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `Telecommande.kt` | Garde l'injecteur lancé (relance s'il tombe), touches, texte, veille et réveil, secours sans `adb` |
 | `Rappels.kt` | Rappels reçus (`kind: "reminder"`) et durée du bandeau (5 à 60 s) |
 | `Applis.kt` | Applis du lanceur (nom, paquet, bannière PNG) envoyées à HomeHub, lancement d'une appli |
+| `Media.kt` | Photo ou vidéo partagée : événements « media », taille de décodage, délais, lien service ↔ écran (`MediaSession`) |
+| `MediaActivity.kt` | Plein écran : photo (ImageDecoder : orientation, HEIC, GIF animé) ou vidéo (focus audio transitoire), bandeau du titre, Retour ou délai pour fermer |
 | `HomeHubAccessibility.kt` | Service d'accessibilité : appli en cours, secours Retour/Accueil |
 | `Minuteur.kt` | Minuteurs, sans Android : événements `timer`, `timer-clear` et `timers`, file des minuteurs qui sonnent, décompte à l'heure du serveur, carillon synthétisé |
 | `MinuteurDecompte.kt` | Petit décompte des minuteurs en cours en bas à droite, fenêtre non focalisable et non touchable |
@@ -127,6 +130,11 @@ pendant une longue veille ; la télé garde ce réglage après un redémarrage. 
 la veille reste celui de la télé (Paramètres → Préférences de l'appareil → Économiseur d'écran, selon le fabricant) ;
 le même menu permet de revenir à l'écran de veille d'origine. Télé pas encore appairée : l'écran de veille le dit. La
 page vient de HomeHub (`/ecran`) : une nouvelle version de HomeHub la met à jour sans réinstaller l'appli.
+
+Photo ou vidéo partagée : l'écran plein écran s'ouvre par-dessus l'appli en cours grâce à l'autorisation « afficher
+par-dessus » (déjà donnée par le script) ; télé en veille, l'envoi est refusé. Une vidéo prend un focus audio
+**transitoire** : l'appli en cours se met en pause (ou baisse le son) et reprend à la fermeture ; la télé en direct
+(tuner, HDMI) peut l'ignorer, à vérifier sur la vraie télé.
 
 ## Mise à jour
 

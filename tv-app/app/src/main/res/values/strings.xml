@@ -27,4 +27,7 @@
     <string name="timer_hint">OK : arrêter partout · Retour : masquer</string>
     <string name="dream_name">HomeHub : météo, agenda, menu</string>
     <string name="dream_not_paired">HomeHub TV n’est pas encore appairée : ouvrir l’appli pour afficher le code</string>
+    <string name="media_standby">télé en veille : l’allumer d’abord</string>
+    <string name="media_not_shown">écran pas affiché au bout de 20 s (autorisation « afficher par-dessus » ?)</string>
+    <string name="media_download_failed">fichier non téléchargé : %1$s</string>
 </resources>

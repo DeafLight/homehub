@@ -226,7 +226,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   (7 prochains jours, soi et la famille), `/m/mots`, `/m/recettes`, `/m/menu`, `/m/camera` (parents). Installable sur l'écran d'accueil (PWA) ; « Partager » depuis une autre appli
   ouvre l'ajout prérempli (`/partager`) ; un lien partagé ouvre l'import de recette (ou, au choix, l'ajout à une liste) ;
   un texte copié d'une recette ou une page enregistrée (`.mhtml`), l'aperçu de l'import ; le lien d'une fiche produit
-  du drive (Courses U), le choix de l'article de la liste auquel le relier. Un téléphone retiré depuis la tablette perd l'accès aussitôt.
+  du drive (Courses U), le choix de l’article de la liste auquel le relier ; une photo ou une vidéo, « Montrer sur la
+  télé ». Un téléphone retiré depuis la tablette perd l'accès aussitôt.
   La tablette affiche le modèle annoncé par le téléphone, rendu lisible (« SM-S918B » → « Samsung Galaxy S23 Ultra »),
   et son système ; on le renomme en touchant son nom.
   Un profil peut avoir un **code PIN**, demandé par la tablette avant d'afficher son QR code et avant de retirer un
@@ -380,6 +381,17 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   de son (HDMI ARC / eARC) ou que le système déclare le volume fixe, l'appli l'annonce à HomeHub ; la tablette et la
   télécommande du téléphone n'offrent plus que pause et reprise et le disent (le volume se règle avec la
   télécommande de la barre de son), et le serveur refuse les touches de volume (409).
+- **Photo ou vidéo sur la télé** (tout téléphone appairé, enfants compris) : depuis la galerie ou l'appareil photo,
+  **Partager → HomeHub** ouvre **Montrer sur la télé** (`/partager?media=…`) : aperçu, choix de la télé (allumée ou
+  injoignable ; la seule allumée est choisie d'avance), « Montrer sur Télé du salon ». L'appli HomeHub TV télécharge
+  le fichier et l'affiche **en plein écran** avec un bandeau « Photo de Léa » qui s'efface ; une **vidéo** se lit avec
+  son son, ce qui passait se met en pause (ou baisse) puis reprend. **Retour** à la télécommande ferme ; sinon une
+  photo s'en va au bout d'une minute, une vidéo à sa fin (5 minutes au plus) ; une nouvelle photo remplace la
+  précédente. Photos JPEG, PNG, WebP, GIF, HEIC ; vidéos MP4, WebM, 3GP, MOV (la télé dit si elle ne sait pas la
+  lire) ; **50 Mo au plus** (une minute de vidéo environ). Télé en veille : refusé, le téléphone dit de l'allumer.
+  **Rien n'est gardé** : le fichier attend en mémoire au plus 10 minutes sous un numéro tiré au hasard (2 places, la
+  navigation de « Partager » ne porte pas le jeton du téléphone), puis 5 minutes derrière une adresse impossible à
+  deviner que seule une télé appairée peut lire, comme un message vocal.
   **Parents seulement** (le serveur refuse un enfant et un appareil non appairé ; un parent reconnu à la tablette peut
   s'en servir aussi). Rien de personnel : le tiroir ne montre que des noms d'applis.
 - **Écran de veille de la télé** (appli HomeHub TV) : quand la télé passe en veille d'écran, elle affiche HomeHub au
@@ -868,6 +880,8 @@ server/
   services/screen-media.ts commandes de ce qui passe : touches, volume fixe refusé, événement « À table ! »
   services/ecran.ts        écran de veille de la télé : météo, agenda d'aujourd'hui et de demain, menu du jour
   ecran-api.ts             route de l'écran de veille de la télé (jeton de la télé)
+  services/shared-media.ts photos et vidéos partagées vers la télé, en mémoire : boîte de réception, adresse au hasard
+  screen-share-api.ts      routes du partage d'une photo ou d'une vidéo vers la télé
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
 shared/ingredients.ts      lignes d'ingrédients : quantité, unité, nom, clé, rayon ; mise à l'échelle et réécriture
@@ -884,6 +898,7 @@ shared/recipe-text.ts      recette dans un texte copié d'une page : sections, t
 shared/ecran.ts            écran de veille de la télé : données de la page /ecran
 shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage, événements, comptes rendus, télécommande
 shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut, heure due, textes
+shared/screen-media.ts     photo ou vidéo vers la télé : formats, taille au plus, durées, événement « media »
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants
 web/src/
   main.ts                  racine de composition du front : API, routeur, horloge → contexte Svelte
@@ -949,6 +964,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `play`, `volup`, `voldown`, `mute` ; touches de volume refusées, 409, si le volume de la télé est fixe) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |
 | `GET /api/screens/targets`, `POST /api/screens/:id/voice` | téléphone d'un parent (`camera.talk`) : télés où envoyer sa voix `[{ id, name, online, on, fallback }]` (`on` : écran allumé ; `fallback` : nom de l'appareil de secours, ou null) ; message vocal (corps et `Content-Type` comme vers Cast) → `{ device, fallback }` dès que la télé le lit ; télé en veille, injoignable ou qui refuse « écran éteint » : lu par l'appareil de secours, `fallback` : `{ reason, notice }` (`reason` : `standby` ou `offline` ; `notice` : « Télé éteinte : lu sur … ») ; sans secours : 503 télé absente, 502 échec rapporté par la télé ou pas de réponse en 20 s |
 | `GET /api/screens/fallbacks`, `PUT /api/screens/:id/fallback` | appareil de secours des télés, tablette : `{ devices: [{ id, name, kind }], screens: [{ id, device, auto }] }` (`auto` : jamais réglé, première enceinte) ; choix `{ device }` (identifiant de `cast.devices` ou null ; parent reconnu ; 400 appareil inconnu) |
+| `GET /api/screens/share-targets`, `GET /api/screens/shared/:id`, `GET /api/screens/shared/:id/file`, `POST /api/screens/:id/share` | photo ou vidéo partagée, tout téléphone appairé (403 sinon) : télés `[{ id, name, online }]` ; fichier reçu par `/partager` `{ id, kind, type, name, bytes }` (`kind` : `photo` ou `video` ; 410 expiré) ; son contenu (aperçu) ; envoi à la télé `{ shared }` → `{ device }` dès qu'elle l'affiche (503 télé absente ; 502 échec rapporté, ou pas de réponse en 60 s) |
+| `GET /api/screen/media/:token` | la télé, avec son jeton : la photo ou la vidéo de l'événement `{ kind: "media", id, media, title, url, contentType, seconds }` (5 minutes au plus ; 401 sans jeton de télé) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Événement `message` à chaque télé appairée et joignable, `screens` = celles qui l'ont affiché ; 404 aucune télé appairée, 503 aucune joignable, 502 aucune ne l'a affiché (raisons) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
@@ -987,7 +1004,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/recipes/import` | `{ url }` (ou un texte partagé qui contient le lien) → `{ recipe, existing }` (201 si nouvelle ; `existing` : déjà au carnet) ou `{ draft, reason }` quand la page n'a pas de recette lisible ; 400 pour une adresse refusée. Quelqu'un de reconnu ou un téléphone relié, vérifié avant toute lecture |
 | `POST /api/recipes/import-text` | `{ text, url?, title? }` : texte copié d'une page → `{ preview: { token, content, url, site, origin, photo } }`, ou `{ recipe, existing: true }` si la page est déjà au carnet ; 422 sans ingrédient ni étape. Mêmes droits que l'import ; rien n'est lu sur le réseau. (Après un refus du site, `POST /api/recipes/import` répond `{ draft, reason, refused: true }`.) |
 | `POST /api/recipes/import-page` | page enregistrée : fichier `.mhtml` (multipart, champ `page`) ou `{ shared }` (numéro reçu par `/partager`) → même réponse ; 400 si ce n'est pas une page enregistrée, 410 si le fichier partagé a expiré |
-| `POST /partager` | cible de « Partager » (formulaire multipart) : lien ou texte renvoyés en `GET /partager?…` ; une page enregistrée mise en attente → `/partager?fichier=<numéro>` |
+| `POST /partager` | cible de « Partager » (formulaire multipart) : lien ou texte renvoyés en `GET /partager?…` ; une page enregistrée mise en attente → `/partager?fichier=<numéro>` ; une photo ou une vidéo (champ `media`) → `/partager?media=<numéro>`, ou `?erreur=media-format` / `media-trop-lourd` |
 | `POST /api/recipes` | `{ content, url?, pending? }` : recette saisie à la main (avec le lien d'une page illisible), ou l'aperçu `pending` corrigé (sa source et sa photo sont reprises) |
 | `POST /api/recipes/:id/reread` | relit la page d'origine → `{ recipe, updated, kept }` : les parties (titre, portions, ingrédients, étapes, temps, appareil) que notre version n'avait pas modifiées sont reprises, les autres gardées ; un parent ou qui l'a ajoutée ; 422 si la page n'a plus de recette lisible |
 | `PUT /api/recipes/:id`, `DELETE /api/recipes/:id` | `{ content }` : notre version (un parent ou qui l'a ajoutée ; une ligne `manual` est gardée telle quelle) ; retrait : un parent (ses notes partent avec elle) |

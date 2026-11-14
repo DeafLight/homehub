@@ -232,11 +232,17 @@ export function createRecipesApi({ recipes, notes, importer, access, clock, pend
  * comme avant ; une page enregistrée attend dans la boîte de réception, et l'appli la réclame par l'API (le jeton du
  * téléphone n'accompagne pas cette navigation). Rien n'est lu ni exécuté ici.
  */
-export function createShareRoute(inbox: ShareInbox) {
+/**
+ * Photo ou vidéo reçue par « Partager » (champ « media », pour la télé : screen-media-api.ts) : le paramètre à mettre
+ * dans l'adresse de la page du téléphone.
+ */
+export type ShareMediaHandler = { maxBytes: number; handle: (file: File) => Promise<Record<string, string>> };
+
+export function createShareRoute(inbox: ShareInbox, media?: ShareMediaHandler) {
   const route = createRouter();
   route.post(
     '/partager',
-    bodyLimit({ maxSize: MHTML_MAX_BYTES + 100_000, onError: (c) => c.redirect('/partager?erreur=trop-lourd', 303) }),
+    bodyLimit({ maxSize: Math.max(MHTML_MAX_BYTES, media?.maxBytes ?? 0) + 100_000, onError: (c) => c.redirect('/partager?erreur=trop-lourd', 303) }),
     async (c) => {
       const form = await c.req.parseBody().catch(() => ({}) as Record<string, string | File>);
       const params = new URLSearchParams();
@@ -244,7 +250,12 @@ export function createShareRoute(inbox: ShareInbox) {
         const value = form[key];
         if (typeof value === 'string' && value.trim()) params.set(key, value.slice(0, RECIPE_TEXT_MAX));
       }
+      const shared = form.media;
+      if (media && shared instanceof File && shared.size > 0) {
+        for (const [key, value] of Object.entries(await media.handle(shared))) params.set(key, value);
+      }
       const file = form.page;
+      if (file instanceof File && file.size > MHTML_MAX_BYTES) return c.redirect('/partager?erreur=trop-lourd', 303);
       if (file instanceof File && file.size > 0) {
         params.set('fichier', inbox.put({ body: new Uint8Array(await file.arrayBuffer()), name: file.name.slice(0, 200), type: file.type.slice(0, 100) }));
       }
