@@ -298,7 +298,8 @@ personne depuis son propre téléphone.
       (bandeau « Cuisson, C'est l'heure ! », carillon court son baissé) ; le bandeau prend la télécommande sans
       arrêter l'appli en cours : OK arrête le minuteur partout, Retour masque ; arrêté ailleurs, le bandeau s'en va.
       Réglage « Minuteurs » dans Téléphones › Télés › Alertes sur la télé (parent). Fausse appli et maquette dans le
-      monde fictif. À vérifier sur la vraie télé : vidéo qui continue quand le bandeau prend le focus.
+      monde fictif. Vérifié sur la vraie télé (0.78.0). En 0.79.0 : minuteurs en cours décomptés en petit en bas à
+      droite de chaque télé allumée (le plus proche, « +1 »), à l'heure du serveur, sans contrôle à la télécommande.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
 - [ ] 5. Rappels des routines du soir et des nouveaux mots.
 - [ ] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause).

@@ -477,13 +477,16 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Lancer ou annuler un minuteur demande quelqu'un de reconnu (n'importe qui, enfant compris) ; arrêter celui qui
   sonne, non. Enregistrés (`timers.json`) : une mise à jour ou un redémarrage du serveur ne les perd pas ; celui qui
   s'est terminé entre-temps sonne au retour.
-  **Sur la télé** (appli HomeHub TV) : un minuteur qui se termine s'affiche aussi sur chaque télé allumée, en haut à
+  **Sur la télé** (appli HomeHub TV) : tant qu'un minuteur tourne, chaque télé allumée montre en petit, en bas à
+  droite, par-dessus tout, le plus proche de la fin (nom et temps restant, « +1 » s'il y en a d'autres) ; rien n'y
+  prend la télécommande. La télé décompte seule à l'heure du serveur. Un minuteur qui se termine s'affiche aussi sur chaque télé allumée, en haut à
   droite, par-dessus ce qui passe (nom du minuteur, « C'est l'heure ! », bouton **Arrêter**), avec un carillon court,
   son du programme baissé le temps du carillon. Le bandeau prend la télécommande sans arrêter l'appli en cours : **OK**
   arrête le minuteur partout (tablette, téléphones, autres télés), **Retour** masque le bandeau sur cette télé. Arrêté
   ailleurs, le bandeau s'en va aussitôt ; sans geste, au bout de 10 min. Une télé allumée dans les 5 min qui suivent la
   fin le reçoit encore. Réglage pour toutes les télés : tablette, **Téléphones** › **Télés** › **Alertes sur la
-  télé** › **Minuteurs** (actif par défaut, changé par un parent reconnu ; `screen-alerts.json`).
+  télé** › **Minuteurs** (actif par défaut, changé par un parent reconnu ; `screen-alerts.json`), pour le décompte
+  comme pour l'alerte.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -795,7 +798,7 @@ server/
   services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
   screen-api.ts            routes de l'appli HomeHub TV, de leur appairage, des messages vocaux et de la télécommande
   screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
-  services/timer-alerts.ts guetteur des minuteurs : alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
+  services/timer-alerts.ts guetteur des minuteurs : liste `timers` en cours, alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
   sources/screen-alerts.ts réglage des alertes télé (screen-alerts.json)
 shared/school-holidays.ts  vacances scolaires et jours sans école : ce qu'on en dit chaque jour (puce)
 shared/public-holidays.ts  jours fériés de métropole (Pâques calculé, fêtes mobiles)
@@ -864,9 +867,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/cast/clips/:token` | le message, pour l'appareil Cast (sans authentification : adresse aléatoire, valable 5 minutes ; 404 ensuite) |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `POST /api/screen/pairing`, `GET /api/screen/pairing/:id` | appli HomeHub TV, sans jeton (en-tête `X-HomeHub-Screen: 1`, 426 sinon) : demande d'appairage `{ system, app }` → `{ id, code, expiresAt }` (5 minutes) ; attente de la confirmation (25 s au plus) → `{ status: "pending" }` ou `{ status: "paired", token, screen }` (jeton remis une fois ; 410 code expiré) |
-| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }` ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
+| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType }` ; minuteurs en cours `{ kind: "timers", id, serverNow, timers: [{ timerId, label, endsAt, durationSeconds }] }` à chaque lancement ou arrêt et à une télé qui revient ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
-| `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
+| `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteurs en cours décomptés, minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
 | `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |
 | `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |
 | `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |

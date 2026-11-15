@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.78.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.79.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -226,8 +226,8 @@ sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 
 Relier un téléphone à un profil (QR code), voir et retirer les téléphones reliés. En dessous, **Télés** : appairer
 une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, la retirer.
-**Alertes sur la télé** : la case **Minuteurs** (cochée par défaut, changée par un parent reconnu) fait afficher et
-sonner sur les télés allumées un minuteur qui se termine.
+**Alertes sur la télé** : la case **Minuteurs** (cochée par défaut, changée par un parent reconnu) fait décompter en petit
+sur les télés allumées les minuteurs en cours, et afficher et sonner celui qui se termine.
 
 ![Téléphones](images/tablette-telephones.png)
 
@@ -335,6 +335,12 @@ s'affiche en haut à droite pendant le message, avec des barres de niveau ; le s
 message, puis revient.
 
 ![Maquette d'une télé : bandeau « Message d'Alex, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-message.png)
+
+Tant qu'un **minuteur** tourne, la télé le montre en petit en bas à droite (**maquette** : « Pâtes » et « Écrans »
+lancés par Alex, reçus par la fausse appli) : le plus proche de la fin avec son temps restant, « +1 » pour l'autre.
+Rien n'y prend la télécommande.
+
+![Maquette d'une télé : en bas à droite, petite pastille « Pâtes 9:05 +1 » par-dessus un programme](images/tele-minuteur-decompte.png)
 
 Un **minuteur** qui se termine s'affiche aussi sur la télé (**maquette** : minuteur « Cuisson » de 10 s lancé par
 Alex, reçu par la fausse appli) : bandeau en haut à droite avec un carillon court, et le bouton **Arrêter** qui a le

@@ -67,6 +67,15 @@ export type ScreenTimerEvent = { kind: 'timer'; id: string; timerId: string; tit
 /** Minuteur arrêté (sur la tablette, un téléphone ou une autre télé) : son bandeau s'en va. */
 export type ScreenTimerClearEvent = { kind: 'timer-clear'; id: string; timerId: string };
 
+/** Un minuteur qui tourne encore ; `label` : son nom (« Minuteur » s'il n'en a pas), `endsAt` à l'heure du serveur. */
+export type ScreenRunningTimer = { timerId: string; label: string; endsAt: string; durationSeconds: number };
+/**
+ * Minuteurs en cours de la maison (fonction 3), du plus proche de la fin au plus lointain : la télé montre le temps qui
+ * reste en petit, en bas à droite, sans rien à faire à la télécommande (rien n'y prend le focus). Liste complète à chaque lancement ou arrêt, et à une télé qui se reconnecte ; vide :
+ * plus rien à montrer. `serverNow` : l'heure du serveur à l'envoi, pour décompter sans dépendre de l'horloge de la télé.
+ */
+export type ScreenTimersEvent = { kind: 'timers'; id: string; serverNow: string; timers: ScreenRunningTimer[] };
+
 export type ScreenEventBody =
   | ScreenVoiceEvent
   | ScreenKeysEvent
@@ -75,7 +84,8 @@ export type ScreenEventBody =
   | ScreenPowerEvent
   | ScreenMessageEvent
   | ScreenTimerEvent
-  | ScreenTimerClearEvent;
+  | ScreenTimerClearEvent
+  | ScreenTimersEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

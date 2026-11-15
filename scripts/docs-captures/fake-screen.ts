@@ -7,10 +7,11 @@
 // note dans fake-screen-remote.json. Message écrit : gardé dans fake-screen-text.json, compte rendu « affiché » ; les
 // captures en font la maquette du bandeau de l'appli.
 // Minuteur terminé (fonction 3) : l'alerte reçue va dans fake-screen-timer.json (retirée quand le minuteur est
-// arrêté), pour la maquette du bandeau « Arrêter ».
+// arrêté), pour la maquette du bandeau « Arrêter ». Minuteurs en cours : la dernière liste reçue va dans
+// fake-screen-timers.json, pour la maquette du petit décompte en bas à droite.
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenStateReport } from '../../shared/screen.ts';
+import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
 import { fakeScreenApps } from './fake-banners.ts';
 
 export const FAKE_SCREEN_TOKEN = 'docs-tele';
@@ -19,6 +20,7 @@ export const FAKE_SCREEN_FILE = 'fake-screen.json';
 export const FAKE_SCREEN_REMOTE_FILE = 'fake-screen-remote.json';
 export const FAKE_SCREEN_TEXT_FILE = 'fake-screen-text.json';
 export const FAKE_SCREEN_TIMER_FILE = 'fake-screen-timer.json';
+export const FAKE_SCREEN_TIMERS_FILE = 'fake-screen-timers.json';
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
@@ -26,6 +28,8 @@ export type FakeScreenMessage = { title: string; bytes: number };
 export type FakeScreenText = { title: string; text: string; seconds: number };
 /** Alerte de minuteur affichée par la fausse télé : de quoi dessiner le bandeau, et le minuteur à arrêter. */
 export type FakeScreenTimer = { timerId: string; title: string; subtitle: string };
+/** Minuteurs en cours reçus (événement `timers`) : l'heure du serveur à l'envoi et la liste. */
+export type FakeScreenTimers = { serverNow: string; timers: ScreenRunningTimer[] };
 /** Ordres de la télécommande reçus, en clair (« touches : bas bas ok »), et l'état qui en résulte. */
 export type FakeScreenRemote = { received: string[]; screenOn: boolean; foreground: string };
 
@@ -72,6 +76,13 @@ export function startFakeScreen(base: string) {
           writeFileSync(join(dir, FAKE_SCREEN_TEXT_FILE), JSON.stringify({ title: event.title, text: event.text, seconds: event.seconds } satisfies FakeScreenText));
           console.log(`Fausse appli HomeHub TV, message écrit : ${event.title}, « ${event.text} »`);
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
+          continue;
+        }
+        if (event.kind === 'timers') {
+          // Comme MinuteurDecompte (tv-app) : la dernière liste fait foi.
+          writeFileSync(join(dir, FAKE_SCREEN_TIMERS_FILE), JSON.stringify({ serverNow: event.serverNow, timers: event.timers } satisfies FakeScreenTimers));
+          await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
+          console.log(`Fausse appli HomeHub TV, minuteurs en cours : ${event.timers.map((t) => t.label).join(', ') || 'aucun'}`);
           continue;
         }
         if (event.kind === 'timer' || event.kind === 'timer-clear') {
@@ -189,4 +200,41 @@ export function fakeScreenTimerTv(alert: FakeScreenTimer): string {
   <div class="arreter">Arrêter</div>
 </div>`,
   );
+}
+
+/** Temps restant comme l'appli (Minuteur.kt, formatRemaining) : arrondi à la seconde supérieure, « 9:05 », « 1:02:03 ». */
+export function formatRemaining(ms: number): string {
+  const total = Math.ceil(Math.max(0, ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+/**
+ * Maquette d'écran de télé pendant que des minuteurs tournent : le programme continue, en petit en bas à droite le
+ * minuteur le plus proche de la fin (icône sur fond soleil, nom, temps restant) et « +1 » s'il y en a d'autres ; rien
+ * n'y a le focus. Allure fidèle à tv-app (MinuteurDecompte), temps restant pris à l'heure du serveur.
+ */
+export function fakeScreenCountdownTv(running: FakeScreenTimers): string {
+  const now = new Date(running.serverNow).getTime();
+  const left = running.timers.filter((t) => new Date(t.endsAt).getTime() > now);
+  const first = left[0];
+  const pill = first
+    ? `<style>
+  .decompte { position: absolute; right: 28px; bottom: 24px; display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px;
+    background: rgba(24,27,34,.94); box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  .decompte .icone { width: 26px; height: 26px; border-radius: 50%; background: #f2b84b; display: grid; place-items: center; }
+  .decompte .nom { font-size: 13px; color: #9aa1ab; }
+  .decompte .reste { font-size: 16px; font-weight: 700; color: #e8eaed; font-variant-numeric: tabular-nums; }
+  .decompte .autres { font-size: 13px; font-weight: 700; color: #f2b84b; }
+</style>
+<div class="decompte">
+  <div class="icone"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f1115" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></svg></div>
+  <div class="nom">${escape(first.label)}</div>
+  <div class="reste">${formatRemaining(new Date(first.endsAt).getTime() - now)}</div>
+  ${left.length > 1 ? `<div class="autres">+${left.length - 1}</div>` : ''}
+</div>`
+    : '';
+  return fakeScreenTv({ title: '', bytes: 0 }).replace(/<div class="bandeau">[\s\S]*$/u, pill);
 }

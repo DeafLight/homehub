@@ -27,6 +27,8 @@ type Box = {
   reports: Map<string, (report: ScreenReport) => void>;
   /** Dernier état annoncé par l'appli. */
   state: ScreenStateReport | null;
+  /** Démarrages de l'appli : demandes d'événements sans `after` (elle repart de rien). */
+  starts: number;
 };
 
 export type ScreenHub = ReturnType<typeof createScreenHub>;
@@ -48,7 +50,7 @@ export function createScreenHub({
   const boxOf = (id: string) => {
     let box = boxes.get(id);
     if (!box) {
-      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null };
+      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null, starts: 0 };
       boxes.set(id, box);
     }
     return box;
@@ -70,6 +72,9 @@ export function createScreenHub({
     /** État annoncé par l'appli de la télé `id` (null : rien reçu depuis le démarrage du serveur). */
     stateOf: (id: string): ScreenStateReport | null => boxes.get(id)?.state ?? null,
 
+    /** Nombre de démarrages de l'appli de la télé `id` vus depuis le démarrage du serveur (elle a tout oublié). */
+    startsOf: (id: string): number => boxes.get(id)?.starts ?? 0,
+
     setState(id: string, state: ScreenStateReport) {
       boxOf(id).state = state;
     },
@@ -86,6 +91,7 @@ export function createScreenHub({
       sweep(box);
       box.seenAt = now();
       box.polling++;
+      if (after === null) box.starts++;
       try {
         // L'attente se compte en temps réel (l'horloge injectée sert à la présence et à la fraîcheur).
         const deadline = performance.now() + waitMs;

@@ -18,7 +18,7 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -784,6 +784,31 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await phone.close();
   await tablet.close();
   await send('Browser.resetPermissions');
+}
+
+// Minuteurs en cours sur la télé (fonction 3) : Alex lance « Pâtes » (9 min 05) et « Écrans » (30 min) ; la fausse appli
+// HomeHub TV reçoit leur liste, la maquette d'écran montre en petit en bas à droite le plus proche et « +1 ». Arrêtés
+// sur la tablette : la liste reçue se vide.
+if (!only || only.test('tele-minuteur-decompte')) {
+  const timersFile = join(state, FAKE_SCREEN_TIMERS_FILE);
+  const received = () => (existsSync(timersFile) ? (JSON.parse(readFileSync(timersFile, 'utf8')) as FakeScreenTimers) : null);
+  const pates = (await call(A, 'POST', '/timers', { label: 'Pâtes', seconds: 545 })) as { id: string };
+  const ecrans = (await call(A, 'POST', '/timers', { label: 'Écrans', seconds: 1800 })) as { id: string };
+  for (let i = 0; i < 40 && (received()?.timers.length ?? 0) < 2; i++) await sleep(500);
+  const running = received();
+  if (!running || running.timers.length < 2) console.warn('Minuteurs en cours non reçus par la fausse appli HomeHub TV');
+  else {
+    const countdownTv = join(work, 'tele-minuteur-decompte.html');
+    writeFileSync(countdownTv, fakeScreenCountdownTv(running));
+    const tv = await openTarget(pathToFileURL(countdownTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(500);
+    await tv.capture('tele-minuteur-decompte');
+    await tv.close();
+  }
+  await call(A, 'DELETE', `/timers/${pates.id}`);
+  await call(A, 'DELETE', `/timers/${ecrans.id}`);
+  for (let i = 0; i < 10 && received()?.timers.length; i++) await sleep(500);
+  if (received()?.timers.length) console.warn('Minuteurs en cours pas retirés de la fausse télé');
 }
 
 // Minuteur terminé sur la télé (fonction 3) : un minuteur de 10 s lancé par Alex sonne ; la fausse appli HomeHub TV

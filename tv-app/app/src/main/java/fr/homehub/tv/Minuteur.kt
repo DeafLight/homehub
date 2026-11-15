@@ -1,10 +1,12 @@
-// Alerte des minuteurs de la maison (fonction 3), partie sans Android, testée sur la JVM (MinuteurTest) : lecture des
-// événements `timer` et `timer-clear` (shared/screen.ts), file des minuteurs qui sonnent (le plus récent s'affiche,
-// les autres attendent derrière), et le carillon court joué à l'arrivée (trois notes qui montent, son synthétisé :
-// aucun fichier à embarquer).
+// Minuteurs de la maison (fonction 3), partie sans Android, testée sur la JVM (MinuteurTest) : lecture des événements
+// `timer`, `timer-clear` et `timers` (shared/screen.ts), file des minuteurs qui sonnent (le plus récent s'affiche, les
+// autres attendent derrière), décompte des minuteurs en cours (à l'heure du serveur, sans dépendre de l'horloge de la
+// télé) et le carillon court joué à l'arrivée (trois notes qui montent, son synthétisé : aucun fichier à embarquer).
 package fr.homehub.tv
 
 import org.json.JSONObject
+import java.time.Instant
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.roundToInt
@@ -29,6 +31,55 @@ fun parseTimerEvents(json: String): List<TimerEvent> {
             else -> null
         }
     }
+}
+
+/** Un minuteur qui tourne encore ; `endsAt` en millisecondes, à l'heure du serveur. */
+data class RunningTimer(val timerId: String, val label: String, val endsAt: Long, val durationSeconds: Int)
+
+/** Liste complète des minuteurs en cours (événement `timers`) ; `serverNow` : l'heure du serveur à l'envoi, en ms. */
+data class RunningTimers(val id: String, val serverNow: Long, val timers: List<RunningTimer>)
+
+/** Événements `timers` parmi ceux reçus, dans l'ordre (le dernier fait foi). */
+fun parseRunningTimers(json: String): List<RunningTimers> {
+    val list = JSONObject(json).getJSONArray("events")
+    return (0 until list.length()).map { list.getJSONObject(it) }.filter { it.optString("kind") == "timers" }.map { e ->
+        val timers = e.getJSONArray("timers")
+        RunningTimers(
+            e.getString("id"),
+            Instant.parse(e.getString("serverNow")).toEpochMilli(),
+            (0 until timers.length()).map { timers.getJSONObject(it) }.map {
+                RunningTimer(it.getString("timerId"), it.getString("label"), Instant.parse(it.getString("endsAt")).toEpochMilli(), it.optInt("durationSeconds"))
+            },
+        )
+    }
+}
+
+/** Ce que montre le petit minuteur en bas à droite : le plus proche de la fin, son temps restant, et combien d'autres. */
+data class CountdownView(val label: String, val remaining: String, val others: Int)
+
+/**
+ * Décompte des minuteurs en cours, reçus à l'instant `receivedAt` d'une horloge monotone de la télé (elapsedRealtime) :
+ * le temps du serveur avance comme elle, quelle que soit l'heure affichée par la télé.
+ */
+class Countdown(private val timers: List<RunningTimer>, serverNow: Long, receivedAt: Long) {
+    private val offset = serverNow - receivedAt
+
+    /** À l'instant `now` (même horloge que `receivedAt`) ; null : plus rien ne tourne. */
+    fun at(now: Long): CountdownView? {
+        val server = now + offset
+        val left = timers.filter { it.endsAt > server }.sortedBy { it.endsAt }
+        val first = left.firstOrNull() ?: return null
+        return CountdownView(first.label, formatRemaining(first.endsAt - server), left.size - 1)
+    }
+}
+
+/** Temps restant arrondi à la seconde supérieure (comme la tablette) : « 0:42 », « 9:05 », « 1:02:03 ». */
+fun formatRemaining(ms: Long): String {
+    val total = ((ms.coerceAtLeast(0) + 999) / 1000)
+    val h = total / 3600
+    val m = total % 3600 / 60
+    val s = total % 60
+    return if (h > 0) String.format(Locale.ROOT, "%d:%02d:%02d", h, m, s) else String.format(Locale.ROOT, "%d:%02d", m, s)
 }
 
 /** Minuteurs qui sonnent sur la télé, dans l'ordre d'arrivée ; le bandeau montre le dernier arrivé. */

@@ -6,7 +6,7 @@ Petite appli Android TV, compagnon de HomeHub, installée hors du Play Store par
 (interrogation longue, aucun port ouvert sur la télé) et lit les messages vocaux des parents **par-dessus ce qui passe,
 le son du programme baissé**, avec un bandeau « Message d'Alex », et affiche leurs **messages écrits** en bandeau en
 haut de l'écran pendant `tv.seconds` (10 s par défaut), en rendant compte au téléphone. Elle sert aussi de **télécommande** depuis le
-téléphone d'un parent (touches, texte, applis, marche/arrêt). Un **minuteur** de la maison qui se termine s'y affiche avec un carillon court ;
+téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs** de la maison en cours s'y décomptent en petit en bas à droite ; celui qui se termine s'y affiche avec un carillon court ;
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
@@ -26,10 +26,18 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `Telecommande.kt` | Garde l'injecteur lancé (relance s'il tombe), touches, texte, veille et réveil, secours sans `adb` |
 | `Applis.kt` | Applis du lanceur (nom, paquet, bannière PNG) envoyées à HomeHub, lancement d'une appli |
 | `HomeHubAccessibility.kt` | Service d'accessibilité : appli en cours, secours Retour/Accueil |
-| `Minuteur.kt` | Alerte des minuteurs, sans Android : événements `timer` et `timer-clear`, file des minuteurs qui sonnent, carillon synthétisé |
+| `Minuteur.kt` | Minuteurs, sans Android : événements `timer`, `timer-clear` et `timers`, file des minuteurs qui sonnent, décompte à l'heure du serveur, carillon synthétisé |
+| `MinuteurDecompte.kt` | Petit décompte des minuteurs en cours en bas à droite, fenêtre non focalisable et non touchable |
 | `MinuteurBandeau.kt` | Bandeau du minuteur qui prend le focus de la télécommande (OK : « Arrêter » partout, Retour : masquer), carillon son baissé, compte rendu |
 
-## Alerte des minuteurs
+## Minuteurs
+
+Tant qu'un minuteur tourne, le serveur envoie à chaque télé allumée la liste des minuteurs en cours (`timers`, avec
+l'heure du serveur `serverNow`), à chaque lancement ou arrêt, et de nouveau quand la télé revient ou que l'appli
+redémarre. L'appli montre en petit, en bas à droite, le minuteur le plus proche de la fin (nom, temps restant, « +1 »
+s'il y en a d'autres) et décompte seule chaque seconde : l'écart entre `serverNow` et `elapsedRealtime` à la réception
+suffit, l'horloge de la télé n'entre pas en jeu. Fenêtre par-dessus `FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCHABLE` : la
+télécommande ne la voit pas, rien n'y est contrôlable. Liste vide, ou plus rien qui tourne : le décompte s'en va.
 
 Quand un minuteur de HomeHub se termine, le serveur envoie `timer` à chaque télé allumée (réglage **Minuteurs** du
 panneau Télés de la tablette). Le bandeau s'affiche en haut à droite et **prend le focus de la télécommande** : c'est

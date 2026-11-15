@@ -1,4 +1,5 @@
-// Tests de l'alerte des minuteurs sur les télés (fonction 3) : réglage lu par la tablette et changé par un parent,
+// Tests des minuteurs sur les télés (fonction 3) : réglage lu par la tablette et changé par un parent, liste des
+// minuteurs en cours (`timers`) à chaque lancement ou arrêt, à une télé qui revient ou une appli qui redémarre,
 // événement `timer` envoyé à chaque télé allumée quand un minuteur se termine (une fois), télé qui arrive tard,
 // réglage coupé, « Arrêter » depuis la télé (minuteur qui sonne seulement, jeton de télé exigé) et bandeau retiré
 // partout quand le minuteur est arrêté ailleurs.
@@ -15,7 +16,7 @@ import { createRouter } from './http.ts';
 import { createScreenAlertsApi, TIMER_NOT_RINGING } from './screen-alerts-api.ts';
 import { createScreenApi, SCREENS_PARENTS_ONLY } from './screen-api.ts';
 import { createScreenHub } from './services/screens.ts';
-import { createTimerAlerts, LATE_MS, timerAlertText } from './services/timer-alerts.ts';
+import { createTimerAlerts, LATE_MS, runningTimers, timerAlertText } from './services/timer-alerts.ts';
 import { createVoiceMessages } from './services/voice-messages.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
@@ -105,23 +106,91 @@ describe('Alerte des minuteurs sur les télés : envoi et arrêt', () => {
     expect(timerAlertText({ label: 'Dents', durationSeconds: 30 }).subtitle).toBe('C’est l’heure !');
   });
 
-  it('minuteur terminé : chaque télé allumée reçoit l’alerte une fois ; rien avant la fin', async () => {
+  it('minuteurs en cours : du plus proche de la fin au plus lointain, sans ceux qui sonnent, nom par défaut', () => {
+    const at = (s: number) => new Date(NOW.getTime() + s * 1000).toISOString();
+    const timer = (id: string, label: string, ends: number) => ({ id, label, durationSeconds: 600, startedAt: at(0), endsAt: at(ends), startedBy: TABLET_AUTHOR });
+    expect(runningTimers([timer('a', 'Pâtes', 300), timer('b', '', 60), timer('c', 'Fini', 0)], NOW.getTime())).toEqual([
+      { timerId: 'b', label: 'Minuteur', endsAt: at(60), durationSeconds: 600 },
+      { timerId: 'a', label: 'Pâtes', endsAt: at(300), durationSeconds: 600 },
+    ]);
+  });
+
+  it('minuteur lancé puis arrêté : chaque télé allumée reçoit la liste en cours, une fois par changement', async () => {
+    const { pairTv, listen, timers, watcher, advance } = await setup();
+    const salon = await pairTv('Télé du salon');
+    const first = await listen(salon);
+    await watcher.check();
+    expect((await listen(salon, first.last)).events).toEqual([]); // rien ne tourne : rien à dire
+
+    const pates = timers.start('Pâtes', 600, TABLET_AUTHOR)!;
+    await watcher.check();
+    const started = await listen(salon, first.last);
+    expect(started.events).toEqual([
+      {
+        seq: expect.any(Number),
+        kind: 'timers',
+        id: expect.any(String),
+        serverNow: NOW.toISOString(),
+        timers: [{ timerId: pates.id, label: 'Pâtes', endsAt: pates.endsAt, durationSeconds: 600 }],
+      },
+    ]);
+    advance(1000);
+    await listen(salon, started.last);
+    await watcher.check(); // le temps passe, la liste ne change pas : la télé décompte seule
+    expect((await listen(salon, started.last)).events).toEqual([]);
+
+    const ecrans = timers.start('', 60, TABLET_AUTHOR)!;
+    await watcher.check();
+    const two = await listen(salon, started.last);
+    expect(two.events.map((e) => (e.kind === 'timers' ? e.timers.map((t) => t.label) : e.kind))).toEqual([['Minuteur', 'Pâtes']]);
+
+    timers.stop(ecrans.id);
+    timers.stop(pates.id);
+    await watcher.check();
+    expect((await listen(salon, two.last)).events.map((e) => (e.kind === 'timers' ? e.timers : e.kind))).toEqual([[]]);
+  });
+
+  it('télé qui revient, ou appli qui redémarre : elle reçoit de nouveau les minuteurs en cours', async () => {
+    const { pairTv, listen, timers, watcher, advance } = await setup();
+    const salon = await pairTv('Télé du salon');
+    timers.start('Pâtes', 600, TABLET_AUTHOR);
+    await watcher.check(); // télé éteinte : rien
+    const back = await listen(salon); // elle se rallume (appli qui démarre)
+    await watcher.check();
+    const got = await listen(salon, back.last);
+    expect(got.events.map((e) => e.kind)).toEqual(['timers']);
+
+    await watcher.check();
+    expect((await listen(salon, got.last)).events).toEqual([]);
+    // L'appli redémarre (elle demande sans `after`) avant même d'être vue absente.
+    advance(1000);
+    await listen(salon, got.last);
+    const restart = await listen(salon);
+    await watcher.check();
+    expect((await listen(salon, restart.last)).events.map((e) => e.kind)).toEqual(['timers']);
+  });
+
+  it('minuteur terminé : chaque télé allumée reçoit l’alerte une fois ; la liste en cours se vide', async () => {
     const { pairTv, listen, timers, watcher, advance } = await setup();
     const salon = await pairTv('Télé du salon');
     const chambre = await pairTv('Télé de la chambre');
-    const first = await listen(salon);
+    await listen(salon);
     await listen(chambre);
     const timer = timers.start('Cuisson', 600, TABLET_AUTHOR)!;
     await watcher.check();
-    expect((await listen(salon, first.last)).events).toEqual([]);
+    const first = await listen(salon);
+    expect(first.events.map((e) => e.kind)).toEqual(['timers']);
 
     advance(600_000);
-    await Promise.all([listen(salon), listen(chambre)]); // les télés redemandent sans cesse : toujours allumées
+    await Promise.all([listen(salon, first.last), listen(chambre)]); // les télés redemandent sans cesse : toujours allumées
     await watcher.check();
     await watcher.check();
     const got = await listen(salon, first.last);
-    expect(got.events).toEqual([{ seq: expect.any(Number), kind: 'timer', id: expect.any(String), timerId: timer.id, title: 'Cuisson', subtitle: 'C’est l’heure ! (10 min)' }]);
-    expect((await listen(chambre)).events.map((e) => e.kind)).toEqual(['timer']);
+    expect(got.events).toEqual([
+      { seq: expect.any(Number), kind: 'timers', id: expect.any(String), serverNow: expect.any(String), timers: [] },
+      { seq: expect.any(Number), kind: 'timer', id: expect.any(String), timerId: timer.id, title: 'Cuisson', subtitle: 'C’est l’heure ! (10 min)' },
+    ]);
+    expect((await listen(chambre)).events.map((e) => e.kind)).toEqual(['timers', 'timer']); // la première liste, trop vieille, est oubliée
     expect((await listen(salon, got.last)).events).toEqual([]);
   });
 
@@ -142,11 +211,13 @@ describe('Alerte des minuteurs sur les télés : envoi et arrêt', () => {
     expect((await listen(chambre)).events).toEqual([]);
   });
 
-  it('réglage coupé : aucune alerte', async () => {
+  it('réglage coupé : ni minuteurs en cours, ni alerte', async () => {
     const { call, tablet, pairTv, listen, timers, watcher, advance } = await setup();
     await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false } });
     const salon = await pairTv('Télé du salon');
     timers.start('Cuisson', 60, TABLET_AUTHOR);
+    await listen(salon);
+    await watcher.check();
     advance(60_000);
     await listen(salon);
     await watcher.check();
@@ -177,7 +248,7 @@ describe('Alerte des minuteurs sur les télés : envoi et arrêt', () => {
     expect((await call('POST', `/screen/timers/${timer.id}/stop`, { token: chambre, headers: PROTOCOL })).status).toBe(204);
   });
 
-  it('arrêt depuis la télé : minuteur qui sonne seulement, jeton de télé et bon protocole exigés', async () => {
+  it('arrêt depuis la télé : minuteur qui sonne seulement (pas pendant le décompte), jeton de télé et bon protocole exigés', async () => {
     const { call, tablet, pairTv, timers } = await setup();
     const salon = await pairTv('Télé du salon');
     const timer = timers.start('Cuisson', 600, TABLET_AUTHOR)!;

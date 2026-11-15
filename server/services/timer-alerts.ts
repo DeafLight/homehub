@@ -1,10 +1,12 @@
-// Alerte des minuteurs sur les télés (fonction 3 de l'appli HomeHub TV) : un guetteur regarde chaque seconde les
-// minuteurs de la maison. Dès qu'un minuteur se termine, chaque télé allumée reçoit un événement `timer` (bandeau avec
-// « Arrêter », son court), si le réglage `timer` des alertes télé est actif. Une télé qui se rallume ou se reconnecte
-// peu après (LATE_MS) le reçoit encore. Quand le minuteur est arrêté (tablette, téléphone, ou une télé), les télés
-// qui l'affichent reçoivent `timer-clear` et retirent le bandeau. Rien n'attend la télé : sans compte rendu, tant pis.
+// Minuteurs de la maison sur les télés (fonction 3 de l'appli HomeHub TV), si le réglage `timer` des alertes télé est
+// actif : un guetteur regarde chaque seconde les minuteurs. Tant qu'il en tourne, chaque télé allumée connaît leur liste
+// (événement `timers`, renvoyé à chaque lancement ou arrêt, à une télé qui se rallume et à une appli qui redémarre) et
+// montre le temps qui reste en petit, en bas à droite (rien à faire à la télécommande). Dès qu'un minuteur se termine,
+// chaque télé allumée reçoit `timer` (bandeau avec « Arrêter », son court). Une télé qui se rallume peu après (LATE_MS)
+// le reçoit encore. Quand le minuteur est arrêté (tablette, téléphone, ou une télé), les télés qui l'affichent
+// reçoivent `timer-clear` et retirent le bandeau. Rien n'attend la télé : sans compte rendu, tant pis.
 import { randomUUID } from 'node:crypto';
-import type { ScreenEventBody } from '../../shared/screen.ts';
+import type { ScreenEventBody, ScreenRunningTimer } from '../../shared/screen.ts';
 import type { Timer } from '../../shared/types.ts';
 import type { ScreenAlertStore } from '../sources/screen-alerts.ts';
 import type { TimerStore } from '../sources/timers.ts';
@@ -34,6 +36,17 @@ export function timerAlertText(timer: Pick<Timer, 'label' | 'durationSeconds'>):
   };
 }
 
+/** Minuteurs qui tournent encore à `now`, du plus proche de la fin au plus lointain, tels qu'envoyés aux télés. */
+export function runningTimers(timers: Timer[], now: number): ScreenRunningTimer[] {
+  return timers
+    .filter((t) => new Date(t.endsAt).getTime() > now)
+    .sort((a, b) => new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime())
+    .map((t) => ({ timerId: t.id, label: t.label || 'Minuteur', endsAt: t.endsAt, durationSeconds: t.durationSeconds }));
+}
+
+/** Ce que sait une télé des minuteurs en cours : la liste envoyée, et si elle était là au tour précédent. */
+type RunningSent = { list: string; starts: number; online: boolean };
+
 export function createTimerAlerts({
   timers,
   screens,
@@ -52,6 +65,8 @@ export function createTimerAlerts({
 }) {
   /** Minuteurs envoyés à chaque télé, et pas encore retirés. */
   const sent = new Map<string, Set<string>>();
+  /** Minuteurs en cours envoyés à chaque télé. */
+  const running = new Map<string, RunningSent>();
   let busy = false;
 
   const send = (screenId: string, event: ScreenEventBody) => {
@@ -70,11 +85,22 @@ export function createTimerAlerts({
       const ringingIds = new Set(ringing.map((t) => t.id));
       const known = new Set((await screens.list()).map((s) => s.id));
       const enabled = (await alerts.get()).timer;
+      const runningList = enabled ? runningTimers(timers.list(), now) : [];
+      const list = JSON.stringify(runningList);
       for (const id of sent.keys()) if (!known.has(id)) sent.delete(id);
+      for (const id of running.keys()) if (!known.has(id)) running.delete(id);
       for (const id of known) {
         const shown = sent.get(id) ?? new Set<string>();
         sent.set(id, shown);
         const online = hub.online(id);
+        // Minuteurs en cours : liste changée, ou télé (re)venue qui ne sait plus rien et qu'un minuteur concerne.
+        const before = running.get(id) ?? { list: '[]', starts: 0, online: false };
+        const starts = hub.startsOf(id);
+        const back = !before.online || starts !== before.starts;
+        if (online && (list !== before.list || (back && runningList.length > 0))) {
+          send(id, { kind: 'timers', id: randomUUID(), serverNow: new Date(now).toISOString(), timers: runningList });
+          running.set(id, { list, starts, online });
+        } else running.set(id, { ...before, starts, online });
         // Arrêtés ailleurs : le bandeau s'en va.
         for (const timerId of shown) {
           if (ringingIds.has(timerId)) continue;

@@ -4,7 +4,9 @@
 // OK et Retour vont au bandeau tant qu'il est là. OK : « Arrêter » arrête le minuteur partout (tablette, téléphones,
 // autres télés) ; Retour : masque le bandeau sur cette télé seulement (le minuteur sonne toujours sur la tablette).
 // Sans geste, le bandeau s'en va au bout de BANNER_MS ; arrêté ailleurs, il s'en va aussitôt (`timer-clear`).
-// Chaque événement reçoit son compte rendu (bandeau affiché, ou autorisation « par-dessus » manquante).
+// Minuteurs en cours (événement `timers`) : confiés à MinuteurDecompte, petit décompte en bas à droite que la
+// télécommande ne voit pas (rien n'y est contrôlable). Chaque événement reçoit son compte rendu (bandeau affiché, ou
+// autorisation « par-dessus » manquante).
 package fr.homehub.tv
 
 import android.content.Context
@@ -40,6 +42,8 @@ class MinuteurAlertes(private val context: Context, private val prefs: Prefs) {
     private val network = Executors.newSingleThreadExecutor()
     /** File des minuteurs qui sonnent (fil principal seulement). */
     private val queue = TimerQueue()
+    /** Petit décompte des minuteurs en cours, en bas à droite (fil principal seulement). */
+    private val decompte = MinuteurDecompte(context)
     private var shown: View? = null
     private var shownTimer: String? = null
     private val timeout = Runnable { shownTimer?.let { dismiss(it) } }
@@ -61,10 +65,19 @@ class MinuteurAlertes(private val context: Context, private val prefs: Prefs) {
         }
     }
 
+    /** Listes des minuteurs en cours reçues par le service (n'importe quel fil) : la dernière fait foi. */
+    fun running(events: List<RunningTimers>) {
+        val latest = events.lastOrNull() ?: return
+        val allowed = Settings.canDrawOverlays(context)
+        if (allowed) main.post { decompte.update(latest) }
+        events.forEach { report(it.id, if (allowed) null else "bandeau non autorisé sur la télé") }
+    }
+
     fun stop() {
         main.post {
             queue.clear()
             render()
+            decompte.hide()
         }
         network.shutdown()
     }

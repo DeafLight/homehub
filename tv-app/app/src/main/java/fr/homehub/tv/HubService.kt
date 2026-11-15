@@ -7,7 +7,8 @@
 // l'adb local, ou secours), l'un après l'autre, avec compte rendu. Le service dit à HomeHub où en est la télé (écran
 // allumé, appli au premier plan, moyen d'action, adresses) quand cela change, et lui envoie la liste des applis du
 // lanceur quand elle change (installation, retrait).
-// Minuteur terminé (fonction 3) : bandeau qui prend la télécommande, carillon, « Arrêter » (MinuteurAlertes).
+// Minuteurs (fonction 3) : petit décompte en bas à droite tant qu'il en tourne (sans contrôle à la télécommande), puis
+// à la fin bandeau qui prend la télécommande, carillon, « Arrêter » (MinuteurAlertes).
 package fr.homehub.tv
 
 import android.app.Notification
@@ -129,6 +130,7 @@ class HubService : Service() {
                 events.voices.forEach { event -> playback.execute { handleVoice(server, token, event) } }
                 events.remote.forEach { event -> remote.execute { handleRemote(server, token, event) } }
                 events.messages.forEach { event -> remote.execute { handleMessage(server, token, event) } }
+                minuteurs.running(parseRunningTimers(json))
                 minuteurs.handle(parseTimerEvents(json))
             } catch (e: HubError) {
                 introduced = false
