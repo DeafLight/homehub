@@ -22,6 +22,7 @@ import {
   type ScreenEventBody,
   type ScreenTarget,
 } from '../shared/screen.ts';
+import { tvTitle } from '../shared/tv.ts';
 import type { Access } from './access.ts';
 import { VOICE_OFF, VOICE_PARENTS_ONLY, VOICE_PHONE_ONLY } from './cast-api.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -29,7 +30,6 @@ import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { CastError, type CastTarget, castWake } from './services/cast.ts';
 import { SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
-import { tvTitle } from './services/tv.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 import { screenAppSchema, type ScreenAppStore } from './sources/screen-apps.ts';
 import type { ScreenRecord, ScreenStore } from './sources/screens.ts';

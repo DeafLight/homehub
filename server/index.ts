@@ -6,7 +6,7 @@ import { FAMILY_ID } from '../shared/types.ts';
 import { KIOSK_KEY_MIN_LENGTH } from './access.ts';
 import { createApp } from './app.ts';
 import { createMediaApp } from './cast-api.ts';
-import { calendarsOf, hasCalendars, loadConfig } from './config.ts';
+import { calendarsOf, configWarnings, hasCalendars, loadConfig } from './config.ts';
 import { createConfigStore, watchConfigFile } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createDashboardService } from './services/dashboard.ts';
@@ -71,6 +71,7 @@ try {
   console.error((err as Error).message);
   process.exit(1);
 }
+for (const warning of configWarnings(initialConfig)) console.warn(`Configuration : ${warning}`);
 
 const config = createConfigStore(initialConfig);
 const stopWatching = watchConfigFile(configPath, config, console);

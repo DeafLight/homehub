@@ -1,7 +1,7 @@
 // Tests du nettoyage d'un message à la télé : espaces et retours à la ligne aplatis, caractères invisibles et
 // chevrons retirés, emojis gardés et comptés pour un, limite de longueur ; compte rendu montré au téléphone.
 import { describe, expect, it } from 'vitest';
-import { cleanTvMessage, TV_MESSAGE_MAX, tvMessageLength, tvMessageReport, tvMessageValid } from './tv.ts';
+import { cleanTvMessage, TV_MESSAGE_MAX, tvMessageLength, tvMessageReport, tvMessageValid, tvTitle } from './tv.ts';
 
 describe('cleanTvMessage', () => {
   it('aplatit les retours à la ligne et les espaces répétées', () => {
@@ -34,11 +34,20 @@ describe('tvMessageLength et tvMessageValid', () => {
 });
 
 describe('tvMessageReport', () => {
-  it('dit où le message s’est affiché, ou qu’il est parti par l’appli tierce', () => {
+  it('dit sur quelles télés le message s’est affiché', () => {
     expect(tvMessageReport({ text: 'Coucou', seconds: 10, screens: ['Télé du salon'] })).toBe('Affiché sur la télé pendant 10 s');
     expect(tvMessageReport({ text: 'Coucou', seconds: 8, screens: ['Télé du salon', 'Télé de la chambre'] })).toBe(
       'Affiché sur 2 télés (Télé du salon, Télé de la chambre) pendant 8 s',
     );
-    expect(tvMessageReport({ text: 'Coucou', seconds: 10 })).toBe('Envoyé à la télé pour 10 s');
+  });
+});
+
+describe('tvTitle', () => {
+  it('élision devant une voyelle ou un h', () => {
+    expect(tvTitle('Alex')).toBe('Message d’Alex');
+    expect(tvTitle('Émile')).toBe('Message d’Émile');
+    expect(tvTitle('Hugo')).toBe('Message d’Hugo');
+    expect(tvTitle('Sam')).toBe('Message de Sam');
+    expect(tvTitle(null)).toBe('Message');
   });
 });

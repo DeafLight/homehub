@@ -238,9 +238,8 @@ Reste :
 - [x] Message à la télé, 0.67.0 : bouton dans l'onglet Caméra des parents, texte de 140 caractères au plus, nettoyé
       par le serveur, affiché 10 s (`tv.seconds`) en gros au centre de la télé Android TV, par-dessus l'image (appli
       Notifications for Android TV, requête HTTP locale) ; `tv.host` dans homehub.yaml ; fausse télé du monde fictif.
-- [ ] Message à la télé, à vérifier sur la vraie télé : appli installée et autorisée (*Afficher par-dessus les autres
-      applis*), message bien au centre et assez gros (police « max »), durée de 10 s respectée, affichage par-dessus
-      Netflix / YouTube / la télé en direct et sur l'écran de veille, accents et emojis, titre « Message d'Alex ».
+- [x] Message à la télé, à vérifier sur la vraie télé : sans objet, l'appli tierce a laissé place à HomeHub TV
+      (voir « 2 ter » plus bas) et a été retirée en 0.77.0.
 - [x] Destination du micro, 0.68.0 : « Ta voix sur » Tablette (en direct) ou un appareil Google Cast (Google Home,
       télé Android TV) : message enregistré puis lu par le récepteur média par défaut (Cast v2, client sans
       dépendance) ; appareils par adresse IP (`cast.devices`, `cast.mediaUrl`), parents seulement, faux appareils
@@ -289,9 +288,12 @@ personne depuis son propre téléphone.
       qui s'en va seul, compte rendu « Affiché sur la télé » au téléphone ; `/api/tv/message` passe par HomeHub TV dès
       qu'une télé est appairée (parents seulement), l'appli tierce (`tv.host`) seulement sinon ; fausse appli du monde
       fictif et maquette du bandeau.
-- [ ] 2 bis. Retirer l'appli tierce (`services/tv.ts`, `tv.host`, `tv.port`, `fake-tv.ts`) une version après la 2.
-- [ ] 2 ter. Message écrit, à vérifier sur la vraie télé : bandeau lisible de loin, texte long sur trois lignes,
-      accents et emojis, par-dessus Netflix / YouTube / la télé en direct, disparition au bout de `tv.seconds`.
+- [x] 2 bis. Retirer l'appli tierce (0.77.0) : `services/tv.ts`, `fake-tv.ts` et le repli de `/api/tv/message`
+      retirés (404 « Aucune télé appairée ») ; `tv.host` et `tv.port` ignorés avec un avertissement au démarrage ;
+      plus de `tv` dans la config du front, le bouton ne dépend que des télés appairées.
+- [x] 2 ter. Message écrit, vérifié sur la vraie télé le 15/11/2026 : le bandeau s'affiche (à revoir au fil de
+      l'usage : lisible de loin, texte long sur trois lignes, accents et emojis, par-dessus Netflix / YouTube / la
+      télé en direct, disparition au bout de `tv.seconds`).
 - [ ] 3. Alerte du minuteur de cuisine sur la télé.
 - [ ] 4. Alerte du bus du matin (« Bus dans 5 min »).
 - [ ] 5. Rappels des routines du soir et des nouveaux mots.

@@ -17,23 +17,19 @@ describe('appli du téléphone', () => {
   });
 
   it('onglet Caméra : un parent, avec la caméra en direct ou une télé', () => {
-    const on = { camera: { live: true, banner: true, talk: true }, tv: false };
-    const tvOnly = { camera: { live: false, banner: true, talk: true }, tv: true };
-    const none = { camera: { live: false, banner: true, talk: true }, tv: false };
+    const on = { camera: { live: true, banner: true, talk: true } };
+    const none = { camera: { live: false, banner: true, talk: true } };
     expect(hasCameraTab(alex, on)).toBe(true);
-    expect(hasCameraTab(alex, tvOnly)).toBe(true);
     expect(hasCameraTab(alex, none)).toBe(false);
-    expect(hasCameraTab(lea, tvOnly)).toBe(false);
     expect(hasCameraTab(undefined, on)).toBe(false);
-    // Télé appairée avec l'appli HomeHub TV : le message écrit passe par elle, sans tv dans la config.
+    // Télé appairée avec l'appli HomeHub TV : le message écrit passe par elle.
     expect(hasCameraTab(alex, none, true)).toBe(true);
     expect(hasCameraTab(lea, none, true)).toBe(false);
   });
 
-  it('message écrit à la télé : appli tierce configurée, ou télé appairée', () => {
-    expect(hasTvMessage({ tv: true }, false)).toBe(true);
-    expect(hasTvMessage({ tv: false }, true)).toBe(true);
-    expect(hasTvMessage({ tv: false }, false)).toBe(false);
+  it('message écrit à la télé : seulement avec une télé appairée', () => {
+    expect(hasTvMessage(true)).toBe(true);
+    expect(hasTvMessage(false)).toBe(false);
   });
 
   it('mots reçus : pour moi ou la famille, pas les miens, les nouveaux d’abord', () => {

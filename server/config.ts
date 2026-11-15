@@ -180,22 +180,17 @@ export const configSchema = z.object({
   /**
    * Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
    * l'affiche en bandeau, par-dessus l'image, pendant `seconds` secondes. Une télé appairée avec l'appli HomeHub TV le
-   * reçoit d'elle-même (pas besoin de `host`). Sinon, ancienne façon (retirée dans une prochaine version) : l'appli
-   * « Notifications for Android TV » sur la télé, `host` son adresse sur le réseau de la maison (IP fixée dans la box,
-   * ou nom), `port` celui de l'appli. Absent et aucune télé appairée : pas de bouton.
+   * reçoit ; sans télé appairée, pas de bouton. `host` et `port` (appli tierce « Notifications for Android TV », retirée
+   * en 0.77.0) sont encore acceptés pour ne pas casser une ancienne configuration, mais ignorés (avertissement au
+   * démarrage, voir configWarnings).
    */
   tv: z
     .object({
-      host: z
-        .string()
-        .trim()
-        .min(1)
-        .max(253)
-        .regex(/^(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:.]+\])$/u, 'nom ou adresse IP de la télé, sans http:// ni port')
-        .optional(),
-      port: z.number().int().min(1).max(65535).default(7676),
       seconds: z.number().int().min(3).max(60).default(10),
+      host: z.unknown().optional(),
+      port: z.unknown().optional(),
     })
+    .transform(({ seconds, host, port }) => ({ seconds, legacy: host !== undefined || port !== undefined }))
     .optional(),
   /**
    * Appareils Google Cast du réseau local (Google Home, télé Android TV) où un parent peut envoyer un message vocal
@@ -259,6 +254,13 @@ export function parseConfig(raw: unknown): AppConfig {
   return result.data;
 }
 
+/** Avertissements sur une configuration valide : clés encore acceptées mais qui ne servent plus. */
+export function configWarnings(config: AppConfig): string[] {
+  return config.tv?.legacy
+    ? ['tv.host et tv.port ne servent plus depuis la 0.77.0 (appli tierce retirée) : la télé appairée avec HomeHub TV reçoit les messages ; retirez-les de homehub.yaml']
+    : [];
+}
+
 /** Lit et valide le fichier YAML de configuration. */
 export async function loadConfig(path: string): Promise<AppConfig> {
   let text: string;
@@ -277,7 +279,6 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     camera: { live: config.camera.live, banner: config.camera.banner, talk: config.camera.talk },
-    tv: config.tv?.host !== undefined,
     cast: config.camera.talk && config.cast.mediaUrl ? config.cast.devices.map(({ id, name, kind }) => ({ id, name, kind })) : [],
     revision,
   };

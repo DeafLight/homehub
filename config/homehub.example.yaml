@@ -152,11 +152,8 @@ holidays:
 
 # Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
 # l'affiche en bandeau par-dessus l'image. Une télé appairée avec l'appli HomeHub TV le reçoit d'elle-même : seule la
-# durée se règle ici. Ancienne façon, sans télé appairée (retirée dans une prochaine version) : l'appli « Notifications
-# for Android TV » (Play Store) sur la télé, ouverte une fois avec « Afficher par-dessus les autres applis » autorisé.
+# durée se règle ici. (host et port, de l'appli tierce retirée en 0.77.0, sont ignorés.)
 #   seconds (facultatif, 10 par défaut, 3 à 60) : durée d'affichage
-#   host (ancienne façon) : adresse de la télé sur le réseau de la maison (IP fixée dans la box, ou nom), sans http:// ni port
-#   port (ancienne façon, facultatif, 7676 par défaut) : port de l'appli tierce
 # tv:
 #   seconds: 10
 

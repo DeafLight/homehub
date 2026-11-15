@@ -279,7 +279,7 @@
         {#if hasCameraTab(member, config, paired)}
           <div class="camera-tab">
             {#if config.camera.live}<PhoneCamera {api} bannerShown={config.camera.banner} castDevices={config.cast} screens={screenTargets.data ?? []} />{/if}
-            {#if hasTvMessage(config, paired)}<PhoneTvMessage {api} />{/if}
+            {#if hasTvMessage(paired)}<PhoneTvMessage {api} />{/if}
           </div>
         {:else}
           <p class="muted">La caméra en direct est réservée aux parents.</p>

@@ -32,7 +32,6 @@ import { createSchoolLifeService, type SchoolLifeService } from './services/scho
 import { createFaceRecognition } from './services/faces.ts';
 import { createLiveCamera } from './services/live-camera.ts';
 import { createScreenHub } from './services/screens.ts';
-import { createTvNotifier } from './services/tv.ts';
 import { createVoiceMessages, type VoiceMessages } from './services/voice-messages.ts';
 import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
@@ -162,7 +161,7 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createCameraApi({ camera, household, access }));
   // Télés appairées (appli HomeHub TV) : leurs événements servent aux messages vocaux, à la télécommande et aux messages écrits.
   const screenHub = createScreenHub({ clock });
-  api.route('/', createTvApi({ tv: createTvNotifier({ rules: () => config.current().tv }), screens: deps.screens, hub: screenHub, config, household, access }));
+  api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access }));
   api.route('/', createCastApi({ voice, config, household, access }));
   api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access }));
   api.route('/', createFacesApi({ household, faces: deps.faces, recognition, sessions, pins, access }));

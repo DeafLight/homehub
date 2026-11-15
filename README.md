@@ -288,8 +288,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   activer *Web Content Settings › Autoplay Videos* (et *Autoplay Audio* si la version de Fully le propose ; à
   vérifier sur la tablette) ; sinon la voix démarre au premier toucher de l'écran. Garder le volume média de la
   tablette audible.
-- **Message à la télé** (même onglet Caméra, parents ; dès qu'une télé est appairée avec l'appli HomeHub TV, ou que
-  `tv.host` est configuré) : bouton **Message à la télé**, on écrit un court texte (140 caractères au plus, compteur),
+- **Message à la télé** (même onglet Caméra, parents ; dès qu'une télé est appairée avec l'appli HomeHub TV) : bouton **Message à la télé**, on écrit un court texte (140 caractères au plus, compteur),
   **Envoyer** : la télé l'affiche **en bandeau en haut de l'écran**, titré **« Message d'Alex »**, **par-dessus ce
   qu'elle diffuse** (l'image continue derrière, le son n'est pas touché), pendant 10 s (`tv.seconds`), puis le bandeau
   s'en va seul. Le téléphone rend compte : **« Affiché sur la télé pendant 10 s »** (ou « sur 2 télés (…) » s'il y en
@@ -297,13 +296,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   sa raison. Le serveur n'accepte que les parents (téléphone, ou reconnus à la tablette, `access.ts`), refait la
   limite et nettoie le texte (retours à la ligne aplatis, caractères invisibles, de sens d'écriture et chevrons
   retirés). La caméra en direct n'est pas nécessaire : avec `camera.live: false` et une télé, l'onglet Caméra n'a que
-  ce bouton. **Par l'appli HomeHub TV** (télé appairée, voir plus bas) : rien d'autre à installer, ni port ouvert sur
-  la télé ; chaque télé appairée et joignable reçoit le message et dit s'il s'est affiché. **Ancienne façon**, utilisée
-  seulement quand aucune télé n'est appairée, **retirée dans une prochaine version** : l'appli gratuite *Notifications
-  for Android TV* du Play Store (ouverte une fois, *Afficher par-dessus les autres applis* autorisé), adresse IP de la
-  télé dans `tv.host` ; HomeHub lui envoie une requête HTTP locale (port 7676, format de la bibliothèque
-  `notifications-android-tv`) : position centre, police la plus grande, fond noir opaque, sans compte rendu
-  d'affichage (« Envoyé à la télé »).
+  ce bouton. Le message passe par l'appli HomeHub TV (télé appairée, voir plus bas) : rien d'autre à installer, ni
+  port ouvert sur la télé ; chaque télé appairée et joignable reçoit le message et dit s'il s'est affiché. L'appli
+  tierce *Notifications for Android TV* des premières versions a été retirée en 0.77.0 (`tv.host` et `tv.port` sont
+  ignorés, avec un avertissement au démarrage).
 - **Destination du micro : Google Home, télé** (même onglet Caméra, si `cast` déclare des appareils) : sous la vidéo,
   **Ta voix sur** propose la **Tablette** (en direct, comme ci-dessus) et chaque appareil Google Cast du réseau local
   (enceinte Google Home ou Nest, télé Android TV avec Chromecast intégré). Vers un appareil, c'est un **message
@@ -658,9 +654,7 @@ camera:              # facultatif : caméra en direct (valeurs par défaut)
   stun: []           # ex. [stun:maison.example.org:3478]
   turn: []           # ex. [turn:maison.example.org:3478?transport=udp] ; secret : HOMEHUB_TURN_SECRET
 tv:                  # facultatif : message à la télé
-  seconds: 10        # durée d'affichage, 3 à 60 s (défaut 10), aussi pour l'appli HomeHub TV
-  host: 192.168.1.40 # ancienne façon, sans télé appairée (appli Notifications for Android TV) : adresse de la télé
-  port: 7676         # port de l'appli tierce (défaut)
+  seconds: 10        # durée d'affichage du bandeau sur la télé appairée, 3 à 60 s (défaut 10)
 cast:                # facultatif : appareils Google Cast où un parent envoie un message vocal (onglet Caméra)
   mediaUrl: http://192.168.1.10:3010   # d'où les appareils téléchargent : http://<ip du NAS>:<HOMEHUB_MEDIA_PORT> ; sans lui, rien n'est proposé
   devices:           # par adresse IP (réservation DHCP conseillée), pas de découverte mDNS
@@ -866,7 +860,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
 | `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `volup`, `voldown`, `mute`) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |
 | `GET /api/screens/targets`, `POST /api/screens/:id/voice` | téléphone d'un parent (`camera.talk`) : télés où envoyer sa voix `[{ id, name, online }]` ; message vocal (corps et `Content-Type` comme vers Cast) → `{ device }` dès que la télé le lit (503 télé absente ; 502 échec rapporté par la télé ou pas de réponse en 20 s) |
-| `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens? }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Télé appairée : événement `message` à chaque télé joignable, `screens` = celles qui l'ont affiché ; 503 aucune joignable, 502 aucune ne l'a affiché (raisons). Sinon appli tierce : 404 sans `tv.host`, 502 télé injoignable ou qui refuse |
+| `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Événement `message` à chaque télé appairée et joignable, `screens` = celles qui l'ont affiché ; 404 aucune télé appairée, 503 aucune joignable, 502 aucune ne l'a affiché (raisons) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |

@@ -7,8 +7,8 @@ Une petite appli installée sur la télé du salon (Android TV 10, installée ho
 connectée à HomeHub et affiche ou fait entendre ce qu'il lui envoie **par-dessus ce qui passe, sans le couper**.
 
 Pourquoi une appli maison : le message vocal de la 0.68 passe par le récepteur Cast, qui prend le premier plan, coupe la
-vidéo puis se ferme ; l'appli « Notifications for Android TV » de la 0.67 n'affiche que du texte et demande un port
-ouvert sur la télé. PiPup est écartée (abandonnée depuis 2019, pas d'APK officiel, pas d'atténuation du son, rien à
+vidéo puis se ferme ; l'appli tierce de la 0.67 pour le message écrit n'affichait que du texte et demandait un port
+ouvert sur la télé (retirée en 0.77.0). PiPup est écartée (abandonnée depuis 2019, pas d'APK officiel, pas d'atténuation du son, rien à
 l'écran pour un son seul). Une appli à nous ne vaut son coût que si elle fait tout cela et plus : d'où la liste de
 fonctions plus bas.
 
@@ -71,7 +71,7 @@ un profil. Proposition :
 | `server/services/screens.ts` | File d'événements par télé, attente longue, présence, comptes rendus |
 | `server/screen-api.ts` | Routes de la télé (`/api/screen/*`) et de l'appairage |
 | `shared/screen.ts` | Types des événements (`voice`, `message`, puis `timer`, `bus`…), communs au front |
-| `server/cast-api.ts`, `server/tv-api.ts` | Destination « Télé (appli) » en plus de Cast et de l'appli tierce |
+| `server/cast-api.ts`, `server/tv-api.ts` | Destination « Télé (appli) » du message vocal en plus de Cast ; message écrit |
 | `web/src/…` | Onglet Caméra du téléphone : « Ta voix sur » Tablette / **Télé** / appareils Cast ; page des appareils de la tablette : section Télé |
 
 ## 2. Où vit le code
@@ -165,7 +165,7 @@ Retenues (toutes) :
 | # | Fonction | Comment | Risque à lever |
 |---|---|---|---|
 | 1 | Message vocal sans couper la vidéo | Lecture par `MediaPlayer`, focus audio **transitoire avec baisse du son** (`AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`) ; bandeau « Message d'Alex » pendant la lecture | La télé en direct (tuner) et certaines applis ignorent le focus audio : sinon, baisser nous-mêmes le volume puis le rendre |
-| 2 | Message écrit en bandeau | Fenêtre par-dessus (`TYPE_APPLICATION_OVERLAY`), texte nettoyé par le serveur (`shared/tv.ts`), `tv.seconds` | Remplace l'appli tierce : la route `/api/tv/message` passe par HomeHub TV si une télé est appairée, sinon par l'appli tierce (`tv.host`), retirée une version plus tard |
+| 2 | Message écrit en bandeau | Fenêtre par-dessus (`TYPE_APPLICATION_OVERLAY`), texte nettoyé par le serveur (`shared/tv.ts`), `tv.seconds` | Fait (0.75.0) ; la route `/api/tv/message` ne passe plus que par HomeHub TV depuis la 0.77.0 |
 | 3 | Alerte du minuteur de cuisine | Le serveur pousse « minuteur fini » ; bandeau + son court ; « Arrêter » à la télécommande arrête le minuteur partout | Le bandeau doit pouvoir prendre le focus de la télécommande sans gêner l'appli en cours |
 | 4 | Alerte du bus du matin | Mêmes règles que la tablette (`server/services/transit.ts`) : « Bus dans 5 min » | Plages horaires et jours d'école, pas en vacances |
 | 5 | Rappels des routines du soir, nouveaux mots | Bandeau à l'heure prévue (`server/sources/routine-plans.ts`), rien de personnel au-delà de ce que montre déjà la tablette | Ne pas lasser : réglage par rappel |
@@ -191,7 +191,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 
 1. **Socle + message vocal atténué (1)** : projet Kotlin, service, appairage, attente longue, présence ;
    destination « Télé » dans l'onglet Caméra du téléphone, parents seulement. Première version.
-2. Message écrit en bandeau (2), à la place de l'appli tierce.
+2. Message écrit en bandeau (2).
 3. Réponses rapides à la télécommande (10).
 4. Pause, reprise, volume et « À table ! » (6).
 5. Télé allumée ou éteinte, bascule vers le Google Home (7), puis mode film (15).
@@ -208,8 +208,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
   `cast-api.ts` (vocal), page des appareils de la tablette (section Télé, saisie du code).
 - Front : « Ta voix sur » Tablette / **Télé** / appareils Cast dans l'onglet Caméra du téléphone. Le message écrit
   (bouton « Message à la télé » par l'appli) vient à la version suivante : fait (fonction 2), événement `message`,
-  bandeau `OverlayBanner.showMessage`, compte rendu « Affiché sur la télé » ; l'appli tierce ne sert plus que sans
-  télé appairée, à retirer une version après.
+  bandeau `OverlayBanner.showMessage`, compte rendu « Affiché sur la télé ».
 - Monde fictif : une fausse télé HomeHub TV (attente longue simulée, comptes rendus) pour les tests et les captures.
 - Appli : `tv-app/` minimal (appairage, service, bandeau, lecture atténuée), tests JVM du protocole.
 - Tests serveur (`*.test.ts`), README, `docs/ecrans.md` et captures, `TODO.md`, puis version avec `homehub-release`.

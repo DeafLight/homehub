@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FAMILY_ID } from '../shared/types.ts';
-import { calendarsOf, hasCalendars, loadConfig, parseConfig, toPublicConfig } from './config.ts';
+import { calendarsOf, configWarnings, hasCalendars, loadConfig, parseConfig, toPublicConfig } from './config.ts';
 
 const alex = { id: 'alex', name: 'Alex', color: '#5b8def' };
 
@@ -24,22 +24,22 @@ describe('parseConfig', () => {
     expect(() => parseConfig({ members: [alex], camera: { turn: ['https://maison.example.org'] } })).toThrow();
   });
 
-  it('télé : absente par défaut ; port et durée par défaut ; au front, seulement sa présence', () => {
+  it('télé : absente par défaut, durée par défaut, rien au front', () => {
     expect(parseConfig({ members: [alex] }).tv).toBeUndefined();
-    expect(toPublicConfig(parseConfig({ members: [alex] }), 'r').tv).toBe(false);
-    const config = parseConfig({ members: [alex], tv: { host: '192.168.1.40' } });
-    expect(config.tv).toEqual({ host: '192.168.1.40', port: 7676, seconds: 10 });
-    expect(toPublicConfig(config, 'r').tv).toBe(true);
-    expect(JSON.stringify(toPublicConfig(config, 'r'))).not.toContain('192.168');
-    expect(parseConfig({ members: [alex], tv: { host: 'tele.maison.lan', seconds: 20 } }).tv?.seconds).toBe(20);
-    for (const host of ['http://192.168.1.40', '192.168.1.40:7676', 'tele/maison', '']) {
-      expect(() => parseConfig({ members: [alex], tv: { host } })).toThrow();
-    }
-    expect(() => parseConfig({ members: [alex], tv: { host: 'tele', seconds: 600 } })).toThrow();
-    // Durée seule (appli HomeHub TV, sans appli tierce) : pas de bouton venu de la config, la télé appairée le donne.
-    const appOnly = parseConfig({ members: [alex], tv: { seconds: 15 } });
-    expect(appOnly.tv).toEqual({ port: 7676, seconds: 15 });
-    expect(toPublicConfig(appOnly, 'r').tv).toBe(false);
+    expect(configWarnings(parseConfig({ members: [alex] }))).toEqual([]);
+    const config = parseConfig({ members: [alex], tv: { seconds: 15 } });
+    expect(config.tv).toEqual({ seconds: 15, legacy: false });
+    expect(configWarnings(config)).toEqual([]);
+    expect(parseConfig({ members: [alex], tv: {} }).tv?.seconds).toBe(10);
+    expect(() => parseConfig({ members: [alex], tv: { seconds: 600 } })).toThrow();
+    expect(toPublicConfig(config, 'r')).not.toHaveProperty('tv');
+  });
+
+  it('télé : tv.host et tv.port de l’appli tierce (retirée en 0.77.0) acceptés mais ignorés, avec un avertissement', () => {
+    const old = parseConfig({ members: [alex], tv: { host: '192.168.1.40', port: 7676, seconds: 20 } });
+    expect(old.tv).toEqual({ seconds: 20, legacy: true });
+    expect(configWarnings(old)).toEqual([expect.stringContaining('tv.host')]);
+    expect(JSON.stringify(toPublicConfig(old, 'r'))).not.toContain('192.168');
   });
 
   it('calcul des empreintes : choisi dans homehub.yaml, transmis à la tablette', () => {
