@@ -116,8 +116,9 @@ approximatives, à confirmer au téléchargement :
 - Le Java 8 existant reste en place ; le JDK 17 est désigné par `JAVA_HOME` pour Gradle seulement.
 - `sdkmanager --licenses` demande d'accepter les licences du SDK Android : c'est à toi de les accepter.
 - Emplacement proposé : `C:\Android\sdk` (SDK), JDK dans `C:\Program Files\Eclipse Adoptium\`.
-- Option plus légère pour plus tard : la CI construit l'APK, et le PC n'a besoin que de `platform-tools` (`adb`) pour
-  l'installer. Pour développer et essayer vite, le SDK local reste nécessaire au début.
+- Depuis 0.76.0, la CI construit et signe l'APK à chaque tag (release GitHub, `homehub-tv-X.Y.Z.apk`) et le NAS
+  l'installe sur la télé avec le serveur (`tv-app/README.md`, « APK construit par la CI ») ; le SDK local ne sert plus
+  qu'à développer et essayer vite.
 
 ## 4. Mise en place sur la télé (une fois)
 

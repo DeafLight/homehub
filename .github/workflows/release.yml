@@ -1,6 +1,7 @@
 name: release
 
-# Un tag vX.Y.Z publie ghcr.io/deaflight/homehub:X.Y.Z (+ X.Y et latest).
+# Un tag vX.Y.Z publie ghcr.io/deaflight/homehub:X.Y.Z (+ X.Y et latest), et l'APK signé de HomeHub TV
+# (homehub-tv-X.Y.Z.apk) attaché à la release GitHub du tag, que le NAS télécharge pour l'installer sur la télé.
 on:
   push:
     tags: ['v*.*.*']
@@ -8,11 +9,13 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -42,3 +45,78 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Appli Android TV : tests, APK signé par la clé de la maison (secrets HOMEHUB_TV_*, voir tv-app/README.md),
+  # attaché à la release du tag (créée si elle n'existe pas). Sur un tag seulement.
+  tv-apk:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Version
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          paquet=$(node -p 'require("./package.json").version')
+          if [ "$version" != "$paquet" ]; then
+            echo "::error::Tag $TAG, mais package.json dit $paquet"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Clé de signature
+        env:
+          KEYSTORE_B64: ${{ secrets.HOMEHUB_TV_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Secret HOMEHUB_TV_KEYSTORE_B64 absent (voir tv-app/README.md, « APK construit par la CI »)"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/homehub-tv.jks"
+
+      - name: Tests et APK signé
+        working-directory: tv-app
+        env:
+          HOMEHUB_TV_STORE_FILE: ${{ runner.temp }}/homehub-tv.jks
+          HOMEHUB_TV_STORE_PASSWORD: ${{ secrets.HOMEHUB_TV_STORE_PASSWORD }}
+          HOMEHUB_TV_KEY_ALIAS: ${{ secrets.HOMEHUB_TV_KEY_ALIAS }}
+          HOMEHUB_TV_KEY_PASSWORD: ${{ secrets.HOMEHUB_TV_KEY_PASSWORD }}
+        run: bash ./gradlew --no-daemon test assembleRelease
+
+      - name: Vérification de la signature
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          apk=tv-app/app/build/outputs/apk/release/homehub-tv-release.apk
+          test -f "$apk" || { echo "::error::APK signé introuvable"; ls tv-app/app/build/outputs/apk/release; exit 1; }
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk"
+          cp "$apk" "homehub-tv-$VERSION.apk"
+          rm -f "$RUNNER_TEMP/homehub-tv.jks"
+
+      - name: Release GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --title "HomeHub $VERSION" \
+                 --notes "Image : ghcr.io/${{ github.repository_owner }}/homehub:$VERSION. Appli de la télé : homehub-tv-$VERSION.apk."
+          gh release upload "$TAG" "homehub-tv-$VERSION.apk" --clobber

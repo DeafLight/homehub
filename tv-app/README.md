@@ -1,4 +1,4 @@
-<!-- Appli Android TV « HomeHub TV » : ce qu'elle fait, outils, construction, installation et mise à jour par adb. -->
+<!-- Appli Android TV « HomeHub TV » : ce qu'elle fait, outils, construction (PC et CI), installation et mise à jour par adb. -->
 
 # HomeHub TV
 
@@ -41,6 +41,33 @@ $env:JAVA_HOME = 'C:\Android\jdk-17'
 C:\Android\gradle-8.11.1\bin\gradle.bat -p tv-app test assembleRelease   # APK : tv-app\app\build\outputs\apk\release
 ```
 
+## APK construit par la CI
+
+À chaque tag `vX.Y.Z`, le workflow `release` (job `tv-apk`) lance les tests, construit l'APK signé par la même clé
+et l'attache à la release GitHub du tag : `homehub-tv-X.Y.Z.apk`. Le NAS le télécharge de là pour l'installer sur la
+télé (script `deploy-homehub.sh` du dépôt de config du NAS, qui refait les étapes d'`installer.ps1`). La construction
+sur le PC reste possible et donne un APK signé par la même clé.
+
+La clé arrive dans la CI par quatre secrets du dépôt, que `app/build.gradle.kts` lit en variables d'environnement
+(`HOMEHUB_TV_STORE_FILE` et suivantes, prioritaires sur `keystore.properties`). Ils se créent **une fois**, depuis le
+PC qui garde la clé, par son propriétaire (`gh auth login` fait) ; les valeurs ne s'affichent pas :
+
+```powershell
+$d = "$env:USERPROFILE\.homehub-tv"
+$p = Get-Content "$d\keystore.properties" -Raw | ConvertFrom-StringData
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $d $p.storeFile)))
+gh secret set HOMEHUB_TV_KEYSTORE_B64   -R DeafLight/homehub --body $b64
+gh secret set HOMEHUB_TV_STORE_PASSWORD -R DeafLight/homehub --body $p.storePassword
+gh secret set HOMEHUB_TV_KEY_ALIAS      -R DeafLight/homehub --body $p.keyAlias
+gh secret set HOMEHUB_TV_KEY_PASSWORD   -R DeafLight/homehub --body $p.keyPassword
+Remove-Variable p, b64
+gh secret list -R DeafLight/homehub     # les quatre noms, sans les valeurs
+```
+
+Changer de clé, c'est refaire ces quatre commandes (et désinstaller puis réappairer sur la télé). La CI vérifie la
+signature (`apksigner verify --print-certs`, empreinte du certificat dans le journal du job) ; sans secret, le job
+échoue au lieu de publier un APK non signé.
+
 ## Mise en place sur la télé (une fois)
 
 1. Paramètres → Préférences de l'appareil → À propos → appuyer 7 fois sur « Build » (options pour développeurs).
@@ -67,4 +94,8 @@ pendant une longue veille ; la télé garde ce réglage après un redémarrage. 
 
 ## Mise à jour
 
-`.\tv-app\installer.ps1 -Tele <ip-de-la-télé>` : construit, `adb install -r` (appairage et adresse conservés), relance.
+- Depuis le NAS, avec le serveur (cas normal) : `sudo scripts/deploy-homehub.sh` installe l'APK de la release de la
+  version déployée (`--tele-seulement` pour la télé seule). La première fois, la télé demande d'autoriser la clé
+  `adb` du NAS : « Toujours autoriser », puis relancer.
+- Depuis le PC : `.\tv-app\installer.ps1 -Tele <ip-de-la-télé>` : construit, `adb install -r` (appairage et adresse
+  conservés), relance.

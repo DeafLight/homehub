@@ -1010,8 +1010,16 @@ npm run affichettes -- https://<adresse> --sortie frigo.pdf --apercu frigo.png
 
 1. Mettre à jour `version` dans `package.json`, commit.
 2. `git tag vX.Y.Z && git push --follow-tags` → GitHub Actions vérifie (types, tests), construit et publie
-   `ghcr.io/deaflight/homehub:X.Y.Z`.
+   `ghcr.io/deaflight/homehub:X.Y.Z`, et construit l'appli de la télé (tests, APK signé par la clé de la maison)
+   qu'il attache à la release GitHub du tag : `homehub-tv-X.Y.Z.apk`.
 3. Dans `nas-config`, passer le service `homehub` au tag `X.Y.Z`, commit + push.
-4. Sur le NAS : `git pull --ff-only` puis `sudo scripts/update-apps.sh homehub`.
+4. Sur le NAS : `git pull --ff-only` puis une seule commande, `sudo scripts/deploy-homehub.sh` : le serveur
+   (`update-apps.sh homehub`), puis l'APK de la même version installé sur la télé par `adb` (sautée si elle a déjà
+   cette version ou si elle est injoignable). L'adresse de la télé reste dans un fichier du NAS, jamais ici.
+
+**Secrets GitHub de l'APK** (une fois, par le propriétaire de la clé, depuis le PC qui la garde) : quatre secrets
+`HOMEHUB_TV_KEYSTORE_B64`, `HOMEHUB_TV_STORE_PASSWORD`, `HOMEHUB_TV_KEY_ALIAS`, `HOMEHUB_TV_KEY_PASSWORD`, créés
+avec `gh secret set` : commandes dans [`tv-app/README.md`](tv-app/README.md#apk-construit-par-la-ci). Sans eux, le
+job `tv-apk` échoue (l'image du serveur est publiée quand même).
 
 Sur le NAS, la configuration est `/mnt/X/docker/data/homehub/homehub.yaml`, montée en lecture seule sur `/data`.

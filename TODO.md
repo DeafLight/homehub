@@ -281,6 +281,9 @@ personne depuis son propre téléphone.
 - [x] 1 ter. Vérifié après déploiement : appli vivante après une veille courte et un redémarrage de la télé, son
       baissé aussi sous Netflix. 0.71.1 : `installer.ps1` met l'appli dans la liste blanche Doze à chaque installation
       (`dumpsys deviceidle whitelist`), pour qu'une longue veille ne lui coupe ni le réseau ni le processeur.
+- [x] 1 quater. Déploiement en une commande depuis le NAS (0.76.0) : la CI construit, teste et signe l'APK à chaque
+      tag (`homehub-tv-X.Y.Z.apk` dans la release GitHub, clé dans les secrets du dépôt) ; le script du NAS déploie le
+      serveur puis installe cet APK sur la télé par `adb` (sautée si déjà à jour ou injoignable).
 - [x] 2. Message écrit en bandeau, à la place de l'appli tierce « Notifications for Android TV » (0.67.0) : événement
       `message` (texte nettoyé par le serveur, `tv.seconds`), bandeau en haut au centre (`OverlayBanner.showMessage`)
       qui s'en va seul, compte rendu « Affiché sur la télé » au téléphone ; `/api/tv/message` passe par HomeHub TV dès
