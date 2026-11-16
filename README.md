@@ -9,7 +9,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 
 - **Accueil** : grande horloge, météo, prochain événement de la famille, et « Qui est là ? » pour choisir son profil ;
   carte **« À consommer »** quand une DLC du stock est passée ou urgente (voir Stock). Quand les cartes dépassent
-  la hauteur de l'écran, la colonne de gauche défile au doigt (0.96.1).
+  la hauteur de l'écran, elles défilent au doigt sous l'horloge, qui reste fixe en haut (0.96.1, 0.96.3).
 - **Dashboard par profil** (`/p/<id>`) : prochaine activité, tâches à cocher, semaine, mot de la famille (et, pour un
   parent, la carte « À consommer »).
   Un rail à gauche ramène à l'accueil ou passe directement à un autre profil.

@@ -450,6 +450,8 @@ personne depuis son propre téléphone.
       touchés signalés ; calcul des empreintes réglable (`faces.backend` : `webgl`, `webgl-safe`, `cpu`).
 - [x] Accueil (0.96.1) : la colonne de gauche (horloge, cartes, passages) défile au doigt quand elle dépasse la
       hauteur de l'écran, au lieu d'être coupée.
+- [x] Accueil (0.96.3) : l'horloge reste fixe en haut ; seules les informations en dessous (accueil de la personne
+      reconnue, cartes, passages) défilent.
 
 ## Transports (après le design)
 

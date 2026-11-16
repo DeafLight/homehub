@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.96.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.96.3, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -23,7 +23,7 @@ avec le prochain rendez-vous et les mots non lus de chacun. Carte **« À consom
 passé d'hier et le jambon à finir aujourd'hui (DLC passées ou urgentes seulement) ; touchée, elle ouvre le stock sur
 « À consommer ». En bas, un minuteur en cours, et la barre d'actions : Minuteur, Recettes, Scanner, **Télé** (dès
 qu'une télé est appairée) et Réglages. Quand l'accueil de la personne reconnue, les cartes et les passages dépassent
-la hauteur de l'écran, la colonne de gauche défile au doigt ; « Qui est là ? » et la barre d'actions restent en place.
+la hauteur de l'écran, ils défilent au doigt sous l'horloge, qui reste fixe en haut ; « Qui est là ? » et la barre d'actions restent en place.
 
 ![Accueil](images/tablette-accueil.png)
 

@@ -61,82 +61,85 @@
       </DetailLink>
     </div>
 
-    {#if actor.current && me}
-      {@const who = actor.current}
-      {@const headline = profileHeadline({ ...me, pendingTasks: 0 }, clock.now)}
-      <button type="button" class="welcome" style:--accent={who.color} onclick={() => navigate(dashboardPath(who.id))}>
-        <span class="welcome-title">{greeting(clock.now)} {who.name} !</span>
-        {#if me.unreadNotes}
-          <span class="line unread"><Icon name="message" size={24} /> {pluralize(me.unreadNotes, 'mot')} pour toi</span>
-        {/if}
-        {#if me.routine}
-          <span class="line">
-            <Icon name="check" size={24} />
-            {routineName(me.routine.period)} : {me.routine.done === me.routine.total ? 'finie, bravo !' : `${me.routine.done}/${me.routine.total}`}
-          </span>
-        {/if}
-        {#if homeworkReminder(me.homework, clock.now)}
-          <span class="line"><Icon name="pencil" size={24} /> {homeworkReminder(me.homework, clock.now)}</span>
-        {/if}
-        {#if me.nextTasks.length}
-          <span class="line">
-            <Icon name="list" size={24} />
-            À faire : {me.nextTasks.join(', ')}{me.pendingTasks > me.nextTasks.length ? '…' : ''}
-          </span>
-        {/if}
-        {#if headline !== 'Rien de prévu'}
-          <span class="line"><Icon name="calendar" size={24} /> {headline}</span>
-        {/if}
-      </button>
-    {/if}
+    <!-- Seules les informations sous l'horloge défilent quand elles dépassent la hauteur de l'écran. -->
+    <div class="infos">
+      {#if actor.current && me}
+        {@const who = actor.current}
+        {@const headline = profileHeadline({ ...me, pendingTasks: 0 }, clock.now)}
+        <button type="button" class="welcome" style:--accent={who.color} onclick={() => navigate(dashboardPath(who.id))}>
+          <span class="welcome-title">{greeting(clock.now)} {who.name} !</span>
+          {#if me.unreadNotes}
+            <span class="line unread"><Icon name="message" size={24} /> {pluralize(me.unreadNotes, 'mot')} pour toi</span>
+          {/if}
+          {#if me.routine}
+            <span class="line">
+              <Icon name="check" size={24} />
+              {routineName(me.routine.period)} : {me.routine.done === me.routine.total ? 'finie, bravo !' : `${me.routine.done}/${me.routine.total}`}
+            </span>
+          {/if}
+          {#if homeworkReminder(me.homework, clock.now)}
+            <span class="line"><Icon name="pencil" size={24} /> {homeworkReminder(me.homework, clock.now)}</span>
+          {/if}
+          {#if me.nextTasks.length}
+            <span class="line">
+              <Icon name="list" size={24} />
+              À faire : {me.nextTasks.join(', ')}{me.pendingTasks > me.nextTasks.length ? '…' : ''}
+            </span>
+          {/if}
+          {#if headline !== 'Rien de prévu'}
+            <span class="line"><Icon name="calendar" size={24} /> {headline}</span>
+          {/if}
+        </button>
+      {/if}
 
-    {#if home.data}
-      {@const { weather, familyHighlight } = home.data}
-      <div class="bottom">
-        {#if weather || familyHighlight}
-          <div class="pair">
-            {#if weather}
-              <DetailLink to="weather" label="Météo détaillée" variant="block">
-                <span class="tile">
-                  <span class="card-label">Météo</span>
-                  <span class="tile-row">
-                    <Icon
-                      name={weatherIcon(weather.weatherCode, weather.isDay)}
-                      size={48}
-                      color={weatherIconColor(weather.weatherCode, weather.isDay)}
-                      strokeWidth={1.6}
-                    />
-                    <span class="tile-text">
-                      <span class="temperature">{formatTemperature(weather.temperatureC)} · {weatherLabel(weather.weatherCode)}</span>
-                      <span class="muted">{weatherOutlook(weather, clock.now)}</span>
+      {#if home.data}
+        {@const { weather, familyHighlight } = home.data}
+        <div class="bottom">
+          {#if weather || familyHighlight}
+            <div class="pair">
+              {#if weather}
+                <DetailLink to="weather" label="Météo détaillée" variant="block">
+                  <span class="tile">
+                    <span class="card-label">Météo</span>
+                    <span class="tile-row">
+                      <Icon
+                        name={weatherIcon(weather.weatherCode, weather.isDay)}
+                        size={48}
+                        color={weatherIconColor(weather.weatherCode, weather.isDay)}
+                        strokeWidth={1.6}
+                      />
+                      <span class="tile-text">
+                        <span class="temperature">{formatTemperature(weather.temperatureC)} · {weatherLabel(weather.weatherCode)}</span>
+                        <span class="muted">{weatherOutlook(weather, clock.now)}</span>
+                      </span>
                     </span>
                   </span>
-                </span>
-              </DetailLink>
-            {/if}
-            {#if familyHighlight}
-              <DetailLink to="week" label="Semaine de la famille" variant="block">
-                <span class="tile">
-                  <span class="card-label">{config.family.name}</span>
-                  <span class="tile-row">
-                    <span class="highlight-text">{eventLine(familyHighlight, clock.now)}</span>
-                    <Icon name="chevron" size={24} color="var(--fg-muted)" strokeWidth={2} />
+                </DetailLink>
+              {/if}
+              {#if familyHighlight}
+                <DetailLink to="week" label="Semaine de la famille" variant="block">
+                  <span class="tile">
+                    <span class="card-label">{config.family.name}</span>
+                    <span class="tile-row">
+                      <span class="highlight-text">{eventLine(familyHighlight, clock.now)}</span>
+                      <Icon name="chevron" size={24} color="var(--fg-muted)" strokeWidth={2} />
+                    </span>
                   </span>
-                </span>
-              </DetailLink>
-            {/if}
-          </div>
-        {/if}
-        <!-- DLC passées ou urgentes du stock (rien de personnel) ; absente sinon. -->
-        <ExpiringCard />
-        {#if transit.data && transit.data.stops.length > 0}
-          <div class="tile">
-            <span class="card-label">Prochains passages</span>
-            <TransitBoard transit={transit.data} now={clock.now} />
-          </div>
-        {/if}
-      </div>
-    {/if}
+                </DetailLink>
+              {/if}
+            </div>
+          {/if}
+          <!-- DLC passées ou urgentes du stock (rien de personnel) ; absente sinon. -->
+          <ExpiringCard />
+          {#if transit.data && transit.data.stops.length > 0}
+            <div class="tile">
+              <span class="card-label">Prochains passages</span>
+              <TransitBoard transit={transit.data} now={clock.now} />
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
   </section>
 
   <section class="profiles">
@@ -224,17 +227,13 @@
   }
 
 
-  /* La page ne défile pas (body en overflow: hidden) : la colonne défile d'elle-même au doigt quand l'accueil de la
-     personne reconnue, les cartes et les passages dépassent la hauteur de l'écran. */
+  /* Colonne de gauche : l'horloge reste fixe en haut, les informations en dessous occupent le reste de la hauteur. */
   .ambient {
     flex: 1 1 0;
     min-width: 0;
     min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
     gap: var(--space-3);
     padding: var(--space-6);
     box-sizing: border-box;
@@ -242,6 +241,7 @@
   }
 
   .clock {
+    flex: none;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
@@ -263,6 +263,28 @@
   .version {
     font-size: 0.95rem;
     color: var(--fg-muted);
+  }
+
+  /* La page ne défile pas (body en overflow: hidden) : seules les informations défilent au doigt quand l'accueil de
+     la personne reconnue, les cartes et les passages dépassent la hauteur de l'écran. Quand tout tient, les marges
+     automatiques gardent la mise en page d'avant : cartes en bas, accueil de la personne centré entre l'horloge et
+     les cartes ; elles tombent à zéro dès que ça déborde, sans rien couper en haut. */
+  .infos {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .infos > .welcome {
+    margin-block: auto;
+  }
+
+  .bottom:first-child {
+    margin-top: auto;
   }
 
   .bottom {
