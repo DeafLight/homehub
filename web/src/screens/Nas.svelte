@@ -60,17 +60,19 @@
 
         <section class="card watch">
           <h2>À surveiller</h2>
-          {#each watch as item (item.title)}
-            <div class="watch-item">
-              <span class="dot top" style:background={levelColor(item.level)}></span>
-              <span class="watch-text">
-                <span class="watch-title">{item.title}</span>
-                <span class="muted small">{item.text}</span>
-              </span>
-            </div>
-          {:else}
-            <p class="muted">Rien à signaler.</p>
-          {/each}
+          <div class="scroll">
+            {#each watch as item (item.title)}
+              <div class="watch-item">
+                <span class="dot top" style:background={levelColor(item.level)}></span>
+                <span class="watch-text">
+                  <span class="watch-title">{item.title}</span>
+                  <span class="muted small">{item.text}</span>
+                </span>
+              </div>
+            {:else}
+              <p class="muted">Rien à signaler.</p>
+            {/each}
+          </div>
         </section>
       </div>
 
@@ -109,13 +111,15 @@
             {#if data.status}
               {@const services = nasServices(data.status)}
               {#if services}
-                {#each services as service (service.label)}
-                  <div class="row">
-                    <span class="dot" style:background={levelColor(service.level)}></span>
-                    <span class="row-label">{service.label}</span>
-                    <span class="muted small">{service.info}</span>
-                  </div>
-                {/each}
+                <div class="scroll">
+                  {#each services as service (service.label)}
+                    <div class="row">
+                      <span class="dot" style:background={levelColor(service.level)}></span>
+                      <span class="row-label">{service.label}</span>
+                      <span class="muted small">{service.info}</span>
+                    </div>
+                  {/each}
+                </div>
               {:else}
                 <p class="muted">État des services inconnu.</p>
               {/if}
@@ -126,15 +130,17 @@
 
           <section class="card">
             <h2>Dernièrement</h2>
-            {#each timeline as event (event.text)}
-              <div class="event">
-                <span class="muted small">{event.when}</span>
-                <span class="event-text">
-                  {#if event.level === 'bad'}<span class="dot inline" style:background={levelColor(event.level)}></span>{/if}
-                  {event.text}
-                </span>
-              </div>
-            {/each}
+            <div class="scroll">
+              {#each timeline as event (event.text)}
+                <div class="event">
+                  <span class="muted small">{event.when}</span>
+                  <span class="event-text">
+                    {#if event.level === 'bad'}<span class="dot inline" style:background={levelColor(event.level)}></span>{/if}
+                    {event.text}
+                  </span>
+                </div>
+              {/each}
+            </div>
           </section>
         </div>
       </div>
@@ -194,6 +200,7 @@
     min-height: 0;
     display: grid;
     grid-template-columns: 420px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: 20px;
   }
 
@@ -334,7 +341,19 @@
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: 20px;
+  }
+
+  /* Corps d'une carte : défile au doigt quand la liste dépasse (services, événements), le titre reste en place. */
+  .scroll {
+    flex-grow: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .row {

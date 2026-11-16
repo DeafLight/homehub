@@ -42,6 +42,12 @@
   { "label": "Bloqueur de pubs (Pi-hole)", "running": 1, "total": 1 },
   { "label": "VPN (WireGuard)", "running": 1, "total": 1 },
   { "label": "Accès Internet (NPM)", "running": 1, "total": 1 },
+  { "label": "Itinéraires (MOTIS)", "running": 1, "total": 1 },
+  { "label": "Films (Jellyfin)", "running": 1, "total": 1 },
+  { "label": "Musique (Navidrome)", "running": 1, "total": 1 },
+  { "label": "Mots de passe (Vaultwarden)", "running": 1, "total": 1 },
+  { "label": "Domotique (Home Assistant)", "running": 2, "total": 2 },
+  { "label": "Synchro (Syncthing)", "running": 1, "total": 1 },
   { "label": "HomeHub", "running": 1, "total": 1 }
  ]
 }

@@ -175,7 +175,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
 
 - **Le NAS** (`/nas`) : ouvert par la roue dentée ou en touchant la version de HomeHub sur l'accueil ; état général, processeur,
   mémoire, données et batterie, points à surveiller (contrôles de santé du NAS, sources de HomeHub en erreur,
-  points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages).
+  points faibles du matériel), services et événements récents (sauvegarde, vérification des données, démarrages) ;
+  une liste plus longue que sa carte défile au doigt.
 - **Listes** (`/listes`) : courses et tâches de la famille, ouvertes depuis « Mes tâches » ou « Liste de courses ».
   Courses : saisie rapide, articles fréquents en un geste, articles cochés « dans le panier » jusqu'à « Vider » ;
   à acheter rangé par rayon, les lignes du menu de la semaine marquées avec leurs recettes.

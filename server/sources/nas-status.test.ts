@@ -12,7 +12,7 @@ describe('relevé du NAS', () => {
     const status = await createNasStatusSource({ path: fixture, logger: silentLogger() }).read();
     expect(status?.version).toBe('25.10.7');
     expect(status?.pools[0]).toMatchObject({ name: 'X', redundant: false });
-    expect(status?.services).toHaveLength(10);
+    expect(status?.services).toHaveLength(16);
     expect(status).not.toHaveProperty('schema');
   });
 
