@@ -116,7 +116,7 @@
 {:else if router.route.name === 'phoneremote'}
   <Remote />
 {:else if router.route.name === 'phone'}
-  <Phone tab={router.route.tab} />
+  <Phone tab={router.route.tab} trip={router.route.trip} />
 {:else if router.route.name === 'share'}
   <!-- Reçu par « Partager » (share_target du manifeste, POST renvoyé ici en GET par le serveur) : un lien ouvre
        l'import de recette (ou, au choix, l'ajout à une liste) ; un texte copié d'une recette ou une page enregistrée,

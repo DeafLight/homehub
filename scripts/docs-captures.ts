@@ -59,7 +59,7 @@ if (!chromePath) {
 const work = mkdtempSync(join(tmpdir(), 'homehub-docs-'));
 const state = join(work, 'state');
 mkdirSync(state);
-const TOKENS = { alex: 'docs-alex', lea: 'docs-lea', tom: 'docs-tom' } as const;
+const TOKENS = { alex: 'docs-alex', lea: 'docs-lea', tom: 'docs-tom', sam: 'docs-sam' } as const;
 const hash = (t: string) => createHash('sha256').update(t).digest('hex');
 const paired = new Date(DOCS_NOW - 4 * 86_400_000).toISOString();
 const seen = new Date(DOCS_NOW - 3_600_000).toISOString();
@@ -1243,13 +1243,24 @@ if (!only || FILM_SHOTS.some((name) => only.test(name))) {
 // famille) : serveur relancé à 17 h 29. Alex (parent) va à la réunion parents-profs de 19 h à l'École : relancé à
 // 18 h 14, ligne voiture comprise. Puis les réglages des notifications (abonnement d'exemple vers le faux service de
 // push), dans le navigateur et sur un iPhone pas encore installé. Le serveur revient ensuite au jeudi 7 h 35.
-const TRIP_SHOTS = ['telephone-trajet-enfant', 'telephone-trajet-parent', 'telephone-reglages-notifications', 'telephone-reglages-iphone'];
+// Version 2.1 : l'agenda marque les rendez-vous dont le lieu est reconnu (icône de bus) ; le toucher ouvre son trajet.
+// Tom : le foot (dans les 3 h, depuis sa position). Alex : le dentiste du lendemain (adresse d'exemple trouvée par la
+// fausse Géoplateforme), calculé depuis la maison, trafic habituel ; la tablette ouvre le même depuis la semaine. Les
+// réglages d'Alex disent le rendez-vous que la notification surveille (la réunion de 19 h) ; ceux de Sam, pourquoi son
+// théâtre de 19 h 30 n'est pas suivi (lieu « Salle des fêtes » introuvable).
+const TRIP_SHOTS = [
+  'telephone-trajet-enfant', 'telephone-agenda-trajet-enfant', 'telephone-trajet-rdv-enfant',
+  'telephone-trajet-parent', 'telephone-agenda-trajet-parent', 'telephone-trajet-rdv-parent', 'tablette-semaine-trajet', 'tablette-tableau-trajet',
+  'telephone-reglages-notifications', 'telephone-reglages-diagnostic', 'telephone-reglages-iphone',
+];
+/** Touche le rendez-vous dont le bouton contient `title` (agenda du téléphone, semaine de la tablette). */
+const openTrip = (title: string) => `[...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') ?? '').startsWith(${JSON.stringify(title)}))?.click()`;
 if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   const atPosition = `navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok({ coords: { latitude: ${DOCS_PHONE_POSITION.lat}, longitude: ${DOCS_PHONE_POSITION.lon}, accuracy: 20 }, timestamp: Date.now() }), 50);`;
   // Téléphone de Tom, appairé pour ces captures seulement (après celle de la page Téléphones).
   const devicesFile = join(state, 'devices.json');
   const current = JSON.parse(readFileSync(devicesFile, 'utf8')) as { version: 1; devices: unknown[] };
-  writeFileSync(devicesFile, JSON.stringify({ ...current, devices: [...current.devices, device('tom', 'Téléphone de Tom', 'Android 15')] }));
+  writeFileSync(devicesFile, JSON.stringify({ ...current, devices: [...current.devices, device('tom', 'Téléphone de Tom', 'Android 15'), device('sam', 'Téléphone de Sam', 'Android 16')] }));
   const place = (id: string, label: string, icon: string, lat: number, lon: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon });
   const tripSettings = (withTrips: boolean) => ({
     places: [
@@ -1271,12 +1282,19 @@ if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   await startServer(tomAt);
   await call(A, 'PUT', '/transit/settings', tripSettings(true));
   await shoot('telephone-trajet-enfant', `${BASE}/m`, PHONE, { init: asPhone('tom') + atPosition, wait: 4000 });
+  await shoot('telephone-agenda-trajet-enfant', `${BASE}/m/agenda`, PHONE, { init: asPhone('tom') + atPosition, wait: 4000 });
+  await shoot('telephone-trajet-rdv-enfant', `${BASE}/m/agenda`, PHONE, { init: asPhone('tom') + atPosition, wait: 4000, after: openTrip('Entraînement de foot'), settle: 2500 });
   const alexAt = new Date(2026, 10, 5, 18, 14).getTime();
   browserNow = alexAt;
   await startServer(alexAt);
   await shoot('telephone-trajet-parent', `${BASE}/m`, PHONE, { init: asPhone('alex') + atPosition, wait: 4000 });
+  await shoot('telephone-agenda-trajet-parent', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex') + atPosition, wait: 4000 });
+  await shoot('telephone-trajet-rdv-parent', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex') + atPosition, wait: 4000, after: openTrip('Dentiste'), settle: 2500 });
+  await shoot('tablette-semaine-trajet', `${BASE}/semaine`, TABLET, { wait: 4000, after: openTrip('Dentiste'), settle: 2500 });
+  await shoot('tablette-tableau-trajet', `${BASE}/p/alex`, TABLET, { wait: 4000 });
   await call(A, 'PUT', '/push', { endpoint: `https://${FAKE_PUSH_HOST}/abonnement-exemple`, keys: { p256dh: `B${'A'.repeat(86)}`, auth: 'A'.repeat(22) } });
   await shoot('telephone-reglages-notifications', `${BASE}/m/reglages`, PHONE, { init: asPhone('alex') });
+  await shoot('telephone-reglages-diagnostic', `${BASE}/m/reglages`, PHONE, { init: asPhone('sam') });
   const iphone = `Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Version/18.1 Mobile/15E148 Safari/604.1' });`;
   await shoot('telephone-reglages-iphone', `${BASE}/m/reglages`, PHONE, { init: asPhone('lea') + iphone });
   await call(A, 'DELETE', '/push');

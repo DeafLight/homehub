@@ -1,8 +1,25 @@
 // Tests des textes de la carte « Prochain trajet » : heure de partir, heures, rendez-vous, pastilles d'étapes et
-// retard, autre choix ou course suivante, ligne voiture, et position (refusée : null).
+// retard, autre choix ou course suivante, ligne voiture, et position (refusée : null). Version 2.1 : rendez-vous
+// lointain (jour et heure), point de départ du calcul, position demandée seulement dans les 3 h, raisons d'un trajet
+// absent, diagnostic de la notification.
 import { describe, expect, it } from 'vitest';
-import type { NextTrip, TripOption } from '../../../shared/trip.ts';
-import { carLine, currentPosition, delayLine, destinationLine, distanceText, durationText, leaveLine, leaveTitle, legChips, otherLine } from './next-trip.ts';
+import type { NextTrip, TripOption, TripWatch } from '../../../shared/trip.ts';
+import {
+  carLine,
+  currentPosition,
+  delayLine,
+  destinationLine,
+  distanceText,
+  durationText,
+  leaveLine,
+  leaveTitle,
+  legChips,
+  missingText,
+  needsPosition,
+  originLine,
+  otherLine,
+  watchLines,
+} from './next-trip.ts';
 
 const at = (h: number, m = 0) => new Date(2026, 10, 5, h, m).toISOString();
 const NOW = new Date(2026, 10, 5, 7, 16);
@@ -70,5 +87,58 @@ describe('carte « Prochain trajet »', () => {
     expect(await currentPosition(refused)).toBeNull();
     const given = { getCurrentPosition: (ok: PositionCallback) => ok({ coords: { latitude: 47.46, longitude: -0.55 } } as GeolocationPosition) } as Geolocation;
     expect(await currentPosition(given)).toEqual({ lat: 47.46, lon: -0.55 });
+  });
+});
+
+describe('trajet d’un rendez-vous touché', () => {
+  const tomorrow = (h: number, m = 0) => new Date(2026, 10, 6, h, m).toISOString();
+
+  it('lointain : l’heure de partir avec le jour, le rendez-vous avec son jour', () => {
+    expect(leaveTitle(at(14, 10), NOW)).toBe('Pars à 14 h 10');
+    expect(leaveTitle(tomorrow(8, 12), NOW)).toBe('Pars demain à 8 h 12');
+    expect(leaveLine({ ...option, leaveAt: tomorrow(8, 12), arrives: tomorrow(8, 41) }, NOW)).toBe('pour y être à 8 h 41');
+    expect(leaveLine(option, NOW)).toBe('à 7 h 22, pour y être à 7 h 46');
+    expect(destinationLine({ ...trip.destination, start: tomorrow(9, 30) }, NOW)).toBe('Maths · demain 9 h 30 · Collège');
+    expect(destinationLine(trip.destination, NOW)).toBe('Maths · 8 h 00 · Collège');
+  });
+
+  it('point de départ dit clairement', () => {
+    expect(originLine(trip)).toBe('Calculé depuis ta position actuelle.');
+    expect(originLine({ ...trip, from: 'home', homeBecause: 'far' })).toBe('Calculé depuis la maison : le rendez-vous est dans plus de 3 h.');
+    expect(originLine({ ...trip, from: 'home', homeBecause: 'tablet' })).toBe('Calculé depuis la maison.');
+    expect(originLine({ ...trip, from: 'home' })).toBe('Calculé depuis la maison : position du téléphone indisponible.');
+  });
+
+  it('position demandée seulement pour un rendez-vous des 3 h', () => {
+    expect(needsPosition(`rdv@${at(9, 0)}`, NOW)).toBe(true);
+    expect(needsPosition(`rdv@${at(11, 0)}`, NOW)).toBe(false);
+    expect(needsPosition(`rdv@${at(7, 0)}`, NOW)).toBe(false);
+    expect(needsPosition('illisible', NOW)).toBe(false);
+  });
+
+  it('trafic habituel pour un rendez-vous lointain ; raisons d’un trajet absent', () => {
+    expect(carLine({ minutes: 14, leaveAt: at(8, 36), traffic: true, typical: true, mapsUrl: '' }).detail).toBe('trafic habituel à cette heure');
+    expect(missingText('here', true)).toBe('Tu es déjà sur place.');
+    expect(missingText(undefined, false)).toBe('Les itinéraires ne sont pas configurés (MOTIS).');
+  });
+});
+
+describe('diagnostic de la notification', () => {
+  const next = { kind: 'event' as const, title: 'Dentiste', start: at(9, 0), place: 'Cabinet', leaveAt: at(8, 20) };
+
+  it('rendez-vous suivi et heure de la notification', () => {
+    expect(watchLines({ enabled: true, next, unplaced: [] })).toEqual(['Prochain rendez-vous suivi : Dentiste à 9 h 00, Cabinet. Départ de la maison à 8 h 20, notification vers 8 h 15.']);
+    expect(watchLines({ enabled: true, next: { ...next, leaveAt: null }, unplaced: [] })[0]).toContain('pas de notification');
+    expect(watchLines({ enabled: true, next: { ...next, kind: 'course', byCommute: true, leaveAt: null }, unplaced: [] })[0]).toContain('trajet du matin');
+  });
+
+  it('rien dans les 3 h, lieu non reconnu et pourquoi, MOTIS absent', () => {
+    const watch: TripWatch = { enabled: true, next: null, unplaced: [{ title: 'Goûter', start: at(8, 30), location: 'chez Mamie', reason: 'not-found' }] };
+    expect(watchLines(watch)).toEqual([
+      'Aucun rendez-vous situé dans les 3 h.',
+      'Goûter à 8 h 30 : lieu « chez Mamie » non reconnu (adresse introuvable ou incertaine).',
+      'Écris l’adresse complète (numéro, rue, ville) ou le nom exact d’un lieu de la page Transports.',
+    ]);
+    expect(watchLines({ enabled: false, next: null, unplaced: [] })[0]).toContain('MOTIS');
   });
 });

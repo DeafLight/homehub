@@ -25,8 +25,11 @@
     onToggleRoutine(item: Task, done: boolean): void;
     onSeenNote(note: Note): void;
     onWriteNote(): void;
+    /** Rendez-vous dont le lieu est reconnu, et l'ouverture de leur trajet (carte « Cette semaine »). */
+    routable?: ReadonlySet<string>;
+    onTrip?: (key: string, title: string) => void;
   };
-  let { data, profile, profiles, now, onToggleTask, onToggleRoutine, onSeenNote, onWriteNote }: Props = $props();
+  let { data, profile, profiles, now, onToggleTask, onToggleRoutine, onSeenNote, onWriteNote, routable, onTrip }: Props = $props();
 
   const tomorrow = $derived(addDays(now, 1));
   const todayPlan = $derived(dayPlan(data.school.today, data.events, now));
@@ -88,7 +91,7 @@
       }}
     />
   {:else}
-    <UpcomingList events={upcoming} {now} />
+    <UpcomingList events={upcoming} {now} {routable} {onTrip} />
   {/if}
 {/snippet}
 

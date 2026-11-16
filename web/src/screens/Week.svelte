@@ -3,6 +3,7 @@
   import { FAMILY_ID, WEEKS_AHEAD } from '../../../shared/types.ts';
   import Icon from '../components/Icon.svelte';
   import PageHeader from '../components/PageHeader.svelte';
+  import EventTrip from '../components/transit/EventTrip.svelte';
   import { mix, TOKENS } from '../lib/color.ts';
   import { getAppContext } from '../lib/context.ts';
   import { timelinePercent } from '../lib/day.ts';
@@ -17,7 +18,8 @@
 
   // Semaine détaillée en grille (piste A, docs/design.md) : 7 colonnes, agendas en couleur du profil, cours un par un
   // comme les événements ; deux bandeaux « journée entière » au plus par jour, la grille garde sa hauteur.
-  // `back` est la page qui l'a ouverte : elle choisit aussi les profils affichés au départ.
+  // `back` est la page qui l'a ouverte : elle choisit aussi les profils affichés au départ. Un rendez-vous dont le lieu
+  // est reconnu porte une petite icône de bus : le toucher ouvre son trajet depuis la maison (feuille du bas).
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -33,6 +35,14 @@
 
   const week = createResource(() => api.week(offset), WEEK_REFRESH_MS);
   onDestroy(week.destroy);
+  // Rendez-vous de la semaine affichée dont le lieu est reconnu ; une panne (ou un appareil non appairé) les laisse inertes.
+  const routable = createResource(async () => {
+    const asked = offset;
+    return { offset: asked, keys: new Set((await api.routableEvents(asked)).keys) };
+  }, WEEK_REFRESH_MS);
+  onDestroy(routable.destroy);
+  const routableKeys = $derived(routable.data?.offset === offset ? routable.data.keys : new Set<string>());
+  let openTrip = $state<{ key: string; title: string } | null>(null);
 
   // Une réponse d'une autre semaine (changement rapide) n'est pas affichée.
   const data = $derived(week.data?.offset === offset ? week.data : null);
@@ -59,6 +69,7 @@
   function goTo(next: number) {
     offset = Math.min(WEEKS_AHEAD, Math.max(0, next));
     void week.refresh();
+    void routable.refresh();
   }
 
   function toggle(ownerId: string) {
@@ -153,8 +164,15 @@
               {#each day.blocks as block (block.id)}
                 {@const color = colorOf(block.ownerId)}
                 {@const n = lines(block.start, block.end)}
-                <div
+                {@const key = block.key && routableKeys.has(block.key) ? block.key : null}
+                <svelte:element
+                  this={key ? 'button' : 'div'}
+                  role={key ? undefined : 'presentation'}
+                  type={key ? 'button' : undefined}
+                  aria-label={key ? `${block.title} : voir le trajet` : undefined}
+                  onclick={key ? () => (openTrip = { key, title: block.title }) : undefined}
                   class="block {block.kind}"
+                  class:routable={key !== null}
                   class:past={block.end <= clock.now}
                   class:cancelled={block.cancelled}
                   style:top="{top(block.start)}%"
@@ -174,7 +192,8 @@
                       <span class="block-detail">· {block.detail}</span>
                     {/if}
                   </span>
-                </div>
+                  {#if key}<span class="route" aria-hidden="true"><Icon name="bus" size={14} /></span>{/if}
+                </svelte:element>
               {/each}
               {#if today && nowVisible}
                 <div class="now" style:top="{top(clock.now)}%" style:background={fromProfile?.color ?? 'var(--sun)'}></div>
@@ -188,6 +207,10 @@
     {/if}
   </section>
 </div>
+
+{#if openTrip}
+  <EventTrip {api} key={openTrip.key} title={openTrip.title} now={clock.now} phone={false} onClose={() => (openTrip = null)} />
+{/if}
 
 <style>
   .week-page {
@@ -441,6 +464,30 @@
     border-left: 4px solid;
     border-radius: 10px;
     overflow: hidden;
+  }
+
+  /* Rendez-vous touchable (bouton) : mêmes couleurs, icône de bus en bas à droite. */
+  .block.routable {
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .route {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--rain-bg);
+    color: var(--rain-soft);
   }
 
   .block.course {

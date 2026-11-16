@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
+  import { watchLines } from '../lib/next-trip.ts';
   import { browserEnvironment, isIos, pushSupport, subscribeBrowser, unsubscribeBrowser } from '../lib/push.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { phonePath } from '../lib/route.ts';
@@ -10,11 +12,18 @@
   // pour le trajet du matin et le prochain rendez-vous situé. Sur iPhone, possible seulement une fois HomeHub ajouté à
   // l'écran d'accueil et ouvert depuis son icône : l'écran le dit. Un mot sur la position, utilisée pour le prochain
   // trajet sans être gardée. Le serveur rattache l'abonnement à ce téléphone appairé (et l'oublie s'il est retiré).
+  // Sous la carte, une ligne discrète dit quel rendez-vous la notification surveille, ou pourquoi aucun (lieu non
+  // reconnu, rien dans les 3 h) : de quoi comprendre une notification qui ne vient pas.
   const { api, navigate } = getAppContext();
   const pairing = loadPairing();
   const env = browserEnvironment();
   const support = pushSupport(env);
   const status = createResource(() => api.pushStatus(), 5 * 60_000);
+  const watch = createResource(async () => (pairing ? api.tripWatch() : null), 60_000);
+  onDestroy(() => {
+    status.destroy();
+    watch.destroy();
+  });
   let busy = $state(false);
   let message = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -63,7 +72,7 @@
   {:else}
     <section class="card">
       <h2><Icon name="bell" size={22} /> Notifications</h2>
-      <p class="muted">« Pars dans 5 min » : pour le trajet du matin, et pour le prochain rendez-vous qui a une adresse (calculé depuis la maison). Une seule par trajet.</p>
+      <p class="muted">« Pars dans 5 min » : pour le trajet du matin, et pour le prochain rendez-vous qui a une adresse (calculé depuis la maison). Une seule par trajet ; touchée, elle ouvre le trajet du rendez-vous.</p>
 
       {#if support === 'ios-install'}
         <div class="notice">
@@ -90,6 +99,11 @@
       {/if}
       {#if message}<p class="ok">{message}</p>{/if}
       {#if error}<p class="error">{error}</p>{/if}
+      {#if watch.data}
+        <div class="watch" aria-label="Rendez-vous suivi">
+          {#each watchLines(watch.data) as line, i (i)}<p class="muted small">{line}</p>{/each}
+        </div>
+      {/if}
     </section>
 
     <section class="card">
@@ -100,6 +114,15 @@
 </div>
 
 <style>
+  .watch {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--surface-2);
+  }
+
   .settings {
     display: flex;
     flex-direction: column;

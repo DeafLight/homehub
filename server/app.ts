@@ -212,6 +212,7 @@ export function createApp(deps: AppDeps): Hono {
   const transitNow = () => deps.transitSettings?.current();
   const nextTrip = createNextTripService({
     appointments: deps.service.appointments,
+    owners: household.ownerIds,
     places: () => transitNow()?.places ?? [],
     commuteOf: (ownerId) => transitNow()?.commutes[ownerId],
     isParent: (ownerId) => Boolean(household.member(ownerId)?.parent),

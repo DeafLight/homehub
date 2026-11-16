@@ -7,6 +7,7 @@
   import DetailLink from '../components/DetailLink.svelte';
   import HolidayChip from '../components/HolidayChip.svelte';
   import FocusDashboard from '../components/FocusDashboard.svelte';
+  import EventTrip from '../components/transit/EventTrip.svelte';
   import ExpiringCard from '../components/stock/ExpiringCard.svelte';
   import CommuteCard from '../components/widgets/CommuteCard.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
@@ -41,6 +42,12 @@
   const parent = $derived(config.members.some((m) => m.id === ownerId && m.parent));
   const dashboard = createResource(() => api.dashboard(ownerId), DASHBOARD_REFRESH_MS);
   onDestroy(dashboard.destroy);
+  // Rendez-vous de cette semaine et de la suivante dont le lieu est reconnu : « Cette semaine » ouvre leur trajet
+  // (depuis la maison). Une panne, ou un appareil non appairé, les laisse inertes.
+  const routable = createResource(async () => new Set((await Promise.all([api.routableEvents(0), api.routableEvents(1)])).flatMap((r) => r.keys)), 5 * 60_000);
+  onDestroy(routable.destroy);
+  let openTrip = $state<{ key: string; title: string } | null>(null);
+  const showTrip = (key: string, title: string) => (openTrip = { key, title });
 
   let writing = $state(false);
 
@@ -177,9 +184,11 @@
             onToggleRoutine={toggleRoutine}
             onSeenNote={seeNote}
             onWriteNote={startNote}
+            routable={routable.data ?? undefined}
+            onTrip={showTrip}
           />
         {:else}
-          <NextEventBanner event={data.nextEvent} color={profile.color} now={clock.now} />
+          <NextEventBanner event={data.nextEvent} color={profile.color} now={clock.now} routable={routable.data ?? undefined} onTrip={showTrip} />
           <div class="grid">
             <TaskList
               title={profile.isFamily ? 'Liste de courses' : 'Mes tâches'}
@@ -193,7 +202,7 @@
               {:else if data.homework}
                 <HomeworkCard homework={data.homework} now={clock.now} color={profile.color} />
               {:else}
-                <UpcomingList events={data.upcoming} now={clock.now} />
+                <UpcomingList events={data.upcoming} now={clock.now} routable={routable.data ?? undefined} onTrip={showTrip} />
               {/if}
             {/snippet}
             {#if schoolLifeData || parent}
@@ -227,6 +236,10 @@
       <NoteForm from={profile} profiles={profiles.filter((p) => p.id !== ownerId)} onSubmit={writeNote} onCancel={() => (writing = false)} />
     </div>
   </div>
+{/if}
+
+{#if openTrip}
+  <EventTrip {api} key={openTrip.key} title={openTrip.title} now={clock.now} phone={false} onClose={() => (openTrip = null)} />
 {/if}
 
 {#if schoolLifeOpen && schoolLifeData}

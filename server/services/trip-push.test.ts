@@ -58,6 +58,13 @@ describe('textes', () => {
     expect(tripMessage(trip(at(7, 40)), NOW.getTime())?.title).toBe('Pars maintenant');
     expect(tripMessage({ ...trip(at(7, 45)), late: true }, NOW.getTime())).toBeNull();
   });
+
+  it('touchée : le trajet du rendez-vous annoncé (agenda), ou l’accueil pour un cours', () => {
+    const key = `rdv-1@${at(9, 0)}`;
+    const withKey = { ...trip(at(7, 45)), destination: { ...trip(at(7, 45)).destination, key } };
+    expect(tripMessage(withKey, NOW.getTime())?.url).toBe(`/m/agenda?trajet=${encodeURIComponent(key)}`);
+    expect(tripMessage(trip(at(7, 45), 'course'), NOW.getTime())?.url).toBe('/m');
+  });
 });
 
 function setup({ result = 'sent' as PushResult, devices = [{ id: 'tel-lea', ownerId: 'lea' }], hasCommute = true, planned = trip(at(7, 45), 'event') } = {}) {

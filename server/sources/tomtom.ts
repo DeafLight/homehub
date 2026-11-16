@@ -1,6 +1,7 @@
-// Durée en voiture avec le trafic actuel, pour la ligne voiture des parents (« Prochain trajet ») : API TomTom Routing
-// (calculateRoute, traffic=true). Clé dans l'environnement (HOMEHUB_TOMTOM_KEY) ; sans clé, la source est désactivée et
-// l'appelant prend la durée sans trafic de MOTIS. TomTom est un tiers : il ne reçoit que l'origine arrondie à environ
+// Durée en voiture avec le trafic actuel (ou habituel à l'heure d'arrivée, pour un rendez-vous lointain), pour la
+// ligne voiture des parents (« Prochain trajet ») : API TomTom Routing (calculateRoute, traffic=true).
+// Clé dans l'environnement (HOMEHUB_TOMTOM_KEY) ; sans clé, la source est désactivée et l'appelant prend la durée
+// sans trafic de MOTIS. TomTom est un tiers : il ne reçoit que l'origine arrondie à environ
 // 100 m (`roughly`, fait par l'appelant) et la destination, jamais la position exacte du téléphone. Réponses gardées
 // 5 min en mémoire (la clé gratuite a un quota) ; ni l'adresse appelée (clé, positions) ni les positions ne sont
 // journalisées.
@@ -27,11 +28,16 @@ export type CarRoute = { seconds: number; meters: number; trafficDelaySeconds: n
 
 export type TomTomSource = {
   enabled(): boolean;
-  /** Durée et distance avec le trafic actuel ; lève une erreur si TomTom ne répond pas ou n'est pas configuré. */
-  route(from: LatLon, to: LatLon): Promise<CarRoute>;
+  /**
+   * Durée et distance avec le trafic actuel ou, avec `arriveAt` (rendez-vous lointain), le trafic habituel pour
+   * arriver à cette heure ; lève une erreur si TomTom ne répond pas ou n'est pas configuré.
+   */
+  route(from: LatLon, to: LatLon, arriveAt?: Date): Promise<CarRoute>;
 };
 
 const point = (p: LatLon) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
+/** Heure d'arrivée au format de TomTom (RFC 3339, sans millisecondes). */
+const rfc3339 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, 'Z');
 
 export function createTomTomSource({
   key,
@@ -51,8 +57,8 @@ export function createTomTomSource({
 }): TomTomSource {
   const cache = new Map<string, { at: number; result: Promise<CarRoute> }>();
 
-  async function request(apiKey: string, from: LatLon, to: LatLon): Promise<CarRoute> {
-    const params = new URLSearchParams({ key: apiKey, traffic: 'true', travelMode: 'car', routeType: 'fastest' });
+  async function request(apiKey: string, from: LatLon, to: LatLon, arriveAt?: Date): Promise<CarRoute> {
+    const params = new URLSearchParams({ key: apiKey, traffic: 'true', travelMode: 'car', routeType: 'fastest', ...(arriveAt && { arriveAt: rfc3339(arriveAt) }) });
     try {
       const res = await fetchFn(`${baseUrl}/routing/1/calculateRoute/${point(from)}:${point(to)}/json?${params}`, {
         headers: { accept: 'application/json' },
@@ -73,15 +79,15 @@ export function createTomTomSource({
 
   return {
     enabled: () => Boolean(key()),
-    route(from, to) {
+    route(from, to, arriveAt) {
       const apiKey = key();
       if (!apiKey) return Promise.reject(new Error('TomTom non configuré'));
       const now = clock().getTime();
       for (const [k, v] of cache) if (now - v.at >= CACHE_MS) cache.delete(k);
-      const cacheKey = `${point(from)}|${point(to)}`;
+      const cacheKey = `${point(from)}|${point(to)}|${arriveAt ? rfc3339(arriveAt) : 'maintenant'}`;
       const hit = cache.get(cacheKey);
       if (hit) return hit.result;
-      const result = request(apiKey, from, to);
+      const result = request(apiKey, from, to, arriveAt);
       result.catch(() => {});
       if (cache.size >= MAX_CACHED) cache.delete(cache.keys().next().value!);
       cache.set(cacheKey, { at: now, result });

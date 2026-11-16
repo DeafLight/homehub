@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.94.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.95.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -334,17 +334,41 @@ l'entraînement de foot de 18 h 15 au Stade (agenda d'exemple, lieu de la famill
 6 min », à 17 h 35 pour y être à 18 h 08, les étapes (à pied, bus 3 annoncé avec 2 min de retard, tram A), puis la
 course suivante. Alex (parent) va à la réunion parents-profs de 19 h à l'École : même carte, plus la ligne voiture
 (13 min avec le trafic actuel, pars à 18 h 42, 5,3 km, faux TomTom) et le bouton **Google Maps ↗**. Chacun ne voit
-que son trajet ; la tablette n'en montre aucun.
+que son trajet ; la tablette, seulement celui des rendez-vous qu'elle affiche (plus bas). Sous le trajet, d'où le calcul part.
 
 <img src="images/telephone-trajet-enfant.png" width="260" alt="Prochain trajet de Tom : pars dans 6 min pour le foot, bus 3 puis tram A"> <img src="images/telephone-trajet-parent.png" width="260" alt="Prochain trajet d'Alex : bus et tram, et ligne voiture de 13 min avec le trafic">
+
+### Trajet d'un rendez-vous de l'agenda
+
+Dans l'agenda du téléphone, un rendez-vous dont le lieu est reconnu porte une petite icône de bus : le toucher ouvre
+son trajet. Tom (à gauche) : l'entraînement de foot, dans moins de 3 h, calculé depuis sa position. Alex (à droite) :
+le dentiste de demain 8 h 30 (adresse d'exemple trouvée par la fausse Géoplateforme) ; plus de 3 h avant, le calcul
+part de la maison, ce que l'écran dit, pour y être à l'heure : « Pars demain à 7 h 50 », et la ligne voiture avec le
+trafic habituel à cette heure. La réunion de 19 h à l'École a aussi son icône.
+
+<img src="images/telephone-agenda-trajet-enfant.png" width="260" alt="Agenda de Tom : l'entraînement de foot porte une icône de bus"> <img src="images/telephone-trajet-rdv-enfant.png" width="260" alt="Trajet du foot ouvert depuis l'agenda : pars dans 6 min, depuis ta position">
+
+<img src="images/telephone-agenda-trajet-parent.png" width="260" alt="Agenda d'Alex : la réunion et le dentiste portent une icône de bus"> <img src="images/telephone-trajet-rdv-parent.png" width="260" alt="Trajet du dentiste de demain : pars demain à 7 h 50, depuis la maison, voiture avec le trafic habituel">
+
+Sur la tablette, les rendez-vous qu'elle affiche déjà s'ouvrent de même, depuis la maison : dans la semaine
+détaillée (icône de bus sur le bloc), et sur un tableau de bord, la carte « Cette semaine » et le bouton **Trajet** du
+bandeau « Prochaine activité ».
+
+![Trajet du dentiste ouvert depuis la semaine de la tablette](images/tablette-semaine-trajet.png)
+
+![Tableau de bord d'Alex : bouton Trajet sur la prochaine activité, icône de bus sur le dentiste](images/tablette-tableau-trajet.png)
 
 ### Réglages du téléphone : notifications
 
 Roue dentée de l'en-tête : la notification « Pars dans 5 min » (trajet du matin et prochain rendez-vous situé, une
-seule par trajet), ici activée sur le téléphone d'Alex, avec **Essayer** et **Couper**. Sur un iPhone pas encore
-ajouté à l'écran d'accueil, l'écran explique comment faire d'abord (à droite). En dessous, un mot sur la position.
+seule par trajet ; touchée, elle ouvre le trajet du rendez-vous), ici activée sur le téléphone d'Alex, avec
+**Essayer** et **Couper**. Sous les boutons, une ligne discrète dit ce que la notification surveille : chez Alex, la
+réunion de 19 h, départ de la maison à 18 h 20, notification vers 18 h 15. Chez Sam (au milieu), aucun rendez-vous
+situé dans les 3 h : son théâtre de 19 h 30 a pour lieu « Salle des fêtes », introuvable, et l'écran le dit. Sur un
+iPhone pas encore ajouté à l'écran d'accueil, l'écran explique comment faire d'abord (à droite). En dessous, un mot
+sur la position.
 
-<img src="images/telephone-reglages-notifications.png" width="260" alt="Réglages : notifications activées, Essayer, Couper"> <img src="images/telephone-reglages-iphone.png" width="260" alt="Réglages sur iPhone : ajouter d'abord HomeHub à l'écran d'accueil">
+<img src="images/telephone-reglages-notifications.png" width="260" alt="Réglages : notifications activées, rendez-vous suivi et heure de la notification"> <img src="images/telephone-reglages-diagnostic.png" width="260" alt="Réglages de Sam : aucun rendez-vous situé, lieu Salle des fêtes non reconnu"> <img src="images/telephone-reglages-iphone.png" width="260" alt="Réglages sur iPhone : ajouter d'abord HomeHub à l'écran d'accueil">
 
 ### Caméra en direct (téléphone d'un parent)
 

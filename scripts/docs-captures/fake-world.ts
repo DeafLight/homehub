@@ -203,6 +203,18 @@ function fakeProductBase(url: URL): Response {
 
 
 /**
+ * Fausse Géoplateforme : l'adresse d'exemple d'un rendez-vous de l'agenda d'Alex (rue inventée, à 1 km de la maison
+ * d'exemple), trouvée sûre ; tout le reste introuvable.
+ */
+export const DOCS_EVENT_ADDRESS = { query: 'rue de l’Exemple', label: '8 Rue de l’Exemple 49000 Angers', lat: 47.462, lon: -0.541 };
+function fakeGeocode(url: URL): Response {
+  const q = (url.searchParams.get('q') ?? '').toLowerCase().replace(/'/gu, '’');
+  const found = q.includes(DOCS_EVENT_ADDRESS.query.toLowerCase());
+  const features = found ? [{ geometry: { coordinates: [DOCS_EVENT_ADDRESS.lon, DOCS_EVENT_ADDRESS.lat] }, properties: { label: DOCS_EVENT_ADDRESS.label, score: 0.93 } }] : [];
+  return new Response(JSON.stringify({ type: 'FeatureCollection', features }), { headers: { 'content-type': 'application/json' } });
+}
+
+/**
  * Remplace ÉcoleDirecte, le temps réel Irigo, MOTIS, les bases de produits, le calendrier scolaire, les sites de recettes,
  * la télé et la météo par des réponses d'exemple ; le reste passe au vrai `fetch`.
  */
@@ -215,11 +227,13 @@ export function installFakeSources(): void {
     // Bus 3 de l'itinéraire : celui vers le Lycée que le faux temps réel annonce dans 11 min (reconnu par son horaire).
     if (url.origin === FAKE_MOTIS_URL) {
       const fromPhone = url.searchParams.get('fromPlace') === `${DOCS_PHONE_POSITION.lat.toFixed(6)},${DOCS_PHONE_POSITION.lon.toFixed(6)}`;
-      return fakeMotisPlan(url, { busDeparts: new Date(Date.now() + 11 * 60_000), ...(fromPhone && { delayMinutes: 2 }) });
+      // Un rendez-vous lointain (le lendemain) n'a pas son bus dans 11 min : itinéraire calé sur l'heure demandée.
+      const soon = Date.parse(url.searchParams.get('time') ?? '') - Date.now() <= 3 * 3_600_000;
+      return fakeMotisPlan(url, { ...(soon && { busDeparts: new Date(Date.now() + 11 * 60_000) }), ...(fromPhone && { delayMinutes: 2 }) });
     }
     if (url.origin === FAKE_TOMTOM_URL) return fakeTomTomRoute(url);
-    // Lieux d'agenda : rien de réel n'est demandé ; les captures n'utilisent que des lieux de la famille.
-    if (url.hostname === 'data.geopf.fr') return new Response(JSON.stringify({ type: 'FeatureCollection', features: [] }), { headers: { 'content-type': 'application/json' } });
+    // Lieux d'agenda : rien de réel n'est demandé ; seule l'adresse d'exemple (DOCS_EVENT_ADDRESS) est trouvée.
+    if (url.hostname === 'data.geopf.fr') return fakeGeocode(url);
     if (url.hostname === FAKE_PUSH_HOST) return new Response(null, { status: 201 });
     if (url.hostname in PRODUCT_BASES) return fakeProductBase(url);
     // Calendrier scolaire d'exemple (académie de Nantes, zone B, comme Angers) : la fixture des tests, par pages.

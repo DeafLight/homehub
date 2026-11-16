@@ -9,10 +9,11 @@ type EventTemplate = { day: number; hour: number; minute: number; title: string;
 const AGENDA_TEMPLATES: EventTemplate[][] = [
   [
     { day: 0, hour: 19, minute: 0, title: 'Réunion parents-profs', location: 'École' },
-    { day: 1, hour: 8, minute: 30, title: 'Dentiste' },
+    { day: 1, hour: 8, minute: 30, title: 'Dentiste', location: '8 rue de l’Exemple, Angers' },
     { day: 3, hour: 18, minute: 0, title: 'Sport' },
   ],
   [
+    { day: 0, hour: 19, minute: 30, title: 'Théâtre', location: 'Salle des fêtes' },
     { day: 2, hour: 12, minute: 30, title: 'Déjeuner avec des amis' },
     { day: 4, hour: 9, minute: 0, title: 'Contrôle technique' },
   ],

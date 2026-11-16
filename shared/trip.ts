@@ -1,6 +1,7 @@
-// « Prochain trajet » du téléphone (chantier « Prochain trajet », version 2) : types échangés entre le serveur et le
-// front, et petites règles communes (distance à vol d'oiseau, arrondi de l'origine envoyée à TomTom, lien Google Maps).
-// Chacun ne voit que son trajet : la route ne connaît que le profil du téléphone qui demande.
+// « Prochain trajet » (chantier « Prochain trajet », versions 2 et 2.1) : types échangés entre le serveur et le front,
+// et petites règles communes (distance à vol d'oiseau, arrondi de l'origine envoyée à TomTom, lien Google Maps, clé
+// d'un rendez-vous d'agenda et adresse de son trajet). Le téléphone ne voit que ses trajets (et ceux des rendez-vous
+// de la famille) ; la tablette, ceux des rendez-vous qu'elle affiche déjà, calculés depuis la maison.
 
 export type LatLon = { lat: number; lon: number };
 
@@ -13,6 +14,8 @@ export type TripDestination = {
   start: string;
   /** Nom du lieu (« Collège », ou l'adresse trouvée). */
   place: string;
+  /** Rendez-vous d'agenda : sa clé (`eventKey`), pour ouvrir son trajet depuis la notification. */
+  key?: string;
   lat: number;
   lon: number;
 };
@@ -53,8 +56,10 @@ export type CarTrip = {
   leaveAt: string;
   /** Distance, en mètres, si connue. */
   meters?: number;
-  /** Vrai : trafic actuel compris (TomTom) ; faux : durée sans trafic (MOTIS). */
+  /** Vrai : trafic compris (TomTom) ; faux : durée sans trafic (MOTIS). */
   traffic: boolean;
+  /** Rendez-vous lointain : trafic habituel à l'heure d'arrivée (TomTom), pas le trafic actuel. */
+  typical?: boolean;
   /** Itinéraire dans Google Maps. */
   mapsUrl: string;
 };
@@ -63,8 +68,13 @@ export type NextTrip = {
   destination: TripDestination;
   /** Heure d'arrivée visée : début du rendez-vous moins la marge. */
   arriveBy: string;
-  /** Départ calculé depuis la position du téléphone, ou depuis la maison faute de position. */
+  /** Départ calculé depuis la position du téléphone, ou depuis la maison. */
   from: 'position' | 'home';
+  /**
+   * Pourquoi depuis la maison : rendez-vous dans plus de 3 h (`far` : on partira sans doute de la maison, la position
+   * n'est pas demandée), tablette (`tablet`) ; absent : position du téléphone indisponible.
+   */
+  homeBecause?: 'far' | 'tablet';
   /** Itinéraire retenu ; null si MOTIS ne trouve rien ou ne répond pas. */
   transit: TripOption | null;
   /** Autre choix (plus tôt), ou la course suivante quand on est en retard. */
@@ -78,8 +88,56 @@ export type NextTrip = {
 /** Réponse de GET /api/trip : faut-il demander la position (un rendez-vous situé arrive bientôt) ? */
 export type TripStatus = { enabled: boolean; upcoming: boolean };
 
-/** Réponse de POST /api/trip : le trajet, ou null (rien de proche, déjà sur place, MOTIS absent). */
-export type TripResponse = { enabled: boolean; trip: NextTrip | null };
+/**
+ * Pourquoi un rendez-vous d'agenda n'a pas de trajet : introuvable (ou d'un autre membre, pour un téléphone), lieu non
+ * reconnu, déjà commencé, aucun point de départ (pas de lieu « maison »), ou déjà sur place.
+ */
+export type TripMissing = 'event' | 'place' | 'past' | 'origin' | 'here';
+
+/** Réponse de POST /api/trip et /api/trip/event : le trajet, ou null (avec la raison pour un rendez-vous choisi). */
+export type TripResponse = { enabled: boolean; trip: NextTrip | null; missing?: TripMissing };
+
+/** Réponse de GET /api/trip/events : clés des rendez-vous de la semaine dont le lieu est reconnu (touchables). */
+export type RoutableEvents = { keys: string[] };
+
+/**
+ * Pourquoi le lieu d'un rendez-vous n'est pas reconnu : ni un lieu de la famille, ni de recherche d'adresse possible
+ * (centre ou Géoplateforme absents) ; adresse introuvable ou incertaine ; ou trouvée à plus de 30 km du centre.
+ */
+export type PlaceMiss = 'no-search' | 'not-found' | 'too-far';
+
+/** Rendez-vous que la notification « Pars dans 5 min » surveille (diagnostic des réglages du téléphone). */
+export type TripWatch = {
+  /** MOTIS configuré ; sinon pas de notification de rendez-vous. */
+  enabled: boolean;
+  /** Prochain rendez-vous situé dans les 3 h, ou null. */
+  next: {
+    kind: 'course' | 'event';
+    title: string;
+    start: string;
+    place: string;
+    /** Heure de partir depuis la maison ; null si aucun itinéraire n'arrive à temps (pas de notification). */
+    leaveAt: string | null;
+    /** Cours d'un membre qui a un trajet réglé : la notification du trajet du matin s'en charge. */
+    byCommute?: boolean;
+  } | null;
+  /** Rendez-vous des 3 h dont l'adresse n'est pas reconnue (avant celui suivi, ou tous), et pourquoi. */
+  unplaced: { title: string; start: string; location: string; reason: PlaceMiss }[];
+};
+
+/** Clé d'un rendez-vous d'agenda (chaque occurrence d'un rendez-vous répété a la sienne) : identifiant et début. */
+export const eventKey = (event: { id: string; start: string }) => `${event.id}@${event.start}`;
+
+/** Début d'un rendez-vous d'après sa clé (après le dernier « @ ») ; null si la clé est illisible. */
+export function startOfKey(key: string): Date | null {
+  const at = key.lastIndexOf('@');
+  const start = at > 0 ? Date.parse(key.slice(at + 1)) : Number.NaN;
+  return Number.isNaN(start) ? null : new Date(start);
+}
+
+/** Paramètre et adresse du trajet d'un rendez-vous sur le téléphone (notification) : l'agenda, rendez-vous ouvert. */
+export const TRIP_PARAM = 'trajet';
+export const eventTripPath = (key: string) => `/m/agenda?${TRIP_PARAM}=${encodeURIComponent(key)}`;
 
 const EARTH_M = 6_371_000;
 const rad = (deg: number) => (deg * Math.PI) / 180;

@@ -1,5 +1,6 @@
 // Service worker de HomeHub, pour les notifications du téléphone seulement (« Pars dans 5 min ») : il affiche le
-// message poussé par le serveur (Web Push, chiffré jusqu'ici) et ouvre l'appli quand on le touche. Aucun cache, aucune
+// message poussé par le serveur (Web Push, chiffré jusqu'ici) et, quand on le touche, ouvre l'appli à l'adresse du
+// message (le trajet du rendez-vous annoncé). Aucun cache, aucune
 // interception des requêtes : l'appli se charge comme sans lui.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -25,12 +26,19 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || '/m', self.location.origin).href;
+  // L'adresse du message (le trajet du rendez-vous annoncé : /m/agenda?trajet=…), jamais hors de HomeHub.
+  let target = new URL(event.notification.data?.url || '/m', self.location.origin);
+  if (target.origin !== self.location.origin) target = new URL('/m', self.location.origin);
+  const url = target.href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const open = windows.find((w) => w.url.startsWith(self.location.origin));
-      if (open) return open.navigate(url).then((w) => (w ?? open).focus());
-      return self.clients.openWindow(url);
+      if (!open) return self.clients.openWindow(url);
+      // navigate() n'est permis que sur une fenêtre que ce service worker contrôle : sinon, une nouvelle fenêtre.
+      return open
+        .navigate(url)
+        .then((w) => (w ?? open).focus())
+        .catch(() => self.clients.openWindow(url));
     }),
   );
 });

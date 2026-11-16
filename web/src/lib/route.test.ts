@@ -141,3 +141,14 @@ describe('scanner du téléphone ouvert dans un mode', () => {
     expect(parseRoute('/partager?text=bonjour')).toEqual({ name: 'share' });
   });
 });
+
+describe('trajet d’un rendez-vous (notification)', () => {
+  it('/m/agenda?trajet=<clé> : l’agenda, rendez-vous ouvert ; ailleurs, le paramètre est ignoré', () => {
+    const key = 'abc@google.com@2026-11-05T09:00:00.000Z';
+    const path = `/m/agenda?trajet=${encodeURIComponent(key)}`;
+    expect(parseRoute(path)).toEqual({ name: 'phone', tab: 'agenda', trip: key });
+    expect(routePath({ name: 'phone', tab: 'agenda', trip: key })).toBe(path);
+    expect(parseRoute('/m/agenda')).toEqual({ name: 'phone', tab: 'agenda' });
+    expect(parseRoute('/m?trajet=x')).toEqual({ name: 'phone', tab: 'shopping' });
+  });
+});

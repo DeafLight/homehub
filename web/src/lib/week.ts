@@ -1,4 +1,5 @@
 // Grille de la semaine : les agendas et les cours des profils choisis, jour par jour, prêts à placer.
+import { eventKey } from '../../../shared/trip.ts';
 import type { CalendarEvent, WeekData } from '../../../shared/types.ts';
 import { addDays, eventsOnDay, fitsInDay, whenOnDay } from './day.ts';
 import { formatTime } from './format.ts';
@@ -18,6 +19,8 @@ export type WeekBlock = {
   /** Salle d'un cours. */
   detail?: string;
   cancelled: boolean;
+  /** Rendez-vous d'agenda : sa clé (`eventKey`), pour ouvrir son trajet si son lieu est reconnu. */
+  key?: string;
   start: Date;
   end: Date;
   /** Couloir dans le groupe d'éléments qui se chevauchent, et nombre de couloirs de ce groupe. */
@@ -94,6 +97,7 @@ export function weekDays(data: WeekData, filter: WeekFilter): WeekDay[] {
         id: `e-${ownerId}-${event.id}-${event.start}`,
         ownerId,
         kind: 'event',
+        key: eventKey(event),
         title: event.title,
         meta: formatTime(new Date(event.start)),
         cancelled: false,

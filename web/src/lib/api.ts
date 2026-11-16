@@ -55,7 +55,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { LatLon, TripResponse, TripStatus } from '../../../shared/trip.ts';
+import type { LatLon, RoutableEvents, TripResponse, TripStatus, TripWatch } from '../../../shared/trip.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenReplies, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { BedtimeSettings, BedtimeText, BedtimeView } from '../../../shared/bedtime.ts';
@@ -347,6 +347,12 @@ export type Api = {
   tripStatus(): Promise<TripStatus>;
   /** Trajet vers le prochain rendez-vous situé, depuis la position (corps de la requête) ou depuis la maison. */
   nextTrip(position: LatLon | null): Promise<TripResponse>;
+  /** Rendez-vous de la semaine `week` dont le lieu est reconnu (téléphone : les siens et la famille ; tablette : tous). */
+  routableEvents(week: number): Promise<RoutableEvents>;
+  /** Trajet d'un rendez-vous d'agenda touché (position : téléphone seulement, et seulement dans les 3 h). */
+  eventTrip(key: string, position: LatLon | null): Promise<TripResponse>;
+  /** Ce que la notification « Pars dans 5 min » surveille (réglages du téléphone). */
+  tripWatch(): Promise<TripWatch>;
   /** Notifications de ce téléphone (Web Push). */
   pushStatus(): Promise<PushStatus>;
   subscribePush(subscription: PushSubscriptionJSON): Promise<PushStatus>;
@@ -591,6 +597,9 @@ export function createApi(
     remoteScreens: () => request('/screens/remote'),
     tripStatus: () => request('/trip'),
     nextTrip: (position) => send('POST', '/trip', { position }),
+    routableEvents: (week) => request(`/trip/events?week=${week}`),
+    eventTrip: (key, position) => send('POST', '/trip/event', { event: key, position }),
+    tripWatch: () => request('/trip/watch'),
     pushStatus: () => request('/push'),
     subscribePush: (subscription) => send('PUT', '/push', subscription),
     unsubscribePush: () => send('DELETE', '/push'),

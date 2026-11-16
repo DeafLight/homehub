@@ -568,15 +568,34 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   durée sans trafic de MOTIS si la clé manque ou si TomTom ne répond pas (« sans trafic »), et le bouton **Google Maps ↗**
   qui ouvre l'itinéraire. Rafraîchie toutes les 5 min et quand le téléphone ressort de la poche. **Chacun ne voit que
   son trajet** : la route ne prend aucun profil (le téléphone de la personne seulement, `access.ownPhone`), un parent
-  ne voit ni la position ni le trajet d'un enfant, la tablette rien. La **position** est envoyée dans le corps de la
+  ne voit ni la position ni le trajet d'un enfant ; la tablette, seulement ceux des rendez-vous qu'elle affiche (plus bas). La **position** est envoyée dans le corps de la
   requête pour le seul calcul, transmise seulement à MOTIS (sur le NAS), jamais écrite (ni état, ni journaux). TomTom,
   un tiers, ne reçoit pas la position : l'origine arrondie à environ 100 m (trois décimales) et la destination.
+  Sous le trajet, d'où le calcul part (« Calculé depuis ta position actuelle », ou depuis la maison, et pourquoi).
+- **Trajet d'un rendez-vous de l'agenda** (avec MOTIS) : dans l'agenda du téléphone (`/m/agenda`), un rendez-vous dont
+  le lieu est reconnu (mêmes règles : lieu de la famille par son nom, ou adresse sûre de la Géoplateforme à moins de
+  30 km ; pas un rendez-vous sur la journée, ni déjà commencé, ni à la maison) porte une **petite icône de bus** ; le
+  toucher ouvre son trajet dans une feuille, comme la carte « Prochain trajet » : heure de partir, étapes, retard,
+  autre choix, ligne voiture et Google Maps pour un parent. **Même lointain** (plus tard dans la journée, un autre
+  jour) : MOTIS calcule pour y être à l'heure (arriveBy), « Pars demain à 7 h 50 ». Le point de départ est dit à
+  l'écran : la **position du téléphone** seulement si le rendez-vous commence dans les 3 h (elle n'est pas demandée
+  sinon) ; plus tard, la **maison** (« le rendez-vous est dans plus de 3 h » : on partira sans doute de chez soi), et
+  la ligne voiture prend le trafic habituel à l'heure d'arrivée (TomTom, `arriveAt`) plutôt que le trafic actuel. Le
+  téléphone ouvre ses rendez-vous et ceux de la famille, jamais ceux d'un autre membre. **Tablette** : dans la semaine
+  détaillée (`/semaine`), la carte « Cette semaine » et le bandeau « Prochaine activité » (bouton **Trajet**) des
+  tableaux de bord, les rendez-vous qu'elle affiche déjà s'ouvrent de même, calculés depuis la maison, sans position,
+  ligne voiture comprise. Les lieux reconnus sont cherchés par le serveur (une recherche par lieu, gardée 24 h).
 - **Notification « Pars dans 5 min »** (téléphone, roue dentée de l'en-tête › **Réglages**, `/m/reglages`) : Web Push,
   activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**). Elle part 5 min avant
   l'heure de partir, une seule fois par trajet : pour le **trajet du matin** (mêmes règles que la carte « Pars dans
   N min » et l'alerte de la télé) et pour le **prochain rendez-vous situé**, calculé depuis la maison (le serveur n'a
   pas la position ; pour un cours, seulement le premier de la journée et seulement sans trajet réglé). Le texte dit la
   ligne et l'heure, pas le prénom : « Pars dans 5 min · Bus 3 à 7 h 49 puis tram A · Ralliement · vers Collège ».
+  **Touchée**, celle d'un rendez-vous d'agenda ouvre son trajet (`/m/agenda?trajet=<clé>`), celle d'un cours ou du
+  trajet du matin l'accueil. Sous la carte des réglages, une ligne discrète dit **ce que la notification surveille** :
+  « Prochain rendez-vous suivi : Réunion parents-profs à 19 h 00, École. Départ de la maison à 18 h 20, notification
+  vers 18 h 15 », ou « Aucun rendez-vous situé dans les 3 h », et pour chaque rendez-vous dont le lieu n'est pas
+  reconnu, pourquoi (adresse introuvable ou incertaine, à plus de 30 km, recherche d'adresse impossible).
   **iPhone** : seulement une fois HomeHub ajouté à l'écran d'accueil (Safari › Partager › Sur l'écran d'accueil) et
   ouvert depuis son icône, ce que l'écran explique ; une adresse en https est nécessaire partout. Chiffrement
   (RFC 8291) et signature VAPID faits par `node:crypto`, sans dépendance ; les clés VAPID sont générées au premier
@@ -944,7 +963,7 @@ server/
   sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
   sources/tomtom.ts        durée en voiture avec le trafic (TomTom Routing), cache de 5 min ; faux : tomtom-fake.ts
   sources/push.ts          notifications : clés VAPID, abonnements des téléphones, trajets déjà annoncés
-  services/next-trip.ts    prochain trajet du téléphone : rendez-vous situé, itinéraire MOTIS, ligne voiture
+  services/next-trip.ts    prochain trajet, trajet d'un rendez-vous touché, rendez-vous touchables, diagnostic
   services/web-push.ts     Web Push sans dépendance : chiffrement RFC 8291, signature VAPID
   services/trip-push.ts    notification « Pars dans 5 min » (trajet du matin, prochain rendez-vous)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
@@ -1118,6 +1137,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/trip` | `{ enabled, upcoming }` : MOTIS configuré, et rendez-vous situé dans les 3 h (faut-il demander la position ?) ; le téléphone de la personne seulement, pour son profil |
 | `POST /api/trip` | `{ "position": { lat, lon } }` (ou sans position : depuis la maison) → `{ enabled, trip }` : `destination`, `arriveBy`, `from`, `transit` et `other` (`leaveAt`, `arrives`, `legs`, `realtime`), `late`, et pour un parent `car` (`minutes`, `leaveAt`, `meters`, `traffic`, `mapsUrl`) ; `trip` null sans rendez-vous proche ou déjà sur place |
 | `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
+| `GET /api/trip/watch` | ce que surveille la notification de ce téléphone : `{ enabled, next, unplaced }` ; `next` : `kind`, `title`, `start`, `place`, `leaveAt` (depuis la maison, null sans itinéraire à temps), `byCommute` ; `unplaced` : rendez-vous des 3 h au lieu non reconnu (`title`, `start`, `location`, `reason` : `no-search`, `not-found`, `too-far`) |
+| `GET /api/trip/events?week=N` | `{ keys }` : clés (`<id>@<début>`) des rendez-vous à venir de la semaine N (0 à 2) dont le lieu est reconnu ; un téléphone : les siens et ceux de la famille ; la tablette : tous les profils ; un appareil non appairé : 403 |
+| `POST /api/trip/event` | `{ "event": "<clé>", "position"?: { lat, lon } }` → `{ enabled, trip, missing? }` : le trajet de ce rendez-vous (`trip.from`, `trip.homeBecause` : `far` ou `tablet`, `car.typical`) ; position prise seulement d'un téléphone et pour un rendez-vous des 3 h ; `missing` : `event`, `place`, `past`, `origin`, `here` |
 | `POST /api/push/test` | notification d'essai vers ce téléphone (409 s'il n'est pas abonné) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |

@@ -2,7 +2,7 @@
   import { onDestroy, untrack } from 'svelte';
   import { localDay } from '../../../shared/dates.ts';
   import { itemName } from '../../../shared/drive.ts';
-  import type { Note, ShoppingItem, Task } from '../../../shared/types.ts';
+  import { FAMILY_ID, type Note, type ShoppingItem, type Task } from '../../../shared/types.ts';
   import AddForm, { type AddInput } from '../components/AddForm.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icon.svelte';
@@ -22,6 +22,8 @@
   import PhoneNotes from '../components/phone/PhoneNotes.svelte';
   import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
   import NextTripCard from '../components/phone/NextTripCard.svelte';
+  import EventTrip from '../components/transit/EventTrip.svelte';
+  import { agendaDays } from '../lib/agenda.ts';
   import ImportForm from '../components/recipes/ImportForm.svelte';
   import RecipeCards from '../components/recipes/RecipeCards.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
@@ -53,9 +55,11 @@
   // l’est au nom de ce profil. `shared` : texte reçu par « Partager », qui ouvre directement l'ajout ; `sharedRecipe` :
   // lien, texte copié d'une page ou page enregistrée reçus, qui ouvrent l'import de recette (l'ajout à une liste reste
   // proposé pour un lien) ; `sharedProduct` : lien d'une fiche produit du drive, qui propose de le relier à un article
-  // de la liste. Règles : lib/phone-app.ts ; onglets : components/phone/.
-  type Props = { tab: PhoneTab; shared?: string; sharedRecipe?: SharedRecipe; sharedProduct?: string };
-  let { tab, shared, sharedRecipe, sharedProduct }: Props = $props();
+  // de la liste. `trip` : clé d'un rendez-vous dont l'agenda ouvre le trajet (/m/agenda?trajet=…, notification « Pars
+  // dans 5 min ») ; toucher un rendez-vous dont le lieu est reconnu l'ouvre de même. Règles : lib/phone-app.ts ;
+  // onglets : components/phone/.
+  type Props = { tab: PhoneTab; trip?: string; shared?: string; sharedRecipe?: SharedRecipe; sharedProduct?: string };
+  let { tab, trip, shared, sharedRecipe, sharedProduct }: Props = $props();
   const sharedLink = untrack(() => (sharedRecipe?.kind === 'link' ? sharedRecipe.link : undefined));
 
   const { api, config, profiles, clock, navigate } = getAppContext();
@@ -81,6 +85,22 @@
     }
   }, ME_REFRESH_MS);
   const agenda = createResource(() => Promise.all([api.week(0), api.week(1)]), AGENDA_REFRESH_MS);
+  // Rendez-vous de l'agenda dont le lieu est reconnu (touchables : trajet), même rythme ; une panne les laisse inertes.
+  const routable = createResource(async () => new Set((await Promise.all([api.routableEvents(0), api.routableEvents(1)])).flatMap((r) => r.keys)), AGENDA_REFRESH_MS);
+  // Trajet d'un rendez-vous ouvert (touché, ou adresse de la notification) : sa clé et son titre.
+  let openTrip = $state<{ key: string; title: string } | null>(null);
+  $effect(() => {
+    if (trip && tab === 'agenda') untrack(() => (openTrip = { key: trip, title: tripTitle(trip) }));
+  });
+  function tripTitle(key: string): string {
+    const items = agenda.data && me ? agendaDays(agenda.data, new Set([me.id, FAMILY_ID]), clock.now).flatMap((d) => d.items) : [];
+    return items.find((i) => i.key === key)?.title ?? 'Rendez-vous';
+  }
+  function closeTrip() {
+    openTrip = null;
+    // Ouvert depuis la notification : l'adresse redevient celle de l'agenda (un retour ne le rouvre pas).
+    if (trip) navigate(phonePath('agenda'));
+  }
   // Vacances scolaires, en tête de l'agenda (même rythme) ; une panne la masque seulement.
   const holidays = createResource(() => api.holidays(), AGENDA_REFRESH_MS);
   const notes = createResource(() => api.notes(), NOTES_REFRESH_MS);
@@ -108,6 +128,7 @@
     remotes.destroy();
     lists.destroy();
     agenda.destroy();
+    routable.destroy();
     holidays.destroy();
     notes.destroy();
     recipes.destroy();
@@ -265,7 +286,16 @@
             <SchoolLifeCard life={schoolLife.data} {profiles} now={clock.now} onOpen={() => (schoolLifeOpen = true)} />
           </div>
         {/if}
-        <PhoneAgenda weeks={agenda.data} loadError={agenda.error} holiday={holidays.data?.holiday ?? null} meId={me.id} now={clock.now} {profileOf} />
+        <PhoneAgenda
+          weeks={agenda.data}
+          loadError={agenda.error}
+          holiday={holidays.data?.holiday ?? null}
+          meId={me.id}
+          now={clock.now}
+          {profileOf}
+          routable={routable.data ?? new Set()}
+          onTrip={(item) => (openTrip = { key: item.key, title: item.title })}
+        />
       {:else if tab === 'recipes'}
         <button type="button" class="stock-link" onclick={() => navigate(PHONE_MENU_PATH)}><Icon name="calendar" size={24} /> Menu de la semaine</button>
         {#if recipes.data}
@@ -378,6 +408,10 @@
         <h2 class="sheet-title">Vie scolaire</h2>
         <SchoolLifeDetail life={schoolLife.data} {profiles} now={clock.now} stacked />
       </BottomSheet>
+    {/if}
+
+    {#if openTrip}
+      <EventTrip {api} key={openTrip.key} title={openTrip.title} now={clock.now} phone onClose={closeTrip} />
     {/if}
 
     {#if importing}

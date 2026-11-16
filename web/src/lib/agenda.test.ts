@@ -26,4 +26,14 @@ describe('agenda du téléphone', () => {
       [9, ['10:00 dentiste']],
     ]);
   });
+
+  it('chaque rendez-vous à une heure porte sa clé (trajet), pas un rendez-vous sur la journée', () => {
+    const allDay: CalendarEvent = { id: 'férié', title: 'Férié', start: new Date(2026, 10, 4).toISOString(), end: new Date(2026, 10, 5).toISOString(), allDay: true };
+    const weeks = [week(2, [{ ownerId: 'alex', events: [ev('foot', 4, 18), allDay], courses: [] }])];
+    const items = agendaDays(weeks, new Set(['alex']), new Date(2026, 10, 3, 12)).flatMap((d) => d.items);
+    expect(items.map((i) => [i.title, i.key])).toEqual([
+      ['Férié', undefined],
+      ['foot', `foot@${at(4, 18)}`],
+    ]);
+  });
 });

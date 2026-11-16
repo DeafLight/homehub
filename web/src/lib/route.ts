@@ -4,9 +4,11 @@
 // /recette/nouvelle. Sur les téléphones : l'appli (/m, /m/taches, /m/agenda, /m/mots, /m/sport, /m/recettes, /m/camera), son
 // scanner (/m/scanner), son stock (/m/stock), la télécommande de la télé (/m/tele), ses réglages (/m/reglages), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
 // /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager). Le scanner du téléphone peut s'ouvrir
-// directement dans un mode : /m/scanner?mode=ranger ou ?mode=jete (QR des affichettes).
+// directement dans un mode : /m/scanner?mode=ranger ou ?mode=jete (QR des affichettes). L'agenda peut s'ouvrir sur le
+// trajet d'un rendez-vous : /m/agenda?trajet=<clé> (notification « Pars dans 5 min »).
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
+import { TRIP_PARAM, eventTripPath } from '../../../shared/trip.ts';
 import type { ScanMode } from './scan.ts';
 
 export type PageRoute = { name: 'home' } | { name: 'dashboard'; ownerId: string };
@@ -17,7 +19,7 @@ export type RecipeMode = 'view' | 'edit' | 'cook';
 export type Route =
   | PageRoute
   | { name: DetailName; back: PageRoute }
-  | { name: 'phone'; tab: PhoneTab }
+  | { name: 'phone'; tab: PhoneTab; trip?: string }
   | { name: 'pair' }
   | { name: 'phonescan'; mode?: ScanMode }
   | { name: 'phonestock' }
@@ -114,7 +116,7 @@ export const showsTimers = (route: Route) => !isPhoneRoute(route);
 export function routePath(route: Route): string {
   if (route.name === 'home') return HOME_PATH;
   if (route.name === 'dashboard') return dashboardPath(route.ownerId);
-  if (route.name === 'phone') return phonePath(route.tab);
+  if (route.name === 'phone') return route.tab === 'agenda' && route.trip ? eventTripPath(route.trip) : phonePath(route.tab);
   if (route.name === 'pair') return PAIR_PATH;
   if (route.name === 'share') return SHARE_PATH;
   if (route.name === 'phonescan') return phoneScanPath(route.mode);
@@ -145,12 +147,14 @@ function parsePage(pathname: string): PageRoute {
   }
 }
 
-/** Route d'une adresse (chemin, éventuellement suivi de `?…` : seul le scanner du téléphone en lit le mode). */
+/** Route d'une adresse (chemin, éventuellement suivi de `?…` : le scanner du téléphone en lit le mode, l'agenda le trajet). */
 export function parseRoute(location: string): Route {
   const [pathname, search = ''] = location.split('?', 2);
   const path = pathname.replace(/\/$/, '') || HOME_PATH;
   for (const [tab, phone] of Object.entries(PHONE_PATHS) as [PhoneTab, string][]) {
-    if (path === phone) return { name: 'phone', tab };
+    if (path !== phone) continue;
+    const trip = tab === 'agenda' ? new URLSearchParams(search).get(TRIP_PARAM) : null;
+    return trip ? { name: 'phone', tab, trip } : { name: 'phone', tab };
   }
   if (path === PAIR_PATH) return { name: 'pair' };
   if (path === SHARE_PATH) return { name: 'share' };

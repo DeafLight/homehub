@@ -3,7 +3,8 @@ import type { WeekData } from '../../../shared/types.ts';
 import { addDays, startOfDay } from './day.ts';
 import { weekDays } from './week.ts';
 
-export type AgendaItem = { id: string; ownerId: string; when: string; title: string };
+/** `key` : rendez-vous à une heure (clé `eventKey`), dont le trajet peut s'ouvrir si son lieu est reconnu. */
+export type AgendaItem = { id: string; ownerId: string; when: string; title: string; key?: string };
 export type AgendaDay = { date: Date; items: AgendaItem[] };
 
 const AGENDA_DAYS = 7;
@@ -19,7 +20,7 @@ export function agendaDays(weeks: WeekData[], owners: ReadonlySet<string>, now: 
       date: day.date,
       items: [
         ...day.allDay.map((e) => ({ id: e.id, ownerId: e.ownerId, when: e.meta, title: e.title })),
-        ...day.blocks.map((b) => ({ id: b.id, ownerId: b.ownerId, when: b.meta, title: b.title })),
+        ...day.blocks.map((b) => ({ id: b.id, ownerId: b.ownerId, when: b.meta, title: b.title, ...(b.key && { key: b.key }) })),
       ],
     }))
     .filter((day) => day.items.length > 0);

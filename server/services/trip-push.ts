@@ -4,7 +4,7 @@
 // pas la position du téléphone). Une seule notification par trajet (gardée dans push.json). Le texte ne dit pas le
 // prénom (le téléphone est à la personne) : ligne et heure.
 import { localDay } from '../../shared/dates.ts';
-import type { NextTrip, TripLeg } from '../../shared/trip.ts';
+import { eventTripPath, type NextTrip, type TripLeg } from '../../shared/trip.ts';
 import type { Commute } from '../../shared/types.ts';
 import type { Logger } from '../config-store.ts';
 import type { PushRecord, PushStore } from '../sources/push.ts';
@@ -52,7 +52,9 @@ export function tripMessage(trip: NextTrip, now: number): PushMessage | null {
   const ride = trip.transit.legs.find((l) => l.mode !== 'walk');
   const how = ride ? `${rideText(ride)} à ${hourText(new Date(ride.departs))}` : 'À pied';
   const { destination: d } = trip;
-  return { title: leaveText(leave), body: `${how} · ${d.title} à ${hourText(new Date(d.start))}`, tag: 'trajet', url: '/m' };
+  // Touchée, elle ouvre le trajet de ce rendez-vous (agenda) ; un cours, l'accueil (carte « Prochain trajet »).
+  const url = d.kind === 'event' && d.key ? eventTripPath(d.key) : '/m';
+  return { title: leaveText(leave), body: `${how} · ${d.title} à ${hourText(new Date(d.start))}`, tag: 'trajet', url };
 }
 
 export type TripPushDeps = {
