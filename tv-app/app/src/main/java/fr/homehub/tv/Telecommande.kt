@@ -1,7 +1,8 @@
 // Télécommande côté télé : garde l'injecteur lancé par l'adb local (127.0.0.1:5555) et lui passe les ordres reçus de
 // HomeHub ; le relance quand le flux tombe (essais de plus en plus espacés, jusqu'à 1 min). Sans adb, un secours sans
 // injecteur : Retour et Accueil par l'accessibilité, volume et lecture par AudioManager (ce qu'une appli a le droit de
-// faire), veille par l'accessibilité (verrouiller l'écran). Flèches, OK et texte demandent l'injecteur.
+// faire), veille par l'accessibilité (verrouiller l'écran). Flèches, OK et texte demandent l'injecteur. À la
+// connexion, il accorde aussi à l'appli l'accès aux sessions média (fonction 18, HomeHubLecture.kt).
 package fr.homehub.tv
 
 import android.accessibilityservice.AccessibilityService
@@ -54,6 +55,7 @@ class Telecommande(private val context: Context, private val onChange: () -> Uni
             val closed = java.util.concurrent.CountDownLatch(1)
             try {
                 val connection = AdbConnection.open("127.0.0.1", 5555, keys, "homehub-tv@${Build.MODEL}", onAuthorization = { setEtat(Etat.AUTORISATION) })
+                grantMediaSessions(keys)
                 val splitter = LineSplitter { line -> if (parseReply(line) != null) replies.offer(line) }
                 replies.clear()
                 val opened = connection.openShell(injectorShell(context.applicationInfo.sourceDir), splitter::feed) { closed.countDown() }
@@ -77,6 +79,25 @@ class Telecommande(private val context: Context, private val onChange: () -> Uni
             if (!running) break
             SystemClock.sleep(backoffMs)
             backoffMs = (backoffMs * 2).coerceAtMost(60_000L)
+        }
+    }
+
+    /**
+     * Ce qui passe (fonction 18) : l'accès aux sessions média s'accorde par adb ; l'appli le fait elle-même, sur une
+     * connexion à part (un seul flux par connexion), clé déjà acceptée. Sans effet s'il est déjà accordé ; un échec ne
+     * gêne pas la télécommande.
+     */
+    private fun grantMediaSessions(keys: java.security.KeyPair) {
+        if (HomeHubLecture.granted(context)) return
+        runCatching {
+            val connection = AdbConnection.open("127.0.0.1", 5555, keys, "homehub-tv@${Build.MODEL}")
+            try {
+                val done = java.util.concurrent.CountDownLatch(1)
+                connection.openShell(HomeHubLecture.grantCommand(context), {}) { done.countDown() }
+                done.await(5, java.util.concurrent.TimeUnit.SECONDS)
+            } finally {
+                connection.close()
+            }
         }
     }
 

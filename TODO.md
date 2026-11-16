@@ -405,6 +405,12 @@ personne depuis son propre téléphone.
   - [ ] E7. Rafale de flèches par attente longue : délai ressenti, sinon WebSocket. `input keyevent` ≈ 1 s (écarté) ;
         processus résident : 8 à 260 ms par touche, 10 flèches en 0,4 s ; par HomeHub, 63 à 84 ms aller-retour dans
         le monde fictif (attente longue gardée, touches groupées) ; reste la mesure sur la vraie télé.
+- [x] 18. Ce qui passe à la télé, en direct, sur la télécommande du téléphone (0.96.0) : bloc « À l'écran » (appli,
+      titre, épisode ou chaîne, image, lecture ou pause, avancée qui suit la seconde ; télé en veille dite
+      simplement), d'après les sessions média Android lues par l'appli (service d'écoute des notifications qui n'en
+      lit aucune, accès accordé par adb : `installer.ps1` et l'appli elle-même) ; fausse télé du monde fictif en
+      série, direct, pause ou rien (`fake-screen-playing.json`). À vérifier sur la vraie télé : `docs/tests-tele.md`,
+      section 18.
 
 ## École
 

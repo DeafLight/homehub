@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.95.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.96.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -496,11 +496,18 @@ Le bouton télé en haut de l'appli ouvre la **Télécommande** de la télé du 
 (allumée, en veille, injoignable) et le bouton rouge marche/arrêt. Onglet **Touches** : flèches et gros **OK** bleu,
 Retour, Accueil, lecture/pause, volume et muet, le **clavier** (le texte s'écrit dans la recherche ouverte sur la
 télé) et **À table !**, qui met en pause et affiche un bandeau sur la télé ; le compte rendu s'affiche en bas, puis s'efface seul.
-Onglet **Applis** : l'appli en cours et le tiroir des applis de la télé (ici des applis inventées par la fausse télé
-du monde fictif), à ouvrir d'un geste, avec la date de la liste.
+Onglet **Applis** : le tiroir des applis de la télé (ici des applis inventées par la fausse télé du monde fictif), à
+ouvrir d'un geste, avec la date de la liste.
 
-<img src="images/telephone-telecommande.png" alt="Télécommande sur le téléphone d'Alex : pavé de flèches, OK, Retour, Accueil, lecture, volume, clavier" width="260">
-<img src="images/telephone-telecommande-applis.png" alt="Télécommande, onglet Applis : appli en cours et grille des applis de la télé" width="260">
+En haut des deux onglets, **À l'écran** dit ce que montre la télé en ce moment : l'image et le titre du programme,
+l'épisode ou la chaîne, **Lecture** ou **En pause**, l'appli, et la barre d'avancée avec le temps, qui avance seul.
+La télé en direct n'a pas de durée (pas de barre) ; une appli qui n'annonce rien n'affiche que son nom ; télé en
+veille : « Télé en veille : rien à l’écran. ». Ici la série mise en pause par « À table ! », la télé en direct et un film en pause.
+
+<img src="images/telephone-telecommande.png" alt="Télécommande sur le téléphone d'Alex : À l'écran, une série en pause après « À table ! » ; pavé de flèches, OK" width="260">
+<img src="images/telephone-telecommande-direct.png" alt="Télécommande : À l'écran, Le Journal de 20 h sur Chaîne 2 dans Box TV, sans barre d'avancée" width="260">
+<img src="images/telephone-telecommande-pause.png" alt="Télécommande : À l'écran, La Grande Traversée en pause dans Ciné Club, 1:06:02 sur 1:48:00" width="260">
+<img src="images/telephone-telecommande-applis.png" alt="Télécommande, onglet Applis : grille des applis de la télé" width="260">
 
 Si le volume de la télé est fixe (son par une barre de son), les touches de volume sont grisées et une ligne
 l'explique sous elles.

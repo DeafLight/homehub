@@ -5,7 +5,8 @@
 // télécommande (fonction 17, parents seulement) : état de la télé, tiroir des applis, touches, texte, lancement d'une
 // appli, « À table ! », marche/arrêt ; une télé injoignable ou en veille s'allume par son appareil Cast. Télé éteinte
 // ou injoignable, ou film en cours (fonction 15) : le message vocal part sur son appareil de secours (fonction 7,
-// réglé sur la tablette). La télécommande montre aussi le mode film (son réglage : screen-media-api.ts).
+// réglé sur la tablette). La télécommande montre aussi le mode film (son réglage : screen-media-api.ts) et ce qui
+// passe (fonction 18) : programme, lecture ou pause, position recalculée à l'instant de la réponse, image à part.
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
@@ -27,6 +28,17 @@ import {
   type ScreenVoiceResult,
 } from '../shared/screen.ts';
 import { tvTitle } from '../shared/tv.ts';
+import {
+  artworkId,
+  artworkType,
+  cleanDuration,
+  cleanPlayingText,
+  NOW_PLAYING_ARTWORK_MAX,
+  PLAYBACK_STATES,
+  positionAfter,
+  type RemoteArtwork,
+  type RemoteNowPlaying,
+} from '../shared/now-playing.ts';
 import type { Access } from './access.ts';
 import { VOICE_OFF, VOICE_PARENTS_ONLY, VOICE_PHONE_ONLY } from './cast-api.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -58,6 +70,23 @@ const stateSchema = z.object({
   control: z.enum(SCREEN_CONTROLS),
   addresses: z.array(z.string().max(60)).max(8),
   volume: z.enum(SCREEN_VOLUMES).optional(),
+  // Ce qui passe (fonction 18) : textes nettoyés ici quoi qu'ait fait l'appli, durée en direct (0, -1) oubliée,
+  // image refusée si ce n'est ni du JPEG ni du PNG.
+  nowPlaying: z
+    .object({
+      package: z.string().min(1).max(200),
+      title: z.string().max(2_000).nullable().transform(cleanPlayingText),
+      subtitle: z.string().max(2_000).nullable().transform(cleanPlayingText),
+      state: z.enum(PLAYBACK_STATES),
+      positionMs: z.number().finite().nullable().transform((ms) => (ms === null ? null : Math.max(0, Math.round(ms)))),
+      durationMs: z.number().finite().nullable().transform(cleanDuration),
+      artwork: z
+        .string()
+        .max(NOW_PLAYING_ARTWORK_MAX)
+        .nullable()
+        .transform((b) => (b && artworkType(b) ? b : null)),
+    })
+    .nullish(),
 });
 const appsSchema = z.object({ apps: z.array(screenAppSchema).max(SCREEN_APPS_MAX) });
 const keysSchema = z.object({ keys: z.array(z.enum(REMOTE_KEYS)).min(1).max(REMOTE_MAX_KEYS) });
@@ -331,7 +360,20 @@ export function createScreenApi({
     const state = power === 'offline' ? null : hub.stateOf(s.id);
     const list = await apps.get(s.id);
     const current = state?.foreground ?? null;
-    const foreground = current ? { package: current, name: list?.apps.find((a) => a.package === current)?.name ?? current } : null;
+    const nameOf = (pkg: string) => list?.apps.find((a) => a.package === pkg)?.name ?? pkg;
+    const foreground = current ? { package: current, name: nameOf(current) } : null;
+    // Ce qui passe : seulement télé allumée (en veille, la session d'une appli peut traîner en pause).
+    const playing = power === 'on' ? (state?.nowPlaying ?? null) : null;
+    const nowPlaying: RemoteNowPlaying | null = playing && {
+      package: playing.package,
+      app: nameOf(playing.package),
+      title: playing.title,
+      subtitle: playing.subtitle,
+      state: playing.state,
+      positionMs: positionAfter(playing, hub.stateAgeOf(s.id)),
+      durationMs: playing.durationMs,
+      artworkId: playing.artwork ? artworkId(playing.artwork) : null,
+    };
     return {
       id: s.id,
       name: s.name,
@@ -339,6 +381,7 @@ export function createScreenApi({
       control: state?.control ?? null,
       volume: state?.volume ?? null,
       foreground,
+      nowPlaying,
       ...(film && { film: film.state(s.id) }),
       canWake: castOf(s.id) !== null,
       appsAt: list?.at ?? null,
@@ -355,6 +398,15 @@ export function createScreenApi({
   api.get('/screens/remote', async (c) => {
     await access.remote(c);
     return c.json(await Promise.all((await screens.list()).map(remoteOf)));
+  });
+
+  // Image de ce qui passe (affiche, logo de la chaîne) : à part, la télécommande la redemande quand son empreinte change.
+  api.get('/screens/:id/artwork', async (c) => {
+    await access.remote(c);
+    const screen = await screenOf(c.req.param('id'));
+    const artwork = hub.power(screen.id) === 'on' ? hub.stateOf(screen.id)?.nowPlaying?.artwork : null;
+    const body: RemoteArtwork = artwork ? { id: artworkId(artwork), image: `data:${artworkType(artwork)};base64,${artwork}` } : { id: null, image: null };
+    return c.json(body);
   });
 
   api.get('/screens/:id/apps', async (c) => {

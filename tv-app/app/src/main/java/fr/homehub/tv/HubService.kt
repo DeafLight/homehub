@@ -113,6 +113,7 @@ class HubService : Service() {
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         telecommande = Telecommande(this) { sendState() }
         HomeHubAccessibility.listener = { sendState() }
+        HomeHubLecture.listener = { sendState() }
         registerReceiver(receiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -148,6 +149,7 @@ class HubService : Service() {
         reports.shutdownNow()
         telecommande.stop()
         HomeHubAccessibility.listener = null
+        HomeHubLecture.listener = null
         runCatching { unregisterReceiver(receiver) }
         getSystemService(AudioManager::class.java).unregisterAudioDeviceCallback(audioDevices)
         banner.hide()
@@ -498,11 +500,16 @@ class HubService : Service() {
             }
             val server = prefs.server ?: return@execute
             val token = prefs.token ?: return@execute
-            val json = stateJson(screenOn, HomeHubAccessibility.foreground, telecommande.control(), addresses(), volume())
+            val foreground = HomeHubAccessibility.foreground
+            // Ce qui passe (fonction 18) : écran éteint, rien (une session en pause peut traîner en veille).
+            val lecture = if (screenOn) HomeHubLecture.lecture(foreground) else null
+            val json = stateJson(screenOn, foreground, telecommande.control(), addresses(), volume(), lecture)
+            // Clé sans la position qui avance seule (Lecture.kt, cleLecture) : un saut ou une pause comptent.
+            val key = stateJson(screenOn, foreground, telecommande.control(), addresses(), volume()) + cleLecture(lecture, SystemClock.elapsedRealtime())
             val now = System.currentTimeMillis()
-            if (!force && json == lastState && now - lastStateAt < STATE_REFRESH_MS) return@execute
+            if (!force && key == lastState && now - lastStateAt < STATE_REFRESH_MS) return@execute
             runCatching { HubClient(server, token).call("POST", "/api/screen/state", json) }.onSuccess {
-                lastState = json
+                lastState = key
                 lastStateAt = now
             }
         }

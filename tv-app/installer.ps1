@@ -51,6 +51,11 @@ if (($actifs -split ':') -notcontains $service) {
     & $adb -s "${Tele}:5555" shell settings put secure enabled_accessibility_services $liste
     & $adb -s "${Tele}:5555" shell settings put secure accessibility_enabled 1
 }
+# Ce qui passe à la télé (fonction 18) : accès aux sessions média, accordé à chaque fois (l'appli ne lit aucune
+# notification, Android ne donne les sessions qu'à un service d'écoute des notifications). L'appli le demande aussi
+# elle-même à son adb local.
+Write-Host "Sessions média : $paquet/$paquet.HomeHubLecture."
+& $adb -s "${Tele}:5555" shell cmd notification allow_listener "$paquet/$paquet.HomeHubLecture"
 # Écran de veille HomeHub (fonction 8 : heure, météo, agenda de la famille, menu du soir), à chaque fois : choisi
 # comme écran de veille de la télé et activé. Sans effet sur le délai avant la veille, réglé dans les paramètres.
 Write-Host "Écran de veille : $paquet/.HomeHubDream."

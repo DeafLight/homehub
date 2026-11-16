@@ -57,6 +57,7 @@ import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '.
 import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { LatLon, RoutableEvents, TripResponse, TripStatus, TripWatch } from '../../../shared/trip.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenReplies, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
+import type { RemoteArtwork } from '../../../shared/now-playing.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { BedtimeSettings, BedtimeText, BedtimeView } from '../../../shared/bedtime.ts';
 import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-media.ts';
@@ -359,6 +360,8 @@ export type Api = {
   unsubscribePush(): Promise<PushStatus>;
   testPush(): Promise<void>;
   remoteApps(id: string): Promise<RemoteApps>;
+  /** Image de ce qui passe sur la télé (fonction 18), demandée quand son empreinte change. */
+  remoteArtwork(id: string): Promise<RemoteArtwork>;
   remoteKeys(id: string, keys: RemoteKey[]): Promise<void>;
   remoteText(id: string, text: string, submit: boolean): Promise<void>;
   remoteLaunch(id: string, pkg: string): Promise<void>;
@@ -605,6 +608,7 @@ export function createApi(
     unsubscribePush: () => send('DELETE', '/push'),
     testPush: async () => void (await send('POST', '/push/test')),
     remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),
+    remoteArtwork: (id) => request(`/screens/${encodeURIComponent(id)}/artwork`),
     remoteKeys: async (id, keys) => void (await send('POST', `/screens/${encodeURIComponent(id)}/keys`, { keys })),
     remoteText: async (id, text, submit) => void (await send('POST', `/screens/${encodeURIComponent(id)}/text`, { text, submit })),
     remoteLaunch: async (id, pkg) => void (await send('POST', `/screens/${encodeURIComponent(id)}/launch`, { package: pkg })),

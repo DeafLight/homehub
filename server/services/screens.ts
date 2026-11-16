@@ -34,6 +34,8 @@ type Box = {
   reports: Map<string, (report: ScreenReport) => void>;
   /** Dernier état annoncé par l'appli. */
   state: ScreenStateReport | null;
+  /** Heure de réception de cet état (horloge du serveur) : la position de ce qui passe part de là (fonction 18). */
+  stateAt: number;
   /** Démarrages de l'appli : demandes d'événements sans `after` (elle repart de rien). */
   starts: number;
   /** Plus grand `after` demandé par l'appli : tout événement de numéro inférieur ou égal a été reçu. */
@@ -61,7 +63,7 @@ export function createScreenHub({
   const boxOf = (id: string) => {
     let box = boxes.get(id);
     if (!box) {
-      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null, starts: 0, received: 0 };
+      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null, stateAt: 0, starts: 0, received: 0 };
       boxes.set(id, box);
     }
     return box;
@@ -91,8 +93,16 @@ export function createScreenHub({
     /** Nombre de démarrages de l'appli de la télé `id` vus depuis le démarrage du serveur (elle a tout oublié). */
     startsOf: (id: string): number => boxes.get(id)?.starts ?? 0,
 
+    /** Temps écoulé (ms) depuis le dernier état reçu de la télé `id` (0 : rien reçu). */
+    stateAgeOf(id: string): number {
+      const box = boxes.get(id);
+      return box?.state ? Math.max(0, now() - box.stateAt) : 0;
+    },
+
     setState(id: string, state: ScreenStateReport) {
-      boxOf(id).state = state;
+      const box = boxOf(id);
+      box.state = state;
+      box.stateAt = now();
     },
 
     /** Allumée, en veille (écran éteint mais appli joignable), ou injoignable. Sans état annoncé : allumée. */

@@ -27,10 +27,15 @@
 // puis efface le fichier.
 // Heure du coucher (fonction 16) : rappel et changements comme les autres rappels, pause comme « À table ! », écran de
 // veille du coucher ouvert ou fermé (noté dans fake-screen-remote.json, `bedtime`).
+// Ce qui passe (fonction 18) : par défaut une série en lecture sur Vidéo+ ; fake-screen-playing.json
+// ({ "scenario": "direct" | "pause" | "serie" | "rien" }) passe à la télé en direct (chaîne, sans durée), à un film en
+// pause sur Ciné Club, ou à rien d'annoncé ; l'état part aussitôt, comme quand une session média change. Une appli
+// lancée à la télécommande n'annonce rien. Télé éteinte : le mode veille (fake-screen-mode.json).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { QUICK_REPLIES, QUICK_REPLY_LABELS, type QuickReply, SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
-import { fakeScreenApps } from './fake-banners.ts';
+import type { ScreenNowPlaying } from '../../shared/now-playing.ts';
+import { bannerPng, fakeScreenApps } from './fake-banners.ts';
 import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE } from './fake-screen-reminder.ts';
 import type { ScreenMediaEvent } from '../../shared/screen-media.ts';
@@ -47,6 +52,46 @@ export const FAKE_SCREEN_TIMERS_FILE = 'fake-screen-timers.json';
 export const FAKE_SCREEN_BUS_FILE = 'fake-screen-bus.json';
 export const FAKE_SCREEN_MODE_FILE = 'fake-screen-mode.json';
 export const FAKE_SCREEN_REPLY_FILE = 'fake-screen-reply.json';
+export const FAKE_SCREEN_PLAYING_FILE = 'fake-screen-playing.json';
+
+/** Ce que joue la fausse télé : série en lecture (par défaut), télé en direct, film en pause, ou rien d'annoncé. */
+export const FAKE_SCREEN_SCENARIOS = ['serie', 'direct', 'pause', 'rien'] as const;
+export type FakeScreenScenario = (typeof FAKE_SCREEN_SCENARIOS)[number];
+
+/** Scénario écrit dans fake-screen-playing.json ; sans fichier ou illisible : la série. */
+export function readFakeScreenScenario(dir: string): FakeScreenScenario {
+  const path = join(dir, FAKE_SCREEN_PLAYING_FILE);
+  if (!existsSync(path)) return 'serie';
+  try {
+    const { scenario } = JSON.parse(readFileSync(path, 'utf8')) as { scenario?: string };
+    return (FAKE_SCREEN_SCENARIOS as readonly string[]).includes(scenario ?? '') ? (scenario as FakeScreenScenario) : 'serie';
+  } catch {
+    return 'serie';
+  }
+}
+
+/** Appli au premier plan et session média du scénario (programmes et images inventés). */
+export function fakeNowPlaying(scenario: FakeScreenScenario): { foreground: string; nowPlaying: ScreenNowPlaying | null } {
+  switch (scenario) {
+    case 'serie':
+      return {
+        foreground: 'fr.exemple.video',
+        nowPlaying: { package: 'fr.exemple.video', title: 'Les Voisins du dessus', subtitle: 'Saison 2 · Épisode 4 · Le grenier', state: 'playing', positionMs: 754_000, durationMs: 2_580_000, artwork: bannerPng([200, 120, 60], [60, 30, 80], 'circle') },
+      };
+    case 'direct':
+      return {
+        foreground: 'fr.exemple.box',
+        nowPlaying: { package: 'fr.exemple.box', title: 'Le Journal de 20 h', subtitle: 'Chaîne 2', state: 'playing', positionMs: null, durationMs: null, artwork: bannerPng([30, 60, 140], [10, 20, 60], 'square') },
+      };
+    case 'pause':
+      return {
+        foreground: 'fr.exemple.cine',
+        nowPlaying: { package: 'fr.exemple.cine', title: 'La Grande Traversée', subtitle: 'Film · 1 h 48', state: 'paused', positionMs: 3_962_000, durationMs: 6_480_000, artwork: bannerPng([20, 90, 120], [120, 40, 30], 'wave') },
+      };
+    case 'rien':
+      return { foreground: 'fr.exemple.video', nowPlaying: null };
+  }
+}
 
 /** Réponse demandée dans fake-screen-reply.json ({ "reply": "coming" }) ; absente ou illisible : null. */
 export function readFakeScreenReply(dir: string): QuickReply | null {
@@ -104,11 +149,20 @@ export function applyRemote(event: ScreenEvent, state: ScreenStateReport, remote
         }
         if (event.notice) remote.notice = event.notice;
       }
+      // La session média suit la pause et la reprise, comme celle d'une vraie appli.
+      if (state.nowPlaying) {
+        for (const key of event.keys) {
+          if (key === 'pause') state.nowPlaying.state = 'paused';
+          if (key === 'play') state.nowPlaying.state = 'playing';
+          if (key === 'playpause') state.nowPlaying.state = state.nowPlaying.state === 'playing' ? 'paused' : 'playing';
+        }
+      }
       return `touches : ${event.keys.join(' ')}${event.notice ? ` (bandeau « ${event.notice.title} »)` : ''}`;
     case 'text':
       return `texte : ${event.text}${event.submit ? ' ⏎' : ''}`;
     case 'launch':
       state.foreground = event.package;
+      state.nowPlaying = null;
       return `appli : ${event.package}`;
     case 'power':
       state.screenOn = event.on;
@@ -131,7 +185,8 @@ export function startFakeScreen(base: string) {
   const post = (method: string, path: string, body: unknown) =>
     fetch(`${base}${path}`, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const dir = process.env.HOMEHUB_STATE_DIR ?? '.';
-  const state: ScreenStateReport = { screenOn: true, foreground: 'fr.exemple.video', control: 'adb', addresses: ['127.0.0.1'], volume: 'adjustable' };
+  let scenario = readFakeScreenScenario(dir);
+  const state: ScreenStateReport = { screenOn: true, control: 'adb', addresses: ['127.0.0.1'], volume: 'adjustable', ...fakeNowPlaying(scenario) };
   const remote: FakeScreenRemote = { received: [], screenOn: true, foreground: state.foreground! };
   let after: number | null = null;
   let introduced = false;
@@ -158,6 +213,15 @@ export function startFakeScreen(base: string) {
     if (mode === 'absente') return;
     state.screenOn = mode === 'allumee';
     remote.screenOn = state.screenOn;
+    if (introduced) void post('POST', '/api/screen/state', state).catch(() => {});
+  }, 300);
+  // Ce qui passe, vu en 0,3 s : appli et session média du scénario, envoyées aussitôt.
+  setInterval(() => {
+    const wanted = readFakeScreenScenario(dir);
+    if (wanted === scenario) return;
+    scenario = wanted;
+    Object.assign(state, fakeNowPlaying(scenario));
+    remote.foreground = state.foreground!;
     if (introduced) void post('POST', '/api/screen/state', state).catch(() => {});
   }, 300);
 
@@ -241,7 +305,7 @@ export function startFakeScreen(base: string) {
         if (event.kind !== 'voice') {
           const line = applyRemote(event, state, remote);
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
-          if (event.kind === 'launch' || event.kind === 'power') await post('POST', '/api/screen/state', state);
+          if (event.kind === 'launch' || event.kind === 'power' || event.kind === 'key') await post('POST', '/api/screen/state', state);
           if (line) {
             remote.received.push(line);
             Object.assign(remote, { screenOn: state.screenOn, foreground: state.foreground });

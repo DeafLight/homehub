@@ -18,7 +18,7 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_REPLY_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_PLAYING_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_REPLY_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { fakeScreenFilmTv } from './docs-captures/fake-screen-film.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
@@ -715,9 +715,18 @@ const fakeQrDetector = `globalThis.BarcodeDetector = class {
 await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhone('alex') + fakeQrDetector, camera: true, wait: 4000 });
 
 // Télécommande de la télé (fausse appli de fake-screen.ts, qui a envoyé son état et ses applis inventées) : onglet
-// Touches après « À table ! », puis onglet Applis (appli en cours et tiroir).
+// Touches après « À table ! », puis onglet Applis (tiroir). En haut, « À l'écran » (fonction 18) : la série en lecture
+// de la fausse télé ; puis la télé en direct et un film en pause (fake-screen-playing.json), avant de revenir à la série.
 await shoot('telephone-telecommande', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('À table !'), settle: 1500 });
 await shoot('telephone-telecommande-applis', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Applis') });
+for (const scenario of ['direct', 'pause'] as const) {
+  if (only && !only.test(`telephone-telecommande-${scenario}`)) continue;
+  writeFileSync(join(state, FAKE_SCREEN_PLAYING_FILE), JSON.stringify({ scenario }));
+  await sleep(1000);
+  await shoot(`telephone-telecommande-${scenario}`, `${BASE}/m/tele`, PHONE, { init: asPhone('alex') });
+  writeFileSync(join(state, FAKE_SCREEN_PLAYING_FILE), JSON.stringify({ scenario: 'serie' }));
+  await sleep(1000);
+}
 // Coucher de ce soir dans la télécommande d'un parent, repoussé d'un quart d'heure (bandeau sur la fausse télé).
 await shoot('telephone-coucher', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Repousser +15 min'), settle: 1500 });
 // La télé après « À table ! » (fonction 6) : maquette d'après ce qu'a reçu la fausse appli (pause, bandeau).

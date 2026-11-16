@@ -4,10 +4,12 @@
   import { REMOTE_TEXT_MAX, type RemoteKey, type RemoteScreen } from '../../../shared/screen.ts';
   import BedtimeTonight from '../components/BedtimeTonight.svelte';
   import Icon, { type IconName } from '../components/Icon.svelte';
+  import NowPlaying from '../components/NowPlaying.svelte';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
   import { appsDate, capabilities, controlHint, createFeedbackTimer, createKeyQueue, statusLine } from '../lib/remote.ts';
+  import { nowPlayingView } from '../lib/now-playing.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { phonePath } from '../lib/route.ts';
   import { volumeHint } from '../lib/tv-media.ts';
@@ -15,13 +17,15 @@
   // Télécommande de la télé sur le téléphone d'un parent (/m/tele, fonction 17). En-tête : nom et état de la télé
   // (allumée, en veille, injoignable) et bouton marche/arrêt (une télé injoignable s'allume par Cast). Onglet Touches :
   // pavé de flèches avec OK au centre, Retour, Accueil, lecture/pause, volume, muet, clavier (texte écrit dans le champ
-  // qui a le focus sur la télé) et « À table ! » (pause et bandeau) ; volume grisé et expliqué s'il est fixe (barre de son). Onglet Applis : l'appli en cours et le tiroir des
+  // qui a le focus sur la télé) et « À table ! » (pause et bandeau) ; volume grisé et expliqué s'il est fixe (barre de son). Onglet Applis : le tiroir des
   // applis de la télé, à lancer d'un geste. Le compte rendu de chaque ordre s'efface seul après quelques secondes. La page
   // défile d'un bloc (le body ne défile pas). Le serveur vérifie les droits (parents) ; règles : lib/remote.ts.
   // Mode film (fonction 15) : bouton sous « À table ! », allumé tout seul par une appli de films ou à la main ; pendant
   // un film, les annonces sont discrètes sur la télé et les messages vocaux partent sur le Google Home.
   // Le coucher des enfants de ce soir (fonction 16), quand il est réglé, s'affiche sous l'en-tête : repousser d'un
   // quart d'heure, annuler pour ce soir, rétablir.
+  // À l'écran (fonction 18) : sous l'en-tête, dans les deux onglets, ce que montre la télé (appli, programme, lecture
+  // ou pause, avancée qui suit la seconde entre deux relevés) ; l'image n'est rechargée que si son empreinte change.
   const STATE_REFRESH_MS = 5_000;
   /** La liste des applis se recharge surtout quand la télé en envoie une nouvelle (date de la liste). */
   const APPS_REFRESH_MS = 10 * 60_000;
@@ -39,6 +43,35 @@
   const hint = $derived(screen ? controlHint(screen) : null);
   // Volume fixe (barre de son par HDMI ARC) : touches de volume grisées, explication dessous (fonction 6).
   const fixedVolume = $derived(screen?.volume === 'fixed');
+
+  // Ce qui passe : temps écoulé depuis la dernière réponse du serveur, sur l'horloge du téléphone (qui bat la seconde).
+  let receivedAt = $state(Date.now());
+  $effect(() => {
+    if (screens.data) receivedAt = Date.now();
+  });
+  const playingView = $derived(screen ? nowPlayingView(screen, clock.now.getTime() - receivedAt) : null);
+  let artwork = $state<{ key: string; image: string | null } | null>(null);
+  $effect(() => {
+    const id = screen?.id;
+    const artworkId = screen?.nowPlaying?.artworkId ?? null;
+    const key = `${id}/${artworkId}`;
+    if (!id || !artworkId) artwork = null;
+    else if (artwork?.key !== key) {
+      artwork = { key, image: null };
+      api.remoteArtwork(id).then(
+        (a) => {
+          if (artwork?.key === key) artwork = { key, image: a.image };
+        },
+        () => {},
+      );
+    }
+  });
+  /** Image de la carte : celle du programme, sinon la bannière de l'appli. */
+  const playingImage = $derived.by(() => {
+    if (artwork?.image) return artwork.image;
+    const pkg = playingView && playingView.kind !== 'none' ? playingView.package : null;
+    return (pkg && apps.data?.apps.find((a) => a.package === pkg)?.banner) || null;
+  });
 
   let tab = $state<'keys' | 'apps'>('keys');
   let error = $state<string | null>(null);
@@ -180,6 +213,8 @@
       </div>
     {/if}
 
+    {#if playingView}<NowPlaying view={playingView} image={playingImage} />{/if}
+
     <div class="pills" role="tablist">
       <button type="button" role="tab" aria-selected={tab === 'keys'} class:on={tab === 'keys'} onclick={() => (tab = 'keys')}><Icon name="keyboard" size={20} /> Touches</button>
       <button type="button" role="tab" aria-selected={tab === 'apps'} class:on={tab === 'apps'} onclick={() => (tab = 'apps')}><Icon name="grid" size={20} /> Applis</button>
@@ -233,17 +268,6 @@
         <p class="muted small">{filmLabel(screen.film) ?? 'Pendant un film, les annonces se font discrètes et les messages vocaux passent sur le Google Home.'}</p>
       {/if}
     {:else}
-      <h2>En cours</h2>
-      {#if screen.foreground}
-        {@const current = apps.data?.apps.find((a) => a.package === screen.foreground?.package)}
-        <div class="current">
-          {#if current?.banner}<img src={current.banner} alt="" />{:else}<span class="no-banner"><Icon name="tv" size={28} /></span>{/if}
-          <strong>{screen.foreground.name}</strong>
-        </div>
-      {:else}
-        <p class="muted">{screen.power === 'on' ? 'Appli en cours inconnue.' : 'Rien : la télé n’est pas allumée.'}</p>
-      {/if}
-
       <h2>Applis de la télé</h2>
       {#if apps.data && apps.data.apps.length}
         <div class="grid">
@@ -585,20 +609,6 @@
   .film.on {
     background: var(--rain-bg);
     color: var(--rain-soft);
-  }
-
-  .current {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 10px;
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-  }
-
-  .current img,
-  .current .no-banner {
-    width: 112px;
   }
 
   /* minmax(0, 1fr) : ni une bannière ni un long nom n'élargissent la colonne au-delà de l'écran. */

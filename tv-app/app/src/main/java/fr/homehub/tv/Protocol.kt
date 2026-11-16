@@ -126,14 +126,18 @@ fun parseEvents(json: String): Events {
     return Events(voices, o.getInt("last"), remote, messages, bus, talks)
 }
 
-/** État de la télé pour HomeHub (shared/screen.ts, ScreenStateReport) ; `volume` : « adjustable » ou « fixed » (Volume.kt). */
-fun stateJson(screenOn: Boolean, foreground: String?, control: String, addresses: List<String>, volume: String? = null): String =
+/**
+ * État de la télé pour HomeHub (shared/screen.ts, ScreenStateReport) ; `volume` : « adjustable » ou « fixed »
+ * (Volume.kt) ; `nowPlaying` : ce qui passe (fonction 18, Lecture.kt), toujours présent (null : rien).
+ */
+fun stateJson(screenOn: Boolean, foreground: String?, control: String, addresses: List<String>, volume: String? = null, nowPlaying: Lecture? = null): String =
     JSONObject().apply {
         put("screenOn", screenOn)
         put("foreground", foreground ?: JSONObject.NULL)
         put("control", control)
         put("addresses", JSONArray(addresses.take(8)))
         volume?.let { put("volume", it) }
+        put("nowPlaying", lectureJson(nowPlaying))
     }.toString()
 
 /** Liste des applis pour HomeHub (shared/screen.ts, ScreenAppsReport), au plus 80. */

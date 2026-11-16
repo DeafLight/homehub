@@ -1,6 +1,7 @@
 // Protocole entre HomeHub et l'appli Android TV « HomeHub TV » (télé appairée, docs/appli-tele.md) : la télé attend ses
 // événements par interrogation longue et rend compte de chacun. Types communs au serveur, au front et, recopiés en
 // Kotlin, à l'appli (tv-app/). Toute évolution incompatible change SCREEN_PROTOCOL.
+import type { RemoteNowPlaying, ScreenNowPlaying } from './now-playing.ts';
 import type { ScreenFilm } from './screen-film.ts';
 import type { ScreenMediaEvent } from './screen-media.ts';
 import type { ScreenTalkEvent } from './screen-talk.ts';
@@ -183,6 +184,8 @@ export type ScreenStateReport = {
   addresses: string[];
   /** Volume réglable par l'appli, ou fixe (barre de son par HDMI ARC) ; absent : appli antérieure à la fonction 6. */
   volume?: ScreenVolume;
+  /** Ce que joue la télé (fonction 18, shared/now-playing.ts) ; null : rien, ou accès aux notifications pas accordé ; absent : appli plus ancienne. */
+  nowPlaying?: ScreenNowPlaying | null;
 };
 
 /**
@@ -216,6 +219,8 @@ export type RemoteScreen = {
   volume: ScreenVolume | null;
   /** Appli au premier plan, avec son nom s'il est dans la liste. */
   foreground: { package: string; name: string } | null;
+  /** Ce qui passe (fonction 18) : programme, lecture ou pause, position ; null : rien de connu ; absent : serveur plus ancien. */
+  nowPlaying?: RemoteNowPlaying | null;
   /** Mode film (fonction 15) ; absent : serveur plus ancien. */
   film?: ScreenFilm;
   /** Un appareil Cast de la télé est connu : elle peut être allumée même injoignable. */

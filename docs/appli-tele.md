@@ -205,6 +205,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | 15 | Mode « film » (annonces renvoyées vers le Google Home) | Fait : voir section 13 |
 | 16 | Heure du coucher des enfants | Fait : rappel, pause, écran de veille ; voir section 14 |
 | 17 | Télécommande sur le téléphone (PWA) : flèches, clavier du téléphone, tiroir des applis, lancement, marche/arrêt | Retenue le 14 novembre 2026, détail et essais à faire en section 8 ; reprend presque toute la fonction 6 |
+| 18 | Ce qui passe à la télé, sur la télécommande du téléphone : appli, programme, lecture ou pause | Fait (0.96.0) : sessions média Android, voir section 15 |
 
 **Ordre proposé : une idée par version**, cochée dans `TODO.md` (section « Télé : appli HomeHub TV ») à sa sortie :
 
@@ -515,6 +516,29 @@ Trois temps sur les télés allumées, assemblés à partir de fonctions déjà 
   ne peut lancer (`IDreamManager` est réservé au système). Elle ne garde pas l'écran allumé : la mise en veille de la
   télé suit son cours. Retour la ferme (le programme reste en pause), les autres touches sauf le volume ne font rien.
 - **À essayer sur la vraie télé** : voir `TODO.md`, 16 bis.
+
+## 15. Ce qui passe à la télé (fonction 18)
+
+Le bloc **À l'écran** de la télécommande du téléphone montre l'appli en cours et le programme joué.
+
+- **Source retenue** : l'appli HomeHub TV lit les **sessions média Android** (`MediaSessionManager.getActiveSessions`),
+  qu'Android ne donne qu'à un service d'écoute des notifications accordé (`HomeHubLecture`, qui ne lit aucune
+  notification). Écarté : le statut du récepteur Cast (`RECEIVER_STATUS`, `MEDIA_STATUS`), qui ne voit que ce qui est
+  casté, pas Netflix ou la télé lancés à la télécommande.
+- **Accès** : `cmd notification allow_listener fr.homehub.tv/fr.homehub.tv.HomeHubLecture`, lancé par
+  `installer.ps1` et par l'appli elle-même sur son adb local (connexion à part, `Telecommande.kt`), sans rien à faire
+  sur le NAS.
+- **Choix de la session** (`Lecture.kt`) : celle de l'appli au premier plan si elle joue, charge ou est en pause ;
+  sinon une qui joue. Titre : `DISPLAY_TITLE`, sinon `TITLE` ; sous-titre : `DISPLAY_SUBTITLE`, sinon `ARTIST`, sinon
+  `ALBUM` ; durée 0 ou -1 (direct) oubliée ; image (`ART`, `ALBUM_ART`, `DISPLAY_ICON`) réduite à 320 px, JPEG.
+- **Envoi** : avec l'état de la télé (`nowPlaying`, champ facultatif : protocole inchangé), à chaque changement de
+  session (regroupés sur 0,4 s) ; la position qui avance seule n'entraîne pas d'envoi, un saut ou une pause si. Le
+  serveur nettoie les textes, refuse une image qui n'est ni JPEG ni PNG, et recalcule la position à chaque réponse.
+- **Ce qui marchera selon l'appli** : YouTube, Prime Video, Disney+ : titre, état, souvent l'image ; Netflix : état,
+  souvent le titre, peu d'image ; télé en direct : au mieux chaîne ou émission, sans durée, parfois rien (seule
+  l'appli s'affiche). À mesurer : `docs/tests-tele.md`, section 18.
+- **Rien de personnel** : parents seulement, et rien de plus que ce qui est déjà à l'écran de la télé ; rien sur la
+  tablette.
 
 ## Décisions (14 novembre 2026)
 

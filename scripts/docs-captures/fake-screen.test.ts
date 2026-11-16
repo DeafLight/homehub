@@ -1,12 +1,12 @@
 // Tests de la fausse appli HomeHub TV du monde fictif : mode allumée, en veille ou absente lu dans le dossier d'état,
 // compte rendu d'un message vocal comme l'appli (refusé écran éteint, lu, introuvable), réponse rapide demandée
-// (fonction 10), maquette du bandeau avec ses réponses, écran de veille du coucher.
+// (fonction 10), maquette du bandeau avec ses réponses, écran de veille du coucher, ce qui passe (fonction 18).
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SCREEN_OFF_REASON } from '../../shared/screen.ts';
-import { applyRemote, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REPLY_FILE, type FakeScreenRemote, fakeScreenTvText, fakeVoiceReport, readFakeScreenMode, readFakeScreenReply } from './fake-screen.ts';
+import { applyRemote, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_PLAYING_FILE, fakeNowPlaying, readFakeScreenScenario, FAKE_SCREEN_REPLY_FILE, type FakeScreenRemote, fakeScreenTvText, fakeVoiceReport, readFakeScreenMode, readFakeScreenReply } from './fake-screen.ts';
 
 describe('fausse appli HomeHub TV', () => {
   it('mode : allumée sans fichier ou illisible, sinon veille ou absente', () => {
@@ -18,6 +18,24 @@ describe('fausse appli HomeHub TV', () => {
     }
     writeFileSync(join(dir, FAKE_SCREEN_MODE_FILE), '{');
     expect(readFakeScreenMode(dir)).toBe('allumee');
+  });
+
+  it('ce qui passe : série par défaut, télé en direct sans durée, film en pause, rien ; une appli lancée n’annonce rien', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'homehub-fake-screen-'));
+    expect(readFakeScreenScenario(dir)).toBe('serie');
+    writeFileSync(join(dir, FAKE_SCREEN_PLAYING_FILE), JSON.stringify({ scenario: 'pause' }));
+    expect(readFakeScreenScenario(dir)).toBe('pause');
+    writeFileSync(join(dir, FAKE_SCREEN_PLAYING_FILE), '{');
+    expect(readFakeScreenScenario(dir)).toBe('serie');
+    expect(fakeNowPlaying('direct')).toMatchObject({ foreground: 'fr.exemple.box', nowPlaying: { state: 'playing', durationMs: null } });
+    expect(fakeNowPlaying('pause').nowPlaying).toMatchObject({ package: 'fr.exemple.cine', state: 'paused' });
+    expect(fakeNowPlaying('serie').nowPlaying?.artwork?.startsWith('iVBOR')).toBe(true);
+    expect(fakeNowPlaying('rien').nowPlaying).toBeNull();
+    const state = { screenOn: true, control: 'adb' as const, addresses: [], ...fakeNowPlaying('serie') };
+    applyRemote({ seq: 1, kind: 'key', id: 'e0', keys: ['pause'] }, state);
+    expect(state.nowPlaying?.state).toBe('paused');
+    applyRemote({ seq: 1, kind: 'launch', id: 'e1', package: 'fr.exemple.musique' }, state);
+    expect(state).toMatchObject({ foreground: 'fr.exemple.musique', nowPlaying: null });
   });
 
   it('message vocal : refusé écran éteint, comme l’appli', () => {

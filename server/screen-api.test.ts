@@ -274,7 +274,7 @@ describe('API HomeHub TV : télécommande', () => {
     const env = await setup();
     const tv = await env.pairTv();
     expect(await (await env.call('GET', '/screens/remote', { token: env.alex })).json()).toEqual([
-      { id: tv.id, name: 'Télé du salon', power: 'offline', control: null, volume: null, foreground: null, canWake: false, appsAt: null, appCount: 0 },
+      { id: tv.id, name: 'Télé du salon', power: 'offline', control: null, volume: null, foreground: null, nowPlaying: null, canWake: false, appsAt: null, appCount: 0 },
     ]);
     await env.listen(tv.token);
     expect((await env.call('POST', '/screen/state', { from: TV, token: tv.token, headers: PROTOCOL, body: state(false) })).status).toBe(204);
@@ -290,6 +290,55 @@ describe('API HomeHub TV : télécommande', () => {
     // État mal formé, ou envoyé par un téléphone : refusé.
     expect((await env.call('POST', '/screen/state', { from: TV, token: tv.token, headers: PROTOCOL, body: { screenOn: 'oui' } })).status).toBe(400);
     expect((await env.call('POST', '/screen/state', { token: env.alex, headers: PROTOCOL, body: state(true) })).status).toBe(401);
+  });
+
+  it('ce qui passe (fonction 18) : programme nettoyé, position qui avance en lecture, image à part, rien en veille', async () => {
+    const env = await setup();
+    const tv = await env.pairTv();
+    await env.listen(tv.token);
+    await env.call('PUT', '/screen/apps', { from: TV, token: tv.token, headers: PROTOCOL, body: { apps: [{ package: 'fr.exemple.cine', name: 'Ciné Club', banner: null }] } });
+    const jpeg = '/9j/4AAQSkZJRgABAQ==';
+    const playing = {
+      package: 'fr.exemple.cine',
+      title: '  Les Voisins​ du dessus  ',
+      subtitle: 'Saison 2 · Épisode 4\n',
+      state: 'playing',
+      positionMs: 600_000.4,
+      durationMs: 2_700_000,
+      artwork: jpeg,
+    };
+    const post = (body: unknown) => env.call('POST', '/screen/state', { from: TV, token: tv.token, headers: PROTOCOL, body });
+    expect((await post({ ...state(true), nowPlaying: playing })).status).toBe(204);
+    const remoteOf = async () => ((await (await env.call('GET', '/screens/remote', { token: env.alex })).json()) as RemoteScreen[])[0]!;
+    const first = await remoteOf();
+    expect(first.nowPlaying).toEqual({
+      package: 'fr.exemple.cine',
+      app: 'Ciné Club',
+      title: 'Les Voisins du dessus',
+      subtitle: 'Saison 2 · Épisode 4',
+      state: 'playing',
+      positionMs: 600_000,
+      durationMs: 2_700_000,
+      artworkId: expect.any(String),
+    });
+    // 30 s plus tard, sans nouvel état : la position a avancé d'autant.
+    env.advance(30_000);
+    expect((await remoteOf()).nowPlaying?.positionMs).toBe(630_000);
+    expect(await (await env.call('GET', `/screens/${tv.id}/artwork`, { token: env.alex })).json()).toEqual({ id: first.nowPlaying!.artworkId, image: `data:image/jpeg;base64,${jpeg}` });
+    // En pause, elle reste ; télé en direct (durée -1), image qui n'en est pas une : durée et image oubliées.
+    await post({ ...state(true), nowPlaying: { ...playing, package: 'fr.exemple.box', title: 'Journal', subtitle: 'Chaîne 2', state: 'paused', durationMs: -1, artwork: 'PHN2Zz4=' } });
+    env.advance(30_000);
+    await env.listen(tv.token); // toujours présente
+    expect((await remoteOf()).nowPlaying).toMatchObject({ app: 'fr.exemple.box', state: 'paused', positionMs: 600_000, durationMs: null, artworkId: null });
+    expect(await (await env.call('GET', `/screens/${tv.id}/artwork`, { token: env.alex })).json()).toEqual({ id: null, image: null });
+    // Télé en veille : rien ; un état mal formé (état de lecture inconnu) est refusé ; un enfant ne voit rien.
+    await post({ ...state(false), nowPlaying: playing });
+    expect((await remoteOf()).nowPlaying).toBeNull();
+    expect((await post({ ...state(true), nowPlaying: { ...playing, state: 'stopped' } })).status).toBe(400);
+    expect((await env.call('GET', `/screens/${tv.id}/artwork`, { token: env.lea })).status).toBe(403);
+    // Appli plus ancienne, sans nowPlaying : rien non plus.
+    await post(state(true));
+    expect((await remoteOf()).nowPlaying).toBeNull();
   });
 
   it('touches regroupées, texte, lancement et « À table ! » : la télé les reçoit et rend compte', async () => {

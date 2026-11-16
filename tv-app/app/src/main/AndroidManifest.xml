@@ -6,7 +6,8 @@
      local (Injecteur.kt, sans déclaration : ce n'est pas un composant Android). Écran de veille HomeHub
      (HomeHubDream, fonction 8), choisi par adb. Mode cuisine d'une recette : vue ouverte par le service
      (CuisineActivity), permise en arrière-plan par l'affichage par-dessus les autres applis. Heure du coucher : écran
-     de veille du coucher (CoucherActivity), ouvert de la même façon. -->
+     de veille du coucher (CoucherActivity), ouvert de la même façon. Ce qui passe (fonction 18) : service d'écoute des
+     notifications, seul moyen de lire les sessions média ; il ne lit aucune notification. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -93,6 +94,16 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility" />
+        </service>
+
+        <service
+            android:name=".HomeHubLecture"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
 
         <service
