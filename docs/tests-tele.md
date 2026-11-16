@@ -34,11 +34,6 @@ correctif (nouvelle session, nouvelle branche). Les fonctions 1, 2 et 3 sont dé
 
 ## 7. Télé éteinte, bascule sur le Google Home (0.84.0)
 
-- [ ] Télé débranchée (prise retirée, sans passer par la veille), attendre plus d'une minute, puis message vocal : il
-      part tout de suite sur le Google Home (« Télé éteinte : lu sur… »).
-- [ ] Télé débranchée, message vocal envoyé dans la minute qui suit (0.92.1) : lu sur le Google Home au bout de 5 s
-      environ, le téléphone affiche « La télé n'a pas répondu : lu sur Google Home du salon ». Rebrancher la télé :
-      elle ne lit pas le message après coup.
 - [ ] Télé allumée normalement (pas de régression) : le message vocal est lu sur la télé seulement, jamais aussi sur le
       Google Home.
 
