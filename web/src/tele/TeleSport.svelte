@@ -22,6 +22,8 @@
   const RETRY_MS = 2_000;
   /** La page vide reste ce temps-là avant de demander à l'appli de se fermer. */
   const CLOSE_MS = 4_000;
+  /** Animation à un peu plus de la moitié de la hauteur d'écran (WebView Full HD : 540 px CSS de haut). */
+  let animationHeight = $state(Math.round(window.innerHeight * 0.55));
 
   let plan = $state.raw<ScreenWorkoutPlan | null>(null);
   let steps = $state.raw<WorkoutStep[]>([]);
@@ -82,13 +84,18 @@
     unlockAudio(); // l'appli permet le son sans geste (setMediaPlaybackRequiresUserGesture(false))
     if (token) void follow();
     else error = 'Jeton de la télé absent';
+    const resize = () => (animationHeight = Math.round(window.innerHeight * 0.55));
+    window.addEventListener('resize', resize);
     const ticker = setInterval(() => {
       if (!timer || !steps.length) return;
       const { timer: next, cues } = tickWorkout(timer, steps, Date.now());
       timer = next;
       for (const c of cues) cue(c);
     }, TICK_MS);
-    return () => clearInterval(ticker);
+    return () => {
+      clearInterval(ticker);
+      window.removeEventListener('resize', resize);
+    };
   });
 
   onDestroy(() => {
@@ -125,7 +132,7 @@
       </div>
       <div class="animation">
         {#key `${timer.index}-${step.exercise.id}`}
-          <ExerciseAnimation id={step.exercise.id} still={step.kind === 'rest' || step.kind === 'break'} paused={timer.paused} controls={false} height={460} />
+          <ExerciseAnimation id={step.exercise.id} still={step.kind === 'rest' || step.kind === 'break'} paused={timer.paused} controls={false} height={animationHeight} />
         {/key}
       </div>
       {#if timer.paused}<p class="paused">En pause</p>{/if}
