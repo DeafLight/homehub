@@ -182,7 +182,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | # | Idée | Avis |
 |---|---|---|
 | 9 | Parler en direct (comme la 0.66.0) | Faite sans WebRTC : son relayé par HomeHub, voir section 11 |
-| 10 | Réponses rapides à la télécommande (« OK », « J'arrive ») renvoyées au téléphone | Peu coûteux une fois 2 fait : à faire tôt |
+| 10 | Réponses rapides à la télécommande (« OK », « J'arrive ») renvoyées au téléphone | Peu coûteux une fois 2 fait : à faire tôt. **Fait** : voir section 12 |
 | 11 | Partager une photo ou une vidéo vers la télé | Simple (même chemin que le message vocal) : moyen. **Fait** : cible de partage de la PWA (champ `media`), fichier en mémoire (10 min, 2 places, puis 5 min derrière une adresse au hasard), plein écran `MediaActivity`, routes dans `server/screen-share-api.ts` ; **qui envoie : tout téléphone appairé, enfants compris** (comme montrer son téléphone à la famille ; `access.mediaSender`) ; 50 Mo au plus ; télé en veille refusée |
 | 12 | Séance de sport guidée sur la télé, lancée depuis le téléphone | Données personnelles affichées sur un écran partagé : seulement sur demande de la personne, à cadrer |
 | 13 | Mode cuisine d'une recette | Fait : vue native, voir section 10 |
@@ -196,7 +196,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 1. **Socle + message vocal atténué (1)** : projet Kotlin, service, appairage, attente longue, présence ;
    destination « Télé » dans l'onglet Caméra du téléphone, parents seulement. Première version.
 2. Message écrit en bandeau (2).
-3. Réponses rapides à la télécommande (10).
+3. Réponses rapides à la télécommande (10) : fait, section 12.
 4. Pause, reprise, volume et « À table ! » (6).
 5. Télé allumée ou éteinte, bascule vers le Google Home (7), puis mode film (15).
 5 bis. Télécommande sur le téléphone (17), après les essais de la section 8 : tiroir et lancement, puis touches et
@@ -411,6 +411,28 @@ Téléphone ──POST /api/screens/:id/talk────────────
 
 Délai ressenti (but : moins d'une seconde), son baissé sous YouTube, Netflix et l'appli de la box, voix claire sur
 les haut-parleurs de la télé, depuis le Wi-Fi de la maison puis en 4G.
+
+## 12. Réponses rapides à la télécommande (fonction 10)
+
+Sous un message écrit (fonction 2) ou vocal (fonction 1), le bandeau propose **« OK », « J'arrive », « 5 minutes »**
+(`QUICK_REPLIES` de `shared/screen.ts`, recopiées dans `Reponses.kt`) ; la réponse choisie s'affiche sur le téléphone
+de l'expéditeur, sous « Affiché sur la télé » ou « Message lu sur … ».
+
+- **Protocole** : compatible avec les applis déjà installées. Les événements `message` et `voice` portent un
+  `replyId` facultatif ; une appli plus ancienne l'ignore et affiche le bandeau comme avant. La télé répond par
+  `POST /api/screen/replies/:replyId` `{ reply }`.
+- **Serveur** (`server/services/screen-replies.ts`, en mémoire) : l'attente de réponse est ouverte à l'envoi, liée à
+  l'expéditeur (appareil et profil) et aux télés qui ont **affiché** le message (une télé qui a refusé, ou un message
+  parti sur le Google Home de secours, ne propose rien). Réponse acceptée pendant 10 min, une par télé (la dernière fait
+  foi). Le téléphone attend par interrogation longue (`GET /api/tv/replies/:id?after=rev`) ; seul l'expéditeur lit
+  les réponses. 50 attentes gardées au plus.
+- **Bandeau** (`OverlayBanner`) : avec des réponses, la fenêtre devient **focalisable**, comme celle du minuteur
+  (fonction 3) : l'appli en cours continue (elle perd seulement le focus de fenêtre), ◀ ▶ et OK vont aux boutons,
+  **Retour** masque sans répondre, les touches média et le volume restent au système. Pour ne pas garder la
+  télécommande trop longtemps : message écrit au moins 20 s (au lieu de `tv.seconds`), message vocal 20 s après sa
+  fin, et chaque touche le garde au moins 15 s. Après le choix : « Réponse envoyée : J'arrive » 2 s, puis le bandeau
+  s'en va et la télécommande revient à l'appli.
+- **À essayer sur la vraie télé** : voir `TODO.md` (10 bis).
 
 ## Décisions (14 novembre 2026)
 

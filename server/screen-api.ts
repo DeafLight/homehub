@@ -34,6 +34,7 @@ import { createRouter, fail, readBody } from './http.ts';
 import { CastError, type CastTarget, castWake } from './services/cast.ts';
 import { dinnerEvent, refusesVolume, VOLUME_FIXED } from './services/screen-media.ts';
 import type { ScreenFallback } from './services/screen-fallback.ts';
+import { replyAuthor, type ScreenReplyBox } from './services/screen-replies.ts';
 import { SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 import { screenAppSchema, type ScreenAppStore } from './sources/screen-apps.ts';
@@ -100,6 +101,7 @@ export function createScreenApi({
   access,
   wake = (target) => castWake(target, { log: (step) => console.log(`Allumage par Cast : ${step}`) }),
   fallback,
+  replies,
 }: {
   screens: ScreenStore;
   /** Applis du lanceur de chaque télé (tiroir de la télécommande). */
@@ -113,6 +115,8 @@ export function createScreenApi({
   wake?: (target: CastTarget) => Promise<void>;
   /** Secours d'une télé éteinte (Google Home) ; absent : le message échoue comme avant. */
   fallback?: ScreenFallback;
+  /** Réponses rapides sous un message vocal lu sur la télé (fonction 10) ; absent : pas de réponse proposée. */
+  replies?: ScreenReplyBox;
 }) {
   const api = createRouter();
 
@@ -221,12 +225,12 @@ export function createScreenApi({
 
   // --- Le téléphone d'un parent ---
 
-  /** Le téléphone d'un parent, quand parler est permis : son prénom. */
+  /** Le téléphone d'un parent, quand parler est permis : son prénom, et sa clé d'expéditeur (réponses rapides). */
   async function speaker(c: Context) {
     const author = await access.parent(c, VOICE_PARENTS_ONLY);
     if (author.via !== 'phone' || author.ownerId === null) return fail(403, VOICE_PHONE_ONLY);
     if (!config.current().camera.talk) return fail(403, VOICE_OFF);
-    return household.nameOf(author.ownerId);
+    return { name: household.nameOf(author.ownerId), key: replyAuthor(author) };
   }
 
   api.get('/screens/targets', async (c) => {
@@ -238,8 +242,14 @@ export function createScreenApi({
   });
 
   api.post('/screens/:id/voice', async (c) => {
-    const sender = await speaker(c);
+    const { name: sender, key } = await speaker(c);
     const screen = await screenOf(c.req.param('id'));
+    // Lu sur la télé : elle propose les réponses rapides ; lu ailleurs (secours) ou refusé, l'attente s'efface.
+    const replyId = replies?.open(key, [screen]);
+    const answered = (onScreen: boolean) => {
+      if (replyId) replies!.keep(replyId, onScreen ? [screen.id] : []);
+      return onScreen && replyId ? { replyId } : {};
+    };
     const declared = Number(c.req.header('content-length') ?? 0);
     if (declared > VOICE_MAX_BYTES) return fail(400, 'Message trop long');
     const audio = new Uint8Array(await c.req.arrayBuffer());
@@ -258,17 +268,23 @@ export function createScreenApi({
         title: tvTitle(sender),
         audio: `/api/screen/clips/${kept.token}.${kept.extension}`,
         contentType: kept.contentType,
+        ...(replyId && { replyId }),
       });
     };
     try {
       if (!fallback) {
         const report = await toScreen();
-        return report.ok ? c.json({ device: screen.name, fallback: null } satisfies ScreenVoiceResult) : fail(502, `${screen.name} : ${report.reason}`);
+        if (!report.ok) answered(false);
+        return report.ok ? c.json({ device: screen.name, fallback: null, ...answered(true) } satisfies ScreenVoiceResult) : fail(502, `${screen.name} : ${report.reason}`);
       }
       const done = await fallback.announce(screen.id, toScreen, async (device) => void (await voice.send(device.id, audio, type, sender)), screen.name);
-      if ('refused' in done) return fail(502, `${screen.name} : ${done.refused.reason}`);
-      return c.json(done satisfies ScreenVoiceResult);
+      if ('refused' in done) {
+        answered(false);
+        return fail(502, `${screen.name} : ${done.refused.reason}`);
+      }
+      return c.json({ ...done, ...answered(done.fallback === null) } satisfies ScreenVoiceResult);
     } catch (err) {
+      answered(false);
       if (err instanceof VoiceError) return fail(err.status, err.message);
       throw err;
     }

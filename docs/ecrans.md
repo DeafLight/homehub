@@ -344,6 +344,13 @@ programme est inventée), le bandeau de l'appli s'affiche en haut au centre, par
 bulle, « Message d'Alex » en petit, le texte en gros ; il s'en va seul au bout de 10 s (`tv.seconds`).
 
 ![Maquette d'une télé affichant le bandeau « Message d'Alex » en haut, par-dessus un programme](images/tele-message.png)
+
+Sous le texte, les **réponses rapides** : « OK » (qui a le focus de la télécommande), « J'arrive », « 5 minutes ». Le
+bandeau prend la télécommande le temps de choisir (◀ ▶ puis OK, Retour le masque) et reste au moins 20 s. Ici, quelqu'un
+choisit « J'arrive » sur la télé (la fausse appli répond) : le téléphone d'Alex l'affiche sous le compte rendu. Même
+chose sous un message vocal lu par la télé (« Message lu sur Télé du salon »).
+
+<img src="images/telephone-camera-tele-reponse.png" alt="Onglet Caméra : réponse « J'arrive » de la télé sous le compte rendu du message" width="260">
 Avec des appareils Cast déclarés (`cast` dans homehub.yaml ; ici deux faux appareils du monde fictif), **Ta voix sur**
 choisit la destination du micro : la tablette, en direct (« Parler »), ou le Google Home du salon, la télé : message
 enregistré. Alex choisit le Google Home, appuie sur « Enregistrer un message », parle, puis « Envoyer » : l'enceinte

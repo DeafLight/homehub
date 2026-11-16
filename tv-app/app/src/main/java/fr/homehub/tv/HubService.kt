@@ -18,6 +18,8 @@
 // Mode cuisine d'une recette (fonction 13) : ouvre la vue cuisine (CuisineActivity).
 // Parler en direct (fonction 9) : l'événement `talk` ouvre le son (LiveTalk.kt), affiche « Alex vous parle » et rend
 // compte ; la voix arrive ensuite par sa propre attente longue, jusqu'à la fin de la prise de parole.
+// Réponses rapides (fonction 10) : sous un message écrit ou vocal qui porte un `replyId`, le bandeau propose « OK »,
+// « J'arrive », « 5 minutes » à la télécommande ; la réponse choisie part à HomeHub (POST /api/screen/replies/:id).
 package fr.homehub.tv
 
 import android.app.Notification
@@ -238,7 +240,7 @@ class HubService : Service() {
             player.play(
                 file,
                 onStarted = {
-                    banner.show(event.title, getString(R.string.banner_subtitle))
+                    banner.show(event.title, getString(R.string.banner_subtitle), onReply = replier(server, token, event.replyId))
                     started.countDown()
                 },
                 onError = {
@@ -246,7 +248,8 @@ class HubService : Service() {
                     started.countDown()
                 },
                 onDone = {
-                    banner.hide()
+                    // Réponses pas encore choisies : elles restent un moment après la fin du message.
+                    banner.hideOrWait()
                     done.countDown()
                 },
             )
@@ -338,9 +341,17 @@ class HubService : Service() {
 
     /** Un message écrit : bandeau qui s'en va seul au bout de sa durée, puis compte rendu (affiché, ou pourquoi pas). */
     private fun handleMessage(server: String, token: String, event: MessageEvent) {
-        val shown = banner.showMessage(event.title, event.text, event.seconds)
+        val shown = banner.showMessage(event.title, event.text, event.seconds, replier(server, token, event.replyId))
         val report = if (shown) reportJson(true) else reportJson(false, getString(R.string.message_not_allowed))
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
+    }
+
+    /** Envoi d'une réponse rapide choisie sur le bandeau, hors du fil principal ; null : pas de réponses proposées. */
+    private fun replier(server: String, token: String, replyId: String?): ((String) -> Unit)? = replyId?.let { id ->
+        { key ->
+            val body = Reponses.replyJson(key)
+            if (body != null && !reports.isShutdown) reports.execute { runCatching { HubClient(server, token).call("POST", Reponses.path(id), body) } }
+        }
     }
 
     /** Alerte du bus du matin : bandeau icône bus pendant `seconds` s, puis compte rendu. */

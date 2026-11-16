@@ -1,12 +1,15 @@
 <script lang="ts">
   import { TV_MESSAGE_MAX, tvMessageLength, tvMessageReport, tvMessageValid, type TvMessageSent } from '../../../../shared/tv.ts';
+  import { quickRepliesText, type ScreenReply } from '../../../../shared/screen.ts';
   import type { Api } from '../../lib/api.ts';
+  import { watchReplies } from '../../lib/tv-replies.ts';
   import Icon from '../Icon.svelte';
 
   // Message à la télé (onglet Caméra, parents, si une télé est appairée ou configurée) : on écrit un court texte, la
   // télé Android TV l'affiche en bandeau par-dessus ce qu'elle diffuse, pendant quelques secondes, et le serveur dit
   // sur quelle télé il s'est affiché. Le compteur suit la règle du serveur (shared/tv.ts), qui nettoie et limite de
-  // nouveau le texte.
+  // nouveau le texte. Réponses rapides (fonction 10) : la télé propose « OK », « J'arrive », « 5 minutes » sous le
+  // message ; celle choisie à la télécommande s'affiche ici, à côté du compte rendu.
   type Props = { api: Api };
   let { api }: Props = $props();
 
@@ -16,6 +19,16 @@
   let error = $state<string | null>(null);
   let sent = $state<TvMessageSent | null>(null);
   let field = $state<HTMLTextAreaElement>();
+  let replies = $state<ScreenReply[]>([]);
+  const replyText = $derived(quickRepliesText(replies));
+
+  // Attente des réponses du dernier message envoyé, arrêtée au suivant ou en quittant l'onglet.
+  $effect(() => {
+    const replyId = sent?.replyId;
+    replies = [];
+    if (!replyId) return;
+    return watchReplies({ api, replyId, onReplies: (r) => (replies = r) });
+  });
 
   const length = $derived(tvMessageLength(text));
   const valid = $derived(tvMessageValid(text));
@@ -61,6 +74,7 @@
   {/if}
   {#if sent}
     <p class="sent" role="status">{tvMessageReport(sent)} : « {sent.text} »</p>
+    {#if replyText}<p class="reply" role="status" aria-live="polite"><Icon name="tv" size={18} /> {replyText}</p>{/if}
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
@@ -154,6 +168,19 @@
   .sent {
     color: var(--fg-muted);
     font-size: 0.95rem;
+  }
+
+  .reply {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--rain);
+    color: var(--fg);
+    font-weight: 600;
   }
 
   .error {

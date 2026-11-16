@@ -22,9 +22,12 @@
 // Séance de sport (fonction 12) : elle note l'ouverture et la fermeture de la page (la page elle-même est capturée
 // à part, avec le jeton de cette télé).
 // Mode cuisine d'une recette (fonction 13) : ouverture acceptée (vue lue par fake-screen-cook.ts).
+// Réponses rapides (fonction 10) : elle retient l'identifiant de réponse du dernier message écrit ou vocal ; quand
+// fake-screen-reply.json apparaît ({ "reply": "coming" }), elle répond comme si on avait choisi à la télécommande,
+// puis efface le fichier.
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
+import { QUICK_REPLIES, QUICK_REPLY_LABELS, type QuickReply, SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
 import { fakeScreenApps } from './fake-banners.ts';
 import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE } from './fake-screen-reminder.ts';
@@ -41,6 +44,19 @@ export const FAKE_SCREEN_TIMER_FILE = 'fake-screen-timer.json';
 export const FAKE_SCREEN_TIMERS_FILE = 'fake-screen-timers.json';
 export const FAKE_SCREEN_BUS_FILE = 'fake-screen-bus.json';
 export const FAKE_SCREEN_MODE_FILE = 'fake-screen-mode.json';
+export const FAKE_SCREEN_REPLY_FILE = 'fake-screen-reply.json';
+
+/** Réponse demandée dans fake-screen-reply.json ({ "reply": "coming" }) ; absente ou illisible : null. */
+export function readFakeScreenReply(dir: string): QuickReply | null {
+  const path = join(dir, FAKE_SCREEN_REPLY_FILE);
+  if (!existsSync(path)) return null;
+  try {
+    const { reply } = JSON.parse(readFileSync(path, 'utf8')) as { reply?: string };
+    return (QUICK_REPLIES as readonly string[]).includes(reply ?? '') ? (reply as QuickReply) : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Allumée (par défaut), en veille (écran éteint, appli joignable) ou absente (appli muette). */
 export type FakeScreenMode = 'allumee' | 'veille' | 'absente';
@@ -65,8 +81,8 @@ export function fakeVoiceReport(screenOn: boolean, clipStatus: number): { ok: tr
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
-/** Message écrit reçu : titre, texte et durée du bandeau. */
-export type FakeScreenText = { title: string; text: string; seconds: number };
+/** Message écrit reçu : titre, texte et durée du bandeau ; `replies` : réponses rapides proposées (fonction 10). */
+export type FakeScreenText = { title: string; text: string; seconds: number; replies?: boolean };
 /** Alerte de minuteur affichée par la fausse télé : de quoi dessiner le bandeau, et le minuteur à arrêter. */
 export type FakeScreenTimer = { timerId: string; title: string; subtitle: string };
 /** Minuteurs en cours reçus (événement `timers`) : l'heure du serveur à l'envoi et la liste. */
@@ -115,6 +131,19 @@ export function startFakeScreen(base: string) {
   let after: number | null = null;
   let introduced = false;
   let mode: FakeScreenMode = 'allumee';
+  /** Identifiant de réponse du dernier message écrit ou vocal reçu (fonction 10). */
+  let replyId: string | null = null;
+  // Réponse « choisie à la télécommande » : fake-screen-reply.json, vu en 0,3 s, envoyé puis effacé.
+  setInterval(() => {
+    const reply = readFakeScreenReply(dir);
+    if (!reply) return;
+    rmSync(join(dir, FAKE_SCREEN_REPLY_FILE), { force: true });
+    if (!replyId) return console.warn('Fausse appli HomeHub TV : aucun message auquel répondre');
+    void post('POST', `/api/screen/replies/${replyId}`, { reply }).then(
+      (res) => console.log(`Fausse appli HomeHub TV, réponse « ${reply} » : HTTP ${res.status}`),
+      () => {},
+    );
+  }, 300);
   // Changement de mode, vu en 0,3 s : l'écran s'allume ou s'éteint et l'appli le dit aussitôt à HomeHub (comme
   // ACTION_SCREEN_ON/OFF), même pendant une attente longue ; absente, la boucle cesse de demander.
   setInterval(() => {
@@ -177,7 +206,8 @@ export function startFakeScreen(base: string) {
           continue;
         }
         if (event.kind === 'message') {
-          writeFileSync(join(dir, FAKE_SCREEN_TEXT_FILE), JSON.stringify({ title: event.title, text: event.text, seconds: event.seconds } satisfies FakeScreenText));
+          replyId = event.replyId ?? null;
+          writeFileSync(join(dir, FAKE_SCREEN_TEXT_FILE), JSON.stringify({ title: event.title, text: event.text, seconds: event.seconds, replies: !!event.replyId } satisfies FakeScreenText));
           console.log(`Fausse appli HomeHub TV, message écrit : ${event.title}, « ${event.text} »`);
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           continue;
@@ -220,6 +250,7 @@ export function startFakeScreen(base: string) {
           await post('POST', `/api/screen/events/${event.id}/report`, fakeVoiceReport(false, 0));
           continue;
         }
+        replyId = event.replyId ?? null;
         const clip = await fetch(`${base}${event.audio}`, { headers });
         const bytes = clip.ok ? (await clip.arrayBuffer()).byteLength : 0;
         writeFileSync(join(dir, FAKE_SCREEN_FILE), JSON.stringify({ title: event.title, bytes } satisfies FakeScreenMessage));
@@ -270,7 +301,8 @@ export function fakeScreenTv(message: FakeScreenMessage): string {
 /**
  * Maquette d'écran de télé (1280×720) pendant un message écrit : le programme continue, le bandeau de l'appli en haut
  * au centre (icône bulle, « Message d'Alex », le texte en gros), couleurs du thème sombre de HomeHub ; allure fidèle à
- * tv-app (OverlayBanner.showMessage).
+ * tv-app (OverlayBanner.showMessage). Avec les réponses rapides (fonction 10) : « OK », « J'arrive », « 5 minutes »
+ * dessous, « OK » avec le focus de la télécommande.
  */
 export function fakeScreenTvText(message: FakeScreenText): string {
   return `<!doctype html><meta charset="utf-8"><style>
@@ -286,12 +318,26 @@ export function fakeScreenTvText(message: FakeScreenText): string {
   .icone { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: #5b8def; }
   .titre { font-size: 24px; color: #9aa1ab; font-weight: 600; }
   .texte { font-size: 44px; line-height: 1.25; font-weight: 600; margin-top: 6px; }
+  .bandeau.reponses { flex-direction: column; gap: 18px; }
+  .haut { display: flex; align-items: flex-start; gap: 24px; }
+  .choix { display: flex; gap: 14px; padding-left: 4px; }
+  .choix span { padding: 10px 26px; border-radius: 999px; background: #181b22; border: 1px solid #9aa1ab; font-size: 24px; font-weight: 700; }
+  .choix span.focus { background: #5b8def; border: 4px solid #e8eaed; padding: 7px 23px; }
+  .aide { font-size: 17px; color: #9aa1ab; padding-left: 6px; }
 </style>
 <div class="programme"></div>
 <div class="chaine">Documentaire · Les collines</div>
-<div class="bandeau">
+<div class="bandeau${message.replies ? ' reponses' : ''}">
+  <div class="haut">
   <div class="icone"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0f1115" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></div>
   <div><div class="titre">${escape(message.title)}</div><div class="texte">${escape(message.text)}</div></div>
+  </div>
+  ${
+    // Réponses rapides (fonction 10), comme OverlayBanner : « OK » a le focus de la télécommande.
+    message.replies
+      ? `<div class="choix">${Object.values(QUICK_REPLY_LABELS).map((label, i) => `<span${i === 0 ? ' class="focus"' : ''}>${escape(label)}</span>`).join('')}</div><div class="aide">◀ ▶ puis OK : répondre · Retour : masquer</div>`
+      : ''
+  }
 </div>`;
 }
 

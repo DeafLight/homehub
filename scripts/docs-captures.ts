@@ -18,7 +18,7 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_REPLY_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
@@ -825,7 +825,7 @@ if (!only || TV_COOK_SHOTS.some((name) => only.test(name))) {
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message', 'telephone-camera-tele-direct', 'tele-appli-parle', 'telephone-camera-tele-eteinte'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-tele-reponse', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message', 'telephone-camera-tele-direct', 'tele-appli-parle', 'telephone-camera-tele-eteinte'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
   // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
@@ -881,6 +881,18 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await sleep(500);
   await tv.capture('tele-message');
   await tv.close();
+  // Réponse rapide (fonction 10) : sur la télé, « J'arrive » est choisi à la télécommande (la fausse appli répond) ;
+  // le téléphone d'Alex l'affiche sous le compte rendu.
+  writeFileSync(join(state, FAKE_SCREEN_REPLY_FILE), JSON.stringify({ reply: 'coming' }));
+  for (let i = 0; i < 40; i++) {
+    await sleep(250);
+    const replied = await phone.evaluate(`!!document.querySelector('.tv .reply')`);
+    if (replied.result?.value) break;
+    if (i === 39) console.warn('Réponse de la télé absente sur le téléphone');
+  }
+  await phone.evaluate(`document.querySelector('.tv').scrollIntoView({ block: 'end' })`);
+  await sleep(500);
+  await phone.capture('telephone-camera-tele-reponse');
   // Message vocal vers le Google Home du salon (faux appareil Cast, qui télécharge le message) : Alex arrête de parler à
   // la tablette, choisit l'enceinte, enregistre deux secondes (faux micro) et envoie.
   const clickText = (text: string) => phone.evaluate(`[...document.querySelectorAll('.camera button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)})?.click()`);

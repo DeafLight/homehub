@@ -12,6 +12,7 @@ import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
+import { createScreenReplies, REPLY_NOT_YOURS, REPLY_UNKNOWN } from './services/screen-replies.ts';
 import { createScreenHub, SCREEN_OFFLINE } from './services/screens.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
@@ -46,11 +47,12 @@ async function setup({ tv = null as unknown, paired = [SALON] as { id: string; n
   const sessions = createActorSessions(clock);
   const access = createAccess({ config, devices, isKey: kioskKeyMatcher(undefined), actorOf: (t) => sessions.get(t, 10) });
   const hub = createScreenHub({ clock, waitMs: 20, reportMs: 1_000 });
+  const replies = createScreenReplies({ clock, waitMs: 20 });
   const at = NOW.toISOString();
   const records = paired.map((p): ScreenRecord => ({ ...p, system: 'Android 10', app: '0.77.0', pairedAt: at, lastSeenAt: at }));
   const screens = { list: async () => records } as unknown as ScreenStore;
   const api = createRouter();
-  api.route('/', createTvApi({ screens, hub, config, household: createHousehold(config), access }));
+  api.route('/', createTvApi({ screens, hub, config, household: createHousehold(config), access, replies }));
 
   /** Une télé HomeHub TV qui écoute ses événements et rend compte de chacun. */
   const received: ScreenEvent[] = [];
@@ -80,7 +82,8 @@ async function setup({ tv = null as unknown, paired = [SALON] as { id: string; n
       { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers, ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify(body) },
       connectedFrom(from),
     );
-  return { send, sessions, listen, received, alex: await phone('alex'), sam: await phone('sam'), lea: await phone('lea') };
+  const repliesOf = (id: string, token: string, after = 0) => api.request(`/tv/replies/${id}?after=${after}`, { headers: { Authorization: `Bearer ${token}` } }, connectedFrom(OTHER));
+  return { send, sessions, listen, received, replies, repliesOf, alex: await phone('alex'), sam: await phone('sam'), lea: await phone('lea') };
 }
 
 describe('API message à la télé : droits', () => {
@@ -100,7 +103,7 @@ describe('API message à la télé : droits', () => {
     listen(SALON.id);
     const { token } = sessions.open('sam', 10);
     const res = await send({ text: 'Au lit' }, { from: TABLET, headers: { 'X-Actor-Session': token } });
-    expect(await res.json()).toEqual({ text: 'Au lit', seconds: 10, screens: ['Télé du salon'] });
+    expect(await res.json()).toEqual({ text: 'Au lit', seconds: 10, screens: ['Télé du salon'], replyId: expect.any(String) });
     expect(received[0]).toMatchObject({ title: 'Message de Sam' });
   });
 });
@@ -111,14 +114,14 @@ describe('API message à la télé : envoi', () => {
     listen(SALON.id);
     const res = await send({ text: '  À table !\n On mange   dans 5 min ' }, { token: alex });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ text: 'À table ! On mange dans 5 min', seconds: 15, screens: ['Télé du salon'] });
+    expect(await res.json()).toEqual({ text: 'À table ! On mange dans 5 min', seconds: 15, screens: ['Télé du salon'], replyId: expect.any(String) });
     expect(received).toEqual([expect.objectContaining({ kind: 'message', title: 'Message d’Alex', text: 'À table ! On mange dans 5 min', seconds: 15 })]);
   });
 
   it('une ancienne config avec tv.host et tv.port marche encore, les clés sont ignorées', async () => {
     const { send, listen, received, alex } = await setup({ tv: { host: '192.168.1.40', port: 7676, seconds: 20 } });
     listen(SALON.id);
-    expect(await (await send({ text: 'Coucou' }, { token: alex })).json()).toEqual({ text: 'Coucou', seconds: 20, screens: ['Télé du salon'] });
+    expect(await (await send({ text: 'Coucou' }, { token: alex })).json()).toEqual({ text: 'Coucou', seconds: 20, screens: ['Télé du salon'], replyId: expect.any(String) });
     expect(received).toHaveLength(1);
   });
 
@@ -154,7 +157,7 @@ describe('API message à la télé : envoi', () => {
     listen(SALON.id);
     listen(CHAMBRE.id, () => ({ ok: false, reason: 'affichage par-dessus non autorisé' }));
     const res = await send({ text: 'Coucou' }, { token: alex });
-    expect(await res.json()).toEqual({ text: 'Coucou', seconds: 10, screens: ['Télé du salon'] });
+    expect(await res.json()).toEqual({ text: 'Coucou', seconds: 10, screens: ['Télé du salon'], replyId: expect.any(String) });
     expect(received.map((e) => e.kind)).toEqual(['message', 'message']);
   });
 
@@ -171,5 +174,33 @@ describe('API message à la télé : envoi', () => {
     const res = await send({ text: 'Coucou' }, { token: alex });
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe('Télé du salon : affichage par-dessus non autorisé');
+  });
+});
+
+describe('API message à la télé : réponses rapides (fonction 10)', () => {
+  it('le message porte un identifiant de réponse ; la télé répond, seul l’expéditeur lit la réponse', async () => {
+    const { send, listen, received, replies, repliesOf, alex, sam } = await setup();
+    listen(SALON.id);
+    const { replyId } = (await (await send({ text: 'On passe à table ?' }, { token: alex })).json()) as { replyId: string };
+    expect(received[0]).toMatchObject({ kind: 'message', replyId });
+    expect(await (await repliesOf(replyId, alex)).json()).toEqual({ replies: [], rev: 0, open: true });
+
+    replies.answer(SALON.id, replyId, 'five');
+    expect(await (await repliesOf(replyId, alex)).json()).toEqual({
+      replies: [{ reply: 'five', label: '5 minutes', screen: 'Télé du salon', at: NOW.toISOString() }],
+      rev: 1,
+      open: true,
+    });
+    expect(await (await repliesOf(replyId, sam)).json()).toEqual({ error: REPLY_NOT_YOURS });
+    expect((await repliesOf('pas-un-identifiant', alex)).status).toBe(404);
+  });
+
+  it('une télé qui n’a pas affiché le message ne peut pas y répondre', async () => {
+    const { send, listen, replies, alex } = await setup({ paired: [SALON, CHAMBRE] });
+    listen(SALON.id);
+    listen(CHAMBRE.id, () => ({ ok: false, reason: 'affichage par-dessus non autorisé' }));
+    const { replyId } = (await (await send({ text: 'Coucou' }, { token: alex })).json()) as { replyId: string };
+    expect(() => replies.answer(CHAMBRE.id, replyId, 'ok')).toThrow(REPLY_UNKNOWN);
+    expect(replies.answer(SALON.id, replyId, 'ok')).toMatchObject({ label: 'OK' });
   });
 });

@@ -330,8 +330,16 @@ personne depuis son propre téléphone.
       relayée par HomeHub, lue par `AudioTrack` (choix dans `docs/appli-tele.md`, section 11). À vérifier sur la vraie
       télé : délai ressenti, son baissé sous YouTube, Netflix et l'appli de la box, en Wi-Fi puis en 4G ; refus
       « écran éteint » quand la télé est en veille (bouton grisé sur le téléphone).
-- [ ] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le
-      téléphone de l'expéditeur.
+- [x] 10. Réponse depuis la télécommande sous un message (« OK », « J'arrive », « 5 minutes »), affichée sur le
+      téléphone de l'expéditeur : sous un message écrit ou vocal, le bandeau propose les trois réponses et prend la
+      télécommande (◀ ▶ puis OK, Retour masque), comme celui du minuteur ; message écrit gardé au moins 20 s, message
+      vocal 20 s après la fin ; la réponse part à HomeHub (`POST /api/screen/replies/:id`, seulement d'une télé qui a
+      affiché le message, 10 min au plus) et s'affiche sous « Affiché sur la télé » / « Message lu sur … »
+      (« Réponse : J'arrive », attente longue `GET /api/tv/replies/:id`, l'expéditeur seul). Fausse télé qui répond
+      (`fake-screen-reply.json`) et maquette du bandeau dans le monde fictif.
+- [ ] 10 bis. Réponses rapides sur la vraie télé : focus pris sans arrêter Netflix / YouTube / la télé en direct, ◀ ▶
+      et OK sur les boutons, Retour qui masque sans répondre et rend la télécommande à l'appli, lisibilité des
+      boutons à 3 m, bandeau du message vocal qui reste 20 s après la fin, réponse reçue sur le téléphone.
 - [x] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone : « Montrer sur la
       télé », plein écran (photo une minute au plus, vidéo le programme en pause), Retour ferme ; tout téléphone
       appairé, 50 Mo au plus. Reste à vérifier sur la vraie télé (vidéo par-dessus la télé en direct, HEIC).

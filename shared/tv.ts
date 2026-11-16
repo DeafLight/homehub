@@ -10,9 +10,9 @@ export const TV_SECONDS_DEFAULT = 10;
 
 /**
  * Réponse de l'envoi : le texte tel qu'il est parti, le temps d'affichage (secondes) et les télés HomeHub TV qui l'ont
- * affiché (au moins une).
+ * affiché (au moins une). `replyId` : réponses rapides de la télé à attendre (`GET /api/tv/replies/:replyId`).
  */
-export type TvMessageSent = { text: string; seconds: number; screens: string[] };
+export type TvMessageSent = { text: string; seconds: number; screens: string[]; replyId?: string };
 
 /**
  * Compte rendu montré au téléphone : « Affiché sur la télé pendant 10 s » (une télé), « Affiché sur 2 télés (Télé du

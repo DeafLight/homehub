@@ -2,8 +2,9 @@
   import { onMount } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import type { CastDevice } from '../../../../shared/types.ts';
-  import type { ScreenTarget } from '../../../../shared/screen.ts';
+  import { quickRepliesText, type ScreenReply, type ScreenTarget } from '../../../../shared/screen.ts';
   import { createLiveViewer, type LiveViewer, type ViewerState } from '../../lib/live-camera.ts';
+  import { watchReplies } from '../../lib/tv-replies.ts';
   import { createVoiceRecorder, VOICE_MAX_SECONDS, type VoiceState } from '../../lib/voice-message.ts';
   import { createScreenTalker, type TalkState } from '../../lib/screen-talk.ts';
   import Icon from '../Icon.svelte';
@@ -20,6 +21,8 @@
   // son appareil de secours (Google Home, réglé sur la tablette), et l'onglet le dit. Allumée, elle peut aussi recevoir
   // la voix en direct (« Parler en direct », relayée par HomeHub, docs/appli-tele.md section 11) : bandeau « Alex vous
   // parle », son du programme baissé ; le son de la tablette est coupé ici pendant ce temps (pas d'écho).
+  // Lu sur la télé, le message propose les réponses rapides (fonction 10) : celle choisie à la télécommande
+  // s'affiche sous le compte rendu.
   type Props = { api: Api; bannerShown: boolean; castDevices?: CastDevice[]; screens?: ScreenTarget[] };
   let { api, bannerShown, castDevices = [], screens = [] }: Props = $props();
 
@@ -48,6 +51,15 @@
   });
   const liveToScreen = $derived(screenTalk.phase === 'starting' || screenTalk.phase === 'live');
   const recording = $derived(voice.phase === 'recording');
+  let replies = $state<ScreenReply[]>([]);
+  const replyText = $derived(quickRepliesText(replies));
+  // Réponses de la télé au dernier message vocal, attendues jusqu'au message suivant ou en quittant l'onglet.
+  $effect(() => {
+    const replyId = voice.phase === 'sent' ? voice.replyId : undefined;
+    replies = [];
+    if (!replyId) return;
+    return watchReplies({ api, replyId, onReplies: (r) => (replies = r) });
+  });
   const targetDevice = $derived(destinations.find((d) => d.id === target) ?? null);
 
   let view = $state<ViewerState>({ phase: 'connecting' });
@@ -211,6 +223,7 @@
       </button>
       {#if voice.phase === 'sent'}
         <p class="talking" role="status">{voice.notice ?? `Message lu sur ${voice.device}.`}</p>
+        {#if replyText}<p class="reply" role="status" aria-live="polite"><Icon name="tv" size={18} /> {replyText}</p>{/if}
       {:else if voice.phase === 'error'}
         <p class="error" role="alert">{voice.message}</p>
       {:else if screenTalk.phase === 'error'}
@@ -292,6 +305,20 @@
 
   .overlay p {
     margin: 0;
+  }
+
+  .reply {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    margin: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--rain);
+    color: var(--fg);
+    font-weight: 600;
   }
 
   .error {

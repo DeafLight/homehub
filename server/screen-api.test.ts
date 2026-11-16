@@ -18,6 +18,8 @@ import { NO_CAST_TO_WAKE, OUTDATED_APP, REMOTE_REPORT_MS, SCREENS_PARENTS_ONLY, 
 import type { CastTarget } from './services/cast.ts';
 import { createScreenHub, SCREEN_OFFLINE, SCREEN_SILENT } from './services/screens.ts';
 import { createVoiceMessages } from './services/voice-messages.ts';
+import { createScreenReplies } from './services/screen-replies.ts';
+import { createTvApi } from './tv-api.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createScreenAppStore } from './sources/screen-apps.ts';
 import { createActorSessions } from './sources/faces.ts';
@@ -53,7 +55,9 @@ async function setup({ talk = true, reportMs = 2_000, castDevices = [] as { id: 
   const api = createRouter();
   const apps = createScreenAppStore({ path: join(dir, 'screen-apps.json'), clock });
   const wakes: CastTarget[] = [];
-  api.route('/', createScreenApi({ screens, apps, hub, voice, config, household: createHousehold(config), access, wake: async (target) => void wakes.push(target) }));
+  const replies = createScreenReplies({ clock, waitMs: 30 });
+  api.route('/', createScreenApi({ screens, apps, hub, voice, config, household: createHousehold(config), access, wake: async (target) => void wakes.push(target), replies }));
+  api.route('/', createTvApi({ screens, hub, config, household: createHousehold(config), access, replies }));
 
   const phone = async (ownerId: string) => {
     const { code } = devices.createCode(ownerId);
@@ -175,7 +179,35 @@ describe('API HomeHub TV : message vocal', () => {
     expect(new Uint8Array(await clip.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
 
     expect((await call('POST', `/screen/events/${event.id}/report`, { from: TV, token: tv.token, headers: PROTOCOL, body: { ok: true } })).status).toBe(204);
-    expect(await (await sending).json()).toEqual({ device: 'Télé du salon', fallback: null });
+    expect(await (await sending).json()).toEqual({ device: 'Télé du salon', fallback: null, replyId: event.replyId });
+  });
+
+  it('réponse rapide sous le message vocal (fonction 10) : la télé répond, le téléphone d’Alex la lit', async () => {
+    const { call, pairTv, listen, nextEvents, alex, lea } = await setup();
+    const tv = await pairTv();
+    const other = await pairTv('Télé de la chambre');
+    await listen(tv.token);
+    const sending = call('POST', `/screens/${tv.id}/voice`, { token: alex, ...audio() });
+    const event = (await nextEvents(tv.token, '0')).events[0]!;
+    if (event.kind !== 'voice' || !event.replyId) throw new Error('message vocal avec réponses attendu');
+    await call('POST', `/screen/events/${event.id}/report`, { from: TV, token: tv.token, headers: PROTOCOL, body: { ok: true } });
+    const { replyId } = (await (await sending).json()) as { replyId: string };
+    expect(replyId).toBe(event.replyId);
+
+    const reply = (token: string, body: unknown, headers: Record<string, string> = PROTOCOL) => call('POST', `/screen/replies/${replyId}`, { from: TV, token, headers, body });
+    expect((await reply(tv.token, { reply: 'coming' }, {})).status).toBe(426);
+    expect((await reply(alex, { reply: 'coming' })).status).toBe(401);
+    expect((await reply(other.token, { reply: 'coming' })).status).toBe(404);
+    expect((await reply(tv.token, { reply: 'peut-être' })).status).toBe(400);
+    expect(await (await reply(tv.token, { reply: 'coming' })).json()).toMatchObject({ reply: 'coming', label: 'J’arrive', screen: 'Télé du salon' });
+
+    expect(await (await call('GET', `/tv/replies/${replyId}?after=0`, { token: alex })).json()).toEqual({
+      replies: [expect.objectContaining({ reply: 'coming', label: 'J’arrive', screen: 'Télé du salon' })],
+      rev: 1,
+      open: true,
+    });
+    expect((await call('GET', `/tv/replies/${replyId}`, { token: lea })).status).toBe(403);
+    expect((await call('GET', `/tv/replies/${replyId}`, { token: tv.token })).status).toBe(401);
   });
 
   it('échec rapporté par la télé, ou pas de nouvelles : 502 avec la raison', async () => {

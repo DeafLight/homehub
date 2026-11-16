@@ -1,5 +1,5 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
-// (messages vocaux, messages écrits, ordres de la télécommande, alerte du bus, séance de sport, parler en direct), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// (messages vocaux, messages écrits avec leurs réponses rapides, ordres de la télécommande, alerte du bus, séance de sport, parler en direct), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -26,8 +26,11 @@ sealed interface PairingState {
     data class Paired(val token: String, val screenId: String, val name: String) : PairingState
 }
 
-/** Message vocal à télécharger à `audio` (chemin de l'API) ; `title` : « Message d'Alex ». */
-data class VoiceEvent(val seq: Int, val id: String, val title: String, val audio: String, val contentType: String)
+/**
+ * Message vocal à télécharger à `audio` (chemin de l'API) ; `title` : « Message d'Alex ». `replyId` : le bandeau propose
+ * les réponses rapides (fonction 10, Reponses.kt) ; null : rien à répondre.
+ */
+data class VoiceEvent(val seq: Int, val id: String, val title: String, val audio: String, val contentType: String, val replyId: String? = null)
 
 /** Ordres de la télécommande du téléphone (shared/screen.ts : key, text, launch, power). */
 sealed interface RemoteEvent {
@@ -45,9 +48,12 @@ data class Notice(val title: String, val subtitle: String)
 
 /**
  * Message écrit (fonction 2) : bandeau `title` (« Message d'Alex ») et `text` (déjà nettoyé par le serveur), affiché
- * `seconds` secondes (ramenées entre 3 et 60, comme tv.seconds côté serveur).
+ * `seconds` secondes (ramenées entre 3 et 60, comme tv.seconds côté serveur). `replyId` : réponses rapides proposées.
  */
-data class MessageEvent(val id: String, val title: String, val text: String, val seconds: Int)
+data class MessageEvent(val id: String, val title: String, val text: String, val seconds: Int, val replyId: String? = null)
+
+/** Identifiant de réponse d'un événement (absent, vide ou null : pas de réponses rapides). */
+private fun JSONObject.replyId(): String? = if (has("replyId") && !isNull("replyId")) getString("replyId").takeIf { it.isNotBlank() } else null
 
 /** Alerte du bus du matin (shared/screen.ts, ScreenBusEvent) : bandeau « Bus dans 9 min » pendant `seconds` s. */
 data class BusEvent(val id: String, val title: String, val subtitle: String, val seconds: Int)
@@ -87,7 +93,7 @@ fun parseEvents(json: String): Events {
     val list: JSONArray = o.getJSONArray("events")
     val all = (0 until list.length()).map { list.getJSONObject(it) }
     val voices = all.filter { it.optString("kind") == "voice" }.map {
-        VoiceEvent(it.getInt("seq"), it.getString("id"), it.getString("title"), it.getString("audio"), it.getString("contentType"))
+        VoiceEvent(it.getInt("seq"), it.getString("id"), it.getString("title"), it.getString("audio"), it.getString("contentType"), it.replyId())
     }
     val remote = all.mapNotNull { e ->
         val id = e.getString("id")
@@ -108,7 +114,7 @@ fun parseEvents(json: String): Events {
         }
     }
     val messages = all.filter { it.optString("kind") == "message" }.map {
-        MessageEvent(it.getString("id"), it.getString("title"), it.getString("text"), it.optInt("seconds", 10).coerceIn(3, 60))
+        MessageEvent(it.getString("id"), it.getString("title"), it.getString("text"), it.optInt("seconds", 10).coerceIn(3, 60), it.replyId())
     }
     val bus = all.filter { it.optString("kind") == "bus" }.map {
         BusEvent(it.getString("id"), it.getString("title"), it.getString("subtitle"), it.optInt("seconds", 45).coerceIn(5, 120))

@@ -1,8 +1,13 @@
 // Bandeau par-dessus les autres applis, en haut à droite de l'écran, pendant un message vocal : icône micro, « Message
 // d'Alex », « Le son du programme est baissé », barres de niveau qui bougent. Pour un avis (« À table ! » de la
 // télécommande) : icône cloche, sans barres ; pour l'alerte du bus : icône bus, pour l'alerte pluie : parapluie (`icon`). Pour un message écrit (showMessage) : en haut au centre, icône bulle, le
-// titre en petit et le texte en gros, qui s'en va seul au bout de sa durée. Couleurs du thème sombre de HomeHub. Il ne
-// prend ni le focus ni la télécommande. Il faut l'autorisation « afficher par-dessus » (adb : appops SYSTEM_ALERT_WINDOW).
+// titre en petit et le texte en gros, qui s'en va seul au bout de sa durée. Couleurs du thème sombre de HomeHub.
+// Sans réponses, il ne prend ni le focus ni la télécommande. Réponses rapides (fonction 10, `onReply`) : sous un message
+// écrit ou vocal, trois boutons « OK », « J'arrive », « 5 minutes » ; le bandeau prend alors le focus de la
+// télécommande, comme celui du minuteur (fenêtre focalisable : l'appli en cours continue, ◀ ▶ et OK vont au bandeau,
+// Retour le masque sans répondre). Une réponse choisie part à HomeHub et le bandeau dit « Réponse envoyée » avant de
+// s'en aller ; chaque touche le garde au moins Reponses.IDLE_MS. Il faut l'autorisation « afficher par-dessus » (adb :
+// appops SYSTEM_ALERT_WINDOW).
 package fr.homehub.tv
 
 import android.animation.ValueAnimator
@@ -10,13 +15,18 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -28,6 +38,11 @@ class OverlayBanner(private val context: Context) {
     private val animators = mutableListOf<ValueAnimator>()
     /** Numéro du dernier bandeau affiché : la fin d'un message écrit n'enlève pas un bandeau venu après lui. */
     private var generation = 0
+    /** Le bandeau affiché propose des réponses, pas encore choisies (fil principal). */
+    private var offering = false
+    /** Heure (SystemClock.uptimeMillis) où le bandeau s'en va seul ; 0 : pas de fin prévue (message vocal en cours). */
+    private var expireAt = 0L
+    private val expire = Runnable { hideNow() }
 
     fun allowed(): Boolean = Settings.canDrawOverlays(context)
 
@@ -35,57 +50,32 @@ class OverlayBanner(private val context: Context) {
 
     private fun color(id: Int) = context.getColor(id)
 
-    /** Affiche le bandeau (remplace le précédent) ; false si l'autorisation manque. */
-    fun show(title: String, subtitle: String, voice: Boolean = true, icon: Int? = null): Boolean {
+    /**
+     * Affiche le bandeau (remplace le précédent) ; false si l'autorisation manque. `onReply` : réponses rapides
+     * proposées (le bandeau prend la télécommande), appelé avec la clé choisie (Reponses.CHOIX).
+     */
+    fun show(title: String, subtitle: String, voice: Boolean = true, icon: Int? = null, onReply: ((String) -> Unit)? = null): Boolean {
         if (!allowed()) return false
         main.post {
             hideNow()
-            val view = build(title, subtitle, voice, icon)
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT,
-            ).apply {
-                gravity = Gravity.TOP or Gravity.END
-                x = dp(32)
-                y = dp(28)
-            }
-            runCatching { windows.addView(view, params) }.onSuccess {
-                shown = view
-                view.alpha = 0f
-                view.animate().alpha(1f).setDuration(250).start()
-            }
+            val view = withReplies(build(title, subtitle, voice, icon), onReply)
+            add(view, Gravity.TOP or Gravity.END, dp(32), dp(28), focusable = onReply != null)
         }
         return true
     }
 
     /**
-     * Message écrit : en haut au centre, texte en gros, retiré au bout de `seconds` secondes (sauf si un autre bandeau
-     * l'a remplacé entre-temps) ; false si l'autorisation manque.
+     * Message écrit : en haut au centre, texte en gros, retiré au bout de `seconds` secondes (au moins
+     * Reponses.MESSAGE_MIN_MS avec des réponses), sauf si un autre bandeau l'a remplacé entre-temps ; false si
+     * l'autorisation manque.
      */
-    fun showMessage(title: String, text: String, seconds: Int): Boolean {
+    fun showMessage(title: String, text: String, seconds: Int, onReply: ((String) -> Unit)? = null): Boolean {
         if (!allowed()) return false
         main.post {
             hideNow()
-            val mine = generation
-            val view = buildMessage(title, text)
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT,
-            ).apply {
-                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                y = dp(36)
-            }
-            runCatching { windows.addView(view, params) }.onSuccess {
-                shown = view
-                view.alpha = 0f
-                view.animate().alpha(1f).setDuration(250).start()
-                main.postDelayed({ if (generation == mine) hideNow() }, seconds * 1000L)
+            val view = withReplies(buildMessage(title, text), onReply)
+            if (add(view, Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(36), focusable = onReply != null)) {
+                hideIn(Reponses.messageMs(seconds, onReply != null))
             }
         }
         return true
@@ -93,15 +83,144 @@ class OverlayBanner(private val context: Context) {
 
     fun hide() = main.post { hideNow() }
 
+    /**
+     * Fin d'un message vocal : le bandeau s'en va, sauf s'il propose encore des réponses ; il reste alors
+     * Reponses.AFTER_VOICE_MS pour laisser choisir.
+     */
+    fun hideOrWait() = main.post {
+        if (offering) hideIn(Reponses.AFTER_VOICE_MS) else hideNow()
+    }
+
+    /** Ajoute la fenêtre (focalisable s'il y a des réponses à choisir) ; false si le système la refuse. */
+    private fun add(view: View, gravity: Int, x: Int, y: Int, focusable: Boolean): Boolean {
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            // Focalisable (sans FLAG_NOT_FOCUSABLE) : la télécommande vient au bandeau ; le reste de l'écran ne change pas.
+            if (focusable) WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            this.gravity = gravity
+            this.x = x
+            this.y = y
+        }
+        return runCatching { windows.addView(view, params) }.onSuccess {
+            shown = view
+            view.alpha = 0f
+            view.animate().alpha(1f).setDuration(250).start()
+        }.isSuccess
+    }
+
+    /** Le bandeau s'en va dans `ms` (remplace la fin prévue). */
+    private fun hideIn(ms: Long) {
+        main.removeCallbacks(expire)
+        expireAt = SystemClock.uptimeMillis() + ms
+        main.postAtTime(expire, expireAt)
+    }
+
     private fun hideNow() {
         generation++
+        main.removeCallbacks(expire)
+        expireAt = 0L
+        offering = false
         animators.forEach { it.cancel() }
         animators.clear()
         shown?.let { runCatching { windows.removeView(it) } }
         shown = null
     }
 
-    private fun build(title: String, subtitle: String, voice: Boolean, iconRes: Int?): View {
+    /**
+     * Sans `onReply`, le bandeau tel quel. Avec : sous lui, les trois réponses et l'aide ; Retour masque, chaque touche
+     * le garde au moins Reponses.IDLE_MS, et les touches restent au bandeau (rien ne part à l'appli dessous par erreur).
+     */
+    private fun withReplies(content: LinearLayout, onReply: ((String) -> Unit)?): View {
+        if (onReply == null) return content
+        offering = true
+        val mine = generation // numéro de ce bandeau (hideNow vient de passer au suivant)
+        val root = object : FrameLayout(context) {
+            override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                    if (event.action == KeyEvent.ACTION_UP && generation == mine) hideNow()
+                    return true
+                }
+                if (event.action == KeyEvent.ACTION_DOWN && expireAt > 0 && offering) {
+                    hideIn(Reponses.afterKeyMs(expireAt - SystemClock.uptimeMillis()))
+                }
+                return super.dispatchKeyEvent(event)
+            }
+        }
+        val column = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            background = content.background
+            elevation = content.elevation
+            setPadding(0, 0, 0, dp(14))
+        }
+        content.background = null
+        content.elevation = 0f
+        column.addView(content)
+
+        val buttons = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), 0, dp(18), 0)
+        }
+        val hint = TextView(context).apply {
+            text = context.getString(R.string.reply_hint)
+            setTextColor(color(R.color.fg_muted))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(dp(20), dp(8), dp(18), 0)
+        }
+        val choices = Reponses.CHOIX.map { choix ->
+            Button(context).apply {
+                text = choix.label
+                isAllCaps = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                typeface = Typeface.DEFAULT_BOLD
+                minHeight = 0
+                minimumHeight = 0
+                minWidth = 0
+                minimumWidth = 0
+                setPadding(dp(20), dp(8), dp(20), dp(8))
+                // Bouton qui a le focus : plein, couleur pluie, contour clair ; les autres : discrets.
+                background = StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), GradientDrawable().apply {
+                        cornerRadius = dp(999).toFloat()
+                        setColor(color(R.color.rain))
+                        setStroke(dp(3), color(R.color.fg))
+                    })
+                    addState(intArrayOf(), GradientDrawable().apply {
+                        cornerRadius = dp(999).toFloat()
+                        setColor(color(R.color.surface))
+                        setStroke(dp(1), color(R.color.fg_muted))
+                    })
+                }
+                setTextColor(color(R.color.fg))
+                isFocusable = true
+                setOnClickListener {
+                    if (!offering || generation != mine) return@setOnClickListener
+                    offering = false
+                    onReply(choix.key)
+                    buttons.removeAllViews()
+                    hint.text = Reponses.sentText(choix.key)
+                    hint.setTextColor(color(R.color.fg))
+                    hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    hideIn(Reponses.SENT_MS)
+                }
+            }
+        }
+        choices.forEachIndexed { i, button ->
+            buttons.addView(button, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { if (i > 0) marginStart = dp(10) })
+        }
+        column.addView(buttons)
+        column.addView(hint)
+        root.addView(column)
+        choices.first().let { first -> first.post { first.requestFocus() } }
+        return root
+    }
+
+    private fun build(title: String, subtitle: String, voice: Boolean, iconRes: Int?): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -163,7 +282,7 @@ class OverlayBanner(private val context: Context) {
         return row
     }
 
-    private fun buildMessage(title: String, text: String): View {
+    private fun buildMessage(title: String, text: String): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.TOP

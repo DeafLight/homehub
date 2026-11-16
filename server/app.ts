@@ -34,6 +34,7 @@ import { createFaceRecognition } from './services/faces.ts';
 import { createLiveCamera } from './services/live-camera.ts';
 import { BUS_TICK_MS, createScreenBusAlerts } from './services/screen-bus.ts';
 import { createScreenHub, type ScreenHub } from './services/screens.ts';
+import { createScreenReplies } from './services/screen-replies.ts';
 import { createScreenWorkouts } from './services/screen-workouts.ts';
 import { createScreenTalk } from './services/screen-talk.ts';
 import { createVoiceMessages, type VoiceMessages } from './services/voice-messages.ts';
@@ -190,10 +191,12 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createCameraApi({ camera, household, access }));
   // Télés appairées (appli HomeHub TV) : leurs événements servent aux messages vocaux, à la télécommande et aux messages écrits.
   const screenHub = deps.screenHub ?? createScreenHub({ clock });
-  api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access }));
+  // Réponses rapides des télés sous un message écrit ou vocal (fonction 10).
+  const screenReplies = createScreenReplies({ clock });
+  api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access, replies: screenReplies }));
   api.route('/', createCastApi({ voice, config, household, access }));
   const fallback = deps.screenFallbacks && createScreenFallback({ hub: screenHub, cast: () => config.current().cast, store: deps.screenFallbacks });
-  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access, fallback }));
+  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access, fallback, replies: screenReplies }));
   // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
   const screenAlerts = deps.screenAlerts ?? createScreenAlertStore();
   api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock }));

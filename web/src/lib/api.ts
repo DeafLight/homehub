@@ -54,7 +54,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
+import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenReplies, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-media.ts';
 import type { ScreenTalkStart } from '../../../shared/screen-talk.ts';
@@ -299,6 +299,8 @@ export type Api = {
   /** Caméra en direct, téléphone d'un parent : ouvrir une diffusion, envoyer offre et candidats, attendre la suite. */
   /** Message d'un parent affiché sur la télé (texte nettoyé et limité par le serveur). */
   sendTvMessage(text: string): Promise<TvMessageSent>;
+  /** Réponses rapides de la télé à un message écrit ou vocal (fonction 10), au-delà de la `after`-ième (attente longue). */
+  tvReplies(id: string, after: number, abort?: AbortSignal): Promise<ScreenReplies>;
   openCamera(): Promise<CameraSession>;
   sendCameraSignal(id: string, signal: PhoneSignal): Promise<void>;
   cameraMessages(id: string, after: number, abort?: AbortSignal): Promise<CameraMessages>;
@@ -544,6 +546,7 @@ export function createApi(
     removeRecipeNote: (id, noteId) => send('DELETE', `/recipes/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`),
     recipePhotoUrl: (id) => `${baseUrl}/recipes/${encodeURIComponent(id)}/photo`,
     sendTvMessage: (text) => send('POST', '/tv/message', { text }),
+    tvReplies: (id, after, abort) => request(`/tv/replies/${encodeURIComponent(id)}?after=${after}`, { signal: abort }),
     openCamera: () => send('POST', '/camera/sessions'),
     sendCameraSignal: (id, signal) => send('POST', `/camera/sessions/${encodeURIComponent(id)}/signal`, signal),
     cameraMessages: (id, after, abort) => request(`/camera/sessions/${encodeURIComponent(id)}/signals?after=${after}`, { signal: abort }),
