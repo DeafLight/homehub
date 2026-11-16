@@ -409,8 +409,10 @@ personne depuis son propre téléphone.
       titre, épisode ou chaîne, image, lecture ou pause, avancée qui suit la seconde ; télé en veille dite
       simplement), d'après les sessions média Android lues par l'appli (service d'écoute des notifications qui n'en
       lit aucune, accès accordé par adb : `installer.ps1` et l'appli elle-même) ; fausse télé du monde fictif en
-      série, direct, pause ou rien (`fake-screen-playing.json`). À vérifier sur la vraie télé : `docs/tests-tele.md`,
-      section 18.
+      série, direct, pause ou rien (`fake-screen-playing.json`). Vérifié sur la vraie télé (16/11/2026) : accès aux
+      sessions média accordé par l'appli elle-même après la mise à jour (`adb shell settings get secure
+      enabled_notification_listeners` cite `fr.homehub.tv/fr.homehub.tv.HomeHubLecture`). Reste à vérifier :
+      `docs/tests-tele.md`, section 18.
 
 ## École
 

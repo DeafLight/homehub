@@ -110,8 +110,6 @@ correctif (nouvelle session, nouvelle branche). Les fonctions 1, 2 et 3 sont dé
 
 ## 18. Ce qui passe à la télé (0.96.0)
 
-- [ ] Accès accordé tout seul après la mise à jour : `adb shell cmd notification allowed_listeners` cite
-      `fr.homehub.tv/fr.homehub.tv.HomeHubLecture` (sinon lancer `installer.ps1`).
 - [ ] À l'écran, sur le téléphone, ce que publient YouTube, Netflix, Prime Video, Disney+ et la télé en direct de la
       box : titre, épisode ou chaîne, image, lecture ou pause, avancée juste (noter ce qui manque, appli par appli).
 - [ ] Pause à la télécommande : « En pause » en 5 s au plus ; saut dans le programme : temps corrigé.
