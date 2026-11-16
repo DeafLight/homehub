@@ -20,6 +20,7 @@ import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
 import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_REPLY_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
+import { fakeScreenFilmTv } from './docs-captures/fake-screen-film.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
 import { FAKE_SCREEN_REMINDER_FILE, fakeScreenReminderTv } from './docs-captures/fake-screen-reminder.ts';
 import { fakeScreenPaused } from './docs-captures/fake-screen-pause.ts';
@@ -1170,6 +1171,31 @@ if (!only || only.test('tablette-transports-tele')) {
   await shoot('tablette-transports-tele', `${BASE}/transports`, TABLET, {
     after: `${click('Léa')}; setTimeout(() => [...document.querySelectorAll('label')].find((l) => l.textContent.includes('Alerte sur la télé'))?.scrollIntoView({ block: 'center' }), 300)`,
   });
+}
+
+// Mode film (fonction 15) : allumé à la main pour la télé du salon (comme le bouton de la télécommande d'Alex) ; la
+// télécommande du téléphone et le panneau Télé de la tablette le montrent ; un message écrit envoyé pendant le film
+// arrive discret (fausse appli : `discreet`), en petit en bas à gauche de la maquette. Puis le mode est éteint, pour
+// ne pas changer les autres captures.
+const FILM_SHOTS = ['telephone-telecommande-film', 'tablette-tele-film', 'tele-film'];
+if (!only || FILM_SHOTS.some((name) => only.test(name))) {
+  await call(A, 'PUT', `/screens/${FAKE_SCREEN_ID}/film`, { on: true });
+  await shoot('telephone-telecommande-film', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: `document.querySelector('.film')?.scrollIntoView({ block: 'center' })` });
+  await shoot('tablette-tele-film', `${BASE}/`, TABLET, { init: mediaAs({}), after: click('Télé') });
+  if (!only || only.test('tele-film')) {
+    const textFile = join(state, FAKE_SCREEN_TEXT_FILE);
+    rmSync(textFile, { force: true });
+    await call(A, 'POST', '/tv/message', { text: 'Je descends chercher le pain, je reviens' });
+    for (let i = 0; i < 20 && !existsSync(textFile); i++) await sleep(250);
+    const received = existsSync(textFile) ? JSON.parse(readFileSync(textFile, 'utf8')) : null;
+    if (!received?.discreet) console.warn('Message du mode film non reçu discret par la fausse appli HomeHub TV');
+    if (received) {
+      const filmTv = join(work, 'tele-film.html');
+      writeFileSync(filmTv, fakeScreenFilmTv(received));
+      await shoot('tele-film', pathToFileURL(filmTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }, { wait: 500 });
+    }
+  }
+  await call(A, 'PUT', `/screens/${FAKE_SCREEN_ID}/film`, { on: false });
 }
 
 // --- Planche du design :variables de web/src/app.css, profils de la configuration fictive.

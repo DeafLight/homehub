@@ -4,7 +4,8 @@
 // téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (mêmes règles que vers un appareil Cast). La
 // télécommande (fonction 17, parents seulement) : état de la télé, tiroir des applis, touches, texte, lancement d'une
 // appli, « À table ! », marche/arrêt ; une télé injoignable ou en veille s'allume par son appareil Cast. Télé éteinte
-// ou injoignable : le message vocal part sur son appareil de secours (fonction 7, réglé sur la tablette).
+// ou injoignable, ou film en cours (fonction 15) : le message vocal part sur son appareil de secours (fonction 7,
+// réglé sur la tablette). La télécommande montre aussi le mode film (son réglage : screen-media-api.ts).
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
@@ -35,6 +36,7 @@ import { CastError, type CastTarget, castWake } from './services/cast.ts';
 import { dinnerEvent, refusesVolume, VOLUME_FIXED } from './services/screen-media.ts';
 import type { ScreenFallback } from './services/screen-fallback.ts';
 import { replyAuthor, type ScreenReplyBox } from './services/screen-replies.ts';
+import type { ScreenFilmService } from './services/screen-film.ts';
 import { SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 import { screenAppSchema, type ScreenAppStore } from './sources/screen-apps.ts';
@@ -102,6 +104,7 @@ export function createScreenApi({
   wake = (target) => castWake(target, { log: (step) => console.log(`Allumage par Cast : ${step}`) }),
   fallback,
   replies,
+  film,
 }: {
   screens: ScreenStore;
   /** Applis du lanceur de chaque télé (tiroir de la télécommande). */
@@ -117,6 +120,8 @@ export function createScreenApi({
   fallback?: ScreenFallback;
   /** Réponses rapides sous un message vocal lu sur la télé (fonction 10) ; absent : pas de réponse proposée. */
   replies?: ScreenReplyBox;
+  /** Mode film des télés (fonction 15) ; absent : jamais. */
+  film?: ScreenFilmService;
 }) {
   const api = createRouter();
 
@@ -219,6 +224,7 @@ export function createScreenApi({
     await screens.remove(screen.id);
     await apps.remove(screen.id);
     await fallback?.forget(screen.id);
+    film?.forget(screen.id);
     hub.forget(screen.id);
     return c.body(null, 204);
   });
@@ -314,7 +320,18 @@ export function createScreenApi({
     const list = await apps.get(s.id);
     const current = state?.foreground ?? null;
     const foreground = current ? { package: current, name: list?.apps.find((a) => a.package === current)?.name ?? current } : null;
-    return { id: s.id, name: s.name, power, control: state?.control ?? null, volume: state?.volume ?? null, foreground, canWake: castOf(s.id) !== null, appsAt: list?.at ?? null, appCount: list?.apps.length ?? 0 };
+    return {
+      id: s.id,
+      name: s.name,
+      power,
+      control: state?.control ?? null,
+      volume: state?.volume ?? null,
+      foreground,
+      ...(film && { film: film.state(s.id) }),
+      canWake: castOf(s.id) !== null,
+      appsAt: list?.at ?? null,
+      appCount: list?.apps.length ?? 0,
+    };
   };
 
   /** Envoie un ordre de la télécommande et attend le compte rendu ; échec : 502 avec la raison donnée par la télé. */

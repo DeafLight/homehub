@@ -20,6 +20,8 @@
 // compte ; la voix arrive ensuite par sa propre attente longue, jusqu'à la fin de la prise de parole.
 // Réponses rapides (fonction 10) : sous un message écrit ou vocal qui porte un `replyId`, le bandeau propose « OK »,
 // « J'arrive », « 5 minutes » à la télécommande ; la réponse choisie part à HomeHub (POST /api/screen/replies/:id).
+// Mode film (fonction 15) : les bandeaux marqués `discreet` par HomeHub (message, minuteur, bus, pluie, rappel) passent
+// en petit en bas à gauche, sans son ni focus (Film.kt) ; les messages vocaux, eux, partent sur le Google Home.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -176,7 +178,9 @@ class HubService : Service() {
                 events.remote.forEach { event -> remote.execute { handleRemote(server, token, event) } }
                 events.messages.forEach { event -> remote.execute { handleMessage(server, token, event) } }
                 minuteurs.running(parseRunningTimers(json))
-                minuteurs.handle(parseTimerEvents(json))
+                val (timers, quietTimers) = Film.splitTimers(parseTimerEvents(json))
+                minuteurs.handle(timers)
+                quietTimers.forEach { event -> remote.execute { handleQuietTimer(server, token, event) } }
                 events.bus.forEach { event -> remote.execute { handleBus(server, token, event) } }
                 parseRainEvents(json).forEach { event -> remote.execute { handleRain(server, token, event) } }
                 parseReminders(json).forEach { event -> rappels.execute { handleReminder(server, token, event) } }
@@ -274,6 +278,13 @@ class HubService : Service() {
     private fun handleReminder(server: String, token: String, event: ReminderEvent) {
         val deadline = System.currentTimeMillis() + Rappels.WAIT_VOICE_MS
         while (speaking && System.currentTimeMillis() < deadline) if (!pause(500)) return
+        if (event.discreet) {
+            Handler(mainLooper).removeCallbacks(hideReminder)
+            val quiet = banner.showDiscreet(event.title, event.subtitle, R.drawable.ic_bell, Film.durationMs(event.seconds))
+            val answer = if (quiet) reportJson(true) else reportJson(false, "autorisation « afficher par-dessus » manquante")
+            runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", answer) }
+            return
+        }
         val shown = banner.show(event.title, event.subtitle, voice = false)
         if (shown) {
             val main = Handler(mainLooper)
@@ -333,15 +344,17 @@ class HubService : Service() {
 
     /** Alerte pluie du matin : bandeau parapluie pendant la durée demandée, puis compte rendu. */
     private fun handleRain(server: String, token: String, event: RainEvent) {
-        val shown = banner.show(event.title, event.subtitle, voice = false, icon = R.drawable.ic_umbrella)
-        if (shown) Handler(mainLooper).postDelayed({ banner.hide() }, rainBannerMs(event))
+        val shown = if (event.discreet) banner.showDiscreet(event.title, event.subtitle, R.drawable.ic_umbrella, Film.durationMs(event.seconds))
+        else banner.show(event.title, event.subtitle, voice = false, icon = R.drawable.ic_umbrella)
+        if (shown && !event.discreet) Handler(mainLooper).postDelayed({ banner.hide() }, rainBannerMs(event))
         val report = if (shown) reportJson(true) else reportJson(false, "autorisation « afficher par-dessus » manquante")
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 
     /** Un message écrit : bandeau qui s'en va seul au bout de sa durée, puis compte rendu (affiché, ou pourquoi pas). */
     private fun handleMessage(server: String, token: String, event: MessageEvent) {
-        val shown = banner.showMessage(event.title, event.text, event.seconds, replier(server, token, event.replyId))
+        val shown = if (event.discreet) banner.showDiscreet(event.title, event.text, R.drawable.ic_message, Film.messageMs(event.seconds))
+        else banner.showMessage(event.title, event.text, event.seconds, replier(server, token, event.replyId))
         val report = if (shown) reportJson(true) else reportJson(false, getString(R.string.message_not_allowed))
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
@@ -356,9 +369,17 @@ class HubService : Service() {
 
     /** Alerte du bus du matin : bandeau icône bus pendant `seconds` s, puis compte rendu. */
     private fun handleBus(server: String, token: String, event: BusEvent) {
-        val shown = banner.show(event.title, event.subtitle, voice = false, icon = R.drawable.ic_bus)
-        if (shown) Handler(mainLooper).postDelayed({ banner.hide() }, event.seconds * 1_000L)
+        val shown = if (event.discreet) banner.showDiscreet(event.title, event.subtitle, R.drawable.ic_bus, Film.durationMs(event.seconds))
+        else banner.show(event.title, event.subtitle, voice = false, icon = R.drawable.ic_bus)
+        if (shown && !event.discreet) Handler(mainLooper).postDelayed({ banner.hide() }, event.seconds * 1_000L)
         val report = if (shown) reportJson(true) else reportJson(false, getString(R.string.bus_overlay_missing))
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
+    }
+
+    /** Minuteur terminé pendant un film : bandeau discret, sans carillon ni « Arrêter » (la tablette sonne), compte rendu. */
+    private fun handleQuietTimer(server: String, token: String, event: TimerEvent.Ring) {
+        val shown = banner.showDiscreet(event.title, event.subtitle, R.drawable.ic_timer, Film.TIMER_MS)
+        val report = if (shown) reportJson(true) else reportJson(false, "bandeau non autorisé sur la télé")
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 

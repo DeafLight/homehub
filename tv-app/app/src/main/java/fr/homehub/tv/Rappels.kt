@@ -6,13 +6,13 @@ package fr.homehub.tv
 import org.json.JSONObject
 
 /** Bandeau de rappel : « Routine du soir », « Léa : encore 2 étapes » ; `reminder` : son genre. */
-data class ReminderEvent(val id: String, val reminder: String, val title: String, val subtitle: String, val seconds: Int)
+data class ReminderEvent(val id: String, val reminder: String, val title: String, val subtitle: String, val seconds: Int, val discreet: Boolean = false)
 
 /** Rappels parmi les événements reçus (les autres genres sont lus par parseEvents). */
 fun parseReminders(json: String): List<ReminderEvent> {
     val list = JSONObject(json).getJSONArray("events")
     return (0 until list.length()).map { list.getJSONObject(it) }.filter { it.optString("kind") == "reminder" }.map {
-        ReminderEvent(it.getString("id"), it.optString("reminder"), it.getString("title"), it.optString("subtitle"), it.optInt("seconds", 20))
+        ReminderEvent(it.getString("id"), it.optString("reminder"), it.getString("title"), it.optString("subtitle"), it.optInt("seconds", 20), it.optBoolean("discreet"))
     }
 }
 

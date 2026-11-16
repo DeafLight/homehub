@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { filmDone, filmLabel, filmToggle } from '../../../shared/screen-film.ts';
   import { REMOTE_TEXT_MAX, type RemoteKey, type RemoteScreen } from '../../../shared/screen.ts';
   import Icon, { type IconName } from '../components/Icon.svelte';
   import { ApiError } from '../lib/api.ts';
@@ -16,6 +17,8 @@
   // qui a le focus sur la télé) et « À table ! » (pause et bandeau) ; volume grisé et expliqué s'il est fixe (barre de son). Onglet Applis : l'appli en cours et le tiroir des
   // applis de la télé, à lancer d'un geste. Le compte rendu de chaque ordre s'efface seul après quelques secondes. La page
   // défile d'un bloc (le body ne défile pas). Le serveur vérifie les droits (parents) ; règles : lib/remote.ts.
+  // Mode film (fonction 15) : bouton sous « À table ! », allumé tout seul par une appli de films ou à la main ; pendant
+  // un film, les annonces sont discrètes sur la télé et les messages vocaux partent sur le Google Home.
   const STATE_REFRESH_MS = 5_000;
   /** La liste des applis se recharge surtout quand la télé en envoie une nouvelle (date de la liste). */
   const APPS_REFRESH_MS = 10 * 60_000;
@@ -114,6 +117,7 @@
   };
 
   const dinner = () => run(async () => (screen ? (await api.remoteDinner(screen.id), 'À table ! Pause et bandeau sur la télé') : null));
+  const toggleFilm = () => run(async () => (screen?.film ? filmDone(await api.screenFilm(screen.id, !screen.film.on)) : null));
   const launch = (pkg: string, name: string) => run(async () => (screen ? (await api.remoteLaunch(screen.id, pkg), `${name} s’ouvre sur la télé`) : null));
 
   const ARROWS: { key: RemoteKey; label: string; cls: string }[] = [
@@ -212,6 +216,13 @@
       <p class="muted small">Le texte s’écrit dans le champ de recherche ouvert sur la télé, puis la recherche se lance.</p>
 
       <button type="button" class="btn wide dinner" disabled={!can.basic || busy} onclick={dinner}>À table !</button>
+      {#if screen.film}
+        <button type="button" class="btn wide film" class:on={screen.film.on} aria-pressed={screen.film.on} disabled={!filmToggle(screen) || busy} onclick={toggleFilm}>
+          <Icon name="moon" size={24} />
+          {screen.film.on ? 'Mode film allumé' : 'Mode film'}
+        </button>
+        <p class="muted small">{filmLabel(screen.film) ?? 'Pendant un film, les annonces se font discrètes et les messages vocaux passent sur le Google Home.'}</p>
+      {/if}
     {:else}
       <h2>En cours</h2>
       {#if screen.foreground}
@@ -550,6 +561,21 @@
     color: var(--bg);
     font-size: 1.2rem;
     font-weight: 800;
+  }
+
+  .film {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 52px;
+    margin-top: 6px;
+    font-weight: 700;
+  }
+
+  .film.on {
+    background: var(--rain-bg);
+    color: var(--rain-soft);
   }
 
   .current {

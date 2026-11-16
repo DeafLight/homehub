@@ -1,5 +1,6 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
 // (messages vocaux, messages écrits avec leurs réponses rapides, ordres de la télécommande, alerte du bus, séance de sport, parler en direct), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// `discreet` (mode film, fonction 15) : ajouté par HomeHub aux bandeaux pendant un film, voir Film.kt.
 package fr.homehub.tv
 
 import org.json.JSONArray
@@ -50,13 +51,13 @@ data class Notice(val title: String, val subtitle: String)
  * Message écrit (fonction 2) : bandeau `title` (« Message d'Alex ») et `text` (déjà nettoyé par le serveur), affiché
  * `seconds` secondes (ramenées entre 3 et 60, comme tv.seconds côté serveur). `replyId` : réponses rapides proposées.
  */
-data class MessageEvent(val id: String, val title: String, val text: String, val seconds: Int, val replyId: String? = null)
+data class MessageEvent(val id: String, val title: String, val text: String, val seconds: Int, val replyId: String? = null, val discreet: Boolean = false)
 
 /** Identifiant de réponse d'un événement (absent, vide ou null : pas de réponses rapides). */
 private fun JSONObject.replyId(): String? = if (has("replyId") && !isNull("replyId")) getString("replyId").takeIf { it.isNotBlank() } else null
 
 /** Alerte du bus du matin (shared/screen.ts, ScreenBusEvent) : bandeau « Bus dans 9 min » pendant `seconds` s. */
-data class BusEvent(val id: String, val title: String, val subtitle: String, val seconds: Int)
+data class BusEvent(val id: String, val title: String, val subtitle: String, val seconds: Int, val discreet: Boolean = false)
 
 data class Events(
     val voices: List<VoiceEvent>,
@@ -114,10 +115,10 @@ fun parseEvents(json: String): Events {
         }
     }
     val messages = all.filter { it.optString("kind") == "message" }.map {
-        MessageEvent(it.getString("id"), it.getString("title"), it.getString("text"), it.optInt("seconds", 10).coerceIn(3, 60), it.replyId())
+        MessageEvent(it.getString("id"), it.getString("title"), it.getString("text"), it.optInt("seconds", 10).coerceIn(3, 60), it.replyId(), it.optBoolean("discreet"))
     }
     val bus = all.filter { it.optString("kind") == "bus" }.map {
-        BusEvent(it.getString("id"), it.getString("title"), it.getString("subtitle"), it.optInt("seconds", 45).coerceIn(5, 120))
+        BusEvent(it.getString("id"), it.getString("title"), it.getString("subtitle"), it.optInt("seconds", 45).coerceIn(5, 120), it.optBoolean("discreet"))
     }
     val talks = all.filter { it.optString("kind") == "talk" }.map {
         TalkEvent(it.getString("id"), it.getString("title"), it.getString("audio"), it.optInt("rate", TALK_RATE))

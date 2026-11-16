@@ -6,7 +6,7 @@ package fr.homehub.tv
 import org.json.JSONObject
 
 /** « Pluie vers 8 h » / « Prenez un parapluie », affiché `seconds` secondes. */
-data class RainEvent(val id: String, val title: String, val subtitle: String, val seconds: Int)
+data class RainEvent(val id: String, val title: String, val subtitle: String, val seconds: Int, val discreet: Boolean = false)
 
 /** Durée d'affichage gardée entre 5 s et 5 min, quoi que dise le serveur. */
 fun rainBannerMs(event: RainEvent): Long = event.seconds.coerceIn(5, 300) * 1000L
@@ -15,6 +15,6 @@ fun rainBannerMs(event: RainEvent): Long = event.seconds.coerceIn(5, 300) * 1000
 fun parseRainEvents(json: String): List<RainEvent> {
     val list = JSONObject(json).getJSONArray("events")
     return (0 until list.length()).map { list.getJSONObject(it) }.filter { it.optString("kind") == "rain" }.map {
-        RainEvent(it.getString("id"), it.getString("title"), it.optString("subtitle"), it.optInt("seconds", 60))
+        RainEvent(it.getString("id"), it.getString("title"), it.optString("subtitle"), it.optInt("seconds", 60), it.optBoolean("discreet"))
     }
 }

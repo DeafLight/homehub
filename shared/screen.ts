@@ -1,6 +1,7 @@
 // Protocole entre HomeHub et l'appli Android TV « HomeHub TV » (télé appairée, docs/appli-tele.md) : la télé attend ses
 // événements par interrogation longue et rend compte de chacun. Types communs au serveur, au front et, recopiés en
 // Kotlin, à l'appli (tv-app/). Toute évolution incompatible change SCREEN_PROTOCOL.
+import type { ScreenFilm } from './screen-film.ts';
 import type { ScreenMediaEvent } from './screen-media.ts';
 import type { ScreenTalkEvent } from './screen-talk.ts';
 
@@ -86,13 +87,13 @@ export type ScreenPowerEvent = { kind: 'power'; id: string; on: boolean };
  * nettoyé par le serveur, shared/tv.ts), affiché `seconds` secondes. Le compte rendu dit si le bandeau s'est affiché.
  * `replyId` : la télé propose les réponses rapides (fonction 10).
  */
-export type ScreenMessageEvent = { kind: 'message'; id: string; title: string; text: string; seconds: number; replyId?: string };
+export type ScreenMessageEvent = { kind: 'message'; id: string; title: string; text: string; seconds: number; replyId?: string; discreet?: boolean };
 
 /**
  * Minuteur de la maison terminé (fonction 3) : bandeau avec « Arrêter » et son court. « Arrêter » à la télécommande
  * arrête le minuteur partout (`POST /api/screen/timers/:timerId/stop`).
  */
-export type ScreenTimerEvent = { kind: 'timer'; id: string; timerId: string; title: string; subtitle: string };
+export type ScreenTimerEvent = { kind: 'timer'; id: string; timerId: string; title: string; subtitle: string; discreet?: boolean };
 /** Minuteur arrêté (sur la tablette, un téléphone ou une autre télé) : son bandeau s'en va. */
 export type ScreenTimerClearEvent = { kind: 'timer-clear'; id: string; timerId: string };
 
@@ -109,13 +110,18 @@ export type ScreenTimersEvent = { kind: 'timers'; id: string; serverNow: string;
  * Alerte du bus du matin (fonction 4) : bandeau « Bus dans 9 min » par-dessus le programme, `seconds` secondes. Le
  * serveur l'envoie de lui-même (server/services/screen-bus.ts), selon le réglage du trajet (page Transports).
  */
-export type ScreenBusEvent = { kind: 'bus'; id: string; title: string; subtitle: string; seconds: number };
+export type ScreenBusEvent = { kind: 'bus'; id: string; title: string; subtitle: string; seconds: number; discreet?: boolean };
 
 /**
  * Alerte pluie du matin (fonction 14, server/services/rain-alert.ts) : bandeau « Pluie vers 8 h » / « Prenez un
  * parapluie » par-dessus le programme, icône parapluie, pendant `seconds` secondes. Rien de personnel.
  */
-export type ScreenRainEvent = { kind: 'rain'; id: string; title: string; subtitle: string; seconds: number };
+export type ScreenRainEvent = { kind: 'rain'; id: string; title: string; subtitle: string; seconds: number; discreet?: boolean };
+
+/*
+ * `discreet` (message, timer, bus, rain, reminder) : ajouté par le serveur quand un film passe sur la télé (fonction 15,
+ * shared/screen-film.ts) ; l'appli montre alors un petit bandeau en bas à gauche, sans son ni focus.
+ */
 
 /** Bandeau de rappel (routine du soir, mots à lire) : shared/screen-reminders.ts. */
 export type { ScreenReminderEvent } from './screen-reminders.ts';
@@ -207,6 +213,8 @@ export type RemoteScreen = {
   volume: ScreenVolume | null;
   /** Appli au premier plan, avec son nom s'il est dans la liste. */
   foreground: { package: string; name: string } | null;
+  /** Mode film (fonction 15) ; absent : serveur plus ancien. */
+  film?: ScreenFilm;
   /** Un appareil Cast de la télé est connu : elle peut être allumée même injoignable. */
   canWake: boolean;
   /** Date de la liste des applis (null : pas encore reçue) et leur nombre. */
@@ -223,9 +231,10 @@ export type RemotePowerResult = { power: RemotePower; via: 'screen' | 'cast' | n
 
 /**
  * Alertes de la maison sur les télés (panneau Télés de la tablette), pour toutes les télés appairées. `timer` : un
- * minuteur qui se termine s'affiche et sonne sur la télé.
+ * minuteur qui se termine s'affiche et sonne sur la télé. `film` : mode film automatique quand une appli de films est
+ * au premier plan (fonction 15, shared/screen-film.ts).
  */
-export type ScreenAlerts = { timer: boolean };
+export type ScreenAlerts = { timer: boolean; film: boolean };
 
 /**
  * Commandes de ce qui passe depuis la tablette (fonction 6) : pause, reprise, volume, et « À table ! » (bandeau et
@@ -235,14 +244,14 @@ export const MEDIA_ACTIONS = ['pause', 'play', 'voldown', 'volup', 'mute', 'dinn
 export type MediaAction = (typeof MEDIA_ACTIONS)[number];
 
 /** Une télé vue de la tablette, pour ses commandes : rien de personnel (ni l'appli en cours). */
-export type MediaScreen = { id: string; name: string; power: RemotePower; volume: ScreenVolume | null; control: ScreenControl | null };
+export type MediaScreen = { id: string; name: string; power: RemotePower; volume: ScreenVolume | null; control: ScreenControl | null; film?: ScreenFilm };
 /** Télés de la tablette, et si un code parent est défini (sinon, seul un parent reconnu commande). */
 export type MediaScreens = { screens: MediaScreen[]; parentCode: boolean };
 
 /** Compte rendu de la télé : lecture commencée, ou échec avec sa raison. */
 export type ScreenReport = { ok: true } | { ok: false; reason: string };
 
-// --- Télé éteinte : l'annonce part sur un autre appareil (fonction 7 ; le mode film, fonction 15, s'y ajoutera) ---
+// --- Télé éteinte ou film en cours : l'annonce part sur un autre appareil (fonctions 7 et 15) ---
 
 /**
  * Raison donnée par l'appli quand elle refuse un message vocal parce que l'écran est éteint (veille rapide : le réseau
@@ -250,8 +259,8 @@ export type ScreenReport = { ok: true } | { ok: false; reason: string };
  */
 export const SCREEN_OFF_REASON = 'écran éteint';
 
-/** Pourquoi une annonce destinée à la télé part ailleurs : télé injoignable, ou allumée mais écran éteint. */
-export type ScreenFallbackReason = 'offline' | 'standby';
+/** Pourquoi une annonce destinée à la télé part ailleurs : télé injoignable, allumée mais écran éteint, ou film en cours. */
+export type ScreenFallbackReason = 'offline' | 'standby' | 'film';
 
 /**
  * Réponse à l'envoi d'un message vocal vers une télé : l'appareil qui l'a lu, et la phrase à montrer s'il a basculé.
@@ -259,8 +268,9 @@ export type ScreenFallbackReason = 'offline' | 'standby';
  */
 export type ScreenVoiceResult = { device: string; fallback: { reason: ScreenFallbackReason; notice: string } | null; replyId?: string };
 
-/** Phrase montrée au téléphone quand le message est parti sur l'appareil de secours. */
-export const screenFallbackNotice = (device: string) => `Télé éteinte : lu sur ${device}.`;
+/** Phrase montrée au téléphone quand le message est parti sur l'appareil de secours (film : shared/screen-film.ts). */
+export const screenFallbackNotice = (device: string, reason: ScreenFallbackReason = 'offline') =>
+  reason === 'film' ? `Mode film : lu sur ${device}.` : `Télé éteinte : lu sur ${device}.`;
 
 /**
  * Appareil de secours d'une télé (réglage de la tablette) : `device` est un appareil Cast de `cast.devices`, ou null

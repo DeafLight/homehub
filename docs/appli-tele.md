@@ -30,7 +30,7 @@ fonctions plus bas.
   annonce (`POST /api/screen/state`, `screenOn`) : la veille rapide garde le réseau, la présence seule ne suffit pas.
   Fait : `server/services/screen-fallback.ts` décide (télé allumée : la télé ; en veille, injoignable, ou refus
   « écran éteint » de l'appli : l'appareil de secours de cette télé, réglé sur la tablette, première enceinte par
-  défaut) ; le mode film (15) y ajoutera sa raison de basculer.
+  défaut) ; le mode film (15) y ajoute sa raison de basculer (`film`, section 13).
 - **Compte rendu** : après chaque événement, l'appli répond `POST /api/screen/events/:seq/done` avec `played`,
   `shown` ou `failed` + raison. Le téléphone qui a envoyé attend ce compte rendu (quelques secondes au plus) pour
   afficher « Lu sur la télé » ou l'erreur, comme aujourd'hui pour Cast.
@@ -187,7 +187,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | 12 | Séance de sport guidée sur la télé, lancée depuis le téléphone | Données personnelles affichées sur un écran partagé : seulement sur demande de la personne, à cadrer |
 | 13 | Mode cuisine d'une recette | Fait : vue native, voir section 10 |
 | 14 | Alerte pluie | Peu coûteux (météo déjà là) : avec 4 |
-| 15 | Mode « film » (annonces renvoyées vers le Google Home) | Peu coûteux une fois 7 fait : avec 7 |
+| 15 | Mode « film » (annonces renvoyées vers le Google Home) | Fait : voir section 13 |
 | 16 | Heure du coucher des enfants | Proche de 5 : avec 5 |
 | 17 | Télécommande sur le téléphone (PWA) : flèches, clavier du téléphone, tiroir des applis, lancement, marche/arrêt | Retenue le 14 novembre 2026, détail et essais à faire en section 8 ; reprend presque toute la fonction 6 |
 
@@ -433,6 +433,43 @@ de l'expéditeur, sous « Affiché sur la télé » ou « Message lu sur … ».
   fin, et chaque touche le garde au moins 15 s. Après le choix : « Réponse envoyée : J'arrive » 2 s, puis le bandeau
   s'en va et la télécommande revient à l'appli.
 - **À essayer sur la vraie télé** : voir `TODO.md` (10 bis).
+
+## 13. Mode film (fonction 15)
+
+Pendant un film, une annonce ne doit plus prendre l'écran ni couper le son. Choix du 16 novembre 2026 :
+
+- **Ce qui change** : le **message vocal** part sur l'appareil de secours de la télé (le même que télé éteinte,
+  fonction 7, réglage « Si éteinte » de la tablette), raison `film`, et le téléphone affiche « Mode film : lu sur
+  Google Home du salon ». Sans appareil de secours, la télé le lit comme avant (son baissé) : mieux qu'un refus. Les
+  **bandeaux** (message écrit, minuteur terminé, bus, pluie, rappels, et ce qui s'y ajoutera) partent avec
+  `discreet: true` : l'appli montre un petit bandeau en bas à gauche, à demi transparent, sans son, sans prendre la
+  télécommande, 5 à 12 s (20 s pour un message écrit). Un minuteur discret n'a ni carillon ni « Arrêter » : la
+  tablette sonne toujours. Le Google Home ne lit pas les bandeaux (pas de synthèse vocale dans HomeHub) : discrets
+  plutôt que sonores.
+- **Ce qui ne change pas** : ce qu'un parent demande exprès (« À table ! », touches, lancement d'une appli, photo
+  partagée, mode cuisine, séance de sport) passe comme avant, et le petit décompte des minuteurs reste.
+- **Activation automatique** : une appli de films au premier plan, telle que la voit le service d'accessibilité
+  (`HomeHubAccessibility`, paquet envoyé dans l'état de la télé). Liste dans `shared/screen-film.ts` : Netflix,
+  Disney+, Prime Video, Apple TV, Canal+, Max, Paramount+, Plex, Kodi, VLC. **Pas YouTube** (vidéos courtes,
+  dessins animés des enfants, souvent regardé en faisant autre chose) ni l'appli de la box (télé en direct : on ne
+  sait pas si c'est un film). Réglage global « Mode film automatique » sur la tablette (Téléphones › Télés ›
+  Alertes sur la télé), actif par défaut. Le serveur décide (règle 4 du dépôt) : l'appli n'a rien à savoir du mode.
+- **Activation à la main** : bouton **Mode film** sur la télécommande du téléphone d'un parent et dans le panneau
+  **Télé** de la tablette (parent reconnu, ou code parent), `PUT /api/screens/:id/film`. Pour un film à la télé en
+  direct ou dans une appli absente de la liste. Seulement télé allumée (409 en veille, 503 injoignable).
+- **Fin** : automatique, quand l'appli de films n'est plus au premier plan ; à la main, par le même bouton, quand la
+  télé se met en veille ou devient injoignable (le film est fini), et au plus tard **4 h** après (un mode oublié ne
+  bâillonne pas la télé le lendemain). « Éteindre » à la main pendant Netflix (on veut voir les annonces) vaut tant
+  que Netflix reste au premier plan ; ensuite l'automatique reprend. En mémoire du serveur : un redémarrage oublie
+  les choix à la main.
+- **Code** : règles pures dans `shared/screen-film.ts` ; état et choix dans `server/services/screen-film.ts`
+  (guet toutes les 10 s qui oublie les choix des télés éteintes) ; le hub (`services/screens.ts`) ajoute
+  `discreet` aux genres concernés (`DISCREET_KINDS`) à l'envoi ; `screen-fallback.ts` bascule avec la raison
+  `film`. Appli : `Film.kt` (durées, minuteurs mis à part), `OverlayBanner.showDiscreet`. Aucune autorisation de
+  plus sur la télé.
+- **À essayer sur la vraie télé** : paquets réels vus par l'accessibilité pour chaque appli (Netflix sur Android TV
+  est `com.netflix.ninja`), menu de Netflix et lecture sans changement d'appli (le mode reste), bandeau discret
+  lisible à 3 m sans gêner, minuteur discret sans carillon, retour aux bandeaux normaux en quittant l'appli.
 
 ## Décisions (14 novembre 2026)
 

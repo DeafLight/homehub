@@ -34,7 +34,7 @@ export const SCREEN_REMINDER_CATCH_UP_MIN = 30;
 export const SCREEN_REMINDER_SECONDS = 20;
 
 /** Bandeau de rappel ; `reminder` : son genre (chaîne libre pour qu'une appli ancienne ignore un genre nouveau). */
-export type ScreenReminderEvent = { kind: 'reminder'; id: string; reminder: string; title: string; subtitle: string; seconds: number };
+export type ScreenReminderEvent = { kind: 'reminder'; id: string; reminder: string; title: string; subtitle: string; seconds: number; discreet?: boolean };
 /** Texte d'un rappel ; null : rien à rappeler (routines faites, mots lus), pas de bandeau. */
 export type ScreenReminderText = { title: string; subtitle: string } | null;
 

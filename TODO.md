@@ -357,7 +357,17 @@ personne depuis son propre téléphone.
       vacances ni jours fériés), pluie prévue dans les 3 h (0,5 mm sur une heure) → bandeau parapluie « Pluie vers
       8 h · Prenez un parapluie » sur chaque télé, une fois par matin (section `rainAlert` : plage, jours, horizon,
       seuil, durée, arrêt) ; fausse météo pluvieuse dans le monde fictif.
-- [ ] 15. Mode « film » : pendant un film, les annonces partent sur le Google Home ou en bandeau discret.
+- [x] 15. Mode « film » : pendant un film, les annonces partent sur le Google Home ou en bandeau discret. Message
+      vocal sur l'appareil de secours de la télé (« Mode film : lu sur Google Home du salon ») ; message écrit,
+      minuteur, bus, pluie et rappels en petit bandeau en bas à gauche, sans son ni focus (`discreet`). Allumé tout
+      seul par une appli de films au premier plan (réglage « Mode film automatique » de la tablette, actif par
+      défaut) ou à la main (bouton Mode film de la télécommande du téléphone et du panneau Télé de la tablette) ;
+      fin en quittant l'appli, télé en veille, par le bouton, ou 4 h après un allumage à la main (choix dans
+      `docs/appli-tele.md`, section 13).
+- [ ] 15 bis. Mode film sur la vraie télé : paquets réels des applis de films vus par l'accessibilité (Netflix,
+      Disney+, Prime Video, Canal+…), passage du menu de Netflix à la lecture sans changement d'appli, bandeau
+      discret lisible à 3 m et assez discret pendant un film, minuteur discret sans carillon, retour normal en
+      quittant l'appli.
 - [ ] 16. Heure du coucher des enfants : rappel, puis pause, puis écran de veille ; un parent garde la main depuis
       son téléphone.
 - [x] 17. Télécommande sur le téléphone (PWA, parents) : flèches et OK, Retour, Accueil, clavier du téléphone, tiroir

@@ -1,8 +1,8 @@
 // Annonce destinée à une télé, et son secours (fonction 7 de l'appli télé) : si la télé est injoignable (plus
 // d'attente longue depuis GONE_MS) ou allumée écran éteint (veille rapide, qui garde le réseau), l'annonce part sur
 // l'appareil de secours de cette télé (un Google Home, par Cast) ; si la télé la refuse parce que son écran vient de
-// s'éteindre (SCREEN_OFF_REASON), aussi. Écrit pour servir à d'autres annonces que le message vocal, et au mode film
-// (fonction 15), qui ajoutera une raison de basculer.
+// s'éteindre (SCREEN_OFF_REASON), aussi. Mode film (fonction 15, services/screen-film.ts) : télé allumée où passe un
+// film, l'annonce part aussi sur le secours (raison `film`) ; sans secours, la télé la reçoit comme avant.
 import { SCREEN_OFF_REASON, screenFallbackNotice, type ScreenFallbackReason, type ScreenFallbackSettings, type ScreenReport } from '../../shared/screen.ts';
 import type { AppConfig } from '../config.ts';
 import type { ScreenFallbackStore } from '../sources/screen-fallbacks.ts';
@@ -15,7 +15,18 @@ export type Announced = { device: string; fallback: { reason: ScreenFallbackReas
 
 export type ScreenFallback = ReturnType<typeof createScreenFallback>;
 
-export function createScreenFallback({ hub, cast, store }: { hub: Pick<ScreenHub, 'power'>; cast: () => AppConfig['cast']; store: ScreenFallbackStore }) {
+export function createScreenFallback({
+  hub,
+  cast,
+  store,
+  film = () => false,
+}: {
+  hub: Pick<ScreenHub, 'power'>;
+  cast: () => AppConfig['cast'];
+  store: ScreenFallbackStore;
+  /** Un film passe-t-il sur la télé (mode film) ? */
+  film?: (id: string) => boolean;
+}) {
   /** Appareils Cast utilisables : aucun sans `cast.mediaUrl` (ils ne pourraient pas télécharger le message). */
   const usable = () => {
     const { devices, mediaUrl } = cast();
@@ -30,10 +41,11 @@ export function createScreenFallback({ hub, cast, store }: { hub: Pick<ScreenHub
     return devices.find((d) => d.kind === 'speaker') ?? null;
   }
 
-  /** Pourquoi l'annonce ne peut pas passer par la télé `id` en ce moment (null : elle est allumée). */
+  /** Pourquoi l'annonce ne doit pas passer par la télé `id` en ce moment (null : allumée, sans film). */
   function reasonOf(id: string): ScreenFallbackReason | null {
     const power = hub.power(id);
-    return power === 'on' ? null : power;
+    if (power !== 'on') return power;
+    return film(id) ? 'film' : null;
   }
 
   return {
@@ -69,7 +81,7 @@ export function createScreenFallback({ hub, cast, store }: { hub: Pick<ScreenHub
       const device = await deviceOf(id);
       const viaDevice = async (reason: ScreenFallbackReason): Promise<Announced> => {
         await toDevice(device!);
-        return { device: device!.name, fallback: { reason, notice: screenFallbackNotice(device!.name) } };
+        return { device: device!.name, fallback: { reason, notice: screenFallbackNotice(device!.name, reason) } };
       };
       const reason = reasonOf(id);
       if (reason && device) return viaDevice(reason);

@@ -44,6 +44,7 @@ import type { DeviceStore } from './sources/devices.ts';
 import type { ScreenAppStore } from './sources/screen-apps.ts';
 import type { ScreenFallbackStore } from './sources/screen-fallbacks.ts';
 import { createScreenFallback } from './services/screen-fallback.ts';
+import { createScreenFilm } from './services/screen-film.ts';
 import type { ScreenStore } from './sources/screens.ts';
 import type { DriveReader } from './sources/drive-page.ts';
 import type { DriveStore } from './sources/drive.ts';
@@ -195,11 +196,16 @@ export function createApp(deps: AppDeps): Hono {
   const screenReplies = createScreenReplies({ clock });
   api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access, replies: screenReplies }));
   api.route('/', createCastApi({ voice, config, household, access }));
-  const fallback = deps.screenFallbacks && createScreenFallback({ hub: screenHub, cast: () => config.current().cast, store: deps.screenFallbacks });
-  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access, fallback, replies: screenReplies }));
-  // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
+  // Mode film (fonction 15) : bandeaux discrets, message vocal sur le Google Home ; automatique selon le panneau Télés.
   const screenAlerts = deps.screenAlerts ?? createScreenAlertStore();
-  api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock }));
+  const film = createScreenFilm({ hub: screenHub, clock });
+  void screenAlerts.get().then((a) => film.setAuto(a.film)).catch((err: unknown) => console.error('Réglage du mode film :', err));
+  film.start();
+  screenHub.useDiscreet(film.discreet);
+  const fallback = deps.screenFallbacks && createScreenFallback({ hub: screenHub, cast: () => config.current().cast, store: deps.screenFallbacks, film: film.on });
+  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access, fallback, film, replies: screenReplies }));
+  // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
+  api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock, onChange: (a) => film.setAuto(a.film) }));
   createTimerAlerts({ timers: deps.timers, screens: deps.screens, hub: screenHub, alerts: screenAlerts, clock }).start();
   // Alerte du bus du matin sur la télé (réglage par trajet, page Transports).
   const busAlerts = createScreenBusAlerts({
@@ -223,7 +229,7 @@ export function createApp(deps: AppDeps): Hono {
     reminders.start();
     api.route('/', createScreenRemindersApi({ store: deps.screenReminders, reminders, access, clock }));
   }
-  api.route('/', createScreenMediaApi({ screens: deps.screens, hub: screenHub, household, access, pins }));
+  api.route('/', createScreenMediaApi({ screens: deps.screens, hub: screenHub, household, access, pins, film }));
   api.route('/', createEcranApi({ ecran: createEcranService({ service: deps.service, menus: deps.menus, recipes: deps.recipes, household, clock }), access }));
   // Photo ou vidéo partagée vers la télé (fonction 11) : reçue par /partager, envoyée depuis la page du téléphone.
   const sharedMedia = createSharedMedia({ clock });

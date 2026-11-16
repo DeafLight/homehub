@@ -16,7 +16,7 @@ sealed interface TimerEvent {
     val id: String
     val timerId: String
     /** Minuteur terminé : bandeau « Cuisson », « C'est l'heure ! (10 min) », bouton « Arrêter ». */
-    data class Ring(override val id: String, override val timerId: String, val title: String, val subtitle: String) : TimerEvent
+    data class Ring(override val id: String, override val timerId: String, val title: String, val subtitle: String, val discreet: Boolean = false) : TimerEvent
     /** Minuteur arrêté ailleurs : son bandeau s'en va. */
     data class Clear(override val id: String, override val timerId: String) : TimerEvent
 }
@@ -26,7 +26,7 @@ fun parseTimerEvents(json: String): List<TimerEvent> {
     val list = JSONObject(json).getJSONArray("events")
     return (0 until list.length()).map { list.getJSONObject(it) }.mapNotNull { e ->
         when (e.optString("kind")) {
-            "timer" -> TimerEvent.Ring(e.getString("id"), e.getString("timerId"), e.getString("title"), e.getString("subtitle"))
+            "timer" -> TimerEvent.Ring(e.getString("id"), e.getString("timerId"), e.getString("title"), e.getString("subtitle"), e.optBoolean("discreet"))
             "timer-clear" -> TimerEvent.Clear(e.getString("id"), e.getString("timerId"))
             else -> null
         }

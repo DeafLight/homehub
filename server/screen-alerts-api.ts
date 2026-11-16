@@ -1,5 +1,5 @@
 // Alertes de la maison sur les télés (appli HomeHub TV). La tablette : lire le réglage, et le changer par un parent
-// reconnu. La télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur arrête ce minuteur partout (tablette,
+// reconnu (le mode film automatique suit aussitôt, `onChange`). La télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur arrête ce minuteur partout (tablette,
 // téléphones, autres télés), comme le bouton de la tablette ; seulement un minuteur qui sonne.
 import type { Context } from 'hono';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenAlerts } from '../shared/screen.ts';
@@ -12,7 +12,20 @@ import type { Clock } from './sources/types.ts';
 
 export const TIMER_NOT_RINGING = 'Ce minuteur ne sonne pas';
 
-export function createScreenAlertsApi({ alerts, timers, access, clock }: { alerts: ScreenAlertStore; timers: TimerStore; access: Access; clock: Clock }) {
+export function createScreenAlertsApi({
+  alerts,
+  timers,
+  access,
+  clock,
+  onChange = () => {},
+}: {
+  alerts: ScreenAlertStore;
+  timers: TimerStore;
+  access: Access;
+  clock: Clock;
+  /** Réglage changé sur la tablette. */
+  onChange?: (alerts: ScreenAlerts) => void;
+}) {
   const api = createRouter();
 
   api.get('/screens/alerts', async (c) => {
@@ -23,8 +36,10 @@ export function createScreenAlertsApi({ alerts, timers, access, clock }: { alert
   api.put('/screens/alerts', async (c) => {
     await access.kiosk(c);
     await access.parent(c, SCREENS_PARENTS_ONLY);
-    const next = await readBody(c, screenAlertsSchema, 'Réglage attendu : { "timer": true } ou { "timer": false }');
-    return c.json(await alerts.set(next));
+    const next = await readBody(c, screenAlertsSchema, 'Réglage attendu : { "timer": true|false, "film": true|false }');
+    const saved = await alerts.set(next);
+    onChange(saved);
+    return c.json(saved);
   });
 
   api.post('/screen/timers/:id/stop', async (c: Context) => {

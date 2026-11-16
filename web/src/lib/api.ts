@@ -58,6 +58,7 @@ import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResul
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-media.ts';
 import type { ScreenTalkStart } from '../../../shared/screen-talk.ts';
+import type { ScreenFilm } from '../../../shared/screen-film.ts';
 import type { FitnessFamily } from '../../../shared/fitness-catalogue.ts';
 import type { FitnessSettings, FitnessState, RhythmOption, SessionNumber, SessionReport, SlotChange, TabletSessionReport, WeekLog } from '../../../shared/fitness.ts';
 import type { TabletSession } from '../../../shared/fitness-workout.ts';
@@ -340,6 +341,8 @@ export type Api = {
   remoteLaunch(id: string, pkg: string): Promise<void>;
   remoteDinner(id: string): Promise<void>;
   remotePower(id: string, on: boolean): Promise<RemotePowerResult>;
+  /** Mode film d'une télé, à la main (fonction 15) : téléphone d'un parent, ou tablette (parent reconnu ou code). */
+  screenFilm(id: string, on: boolean, pin?: string): Promise<ScreenFilm>;
   /** Tablette : télés et commandes de ce qui passe (pause, reprise, volume, « À table ! »), parent reconnu ou code parent. */
   mediaScreens(): Promise<MediaScreens>;
   screenMedia(id: string, action: MediaAction, pin?: string): Promise<void>;
@@ -571,6 +574,7 @@ export function createApi(
     remoteLaunch: async (id, pkg) => void (await send('POST', `/screens/${encodeURIComponent(id)}/launch`, { package: pkg })),
     remoteDinner: async (id) => void (await send('POST', `/screens/${encodeURIComponent(id)}/dinner`)),
     remotePower: (id, on) => send('POST', `/screens/${encodeURIComponent(id)}/power`, { on }),
+    screenFilm: (id, on, pin) => send('PUT', `/screens/${encodeURIComponent(id)}/film`, { on, ...(pin && { pin }) }),
     mediaScreens: () => request('/screens/media'),
     screenMedia: async (id, action, pin) => void (await send('POST', `/screens/${encodeURIComponent(id)}/media`, { action, ...(pin && { pin }) })),
     screenFallbacks: () => request('/screens/fallbacks'),

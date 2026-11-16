@@ -454,6 +454,23 @@ la fausse télé du monde fictif) :
 
 ![Maquette d'une télé en pause avec le bandeau « À table ! De la part d'Alex »](images/tele-a-table.png)
 
+### Mode film
+
+Pendant un film, la télé n'est plus interrompue : les messages vocaux partent sur le Google Home, et les bandeaux se
+font petits et muets. Le mode s'allume tout seul avec une appli de films (Netflix, Disney+…), ou à la main par le
+bouton **Mode film**, sur la télécommande du téléphone d'Alex comme dans le panneau **Télé** de la tablette ; la
+ligne dessous dit s'il vient de l'appli en cours ou d'un parent. Il s'arrête en quittant l'appli, télé en veille,
+par le même bouton, ou 4 h après. Réglage « Mode film automatique » dans Téléphones › Télés › Alertes sur la télé.
+
+<img src="images/telephone-telecommande-film.png" alt="Télécommande du téléphone : bouton Mode film allumé sous « À table ! »" width="260">
+
+![Panneau Télé de la tablette : bouton Mode film allumé](images/tablette-tele-film.png)
+
+Un message écrit envoyé pendant le film arrive en petit en bas à gauche, à demi transparent (maquette d'après ce
+qu'a reçu la fausse télé du monde fictif) :
+
+![Maquette d'une télé pendant un film : petit bandeau « Message d'Alex » en bas à gauche](images/tele-film.png)
+
 ### Écran de veille de la télé (appli HomeHub TV)
 
 Quand la télé passe en veille d'écran, l'appli HomeHub TV affiche la page `/ecran` de HomeHub : l'heure et la date,

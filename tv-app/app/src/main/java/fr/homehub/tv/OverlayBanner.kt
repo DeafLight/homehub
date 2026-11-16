@@ -6,8 +6,9 @@
 // écrit ou vocal, trois boutons « OK », « J'arrive », « 5 minutes » ; le bandeau prend alors le focus de la
 // télécommande, comme celui du minuteur (fenêtre focalisable : l'appli en cours continue, ◀ ▶ et OK vont au bandeau,
 // Retour le masque sans répondre). Une réponse choisie part à HomeHub et le bandeau dit « Réponse envoyée » avant de
-// s'en aller ; chaque touche le garde au moins Reponses.IDLE_MS. Il faut l'autorisation « afficher par-dessus » (adb :
-// appops SYSTEM_ALERT_WINDOW).
+// s'en aller ; chaque touche le garde au moins Reponses.IDLE_MS. Mode film (showDiscreet, fonction 15) : petit bandeau
+// en bas à gauche, à demi transparent, texte réduit, sans réponses, qui s'en va seul (Film.kt). Il faut l'autorisation
+// « afficher par-dessus » (adb : appops SYSTEM_ALERT_WINDOW).
 package fr.homehub.tv
 
 import android.animation.ValueAnimator
@@ -76,6 +77,37 @@ class OverlayBanner(private val context: Context) {
             val view = withReplies(buildMessage(title, text), onReply)
             if (add(view, Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(36), focusable = onReply != null)) {
                 hideIn(Reponses.messageMs(seconds, onReply != null))
+            }
+        }
+        return true
+    }
+
+    /**
+     * Bandeau discret du mode film : en bas à gauche, petit et à demi transparent, retiré au bout de `durationMs` (sauf
+     * si un autre bandeau l'a remplacé) ; false si l'autorisation manque.
+     */
+    fun showDiscreet(title: String, subtitle: String, icon: Int, durationMs: Long): Boolean {
+        if (!allowed()) return false
+        main.post {
+            hideNow()
+            val mine = generation
+            val view = buildDiscreet(title, subtitle, icon)
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.START
+                x = dp(24)
+                y = dp(24)
+            }
+            runCatching { windows.addView(view, params) }.onSuccess {
+                shown = view
+                view.alpha = 0f
+                view.animate().alpha(DISCREET_ALPHA).setDuration(400).start()
+                main.postDelayed({ if (generation == mine) hideNow() }, durationMs)
             }
         }
         return true
@@ -282,6 +314,46 @@ class OverlayBanner(private val context: Context) {
         return row
     }
 
+    private fun buildDiscreet(title: String, subtitle: String, iconRes: Int): View {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(8), dp(14), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(color(R.color.surface_banner))
+            }
+        }
+        val icon = ImageView(context).apply {
+            setImageResource(iconRes)
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color(R.color.rain))
+            }
+        }
+        row.addView(icon, LinearLayout.LayoutParams(dp(28), dp(28)))
+        val texts = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val widest = context.resources.displayMetrics.widthPixels / 3
+        texts.addView(TextView(context).apply {
+            text = title
+            setTextColor(color(R.color.fg))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            typeface = Typeface.DEFAULT_BOLD
+            maxWidth = widest
+            maxLines = 1
+        })
+        if (subtitle.isNotBlank()) texts.addView(TextView(context).apply {
+            text = subtitle
+            setTextColor(color(R.color.fg_muted))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            maxWidth = widest
+            maxLines = 3
+        })
+        row.addView(texts, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(10) })
+        return row
+    }
+
     private fun buildMessage(title: String, text: String): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -319,5 +391,10 @@ class OverlayBanner(private val context: Context) {
         })
         row.addView(texts, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(16) })
         return row
+    }
+
+    private companion object {
+        /** Opacité du bandeau discret : le film reste visible derrière. */
+        const val DISCREET_ALPHA = 0.85f
     }
 }

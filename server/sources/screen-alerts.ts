@@ -1,14 +1,14 @@
-// Réglage des alertes de la maison sur les télés (panneau Télés de la tablette) : minuteur terminé, et d'autres plus
-// tard. Enregistré dans le dossier d'état (screen-alerts.json) ; sans fichier, toutes les alertes sont actives. Sans
+// Réglage des alertes de la maison sur les télés (panneau Télés de la tablette) : minuteur terminé, mode film
+// automatique (fonction 15 : une appli de films au premier plan rend les annonces discrètes). Enregistré dans le dossier d'état (screen-alerts.json) ; sans fichier, toutes les alertes sont actives. Sans
 // chemin (tests) : en mémoire seulement.
 import { z } from 'zod';
 import type { ScreenAlerts } from '../../shared/screen.ts';
 import { createJsonFile } from './json-file.ts';
 
-export const DEFAULT_SCREEN_ALERTS: ScreenAlerts = { timer: true };
+export const DEFAULT_SCREEN_ALERTS: ScreenAlerts = { timer: true, film: true };
 
-/** Réglage reçu de la tablette (tous les champs, comme dans le fichier). */
-export const screenAlertsSchema = z.object({ timer: z.boolean() });
+/** Réglage reçu de la tablette (comme dans le fichier) ; `film` absent (fichier ou tablette d'avant la 15) : actif. */
+export const screenAlertsSchema = z.object({ timer: z.boolean(), film: z.boolean().default(true) });
 const fileSchema = z.object({ version: z.literal(1), alerts: screenAlertsSchema });
 
 export type ScreenAlertStore = {

@@ -174,6 +174,13 @@
           <span class="muted small">Un minuteur terminé s’affiche sur la télé allumée, avec un son court ; « Arrêter » à la télécommande l’arrête partout.</span>
         </span>
       </label>
+      <label class="check">
+        <input type="checkbox" checked={alerts.data.film} disabled={alertsBusy} onchange={(e) => saveAlerts({ ...alerts.data!, film: e.currentTarget.checked })} />
+        <span>
+          <strong>Mode film automatique</strong>
+          <span class="muted small">Pendant Netflix, Disney+, Prime Video et les autres applis de films, les annonces se font discrètes et les messages vocaux passent sur le Google Home. Il s’allume aussi à la main (bouton Télé, télécommande du téléphone).</span>
+        </span>
+      </label>
       {#if alertsError}<p class="error">{alertsError}</p>{/if}
     </div>
   {/if}

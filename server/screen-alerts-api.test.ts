@@ -83,11 +83,13 @@ async function setup() {
 describe('Alerte des minuteurs sur les télés : réglage', () => {
   it('actif par défaut ; un parent reconnu à la tablette le coupe, enregistré dans le dossier d’état', async () => {
     const { call, tablet, dir } = await setup();
-    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: true } satisfies ScreenAlerts);
+    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: true, film: true } satisfies ScreenAlerts);
+    // Tablette d'avant le mode film : sans `film`, il reste actif.
     const res = await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false } });
-    expect(await res.json()).toEqual({ timer: false });
-    expect(JSON.parse(readFileSync(join(dir, 'screen-alerts.json'), 'utf8'))).toEqual({ version: 1, alerts: { timer: false } });
-    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: false });
+    expect(await res.json()).toEqual({ timer: false, film: true });
+    expect(JSON.parse(readFileSync(join(dir, 'screen-alerts.json'), 'utf8'))).toEqual({ version: 1, alerts: { timer: false, film: true } });
+    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: false, film: true });
+    expect(await (await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false, film: false } })).json()).toEqual({ timer: false, film: false });
   });
 
   it('un enfant, personne, un autre appareil : refusé ; réglage mal formé : 400', async () => {

@@ -336,7 +336,17 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   affiche « Télé éteinte : lu sur Google Home du salon » ; l'onglet le dit dès le choix de la télé. Si l'écran
   s'éteint pendant l'envoi, l'appli refuse le message (« écran éteint ») et HomeHub bascule aussi. Appareil de
   secours : sur la tablette, **Téléphones** › **Télés**, « Si éteinte » (parent reconnu) ; par défaut la première
-  enceinte de `cast.devices` (il faut `cast.mediaUrl`) ; « Aucun appareil » : l'envoi est refusé comme avant. L'appli se connecte à HomeHub
+  enceinte de `cast.devices` (il faut `cast.mediaUrl`) ; « Aucun appareil » : l'envoi est refusé comme avant.
+  **Mode film** : pendant un film, la télé n'est plus interrompue. Les messages vocaux partent sur le même appareil
+  de secours (« Mode film : lu sur Google Home du salon » sur le téléphone ; sans secours, la télé les lit comme
+  avant), et les bandeaux (message écrit, minuteur, bus, pluie, rappels) deviennent **discrets** : petits, en bas à
+  gauche, à demi transparents, sans son ni focus de la télécommande, quelques secondes. Le mode s'allume **tout seul**
+  quand une appli de films est au premier plan (Netflix, Disney+, Prime Video, Apple TV, Canal+, Max, Paramount+,
+  Plex, Kodi, VLC ; pas YouTube), réglage « Mode film automatique » sur la tablette (Téléphones › Télés › Alertes),
+  actif par défaut ; ou **à la main** (film à la télé en direct, sur la box) : bouton **Mode film** de la
+  télécommande du téléphone d'un parent ou du panneau **Télé** de la tablette (parent reconnu ou code parent). Il
+  s'arrête quand on quitte l'appli de films, quand la télé se met en veille, par le même bouton, et au plus tard
+  4 h après un allumage à la main ; « éteint » à la main pendant Netflix vaut tant que Netflix reste devant. L'appli se connecte à HomeHub
   (interrogation longue, comme la tablette pour la caméra en direct) : **aucun port ouvert sur la télé**. Elle
   télécharge le message avec son jeton et rend compte au serveur (lecture commencée, ou l'erreur, renvoyée au
   téléphone). Appairage : au premier lancement, la télé affiche un code de 6 caractères ; sur la tablette,
@@ -903,8 +913,9 @@ server/
   services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
   services/screen-bus.ts   alerte du bus du matin sur les télés HomeHub TV (« Bus dans 9 min »)
   services/rain-alert.ts   alerte pluie du matin sur les télés : plage, jours d'école, seuil, une fois par matin
-  services/screen-fallback.ts  annonce destinée à une télé éteinte ou injoignable : bascule vers son Google Home
+  services/screen-fallback.ts  annonce destinée à une télé éteinte, injoignable ou en mode film : bascule vers son Google Home
   services/screen-replies.ts   réponses rapides des télés sous un message (« OK », « J’arrive », « 5 minutes ») pour son expéditeur
+  services/screen-film.ts  mode film des télés : choix à la main, réglage automatique, bandeaux discrets
   services/screen-workouts.ts  séances de sport sur la télé : horloge, pilotage, effacement de la télé à la fin
   fitness-screen-api.ts    routes de la séance de sport sur la télé (téléphone de la personne, page de la télé)
   services/screen-cook.ts  mode cuisine des télés : recette, étape, auteur, attente des changements
@@ -916,7 +927,7 @@ server/
   screen-reminders-api.ts  routes des rappels sur la télé (réglages, « Essayer »)
   services/screen-reminders.ts  rappels sur la télé : heures, rattrapage, textes (routine du soir, mots à lire)
   sources/screen-reminders.ts   réglages des rappels et jour du dernier envoi (screen-reminders.json)
-  screen-media-api.ts      pause, reprise, volume et « À table ! » depuis la tablette (parent reconnu ou code parent)
+  screen-media-api.ts      pause, reprise, volume, « À table ! » et mode film depuis la tablette (parent reconnu ou code parent)
   services/screen-media.ts commandes de ce qui passe : touches, volume fixe refusé, événement « À table ! »
   services/ecran.ts        écran de veille de la télé : météo, agenda d'aujourd'hui et de demain, menu du jour
   ecran-api.ts             route de l'écran de veille de la télé (jeton de la télé)
@@ -942,6 +953,7 @@ shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage,
 shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut, heure due, textes
 shared/screen-media.ts     photo ou vidéo vers la télé : formats, taille au plus, durées, événement « media »
 shared/screen-workout.ts   séance de sport sur la télé : plan sans rien de personnel, horloge (pause, suivant, arrêt)
+shared/screen-film.ts      mode film : applis de films, état (automatique, à la main, fin), genres rendus discrets
 shared/screen-cook.ts      vue cuisine de la télé : étape, durées, minuteurs de la maison (même logique que la tablette)
 shared/screen-talk.ts      parler en direct à la télé : format du son (PCM 16 kHz), événement talk
 shared/barcode.ts          codes-barres : clé de contrôle, forme sur 13 chiffres, étiquettes des contenants

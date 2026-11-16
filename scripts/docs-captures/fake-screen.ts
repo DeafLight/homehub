@@ -81,8 +81,8 @@ export function fakeVoiceReport(screenOn: boolean, clipStatus: number): { ok: tr
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
-/** Message écrit reçu : titre, texte et durée du bandeau ; `replies` : réponses rapides proposées (fonction 10). */
-export type FakeScreenText = { title: string; text: string; seconds: number; replies?: boolean };
+/** Message écrit reçu : titre, texte et durée du bandeau ; `replies` : réponses rapides proposées (fonction 10) ; `discreet` : mode film (fonction 15). */
+export type FakeScreenText = { title: string; text: string; seconds: number; replies?: boolean; discreet?: boolean };
 /** Alerte de minuteur affichée par la fausse télé : de quoi dessiner le bandeau, et le minuteur à arrêter. */
 export type FakeScreenTimer = { timerId: string; title: string; subtitle: string };
 /** Minuteurs en cours reçus (événement `timers`) : l'heure du serveur à l'envoi et la liste. */
@@ -207,7 +207,7 @@ export function startFakeScreen(base: string) {
         }
         if (event.kind === 'message') {
           replyId = event.replyId ?? null;
-          writeFileSync(join(dir, FAKE_SCREEN_TEXT_FILE), JSON.stringify({ title: event.title, text: event.text, seconds: event.seconds, replies: !!event.replyId } satisfies FakeScreenText));
+          writeFileSync(join(dir, FAKE_SCREEN_TEXT_FILE), JSON.stringify({ title: event.title, text: event.text, seconds: event.seconds, replies: !!event.replyId, ...(event.discreet && { discreet: true }) } satisfies FakeScreenText));
           console.log(`Fausse appli HomeHub TV, message écrit : ${event.title}, « ${event.text} »`);
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           continue;

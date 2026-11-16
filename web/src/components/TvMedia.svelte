@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { filmDone, filmLabel, filmToggle } from '../../../shared/screen-film.ts';
   import type { MediaAction, MediaScreen } from '../../../shared/screen.ts';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
@@ -13,6 +14,7 @@
   // reprise, volume et « À table ! » (bandeau et pause sur la télé). Un parent reconnu commande tout de suite ; sinon
   // le code parent, demandé une fois et gardé tant que le panneau reste ouvert. Volume fixe (barre de son) : pas de
   // touches de volume, et l'explication à la place. Rien de personnel : ni l'appli en cours, ni le programme.
+  // « Mode film » (fonction 15) : annonces discrètes et messages vocaux sur le Google Home, mêmes règles d'accès.
   const REFRESH_MS = 60_000;
 
   const { api, actor } = getAppContext();
@@ -22,7 +24,9 @@
   let open = $state(false);
   let chosenId = $state<string | null>(null);
   let pin = $state<string | null>(null);
-  let asking = $state<MediaAction | null>(null);
+  /** Commande en attente du code parent ; `film` : le bouton Mode film (allumer ou éteindre selon l'état). */
+  type Command = MediaAction | 'film';
+  let asking = $state<Command | null>(null);
   let pinError = $state<string | null>(null);
   let busy = $state(false);
   let notice = $state<string | null>(null);
@@ -49,15 +53,19 @@
   }
 
   /** Envoie la commande ; avec un code refusé, le redemande. Vrai si elle est partie. */
-  async function send(action: MediaAction, code: string | null): Promise<boolean> {
+  async function send(action: Command, code: string | null): Promise<boolean> {
     if (!screen) return false;
     busy = true;
     try {
-      await api.screenMedia(screen.id, action, code ?? undefined);
+      if (action === 'film') notice = filmDone(await api.screenFilm(screen.id, !screen.film?.on, code ?? undefined));
+      else {
+        await api.screenMedia(screen.id, action, code ?? undefined);
+        notice = MEDIA_DONE[action];
+      }
       if (code) pin = code;
       asking = null;
       error = null;
-      notice = MEDIA_DONE[action];
+      if (action === 'film') void media.refresh();
       feedback.show('notice');
       return true;
     } catch (err) {
@@ -79,7 +87,7 @@
     }
   }
 
-  function run(action: MediaAction) {
+  function run(action: Command) {
     if (busy) return;
     if (who === 'parent') return void send(action, null);
     if (pin) return void send(action, pin);
@@ -136,6 +144,14 @@
             </div>
           {/if}
           <button type="button" class="dinner" disabled={!can.pause || busy} onclick={() => run('dinner')}>À table !</button>
+          {#if screen.film}
+            {@const label = filmLabel(screen.film)}
+            <button type="button" class="film" class:on={screen.film.on} aria-pressed={screen.film.on} disabled={!filmToggle(screen) || busy} onclick={() => run('film')}>
+              <Icon name="moon" size={30} />
+              {screen.film.on ? 'Mode film allumé' : 'Mode film'}
+            </button>
+            {#if label}<p class="film-state">{label}</p>{/if}
+          {/if}
           <p class="feedback" role="status" class:error={error !== null}>{error ?? notice ?? (who === 'nobody' ? NOBODY_HINT : '')}</p>
         {/if}
       {/if}
@@ -321,6 +337,37 @@
     color: var(--bg);
     font-size: var(--text-title);
     font-weight: 800;
+  }
+
+  .film {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 72px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-body);
+    font-weight: 700;
+  }
+
+  .film.on {
+    background: var(--rain-bg);
+    color: var(--rain-soft);
+  }
+
+  .film:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .film-state {
+    margin: 0;
+    color: var(--fg-soft);
+    font-size: var(--text-small);
+    text-align: center;
   }
 
   .feedback {

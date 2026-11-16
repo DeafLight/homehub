@@ -3,7 +3,9 @@
 // GONE_MS est absente (éteinte, appli fermée, réseau perdu). Un envoi attend le compte rendu de la télé (lecture
 // commencée, ou échec et sa raison) pour répondre au téléphone ; sans nouvelles, il échoue au bout de `reportMs`.
 // L'appli dit aussi où en est la télé (écran allumé, appli au premier plan, moyen d'action) : avec la présence, cela
-// donne l'état montré par la télécommande (allumée, en veille, injoignable).
+// donne l'état montré par la télécommande (allumée, en veille, injoignable). Mode film (fonction 15) : un bandeau
+// envoyé à une télé où passe un film part avec `discreet: true` (`useDiscreet`, branché sur services/screen-film.ts).
+import { isDiscreetKind } from '../../shared/screen-film.ts';
 import type { RemotePower, ScreenEvent, ScreenEventBody, ScreenEvents, ScreenReport, ScreenStateReport } from '../../shared/screen.ts';
 import { fail } from '../http.ts';
 import type { Clock } from '../sources/types.ts';
@@ -45,6 +47,8 @@ export function createScreenHub({
   reportMs?: number;
 }) {
   const boxes = new Map<string, Box>();
+  /** Les bandeaux de cette télé doivent-ils être discrets (mode film) ? */
+  let discreet: (id: string) => boolean = () => false;
   const now = () => clock().getTime();
 
   const boxOf = (id: string) => {
@@ -68,6 +72,11 @@ export function createScreenHub({
 
   return {
     online,
+
+    /** Branche la règle du mode film : les bandeaux envoyés aux télés où elle répond oui partent discrets. */
+    useDiscreet(rule: (id: string) => boolean) {
+      discreet = rule;
+    },
 
     /** État annoncé par l'appli de la télé `id` (null : rien reçu depuis le démarrage du serveur). */
     stateOf: (id: string): ScreenStateReport | null => boxes.get(id)?.state ?? null,
@@ -138,7 +147,8 @@ export function createScreenHub({
           resolve(r);
         });
       });
-      box.items.push({ ...event, seq: ++box.seq, at: now() } as ScreenEvent & { at: number });
+      const quiet = isDiscreetKind(event.kind) && discreet(id) ? { discreet: true } : {};
+      box.items.push({ ...event, ...quiet, seq: ++box.seq, at: now() } as ScreenEvent & { at: number });
       for (const wake of box.waiters) wake();
       box.waiters.clear();
       return report;
