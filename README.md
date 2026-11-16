@@ -433,9 +433,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   elle-même sur son adb local (`cmd notification allow_listener`). Session retenue : celle de l'appli au premier plan
   si elle joue ou est en pause, sinon une qui joue (une pause laissée derrière soi ne compte plus). **Selon
   l'appli** : YouTube, Prime Video, Disney+ et la plupart des lecteurs publient titre et état, souvent l'image ;
-  Netflix publie l'état et souvent le titre ; la télé en direct (appli de la box ou du tuner) donne au mieux la
-  chaîne ou l'émission, parfois rien (seule l'appli s'affiche), sans durée. Ce qui est casté passe aussi par une
-  session. Parents seulement (comme la télécommande), rien de plus que ce qui est déjà à l'écran ; la tablette n'en
+  Netflix ne donne, sur cette télé, que l'état et la position, sans titre, durée ni image : le bloc affiche alors le
+  nom et la bannière de l'appli, **Lecture** ou **En pause** et le temps écoulé seul (« 6:29 »), sans barre ; la
+  télé en direct (appli de la box ou du tuner) donne au mieux la chaîne ou l'émission, parfois rien (seule l'appli
+  s'affiche), sans durée. Ce qui est casté passe aussi par une session. Parents seulement (comme la télécommande), rien de plus que ce qui est déjà à l'écran ; la tablette n'en
   montre rien.
 - **Pause, reprise et volume depuis la tablette** (bouton **Télé** de la barre d'actions de l'accueil, dès qu'une
   télé est appairée) : **Pause**, **Reprendre**, volume −, muet, volume + et **À table !** (pause et bandeau « À table !

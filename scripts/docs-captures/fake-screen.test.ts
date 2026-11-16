@@ -20,7 +20,7 @@ describe('fausse appli HomeHub TV', () => {
     expect(readFakeScreenMode(dir)).toBe('allumee');
   });
 
-  it('ce qui passe : série par défaut, télé en direct sans durée, film en pause, rien ; une appli lancée n’annonce rien', () => {
+  it('ce qui passe : série par défaut, télé en direct sans durée, film en pause, appli muette, rien ; une appli lancée n’annonce rien', () => {
     const dir = mkdtempSync(join(tmpdir(), 'homehub-fake-screen-'));
     expect(readFakeScreenScenario(dir)).toBe('serie');
     writeFileSync(join(dir, FAKE_SCREEN_PLAYING_FILE), JSON.stringify({ scenario: 'pause' }));
@@ -30,6 +30,7 @@ describe('fausse appli HomeHub TV', () => {
     expect(fakeNowPlaying('direct')).toMatchObject({ foreground: 'fr.exemple.box', nowPlaying: { state: 'playing', durationMs: null } });
     expect(fakeNowPlaying('pause').nowPlaying).toMatchObject({ package: 'fr.exemple.cine', state: 'paused' });
     expect(fakeNowPlaying('serie').nowPlaying?.artwork?.startsWith('iVBOR')).toBe(true);
+    expect(fakeNowPlaying('muet').nowPlaying).toMatchObject({ state: 'playing', positionMs: 389_552, title: null, durationMs: null, artwork: null });
     expect(fakeNowPlaying('rien').nowPlaying).toBeNull();
     const state = { screenOn: true, control: 'adb' as const, addresses: [], ...fakeNowPlaying('serie') };
     applyRemote({ seq: 1, kind: 'key', id: 'e0', keys: ['pause'] }, state);

@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.96.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.96.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -502,12 +502,15 @@ ouvrir d'un geste, avec la date de la liste.
 
 En haut des deux onglets, **À l'écran** dit ce que montre la télé en ce moment : l'image et le titre du programme,
 l'épisode ou la chaîne, **Lecture** ou **En pause**, l'appli, et la barre d'avancée avec le temps, qui avance seul.
-La télé en direct n'a pas de durée (pas de barre) ; une appli qui n'annonce rien n'affiche que son nom ; télé en
-veille : « Télé en veille : rien à l’écran. ». Ici la série mise en pause par « À table ! », la télé en direct et un film en pause.
+La télé en direct n'a pas de durée (pas de barre) ; une appli qui ne publie que l'état et la position (Netflix, sur
+la vraie télé) affiche son nom et sa bannière, l'état et le temps écoulé seul, sans barre ; une appli qui n'annonce
+rien n'affiche que son nom ; télé en veille : « Télé en veille : rien à l’écran. ». Ici la série mise en pause par
+« À table ! », la télé en direct, un film en pause et une appli muette.
 
 <img src="images/telephone-telecommande.png" alt="Télécommande sur le téléphone d'Alex : À l'écran, une série en pause après « À table ! » ; pavé de flèches, OK" width="260">
 <img src="images/telephone-telecommande-direct.png" alt="Télécommande : À l'écran, Le Journal de 20 h sur Chaîne 2 dans Box TV, sans barre d'avancée" width="260">
 <img src="images/telephone-telecommande-pause.png" alt="Télécommande : À l'écran, La Grande Traversée en pause dans Ciné Club, 1:06:02 sur 1:48:00" width="260">
+<img src="images/telephone-telecommande-muet.png" alt="Télécommande : À l'écran, Vidéo+ avec sa bannière, Lecture, temps écoulé seul (6:33), sans barre d'avancée" width="260">
 <img src="images/telephone-telecommande-applis.png" alt="Télécommande, onglet Applis : grille des applis de la télé" width="260">
 
 Si le volume de la télé est fixe (son par une barre de son), les touches de volume sont grisées et une ligne

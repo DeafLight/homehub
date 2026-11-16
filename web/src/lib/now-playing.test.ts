@@ -1,5 +1,6 @@
 // Tests de la carte « À l'écran » de la télécommande (fonction 18) : veille, injoignable, appli seule, programme en
-// lecture qui avance, en pause, télé en direct sans durée, appli qui ne publie pas de titre.
+// lecture qui avance, en pause, télé en direct sans durée, appli qui ne publie pas de titre,
+// appli qui ne publie que l'état et la position (temps écoulé seul).
 import { describe, expect, it } from 'vitest';
 import type { RemoteNowPlaying } from '../../../shared/now-playing.ts';
 import { nowPlayingView } from './now-playing.ts';
@@ -29,6 +30,7 @@ describe('carte « À l’écran »', () => {
       package: 'fr.exemple.cine',
       title: 'Les Voisins du dessus',
       subtitle: 'Saison 2 · Épisode 4',
+      showApp: true,
       paused: false,
       status: 'Lecture',
       progress: 0.25,
@@ -41,9 +43,16 @@ describe('carte « À l’écran »', () => {
     expect(nowPlayingView({ ...on, nowPlaying: { ...film, state: 'paused' } }, 60_000)).toMatchObject({ paused: true, status: 'En pause', times: '10:00 / 40:00' });
   });
 
-  it('télé en direct sans durée, appli sans titre : pas de barre, le nom de l’appli en titre', () => {
-    const live = { ...film, package: 'fr.exemple.box', app: 'Box TV', title: null, subtitle: 'Chaîne 2', durationMs: null };
-    expect(nowPlayingView({ ...on, nowPlaying: live }, 0)).toMatchObject({ title: 'Box TV', subtitle: 'Chaîne 2', progress: null, times: null });
+  it('télé en direct sans position ni durée, appli sans titre : pas de barre ni temps, le nom de l’appli en titre', () => {
+    const live = { ...film, package: 'fr.exemple.box', app: 'Box TV', title: null, subtitle: 'Chaîne 2', positionMs: null, durationMs: null };
+    expect(nowPlayingView({ ...on, nowPlaying: live }, 0)).toMatchObject({ title: 'Box TV', subtitle: 'Chaîne 2', showApp: false, progress: null, times: null });
+  });
+
+  it('appli qui ne publie que l’état et la position (sans titre ni durée) : l’appli une seule fois, temps écoulé seul', () => {
+    const mute = { ...film, title: null, subtitle: null, durationMs: null, artworkId: null, positionMs: 389_552 };
+    expect(nowPlayingView({ ...on, nowPlaying: mute }, 0)).toMatchObject({ title: 'Ciné Club', subtitle: null, showApp: false, status: 'Lecture', progress: null, times: '6:29' });
+    expect(nowPlayingView({ ...on, nowPlaying: mute }, 61_000)).toMatchObject({ times: '7:30' });
+    expect(nowPlayingView({ ...on, nowPlaying: { ...mute, state: 'paused' } }, 61_000)).toMatchObject({ times: '6:29' });
   });
 
   it('appli au premier plan sans session média, ou rien de connu', () => {

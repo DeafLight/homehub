@@ -534,9 +534,11 @@ Le bloc **À l'écran** de la télécommande du téléphone montre l'appli en co
 - **Envoi** : avec l'état de la télé (`nowPlaying`, champ facultatif : protocole inchangé), à chaque changement de
   session (regroupés sur 0,4 s) ; la position qui avance seule n'entraîne pas d'envoi, un saut ou une pause si. Le
   serveur nettoie les textes, refuse une image qui n'est ni JPEG ni PNG, et recalcule la position à chaque réponse.
-- **Ce qui marchera selon l'appli** : YouTube, Prime Video, Disney+ : titre, état, souvent l'image ; Netflix : état,
-  souvent le titre, peu d'image ; télé en direct : au mieux chaîne ou émission, sans durée, parfois rien (seule
-  l'appli s'affiche). À mesurer : `docs/tests-tele.md`, section 18.
+- **Ce qui marchera selon l'appli** : YouTube, Prime Video, Disney+ : titre, état, souvent l'image ; Netflix
+  (`com.netflix.ninja`, mesuré le 16/11/2026) : état et position seulement, `metadata` nulle (ni titre, ni durée, ni
+  image) ; le téléphone montre alors le nom et la bannière de l'appli, l'état et le temps écoulé seul, sans barre
+  (0.96.2). Obtenir le titre demanderait de lire l'écran : écarté. Télé en direct : au mieux chaîne ou émission,
+  sans durée, parfois rien (seule l'appli s'affiche). À mesurer : `docs/tests-tele.md`, section 18.
 - **Rien de personnel** : parents seulement, et rien de plus que ce qui est déjà à l'écran de la télé ; rien sur la
   tablette.
 

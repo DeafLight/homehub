@@ -413,6 +413,9 @@ personne depuis son propre téléphone.
       sessions média accordé par l'appli elle-même après la mise à jour (`adb shell settings get secure
       enabled_notification_listeners` cite `fr.homehub.tv/fr.homehub.tv.HomeHubLecture`). Reste à vérifier :
       `docs/tests-tele.md`, section 18.
+  - [x] 18.1. Applis muettes (0.96.2) : Netflix ne publie sur la vraie télé que l'état et la position (`metadata`
+        nulle) ; « À l'écran » ne répète plus le nom de l'appli (titre de repli) dans la ligne d'état et montre le
+        temps écoulé seul (« 6:29 ») sans barre quand la durée manque ; fausse télé en scénario `muet`.
 
 ## École
 

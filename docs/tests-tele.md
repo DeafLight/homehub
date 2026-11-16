@@ -112,5 +112,9 @@ correctif (nouvelle session, nouvelle branche). Les fonctions 1, 2 et 3 sont dé
 
 - [ ] À l'écran, sur le téléphone, ce que publient YouTube, Netflix, Prime Video, Disney+ et la télé en direct de la
       box : titre, épisode ou chaîne, image, lecture ou pause, avancée juste (noter ce qui manque, appli par appli).
+      Netflix (16/11/2026) : session de `com.netflix.ninja` en lecture (`state=3`) avec position, mais `metadata`
+      nulle : ni titre, ni durée, ni image (rien à faire côté HomeHub sans lire l'écran, écarté). Depuis la 0.96.2 :
+      « Netflix », bannière de l'appli, « Lecture » et temps écoulé seul ; à revoir : YouTube, Prime Video, Disney+,
+      la box.
 - [ ] Pause à la télécommande : « En pause » en 5 s au plus ; saut dans le programme : temps corrigé.
 - [ ] Film laissé en pause puis Accueil : plus de programme affiché ; télé en veille : « Télé en veille ».

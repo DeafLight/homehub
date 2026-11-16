@@ -716,10 +716,11 @@ await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhon
 
 // Télécommande de la télé (fausse appli de fake-screen.ts, qui a envoyé son état et ses applis inventées) : onglet
 // Touches après « À table ! », puis onglet Applis (tiroir). En haut, « À l'écran » (fonction 18) : la série en lecture
-// de la fausse télé ; puis la télé en direct et un film en pause (fake-screen-playing.json), avant de revenir à la série.
+// de la fausse télé ; puis la télé en direct, un film en pause et une appli muette (état et position seulement)
+// (fake-screen-playing.json), avant de revenir à la série.
 await shoot('telephone-telecommande', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('À table !'), settle: 1500 });
 await shoot('telephone-telecommande-applis', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Applis') });
-for (const scenario of ['direct', 'pause'] as const) {
+for (const scenario of ['direct', 'pause', 'muet'] as const) {
   if (only && !only.test(`telephone-telecommande-${scenario}`)) continue;
   writeFileSync(join(state, FAKE_SCREEN_PLAYING_FILE), JSON.stringify({ scenario }));
   await sleep(1000);

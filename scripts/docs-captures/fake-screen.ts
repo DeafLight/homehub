@@ -28,8 +28,9 @@
 // Heure du coucher (fonction 16) : rappel et changements comme les autres rappels, pause comme « À table ! », écran de
 // veille du coucher ouvert ou fermé (noté dans fake-screen-remote.json, `bedtime`).
 // Ce qui passe (fonction 18) : par défaut une série en lecture sur Vidéo+ ; fake-screen-playing.json
-// ({ "scenario": "direct" | "pause" | "serie" | "rien" }) passe à la télé en direct (chaîne, sans durée), à un film en
-// pause sur Ciné Club, ou à rien d'annoncé ; l'état part aussitôt, comme quand une session média change. Une appli
+// ({ "scenario": "direct" | "pause" | "muet" | "serie" | "rien" }) passe à la télé en direct (chaîne, sans durée), à
+// un film en pause sur Ciné Club, à une appli qui ne publie que l'état et la position (comme certaines applis de
+// streaming : ni titre, ni durée, ni image), ou à rien d'annoncé ; l'état part aussitôt, comme quand une session média change. Une appli
 // lancée à la télécommande n'annonce rien. Télé éteinte : le mode veille (fake-screen-mode.json).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -54,8 +55,9 @@ export const FAKE_SCREEN_MODE_FILE = 'fake-screen-mode.json';
 export const FAKE_SCREEN_REPLY_FILE = 'fake-screen-reply.json';
 export const FAKE_SCREEN_PLAYING_FILE = 'fake-screen-playing.json';
 
-/** Ce que joue la fausse télé : série en lecture (par défaut), télé en direct, film en pause, ou rien d'annoncé. */
-export const FAKE_SCREEN_SCENARIOS = ['serie', 'direct', 'pause', 'rien'] as const;
+/** Ce que joue la fausse télé : série en lecture (par défaut), télé en direct, film en pause, appli muette (état et
+ * position seulement), ou rien d'annoncé. */
+export const FAKE_SCREEN_SCENARIOS = ['serie', 'direct', 'pause', 'muet', 'rien'] as const;
 export type FakeScreenScenario = (typeof FAKE_SCREEN_SCENARIOS)[number];
 
 /** Scénario écrit dans fake-screen-playing.json ; sans fichier ou illisible : la série. */
@@ -87,6 +89,11 @@ export function fakeNowPlaying(scenario: FakeScreenScenario): { foreground: stri
       return {
         foreground: 'fr.exemple.cine',
         nowPlaying: { package: 'fr.exemple.cine', title: 'La Grande Traversée', subtitle: 'Film · 1 h 48', state: 'paused', positionMs: 3_962_000, durationMs: 6_480_000, artwork: bannerPng([20, 90, 120], [120, 40, 30], 'wave') },
+      };
+    case 'muet':
+      return {
+        foreground: 'fr.exemple.video',
+        nowPlaying: { package: 'fr.exemple.video', title: null, subtitle: null, state: 'playing', positionMs: 389_552, durationMs: null, artwork: null },
       };
     case 'rien':
       return { foreground: 'fr.exemple.video', nowPlaying: null };

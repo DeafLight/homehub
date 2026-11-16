@@ -3,7 +3,8 @@
   import Icon from './Icon.svelte';
 
   // Carte « À l'écran » de la télécommande (fonction 18) : image du programme (sinon bannière de l'appli, sinon icône
-  // télé), titre, épisode ou chaîne, appli, lecture ou pause et avancée. Règles du texte : lib/now-playing.ts.
+  // télé), titre, épisode ou chaîne, appli, lecture ou pause et
+  // avancée (barre et temps, ou temps écoulé seul sans durée). Règles du texte : lib/now-playing.ts.
   let { view, image = null }: { view: NowPlayingView; image?: string | null } = $props();
 </script>
 
@@ -22,7 +23,7 @@
           {#if view.subtitle}<span class="subtitle">{view.subtitle}</span>{/if}
           <span class="app">
             <span class="state" class:paused={view.paused}><Icon name={view.paused ? 'pause' : 'play'} size={14} strokeWidth={2.6} /> {view.status}</span>
-            · {view.app}
+            {#if view.showApp}· {view.app}{/if}
           </span>
         {:else}
           <strong class="title">{view.app}</strong>
@@ -34,6 +35,8 @@
       <div class="progress" role="progressbar" aria-label="Avancée" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(view.progress * 100)}>
         <span style:width="{view.progress * 100}%"></span>
       </div>
+    {/if}
+    {#if view.kind === 'playing' && view.times}
       <span class="times">{view.times}</span>
     {/if}
   {/if}
