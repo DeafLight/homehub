@@ -470,9 +470,8 @@ journalisée ; MOTIS sur le NAS (pas Transitous en production) ; la tablette n'a
       habituel TomTom) et tablette (semaine, « Cette semaine », bouton Trajet de la prochaine activité, depuis la
       maison ; frise du jour des tableaux « focus » des élèves en 0.95.1) ; la notification ouvre le trajet de son rendez-vous ; diagnostic dans les réglages (rendez-vous suivi,
       lieu non reconnu et pourquoi) ; routes `GET /api/trip/events`, `POST /api/trip/event`, `GET /api/trip/watch`.
-- [ ] Notification « Pars dans 5 min » à essayer sur un vrai téléphone (Android, puis iPhone ajouté à l'écran
-      d'accueil) : seulement vérifiée par les tests (chiffrement RFC 8291) et dans le monde fictif, sans vrai service
-      de push.
+- [x] Notification « Pars dans 5 min » sur un vrai téléphone : « Essayer » des réglages reçu, vrai service de push
+      (vérifié sur un vrai téléphone le 17/11/2026).
 - [ ] 3. Carte en route (MapLibre, tuiles PMTiles d'Angers servies par HomeHub) : position, étape en cours, véhicule à
       prendre estimé.
 - [ ] 4. Positions réelles des véhicules (GTFS-RT VehiclePositions d'Irigo, trip_id du GTFS) si les flux tiennent.
