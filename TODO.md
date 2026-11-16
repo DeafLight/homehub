@@ -455,7 +455,7 @@ journalisée ; MOTIS sur le NAS (pas Transitous en production) ; la tablette n'a
 - [x] 2.1. Trajet d'un rendez-vous touché dans l'agenda (0.95.0) : téléphone (`/m/agenda`, icône de bus sur les
       rendez-vous au lieu reconnu, feuille du trajet, même lointain : arriveBy depuis la maison au-delà de 3 h, trafic
       habituel TomTom) et tablette (semaine, « Cette semaine », bouton Trajet de la prochaine activité, depuis la
-      maison) ; la notification ouvre le trajet de son rendez-vous ; diagnostic dans les réglages (rendez-vous suivi,
+      maison ; frise du jour des tableaux « focus » des élèves en 0.95.1) ; la notification ouvre le trajet de son rendez-vous ; diagnostic dans les réglages (rendez-vous suivi,
       lieu non reconnu et pourquoi) ; routes `GET /api/trip/events`, `POST /api/trip/event`, `GET /api/trip/watch`.
 - [ ] Notification « Pars dans 5 min » à essayer sur un vrai téléphone (Android, puis iPhone ajouté à l'écran
       d'accueil) : seulement vérifiée par les tests (chiffrement RFC 8291) et dans le monde fictif, sans vrai service

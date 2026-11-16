@@ -1,5 +1,7 @@
 <script lang="ts">
   // Frise d'une journée : cours (gris, pointillés, toque) et agenda (couleur du profil, calendrier) à leur heure.
+  // Un rendez-vous d'agenda dont le lieu est reconnu (`routable`) porte une petite icône de bus : le toucher ouvre son
+  // trajet (`onTrip`). Les cours ne sont pas touchables.
   import { mix } from '../../lib/color.ts';
   import { type DayPlan, startOfDay, timelinePercent, whenOnDay } from '../../lib/day.ts';
   import { formatTime } from '../../lib/format.ts';
@@ -16,8 +18,11 @@
     color: string;
     /** En tête de carte, à la place d'un titre (bascule aujourd'hui / demain du dashboard). */
     header: Snippet;
+    /** Clés (`eventKey`) des rendez-vous dont le lieu est reconnu. */
+    routable?: ReadonlySet<string>;
+    onTrip?: (key: string, title: string) => void;
   };
-  let { day, plan, hours, now, color, header }: Props = $props();
+  let { day, plan, hours, now, color, header, routable = new Set(), onTrip }: Props = $props();
 
   const accentBg = $derived(mix(color, '#0f1115', 0.3));
   const accentLight = $derived(mix(color, '#ffffff', 0.55));
@@ -62,8 +67,15 @@
           <div class="line" style:top="{markTop(hour)}%"></div>
         {/each}
         {#each plan.items as item (item.id)}
-          <div
+          {@const key = onTrip && item.key && routable.has(item.key) ? item.key : null}
+          <svelte:element
+            this={key ? 'button' : 'div'}
+            role={key ? undefined : 'presentation'}
+            type={key ? 'button' : undefined}
+            aria-label={key ? `${item.title} : voir le trajet` : undefined}
+            onclick={key ? () => onTrip?.(key, item.title) : undefined}
             class="block {item.kind}"
+            class:routable={key !== null}
             class:past={item.end <= now}
             class:cancelled={item.cancelled}
             style:top="{top(item.start)}%"
@@ -82,7 +94,8 @@
             <span class="meta" style:color={item.kind === 'event' ? accentLight : undefined}>
               {item.kind === 'course' ? (item.room ?? '') : formatTime(item.start)}
             </span>
-          </div>
+            {#if key}<span class="route" aria-hidden="true"><Icon name="bus" size={16} /></span>{/if}
+          </svelte:element>
         {/each}
         {#if nowVisible}
           <div class="now" style:top="{top(now)}%" style:background={color}>
@@ -162,6 +175,26 @@
     border-radius: 12px;
     overflow: hidden;
     font-size: 1.1rem;
+  }
+
+  /* Rendez-vous touchable (bouton) : mêmes couleurs, icône de bus à droite. */
+  .block.routable {
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .route {
+    flex-shrink: 0;
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--rain-bg);
+    color: var(--rain-soft);
   }
 
   .block.course {

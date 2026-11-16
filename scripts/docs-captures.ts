@@ -1251,6 +1251,7 @@ if (!only || FILM_SHOTS.some((name) => only.test(name))) {
 const TRIP_SHOTS = [
   'telephone-trajet-enfant', 'telephone-agenda-trajet-enfant', 'telephone-trajet-rdv-enfant',
   'telephone-trajet-parent', 'telephone-agenda-trajet-parent', 'telephone-trajet-rdv-parent', 'tablette-semaine-trajet', 'tablette-tableau-trajet',
+  'tablette-frise-trajet', 'tablette-frise-trajet-rdv',
   'telephone-reglages-notifications', 'telephone-reglages-diagnostic', 'telephone-reglages-iphone',
 ];
 /** Touche le rendez-vous dont le bouton contient `title` (agenda du téléphone, semaine de la tablette). */
@@ -1262,11 +1263,12 @@ if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   const current = JSON.parse(readFileSync(devicesFile, 'utf8')) as { version: 1; devices: unknown[] };
   writeFileSync(devicesFile, JSON.stringify({ ...current, devices: [...current.devices, device('tom', 'Téléphone de Tom', 'Android 15'), device('sam', 'Téléphone de Sam', 'Android 16')] }));
   const place = (id: string, label: string, icon: string, lat: number, lon: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon });
-  const tripSettings = (withTrips: boolean) => ({
+  const tripSettings = (withTrips: boolean, pool = false) => ({
     places: [
       place('maison', 'Maison', 'home', 47.47, -0.55),
       place('college', 'Collège', 'school', 47.48, -0.55),
       ...(withTrips ? [place('stade', 'Stade', 'sport', 47.455, -0.575), place('ecole', 'École', 'place', 47.49, -0.52)] : []),
+      ...(pool ? [place('piscine', 'Centre aquatique', 'sport', 47.46, -0.53)] : []),
     ],
     commutes: {
       lea: {
@@ -1292,6 +1294,12 @@ if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   await shoot('telephone-trajet-rdv-parent', `${BASE}/m/agenda`, PHONE, { init: asPhone('alex') + atPosition, wait: 4000, after: openTrip('Dentiste'), settle: 2500 });
   await shoot('tablette-semaine-trajet', `${BASE}/semaine`, TABLET, { wait: 4000, after: openTrip('Dentiste'), settle: 2500 });
   await shoot('tablette-tableau-trajet', `${BASE}/p/alex`, TABLET, { wait: 4000 });
+  // Frise de Léa : à 18 h 14 ses cours sont finis, elle montre demain et sa piscine, au « Centre aquatique » (lieu
+  // ajouté pour ces deux captures seulement, pour ne pas changer les autres).
+  await call(A, 'PUT', '/transit/settings', tripSettings(true, true));
+  await shoot('tablette-frise-trajet', `${BASE}/p/lea`, TABLET, { wait: 4000 });
+  await shoot('tablette-frise-trajet-rdv', `${BASE}/p/lea`, TABLET, { wait: 4000, after: openTrip('Piscine'), settle: 2500 });
+  await call(A, 'PUT', '/transit/settings', tripSettings(true));
   await call(A, 'PUT', '/push', { endpoint: `https://${FAKE_PUSH_HOST}/abonnement-exemple`, keys: { p256dh: `B${'A'.repeat(86)}`, auth: 'A'.repeat(22) } });
   await shoot('telephone-reglages-notifications', `${BASE}/m/reglages`, PHONE, { init: asPhone('alex') });
   await shoot('telephone-reglages-diagnostic', `${BASE}/m/reglages`, PHONE, { init: asPhone('sam') });

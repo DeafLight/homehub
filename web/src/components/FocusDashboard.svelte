@@ -103,6 +103,8 @@
     {now}
     color={profile.color}
     header={switcher}
+    {routable}
+    {onTrip}
   />
 
   <div class="moment">{@render card(focus, false)}</div>

@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.95.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.95.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -351,12 +351,20 @@ trafic habituel à cette heure. La réunion de 19 h à l'École a aussi son icô
 <img src="images/telephone-agenda-trajet-parent.png" width="260" alt="Agenda d'Alex : la réunion et le dentiste portent une icône de bus"> <img src="images/telephone-trajet-rdv-parent.png" width="260" alt="Trajet du dentiste de demain : pars demain à 7 h 50, depuis la maison, voiture avec le trafic habituel">
 
 Sur la tablette, les rendez-vous qu'elle affiche déjà s'ouvrent de même, depuis la maison : dans la semaine
-détaillée (icône de bus sur le bloc), et sur un tableau de bord, la carte « Cette semaine » et le bouton **Trajet** du
-bandeau « Prochaine activité ».
+détaillée (icône de bus sur le bloc), sur un tableau de bord, la carte « Cette semaine » et le bouton **Trajet** du
+bandeau « Prochaine activité », et sur la frise du jour du tableau « focus » d'un élève.
 
 ![Trajet du dentiste ouvert depuis la semaine de la tablette](images/tablette-semaine-trajet.png)
 
 ![Tableau de bord d'Alex : bouton Trajet sur la prochaine activité, icône de bus sur le dentiste](images/tablette-tableau-trajet.png)
+
+Frise de Léa (tableau « focus ») : ses cours sont finis, elle montre demain. La piscine de 17 h 30 a lieu au
+« Centre aquatique », ici un lieu de la famille : son bloc porte l'icône de bus, le toucher ouvre son trajet depuis la
+maison (en dessous). Les cours restent tels quels.
+
+![Frise de Léa : la piscine de demain porte une icône de bus](images/tablette-frise-trajet.png)
+
+![Trajet de la piscine ouvert depuis la frise de Léa, depuis la maison](images/tablette-frise-trajet-rdv.png)
 
 ### Réglages du téléphone : notifications
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '../../../shared/types.ts';
+import { eventKey } from '../../../shared/trip.ts';
 import { dayPlan, eventsOnDay, fitsInDay, timelineHours, timelineItems, timelinePercent, whenOnDay } from './day.ts';
 
 const at = (day: number, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute);
@@ -39,6 +40,12 @@ describe('frise', () => {
       ['course', 'Maths'],
       ['event', 'foot'],
     ]);
+  });
+
+  it("garde la clé d'un rendez-vous d'agenda, pas celle d'un cours", () => {
+    const [maths, match] = timelineItems([course], [foot]);
+    expect(maths.key).toBeUndefined();
+    expect(match.key).toBe(eventKey(foot));
   });
 
   it('couvre 8 h–20 h, élargi aux éléments qui en sortent', () => {

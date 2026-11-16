@@ -1,5 +1,6 @@
 // Découpage d'un agenda par jour et géométrie de la frise horaire (cours + événements).
 import type { CalendarEvent, SchoolCourse } from '../../../shared/types.ts';
+import { eventKey } from '../../../shared/trip.ts';
 import { formatTime } from './format.ts';
 
 const DEFAULT_EVENT_MINUTES = 60;
@@ -44,6 +45,8 @@ export type TimelineItem = {
   end: Date;
   room?: string;
   location?: string;
+  /** Rendez-vous d'agenda : sa clé (`eventKey`), pour ouvrir son trajet si son lieu est reconnu. */
+  key?: string;
   cancelled: boolean;
 };
 
@@ -65,6 +68,7 @@ export function timelineItems(courses: SchoolCourse[], events: CalendarEvent[]):
       start: new Date(e.start),
       end: endOf(e),
       location: e.location,
+      key: eventKey(e),
       cancelled: false,
     })),
   ].sort((a, b) => a.start.getTime() - b.start.getTime());

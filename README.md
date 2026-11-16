@@ -582,8 +582,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   sinon) ; plus tard, la **maison** (« le rendez-vous est dans plus de 3 h » : on partira sans doute de chez soi), et
   la ligne voiture prend le trafic habituel à l'heure d'arrivée (TomTom, `arriveAt`) plutôt que le trafic actuel. Le
   téléphone ouvre ses rendez-vous et ceux de la famille, jamais ceux d'un autre membre. **Tablette** : dans la semaine
-  détaillée (`/semaine`), la carte « Cette semaine » et le bandeau « Prochaine activité » (bouton **Trajet**) des
-  tableaux de bord, les rendez-vous qu'elle affiche déjà s'ouvrent de même, calculés depuis la maison, sans position,
+  détaillée (`/semaine`), la carte « Cette semaine », le bandeau « Prochaine activité » (bouton **Trajet**) des
+  tableaux de bord et la frise du jour du tableau « focus » d'un élève (les rendez-vous d'agenda, pas les cours), les rendez-vous qu'elle affiche déjà s'ouvrent de même, calculés depuis la maison, sans position,
   ligne voiture comprise. Les lieux reconnus sont cherchés par le serveur (une recherche par lieu, gardée 24 h).
 - **Notification « Pars dans 5 min »** (téléphone, roue dentée de l'en-tête › **Réglages**, `/m/reglages`) : Web Push,
   activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**). Elle part 5 min avant
