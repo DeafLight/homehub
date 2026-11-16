@@ -334,7 +334,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   veille (l'appli annonce l'écran allumé ou éteint, car la veille rapide garde le réseau) ou télé injoignable (plus
   de nouvelles depuis 40 s) : le message part sur son **appareil de secours**, un Google Home (Cast), et le téléphone
   affiche « Télé éteinte : lu sur Google Home du salon » ; l'onglet le dit dès le choix de la télé. Si l'écran
-  s'éteint pendant l'envoi, l'appli refuse le message (« écran éteint ») et HomeHub bascule aussi. Appareil de
+  s'éteint pendant l'envoi, l'appli refuse le message (« écran éteint ») et HomeHub bascule aussi. Télé débranchée
+  depuis moins d'une minute (encore vue présente) : si elle n'accuse pas réception du message en 5 s, il lui est
+  retiré et part sur le secours, « La télé n'a pas répondu : lu sur Google Home du salon » ; une télé qui l'a reçu le
+  garde (jamais lu deux fois). Appareil de
   secours : sur la tablette, **Téléphones** › **Télés**, « Si éteinte » (parent reconnu) ; par défaut la première
   enceinte de `cast.devices` (il faut `cast.mediaUrl`) ; « Aucun appareil » : l'envoi est refusé comme avant.
   **Mode film** : pendant un film, la télé n'est plus interrompue. Les messages vocaux partent sur le même appareil

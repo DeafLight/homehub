@@ -15,7 +15,7 @@ import { createRouter } from './http.ts';
 import { SCREENS_PARENTS_ONLY, UNKNOWN_FALLBACK, createScreenApi } from './screen-api.ts';
 import type { CastMedia, CastTarget } from './services/cast.ts';
 import { createScreenFallback } from './services/screen-fallback.ts';
-import { createScreenHub } from './services/screens.ts';
+import { createScreenHub, SCREEN_SILENT } from './services/screens.ts';
 import { createVoiceMessages } from './services/voice-messages.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
@@ -62,7 +62,7 @@ async function setup() {
   const fallback = createScreenFallback({ hub, cast: () => config.current().cast, store });
   const api = createRouter();
   const apps = createScreenAppStore({ path: join(dir, 'screen-apps.json'), clock });
-  api.route('/', createScreenApi({ screens, apps, hub, voice, config, household: createHousehold(config), access, fallback }));
+  api.route('/', createScreenApi({ screens, apps, hub, voice, config, household: createHousehold(config), access, fallback, voiceReceiptMs: 100 }));
 
   const { code } = devices.createCode('alex');
   const alex = (await devices.claim(code, 'Téléphone d’Alex'))!.token;
@@ -97,9 +97,17 @@ async function setup() {
     }
     throw new Error('aucun événement reçu');
   }
+  /** L'appli attend ses événements (depuis 0, sans accuser réception de rien) jusqu'au premier. */
+  async function receive() {
+    for (let i = 0; i < 100; i++) {
+      const got = (await (await tvCall('GET', '/screen/events?after=0')).json()) as ScreenEvents;
+      if (got.events[0]) return got;
+    }
+    throw new Error('aucun événement reçu');
+  }
   const sendVoice = () => call('POST', `/screens/${tv.id}/voice`, { token: alex, raw: new Uint8Array([1, 2, 3, 4]), headers: { 'Content-Type': 'audio/webm' } });
 
-  return { call, tablet, tv, tvCall, screenOn, answerNext, sendVoice, plays, alex, advance: (ms: number) => (now += ms) };
+  return { call, tablet, tv, tvCall, screenOn, answerNext, receive, sendVoice, plays, alex, advance: (ms: number) => (now += ms) };
 }
 
 describe('API HomeHub TV : télé éteinte, l’annonce part sur le Google Home', () => {
@@ -135,6 +143,31 @@ describe('API HomeHub TV : télé éteinte, l’annonce part sur le Google Home'
     expect(await (await sending).json()).toMatchObject({ device: 'Google Home du salon', fallback: { reason: 'standby' } });
     expect(plays).toHaveLength(1);
   });
+
+  it('télé débranchée encore vue présente : message retiré à la télé et lu sur le Google Home', async () => {
+    const { tvCall, receive, sendVoice, plays } = await setup();
+    // L'attente longue de la télé reçoit le message puis meurt : elle ne redemande plus rien.
+    const sending = sendVoice();
+    const event = (await receive()).events[0]!;
+    if (event.kind !== 'voice') throw new Error('message vocal attendu');
+    expect(await (await sending).json()).toEqual({
+      device: 'Google Home du salon',
+      fallback: { reason: 'silent', notice: 'La télé n’a pas répondu : lu sur Google Home du salon.' },
+    });
+    expect(plays).toHaveLength(1);
+    // La télé revient : le message n'est plus dans sa file, et son fichier n'est plus téléchargeable.
+    expect(((await (await tvCall('GET', '/screen/events?after=0')).json()) as ScreenEvents).events).toEqual([]);
+    expect((await tvCall('GET', event.audio.replace(/^\/api/, ''))).status).toBe(404);
+  });
+
+  it('télé qui a reçu le message (elle a redemandé ses événements) mais se tait : pas de Google Home en plus', async () => {
+    const { tvCall, receive, sendVoice, plays } = await setup();
+    const sending = sendVoice();
+    const { last } = await receive();
+    await tvCall('GET', `/screen/events?after=${last}`);
+    expect(await (await sending).json()).toEqual({ error: `Télé du salon : ${SCREEN_SILENT}` });
+    expect(plays).toEqual([]);
+  }, 5_000);
 
   it('cible du téléphone : allumée ou non, et l’appareil de secours', async () => {
     const { call, alex, tvCall, screenOn, tv } = await setup();

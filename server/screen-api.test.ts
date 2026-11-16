@@ -16,7 +16,7 @@ import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
 import { NO_CAST_TO_WAKE, OUTDATED_APP, REMOTE_REPORT_MS, SCREENS_PARENTS_ONLY, UNKNOWN_APP, createScreenApi, remoteTextReportMs } from './screen-api.ts';
 import type { CastTarget } from './services/cast.ts';
-import { createScreenHub, SCREEN_OFFLINE, SCREEN_SILENT } from './services/screens.ts';
+import { createScreenHub, SCREEN_MISSED, SCREEN_OFFLINE, SCREEN_SILENT } from './services/screens.ts';
 import { createVoiceMessages } from './services/voice-messages.ts';
 import { createScreenReplies } from './services/screen-replies.ts';
 import { createTvApi } from './tv-api.ts';
@@ -362,6 +362,41 @@ describe('API HomeHub TV : télécommande', () => {
     env.advance(41_000);
     expect(await (await env.call('POST', `/screens/${tv.id}/power`, { token: env.alex, body: { on: true } })).json()).toEqual({ power: 'offline', via: 'cast' });
     expect(env.wakes).toEqual([{ host: '192.168.1.60', port: 8009 }]);
+  });
+});
+
+describe('accusé de réception d’un envoi (missedMs)', () => {
+  const voiceEvent = (id: string) => ({ kind: 'voice', id, title: 'Message d’Alex', audio: '/api/screen/clips/x.webm', contentType: 'audio/webm' }) as const;
+
+  it('la télé ne redemande rien après l’envoi : retiré de sa file, SCREEN_MISSED', async () => {
+    const hub = createScreenHub({ clock: () => NOW, waitMs: 20 });
+    await hub.events('t', 0);
+    const sending = hub.send('t', voiceEvent('a'), 2_000, { missedMs: 50 });
+    expect((await hub.events('t', 0)).events).toHaveLength(1);
+    expect(await sending).toEqual({ ok: false, reason: SCREEN_MISSED });
+    expect((await hub.events('t', 0)).events).toEqual([]);
+    expect(hub.report('t', 'a', { ok: true })).toBe(false);
+  });
+
+  it('la télé a redemandé après lui (after ≥ son numéro) : il attend son compte rendu jusqu’au bout', async () => {
+    const hub = createScreenHub({ clock: () => NOW, waitMs: 20 });
+    await hub.events('t', 0);
+    const sending = hub.send('t', voiceEvent('a'), 150, { missedMs: 30 });
+    await hub.events('t', 1);
+    expect(await sending).toEqual({ ok: false, reason: SCREEN_SILENT });
+
+    const reported = hub.send('t', voiceEvent('b'), 2_000, { missedMs: 30 });
+    await hub.events('t', 2);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(hub.report('t', 'b', { ok: true })).toBe(true);
+    expect(await reported).toEqual({ ok: true });
+  });
+
+  it('sans missedMs : rien ne change (attente du compte rendu seulement)', async () => {
+    const hub = createScreenHub({ clock: () => NOW, waitMs: 20 });
+    await hub.events('t', 0);
+    expect(await hub.send('t', voiceEvent('a'), 40)).toEqual({ ok: false, reason: SCREEN_SILENT });
+    expect((await hub.events('t', 0)).events).toHaveLength(1);
   });
 });
 

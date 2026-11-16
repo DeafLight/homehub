@@ -31,6 +31,21 @@ fonctions plus bas.
   Fait : `server/services/screen-fallback.ts` décide (télé allumée : la télé ; en veille, injoignable, ou refus
   « écran éteint » de l'appli : l'appareil de secours de cette télé, réglé sur la tablette, première enceinte par
   défaut) ; le mode film (15) y ajoute sa raison de basculer (`film`, section 13).
+- **Télé débranchée depuis moins d'une minute** (0.92.1) : son attente longue meurt sans être fermée, la présence la
+  croit là jusqu'à 40 s après la fin des 25 s d'attente. Avant, le message vocal partait vers elle et échouait au bout
+  des 20 s de `REPORT_MS` (« La télé n'a pas répondu »), lu nulle part. Maintenant, quand un secours existe, l'envoi
+  attend un **accusé de réception** et non le compte rendu : l'appli redemande ses événements avec `after` dès qu'elle
+  a lu une réponse, avant même de télécharger le message ; un `after` au moins égal au numéro du message prouve
+  qu'elle l'a reçu. Sans accusé au bout de 5 s (`VOICE_RECEIPT_MS`, `missedMs` de `hub.send`), le message est
+  **retiré** de sa file et son fichier oublié (`voice.drop`), puis il part sur le secours, raison `silent` : « La
+  télé n'a pas répondu : lu sur Google Home du salon ». Pourquoi pas plus court ni basé sur le compte rendu : le
+  compte rendu « lecture commencée » arrive après le téléchargement, parfois lent ; basculer sur son absence
+  risquerait une double lecture (télé lente qui finit par lire, et Google Home). L'accusé de réception, lui, arrive en
+  moins d'une seconde quand l'attente longue est ouverte, et le retrait du message et de son fichier garantit qu'une
+  télé qui revient ne le lira pas. Une télé qui a accusé réception mais se tait garde le message : pas de secours
+  (« La télé n'a pas répondu » comme avant), plutôt qu'un risque de l'entendre deux fois. Seul cas de double lecture
+  restant : télé qui a reçu le message et commencé à le télécharger, mais dont la nouvelle demande met plus de 5 s à
+  arriver, très improbable sur le réseau local. Sans secours, rien ne change (attente du compte rendu, 20 s).
 - **Compte rendu** : après chaque événement, l'appli répond `POST /api/screen/events/:seq/done` avec `played`,
   `shown` ou `failed` + raison. Le téléphone qui a envoyé attend ce compte rendu (quelques secondes au plus) pour
   afficher « Lu sur la télé » ou l'erreur, comme aujourd'hui pour Cast.

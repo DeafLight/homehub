@@ -262,8 +262,11 @@ export type ScreenReport = { ok: true } | { ok: false; reason: string };
  */
 export const SCREEN_OFF_REASON = 'écran éteint';
 
-/** Pourquoi une annonce destinée à la télé part ailleurs : télé injoignable, allumée mais écran éteint, ou film en cours. */
-export type ScreenFallbackReason = 'offline' | 'standby' | 'film';
+/**
+ * Pourquoi une annonce destinée à la télé part ailleurs : télé injoignable, allumée mais écran éteint, film en cours,
+ * ou télé vue présente qui n'a pas reçu le message à temps (`silent` : débranchée depuis moins d'une minute).
+ */
+export type ScreenFallbackReason = 'offline' | 'standby' | 'film' | 'silent';
 
 /**
  * Réponse à l'envoi d'un message vocal vers une télé : l'appareil qui l'a lu, et la phrase à montrer s'il a basculé.
@@ -273,7 +276,7 @@ export type ScreenVoiceResult = { device: string; fallback: { reason: ScreenFall
 
 /** Phrase montrée au téléphone quand le message est parti sur l'appareil de secours (film : shared/screen-film.ts). */
 export const screenFallbackNotice = (device: string, reason: ScreenFallbackReason = 'offline') =>
-  reason === 'film' ? `Mode film : lu sur ${device}.` : `Télé éteinte : lu sur ${device}.`;
+  reason === 'film' ? `Mode film : lu sur ${device}.` : reason === 'silent' ? `La télé n’a pas répondu : lu sur ${device}.` : `Télé éteinte : lu sur ${device}.`;
 
 /**
  * Appareil de secours d'une télé (réglage de la tablette) : `device` est un appareil Cast de `cast.devices`, ou null

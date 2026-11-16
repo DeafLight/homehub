@@ -28,6 +28,8 @@ export type VoiceMessages = {
   keep(audio: Uint8Array, contentType: string): { token: string; extension: string; contentType: string };
   /** Le message derrière `token`, s'il n'a pas expiré. */
   clip(token: string): VoiceClip | null;
+  /** Oublie le message derrière `token` (message retiré à la télé : elle ne pourra plus le télécharger). */
+  drop(token: string): void;
 };
 
 /** Refus d'un envoi, avec le statut HTTP qui va avec. */
@@ -112,6 +114,10 @@ export function createVoiceMessages({
       if (!clip || clip.expiresAt <= clock().getTime()) return null;
       clip.fetched = true;
       return clip;
+    },
+
+    drop(token) {
+      clips.delete(token);
     },
   };
 }

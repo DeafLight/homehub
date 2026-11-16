@@ -37,7 +37,7 @@ import { dinnerEvent, refusesVolume, VOLUME_FIXED } from './services/screen-medi
 import type { ScreenFallback } from './services/screen-fallback.ts';
 import { replyAuthor, type ScreenReplyBox } from './services/screen-replies.ts';
 import type { ScreenFilmService } from './services/screen-film.ts';
-import { SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
+import { SCREEN_MISSED, SCREEN_OFFLINE, type ScreenHub } from './services/screens.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 import { screenAppSchema, type ScreenAppStore } from './sources/screen-apps.ts';
 import type { ScreenRecord, ScreenStore } from './sources/screens.ts';
@@ -77,6 +77,11 @@ export const REMOTE_REPORT_MS = 4_000;
 export const remoteTextReportMs = (text: string) => REMOTE_REPORT_MS + 1_500 + 60 * text.length;
 /** Réveil par l'appli : au-delà, on essaie par Cast. */
 export const WAKE_REPORT_MS = 5_000;
+/**
+ * Message vocal avec un appareil de secours : délai laissé à la télé pour accuser réception (elle le fait en moins d'une
+ * seconde quand son attente longue est ouverte). Passé ce délai, le message lui est retiré et part sur le secours.
+ */
+export const VOICE_RECEIPT_MS = 5_000;
 export const NO_CAST_TO_WAKE = 'Télé injoignable, et aucun appareil Cast connu pour l’allumer (cast.devices, kind: tv)';
 export const UNKNOWN_APP = 'Appli inconnue sur cette télé';
 export const UNKNOWN_FALLBACK = 'Appareil de secours inconnu (cast.devices, avec cast.mediaUrl)';
@@ -105,6 +110,7 @@ export function createScreenApi({
   fallback,
   replies,
   film,
+  voiceReceiptMs = VOICE_RECEIPT_MS,
 }: {
   screens: ScreenStore;
   /** Applis du lanceur de chaque télé (tiroir de la télécommande). */
@@ -122,6 +128,8 @@ export function createScreenApi({
   replies?: ScreenReplyBox;
   /** Mode film des télés (fonction 15) ; absent : jamais. */
   film?: ScreenFilmService;
+  /** Délai d'accusé de réception d'un message vocal qui a un secours (réduit dans les tests). */
+  voiceReceiptMs?: number;
 }) {
   const api = createRouter();
 
@@ -260,7 +268,7 @@ export function createScreenApi({
     if (declared > VOICE_MAX_BYTES) return fail(400, 'Message trop long');
     const audio = new Uint8Array(await c.req.arrayBuffer());
     const type = c.req.header('content-type') ?? '';
-    const toScreen = () => {
+    const toScreen = async (rescue = false) => {
       let kept: ReturnType<VoiceMessages['keep']>;
       try {
         kept = voice.keep(audio, type);
@@ -268,14 +276,18 @@ export function createScreenApi({
         if (err instanceof VoiceError) return fail(err.status, err.message);
         throw err;
       }
-      return hub.send(screen.id, {
+      const event = {
         kind: 'voice',
         id: randomUUID(),
         title: tvTitle(sender),
         audio: `/api/screen/clips/${kept.token}.${kept.extension}`,
         contentType: kept.contentType,
         ...(replyId && { replyId }),
-      });
+      } as const;
+      const report = await hub.send(screen.id, event, undefined, rescue ? { missedMs: voiceReceiptMs } : {});
+      // Message retiré à la télé : son fichier aussi, pour qu'elle ne le lise jamais en plus du secours.
+      if (!report.ok && report.reason === SCREEN_MISSED) voice.drop(kept.token);
+      return report;
     };
     try {
       if (!fallback) {

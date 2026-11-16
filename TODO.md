@@ -318,9 +318,10 @@ personne depuis son propre téléphone.
       part sur l'appareil de secours (Cast), « Télé éteinte : lu sur Google Home du salon » sur le téléphone ; réglage
       « Si éteinte » sur la tablette (Téléphones › Télés), première enceinte par défaut ; fausse télé du monde fictif
       allumée, en veille ou absente (`fake-screen-mode.json`). Mécanisme réutilisable pour le mode film (15).
-- [ ] 7 bis. Vérifié sur la vraie télé (16/11/2026) : télé en veille, le message vocal part sur le Google Home.
-      Reste la télé débranchée : vue absente seulement une minute environ après (attente longue de 25 s, puis 40 s
-      sans nouvelles) ; avant, le message échoue au bout de 20 s (« La télé n'a pas répondu ») sans secours.
+- [x] 7 bis. Vérifié sur la vraie télé (16/11/2026) : télé en veille, le message vocal part sur le Google Home.
+      Télé débranchée encore vue présente (0.92.1) : sans accusé de réception en 5 s, le message lui est retiré (file
+      et fichier) et part sur le secours, « La télé n'a pas répondu : lu sur Google Home du salon » ; une télé qui l'a
+      reçu le garde (pas de double lecture). À essayer sur la vraie télé (`docs/tests-tele.md`, section 7).
 - [x] 8. Écran de veille HomeHub : météo, agenda de la famille, menu du soir : `HomeHubDream` (écran de veille
       Android de l'appli) ouvre la page `/ecran` dans une WebView avec le jeton de la télé (`GET /api/screen/ecran`,
       télé appairée seulement, rien de personnel) ; agenda d'aujourd'hui et de demain, 3 jours de météo, menu du jour

@@ -1,6 +1,7 @@
 // Tests du secours d'une télé éteinte : raison (allumée, veille, injoignable), appareil de secours (réglé, aucun,
 // première enceinte par défaut, rien sans cast.mediaUrl), annonce sur la télé ou sur le secours, refus « écran
-// éteint » de l'appli rattrapé, réglages vus de la tablette.
+// éteint » de l'appli rattrapé, télé qui n'a pas reçu le message à temps rattrapée (raison `silent`), réglages vus
+// de la tablette.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { SCREEN_OFF_REASON, type RemotePower, type ScreenReport } from '../../sh
 import { parseConfig } from '../config.ts';
 import { createScreenFallbackStore } from '../sources/screen-fallbacks.ts';
 import { createScreenFallback, type CastDevice } from './screen-fallback.ts';
+import { SCREEN_MISSED, SCREEN_SILENT } from './screens.ts';
 
 const DEVICES = [
   { id: 'tele', name: 'Télé', host: '192.168.1.21', kind: 'tv' as const },
@@ -78,6 +80,30 @@ describe('secours d’une télé éteinte', () => {
     const broken = async (): Promise<ScreenReport> => ({ ok: false, reason: 'message non téléchargé' });
     expect(await fallback.announce('t', broken, toDevice, 'Télé du salon')).toEqual({ refused: { ok: false, reason: 'message non téléchargé' } });
     expect(played).toEqual(['salon']);
+  });
+
+  it('télé qui n’a pas reçu le message à temps : secours (raison silent) ; reçu mais muette : remonté', async () => {
+    const { fallback, played, toDevice } = setup();
+    const asked: boolean[] = [];
+    const missed = async (rescue: boolean): Promise<ScreenReport> => (asked.push(rescue), { ok: false, reason: SCREEN_MISSED });
+    expect(await fallback.announce('t', missed, toDevice, 'Télé du salon')).toEqual({
+      device: 'Google Home du salon',
+      fallback: { reason: 'silent', notice: 'La télé n’a pas répondu : lu sur Google Home du salon.' },
+    });
+    const silent = async (): Promise<ScreenReport> => ({ ok: false, reason: SCREEN_SILENT });
+    expect(await fallback.announce('t', silent, toDevice, 'Télé du salon')).toEqual({ refused: { ok: false, reason: SCREEN_SILENT } });
+    expect(played).toEqual(['salon']);
+    expect(asked).toEqual([true]);
+  });
+
+  it('sans secours : la télé ne doit pas se presser d’accuser réception, son refus remonte', async () => {
+    const { fallback, played, toDevice } = setup();
+    await fallback.choose('t', null);
+    const asked: boolean[] = [];
+    const missed = async (rescue: boolean): Promise<ScreenReport> => (asked.push(rescue), { ok: false, reason: SCREEN_MISSED });
+    expect(await fallback.announce('t', missed, toDevice, 'Télé du salon')).toEqual({ refused: { ok: false, reason: SCREEN_MISSED } });
+    expect(asked).toEqual([false]);
+    expect(played).toEqual([]);
   });
 
   it('sans secours : la télé reçoit l’annonce même éteinte (comme avant)', async () => {
