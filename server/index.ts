@@ -51,6 +51,7 @@ import { createSourceStatus } from './sources/source-status.ts';
 import { searchAddress } from './sources/geocode.ts';
 import { createGtfsSource } from './sources/gtfs.ts';
 import { createIrigoClient, createTransitSource } from './sources/irigo.ts';
+import { createMotisSource } from './sources/motis.ts';
 import { createTransitSettingsStore } from './sources/transit-settings.ts';
 import { type Clock, type Sources, firstSchoolSource } from './sources/types.ts';
 
@@ -178,6 +179,13 @@ await transitSettings.load();
 const gtfs = createGtfsSource({ path: join(stateDir, 'irigo-gtfs.zip'), clock, logger: console, status: sourceStatus });
 // Lu en arrière-plan dès le démarrage : la page « Transports » et le trajet du matin en ont besoin.
 void gtfs.index();
+// Itinéraires par MOTIS sur le NAS (HOMEHUB_MOTIS_URL, sinon `transit.motis.url`) ; sans adresse, calcul maison.
+const motis = createMotisSource({
+  url: () => process.env.HOMEHUB_MOTIS_URL?.trim() || config.current().transit.motis?.url,
+  clock,
+  logger: console,
+  status: sourceStatus,
+});
 // Réglage de la page « Vacances scolaires », sinon section `holidays` du YAML.
 const holidaySettings = createHolidaySettingsStore({ path: join(stateDir, 'holiday-settings.json'), clock, config });
 await holidaySettings.load();
@@ -188,7 +196,7 @@ const holidays = createSchoolHolidaysSource({
   logger: console,
   status: sourceStatus,
 });
-const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit, transitSettings, gtfs, holidays });
+const service = createDashboardService({ config, sources, clock, logger: console, routines, plans, transit, transitSettings, gtfs, motis, holidays });
 const nas = createNasService({
   nasStatus: createNasStatusSource({ path: nasStatusPath, logger: console }),
   sourceStatus,

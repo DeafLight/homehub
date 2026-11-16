@@ -6,6 +6,7 @@ import type { Author, CommuteSettings, HomeStop, TimeWindow, TransitSettings } f
 import { WEEK_DAYS } from '../config.ts';
 import type { ConfigProvider } from '../config-store.ts';
 import { createHousehold } from '../household.ts';
+import type { LatLon } from './gtfs.ts';
 import { createJsonFile } from './json-file.ts';
 import { authorSchema } from './schemas.ts';
 import type { Clock } from './types.ts';
@@ -94,6 +95,9 @@ export type CommuteTrip = {
   headsigns: string[];
   oneWay: boolean;
   label?: string;
+  /** Lieux de départ et d'arrivée (page « Transports ») : itinéraire par MOTIS ; absents pour un trajet du YAML. */
+  fromPlace?: LatLon;
+  toPlace?: LatLon;
   walkFrom: number;
   walkTo: number;
   mode: 'school' | 'window';
@@ -160,6 +164,7 @@ export function createTransitSettingsStore({ path, clock, config }: { path: stri
   function fromPage(settings: TransitSettingsInput, ownerId: string): CommuteTrip | null {
     const c: CommuteSettings | undefined = settings.commutes[ownerId];
     if (!c?.route) return null;
+    const from = settings.places.find((p) => p.id === c.from);
     const to = settings.places.find((p) => p.id === c.to);
     return {
       line: c.route.line,
@@ -168,6 +173,8 @@ export function createTransitSettingsStore({ path, clock, config }: { path: stri
       headsigns: c.route.headsigns,
       oneWay: c.route.oneWay,
       ...(to && { label: to.label }),
+      ...(from && { fromPlace: { lat: from.lat, lon: from.lon } }),
+      ...(to && { toPlace: { lat: to.lat, lon: to.lon } }),
       walkFrom: c.walkFrom ?? c.route.walkFrom,
       walkTo: c.walkTo ?? c.route.walkTo,
       mode: c.mode,

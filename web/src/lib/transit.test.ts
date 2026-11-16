@@ -79,4 +79,19 @@ describe('trajet selon l’emploi du temps', () => {
     const missed = commuteState(planned([dep('3', 'Centre', 20), dep('3', 'Centre', 35)]), new Date(now.getTime() + 18 * 60_000));
     expect(missed).toMatchObject({ tone: 'late', title: 'Trop tard pour le bus 3 de 07:50', detail: 'Mairie → Collège · 4 min à pied · suivant à 08:05, après l’heure prévue' });
   });
+
+  it('itinéraire de MOTIS avec correspondance : « bus 3 puis tram A », et l’arrêt du changement', () => {
+    const legs = [
+      { line: '3', from: 'Mairie', to: 'Gare', departs: at(20), arrives: at(28) },
+      { line: 'A', from: 'Gare', to: 'Les Collèges', departs: at(32), arrives: at(38) },
+    ];
+    const withChange = { ...planned([dep('3', 'Centre', 20)]), plan: { ...plan, legs } };
+    expect(commuteState(withChange, now)).toEqual({
+      tone: 'go',
+      leaveIn: 16,
+      title: 'Pars dans 16 min pour le bus 3 de 07:50 puis le tram A',
+      detail: 'Mairie → Collège · 4 min à pied · changement à Gare · 1er cours à 08:30',
+    });
+    expect(commuteState(withChange, new Date(now.getTime() + 15.5 * 60_000)).title).toBe('Pars maintenant pour le bus 3 de 07:50 puis le tram A');
+  });
 });

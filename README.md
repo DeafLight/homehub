@@ -547,8 +547,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   dans les horaires Irigo (marche estimée aux deux bouts, modifiable) ; les arrêts de l'accueil (par nom ou près d'un
   lieu). Un trajet **selon l'emploi du temps** prend chaque jour la dernière course qui fait arriver avant le premier
   cours non annulé (marge réglable), affiche le bandeau un moment avant l'heure de partir et reconnaît cette course
-  dans le temps réel (« annoncé à 07:53 », supprimée, manquée) ; rien les jours sans cours. Sinon, plage horaire
-  fixe. Option **Alerte sur la télé** : « Bus dans N min » sur la télé (voir plus haut). Tant que la page n'a pas
+  dans le temps réel (« annoncé à 07:53 », supprimée, manquée) ; rien les jours sans cours. Avec **MOTIS** (voir
+  plus bas), l'itinéraire est calculé de lieu à lieu, marche, correspondances et retards compris : « Pars dans 6 min
+  pour le bus 3 de 07:46 puis le tram A · changement à Mail des Tilleuls », et la télé dit « ligne 3 puis tram A ».
+  Sinon, plage horaire fixe. Option **Alerte sur la télé** : « Bus dans N min » sur la télé (voir plus haut). Tant que la page n'a pas
   été enregistrée, `transit.stops` et `commute` du YAML s'appliquent.
 - **Sport** (téléphone, onglet Sport, `/m/sport` ; adulte avec `fitness: true` dans homehub.yaml) : programme de
   renforcement au poids du corps, trois séances qui tournent sans jour fixe, six exercices chacune (cardio, jambes,
@@ -672,6 +674,26 @@ sont cherchées sur la Géoplateforme de l'IGN (`data.geopf.fr`, successeur de l
 lui est envoyée. Lieux et trajets sont enregistrés dans `HOMEHUB_STATE_DIR/transit-settings.json`, jamais dans le
 dépôt. Pas de correspondance : seules les lignes directes sont proposées (arrêts à moins de 800 m de chaque lieu ;
 marche estimée : ligne droite + 30 %, à 4,5 km/h).
+
+**Itinéraires par MOTIS** (facultatif) : [MOTIS](https://github.com/motis-project/motis), le moteur libre de
+Transitous, calcule le trajet selon l'emploi du temps de lieu à lieu (`GET /api/v5/plan`, arrivée au plus tard au
+premier cours moins la marge) : marche par les rues d'OpenStreetMap, correspondances, et retards du temps réel. HomeHub
+retient l'itinéraire qui fait partir le plus tard (puis le moins de correspondances), écarte les courses supprimées,
+et suit la première course dans le temps réel SIRI comme avant. MOTIS tourne **sur le NAS** (conteneur
+`ghcr.io/motis-project/motis`, GTFS Irigo et extrait OpenStreetMap autour d'Angers ; voir le dépôt de configuration
+du NAS) : les lieux de la famille ne sortent pas de la maison. Adresse par `HOMEHUB_MOTIS_URL` (ex.
+`http://motis:8080`) ou `transit.motis.url` du YAML ; sans elle, ou si MOTIS ne répond pas (réponse gardée une minute,
+panne aussi), HomeHub garde son calcul à lignes directes. Pour développer sans NAS, `https://api.transitous.org`
+répond de la même façon, mais il reçoit alors les coordonnées des lieux : jamais en production. Les captures de la
+doc utilisent un faux MOTIS (`server/sources/motis-fake.ts`).
+
+Temps réel d'Irigo pour MOTIS (vérifié le 16 novembre 2026 sur transport.data.gouv.fr, jeu « Réseau urbain Irigo ») :
+trois flux GTFS-RT, positions des véhicules, alertes et **TripUpdates**
+(`https://ara-api.enroute.mobi/irigo/gtfs/trip-updates`, 409 courses à 11 h 30 un lundi, avec heures d'arrivée et de
+départ à chaque arrêt). Tous leurs `trip_id` existent dans le GTFS du même jeu (409 sur 409 ; 215 sur 215 pour les
+positions) : MOTIS compte donc les retards et les suppressions lui-même, par le flux TripUpdates déclaré dans son
+`config.yml`. HomeHub garde SIRI pour les prochains passages affichés et pour reconnaître la course prévue
+(« annoncé à », supprimée, manquée).
 
 Les **produits** viennent des bases libres [Open Food Facts](https://world.openfoodfacts.org), puis Open Beauty Facts
 (hygiène) et Open Products Facts (lessive, entretien…) : sans compte, avec un User-Agent qui nomme HomeHub ; seul le
@@ -818,6 +840,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
 | `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
+| `HOMEHUB_MOTIS_URL` | — | Adresse de MOTIS (ex. `http://motis:8080`), l'emporte sur `transit.motis.url` ; sans elle, trajets à lignes directes |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
 ### Appareils Cast (Google Home, télé)
@@ -886,6 +909,8 @@ server/
   sources/irigo.ts         bus et tram Irigo : passages (SIRI), perturbations, cache
   sources/gtfs-rt.ts       lecture minimale d'un flux d'alertes GTFS-RT (protobuf)
   sources/gtfs.ts          horaires théoriques Irigo (GTFS) : arrêts proches, lignes directes, courses du jour
+  sources/motis.ts         itinéraires par MOTIS (/api/v5/plan) : étapes, correspondances, temps réel, cache
+  sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
   sources/transit-settings.ts  réglages de la page « Transports » (lieux, trajets, arrêts de l'accueil)
   sources/school-holidays.ts   vacances scolaires (calendrier officiel, cache d'un jour, aperçu)

@@ -42,6 +42,14 @@ describe('parseConfig', () => {
     expect(JSON.stringify(toPublicConfig(old, 'r'))).not.toContain('192.168');
   });
 
+  it('MOTIS : absent par défaut (calcul maison), adresse vérifiée, jamais au front', () => {
+    expect(parseConfig({ members: [alex] }).transit.motis).toBeUndefined();
+    const config = parseConfig({ members: [alex], transit: { motis: { url: 'http://motis:8080' } } });
+    expect(config.transit.motis?.url).toBe('http://motis:8080');
+    expect(JSON.stringify(toPublicConfig(config, 'r'))).not.toContain('motis');
+    expect(() => parseConfig({ members: [alex], transit: { motis: { url: 'motis' } } })).toThrow(/adresse de MOTIS/u);
+  });
+
   it('calcul des empreintes : choisi dans homehub.yaml, transmis à la tablette', () => {
     const config = parseConfig({ members: [alex], faces: { backend: 'webgl-safe' } });
     expect(config.faces.threshold).toBe(0.55); // les autres réglages gardent leur valeur par défaut

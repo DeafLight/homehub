@@ -32,6 +32,13 @@ export function departureRows(departures: Departure[], now: Date, perRow = 2): D
 export const isTram = (line: string) => /^[A-Z]$/u.test(line);
 
 const vehicle = (line: string) => (isTram(line) ? `le tram ${line}` : `le bus ${line}`);
+/** Correspondances d'un itinéraire de MOTIS, à la suite de la première course : « puis le tram A ». */
+const thenText = (plan: Commute['plan']) => (plan?.legs ?? []).slice(1).map((l) => ` puis ${vehicle(l.line)}`).join('');
+/** Arrêts de changement : « changement à Gare ». */
+const changesText = (plan: Commute['plan']) => {
+  const stops = (plan?.legs ?? []).slice(1).map((l) => l.from);
+  return stops.length ? ` · changement à ${stops.join(', ')}` : '';
+};
 /** Écart toléré entre l'horaire théorique et celui du temps réel pour reconnaître la même course. */
 const SAME_TRIP_MS = 90_000;
 
@@ -73,10 +80,13 @@ export function commuteState(commute: Commute, now: Date): CommuteState {
  * Supprimée : le prochain passage qu'on peut attraper, en le disant. Manquée : « Trop tard », et le suivant.
  */
 function plannedState(commute: Commute, plan: NonNullable<Commute['plan']>, now: Date, where: string): CommuteState {
+  // Avec correspondances (itinéraire de MOTIS) : « Pars dans 4 min pour le bus 3 de 7 h 46 puis le tram A ».
   const departs = Date.parse(plan.departs);
   const scheduled = formatTime(new Date(departs));
   const planned = commute.departures.find((d) => Math.abs(Date.parse(d.aimed ?? d.at) - departs) <= SAME_TRIP_MS);
   const course = `1er cours à ${formatTime(new Date(plan.firstCourse))}${plan.firstCancelled ? ' (un cours plus tôt est annulé)' : ''}`;
+  const then = thenText(plan);
+  where += changesText(plan);
   if (planned?.cancelled) {
     const fallback = commuteState({ ...commute, plan: undefined, departures: commute.departures.filter((d) => d !== planned) }, now);
     return { ...fallback, detail: `${vehicle(commute.line).replace(/^l/u, "L")} de ${scheduled} est supprimé · ${fallback.detail}` };
@@ -95,6 +105,6 @@ function plannedState(commute: Commute, plan: NonNullable<Commute['plan']>, now:
     };
   }
   const leaveIn = Math.floor(leaveMinutes);
-  if (leaveIn <= 1) return { tone: 'hurry', leaveIn, title: `Pars maintenant pour ${vehicle(commute.line)} de ${scheduled}`, detail };
-  return { tone: 'go', leaveIn, title: `Pars dans ${leaveIn} min pour ${vehicle(commute.line)} de ${scheduled}`, detail };
+  if (leaveIn <= 1) return { tone: 'hurry', leaveIn, title: `Pars maintenant pour ${vehicle(commute.line)} de ${scheduled}${then}`, detail };
+  return { tone: 'go', leaveIn, title: `Pars dans ${leaveIn} min pour ${vehicle(commute.line)} de ${scheduled}${then}`, detail };
 }

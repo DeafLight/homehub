@@ -56,6 +56,15 @@ describe('bandeau du bus', () => {
     // Course prévue absente du temps réel : son horaire théorique.
     expect(busAlertOf(commute({ departures: [], plan }), 16, NOW, 'Léa')?.title).toBe('Bus dans 20 min');
   });
+
+  it('itinéraire de MOTIS avec correspondance : « ligne 3 puis tram A »', () => {
+    const legs = [
+      { line: '3', from: 'Ralliement', to: 'Gare', departs: at(20), arrives: at(28) },
+      { line: 'A', from: 'Gare', to: 'Les Collèges', departs: at(32), arrives: at(38) },
+    ];
+    const plan = { departs: at(20), arrives: at(41), leaveAt: at(16), firstCourse: at(60), firstCancelled: false, legs };
+    expect(busAlertOf(commute({ departures: [departure(20, 20)], plan }), 16, NOW, 'Léa')?.subtitle).toBe('Léa · ligne 3 puis tram A vers Collège · pars dans 16 min');
+  });
 });
 
 describe('envoi aux télés', () => {

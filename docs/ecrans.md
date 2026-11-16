@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.92.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.93.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -32,6 +32,11 @@ Bandeau du trajet du matin, frise du jour avec la bascule « Aujourd'hui | Demai
 moment en grand (ici la routine du matin) et le reste en tuiles : devoirs, tâches, mots, prochain rendez-vous.
 
 ![Dashboard de Léa](images/tablette-dashboard.png)
+
+Trajet selon l'emploi du temps calculé par MOTIS : de la maison au collège avec une correspondance, le bandeau dit
+les deux lignes et l'arrêt du changement ; le bus 3 est celui que le temps réel annonce.
+
+![Dashboard de Léa : bus 3 puis tram A](images/tablette-trajet-correspondance.png)
 
 ### Vacances scolaires
 

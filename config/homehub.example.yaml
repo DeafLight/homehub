@@ -119,9 +119,14 @@ ui:
 #   stops          : 4 au plus ; id (node scripts/irigo-stops.ts <nom> ; un identifiant par sens), label (sinon le
 #                    nom Irigo), lines (sinon toutes les lignes de l'arrêt)
 #   refreshSeconds : intervalle entre deux appels à Irigo (30 à 600, 60 par défaut)
+#   motis.url      : adresse de MOTIS sur le NAS (itinéraires avec correspondances pour un trajet selon l'emploi du
+#                    temps) ; la variable HOMEHUB_MOTIS_URL l'emporte. Sans elle : lignes directes seulement.
+#                    https://api.transitous.org pour développer seulement (il recevrait les lieux de la famille).
 # transit:
 #   stops:
 #     - { id: 1ANRO, label: Roseraie, lines: [A] }
+#   motis:
+#     url: http://motis:8080
 
 # Vacances scolaires (calendrier officiel, data.education.gouv.fr, sans clé). Sans cette section, rien n'est affiché.
 # Valeur par défaut seulement : dès que la page « Vacances scolaires » (roue dentée de la tablette) est enregistrée,

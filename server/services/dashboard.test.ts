@@ -7,6 +7,8 @@ import { parseConfig } from '../config.ts';
 import { createConfigStore } from '../config-store.ts';
 import { createRoutinePlanStore } from '../sources/routine-plans.ts';
 import { buildGtfsIndex, unzip } from '../sources/gtfs.ts';
+import { createMotisSource } from '../sources/motis.ts';
+import { type FakeMotisOptions, fakeMotisPlan } from '../sources/motis-fake.ts';
 import { createRoutineStore } from '../sources/routines.ts';
 import { createTransitSettingsStore } from '../sources/transit-settings.ts';
 import { event, fakeSources, fixedClock, GTFS_FILES, silentLogger, testConfig, zip } from '../testing.ts';
@@ -308,7 +310,7 @@ describe('trajet selon l’emploi du temps', () => {
   ];
   const transit = { departures: async () => ({ name: 'Mairie', departures: realtime }), alerts: async () => [] };
 
-  async function make(courses: ReturnType<typeof course>[], walkFrom: number | null = null) {
+  async function make(courses: ReturnType<typeof course>[], walkFrom: number | null = null, extra: Partial<Parameters<typeof createDashboardService>[0]> = {}) {
     const config = createConfigStore(parseConfig({ members: [{ id: 'lea', name: 'Léa', color: '#3fb8a8', parent: true }] }));
     const settings = createTransitSettingsStore({ path: join(mkdtempSync(join(tmpdir(), 'homehub-tr-')), 't.json'), clock: fixedClock, config });
     const place = (id: string, label: string, lat: number) => ({ id, label, icon: 'place' as const, address: label, lat, lon: -0.55 });
@@ -331,8 +333,65 @@ describe('trajet selon l’emploi du temps', () => {
         transit,
         transitSettings: settings,
         gtfs,
+        ...extra,
       });
   }
+
+  /** Faux MOTIS du monde fictif ; `fail` : MOTIS en panne. */
+  const motisWith = (options: FakeMotisOptions & { fail?: boolean } = {}) =>
+    createMotisSource({
+      url: () => 'http://motis:8080',
+      clock: fixedClock,
+      logger: silentLogger(),
+      fetchFn: (async (input: RequestInfo | URL) => (options.fail ? new Response('', { status: 502 }) : fakeMotisPlan(new URL(String(input)), options))) as typeof fetch,
+    });
+  /** Temps réel à l'arrêt de montée de l'itinéraire : le bus 3 de 7 h 49, annoncé à 7 h 51. */
+  const asked: string[] = [];
+  const busTransit = {
+    departures: async (stopId: string) => {
+      asked.push(stopId);
+      return {
+        name: 'Ralliement',
+        departures: [
+          { line: '3', destination: 'Centre', at: thursday(7, 47).toISOString(), realtime: true },
+          { line: '3', destination: 'Lycée', at: thursday(7, 51).toISOString(), aimed: thursday(7, 49).toISOString(), realtime: true },
+        ],
+      };
+    },
+    alerts: async (lines?: string[]) => (lines?.includes('A') ? [{ id: 'tram', lines: ['A'], title: 'Tram A ralenti' }] : []),
+  };
+
+  it('avec MOTIS : itinéraire de lieu à lieu, correspondance comprise, première course reconnue dans le temps réel', async () => {
+    const at = await make([course('maths', 8, 30)], null, { motis: motisWith(), transit: busTransit });
+    asked.length = 0;
+    const commute = (await at(thursday(7, 35)).dashboard('lea'))?.commute;
+    // 8 h 30 − 10 min de marge : arrivée au plus tard à 8 h 20 → le bus de 7 h 49 (le plus tardif), marche de 4 min.
+    expect(commute?.plan).toEqual({
+      departs: thursday(7, 49).toISOString(),
+      arrives: thursday(8, 18).toISOString(),
+      leaveAt: thursday(7, 45).toISOString(),
+      firstCourse: thursday(8, 30).toISOString(),
+      firstCancelled: false,
+      legs: [
+        { line: '3', from: 'Ralliement', to: 'Mail des Tilleuls', departs: thursday(7, 49).toISOString(), arrives: thursday(8, 1).toISOString() },
+        { line: 'A', from: 'Mail des Tilleuls', to: 'Les Collèges', departs: thursday(8, 7).toISOString(), arrives: thursday(8, 15).toISOString() },
+      ],
+    });
+    expect(asked).toEqual(['RALL']); // identifiant GTFS de l'arrêt, sans le préfixe du flux de MOTIS
+    expect(commute).toMatchObject({ line: '3', stop: 'Ralliement', label: 'Collège', walkMinutes: 4 });
+    expect(commute?.departures.map((d) => d.destination)).toEqual(['Lycée']); // direction de la course de MOTIS
+    expect(commute?.alerts.map((a) => a.id)).toEqual(['tram']); // perturbations de toutes les lignes de l'itinéraire
+  });
+
+  it('avec MOTIS : course supprimée écartée, et calcul maison si MOTIS est en panne', async () => {
+    const cancelled = (await (await make([course('maths', 8, 30)], null, { motis: motisWith({ cancelled: true }), transit: busTransit }))(thursday(7, 20)).dashboard('lea'))?.commute;
+    expect(cancelled?.plan?.departs).toBe(thursday(7, 34).toISOString());
+    const down = (await (await make([course('maths', 8, 30)], null, { motis: motisWith({ fail: true }) }))(thursday(7, 35)).dashboard('lea'))?.commute;
+    expect(down?.plan).toMatchObject({ departs: thursday(8, 0).toISOString() });
+    expect(down?.plan).not.toHaveProperty('legs');
+    expect(down).toMatchObject({ line: 'A', stop: 'Mairie' });
+  });
+
 
   it('retient la dernière course qui fait arriver avant le 1er cours, et la reconnaît dans le temps réel', async () => {
     const at = await make([course('maths', 8, 30)]);

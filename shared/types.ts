@@ -249,7 +249,15 @@ export type CommutePlan = {
   /** Premier cours non annulé ; `firstCancelled` : un cours plus tôt est annulé. */
   firstCourse: string;
   firstCancelled: boolean;
+  /**
+   * Courses de l'itinéraire calculé par MOTIS, dans l'ordre (la première est celle de la carte) ; absent : calcul
+   * maison, une seule ligne directe. Heures théoriques.
+   */
+  legs?: CommuteLeg[];
 };
+
+/** Une course de l'itinéraire : « bus 3 de Mairie à Gare, puis tram A ». */
+export type CommuteLeg = { line: string; from: string; to: string; departs: string; arrives: string };
 
 /** Trajet du matin d'un membre, à ses heures : prochains passages de sa ligne à son arrêt. */
 export type Commute = {

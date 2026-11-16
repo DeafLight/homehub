@@ -135,6 +135,11 @@ export const configSchema = z.object({
         .max(4)
         .default([]),
       refreshSeconds: z.number().int().min(30).max(600).default(60),
+      /**
+       * Itinéraires par MOTIS (hébergé sur le NAS) : adresse du service. Absent (et sans HOMEHUB_MOTIS_URL, qui
+       * l'emporte) : calcul maison à lignes directes.
+       */
+      motis: z.object({ url: z.string().trim().url('adresse de MOTIS (ex. http://motis:8080)') }).optional(),
     })
     .default({ stops: [], refreshSeconds: 60 }),
   /**

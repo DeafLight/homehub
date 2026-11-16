@@ -25,6 +25,7 @@ import type { HolidaysConfig } from '../config.ts';
 import type { ConfigProvider, Logger } from '../config-store.ts';
 import { createHousehold } from '../household.ts';
 import type { GtfsSource } from '../sources/gtfs.ts';
+import type { MotisSource } from '../sources/motis.ts';
 import type { TransitSource } from '../sources/irigo.ts';
 import { type TransitSettingsStore, transitSettingsFromConfig } from '../sources/transit-settings.ts';
 import type { RoutinePlanStore } from '../sources/routine-plans.ts';
@@ -86,12 +87,14 @@ export type DashboardServiceDeps = {
   transitSettings?: Pick<TransitSettingsStore, 'homeStops' | 'commuteFor'>;
   /** Horaires théoriques, pour un trajet calé sur l'emploi du temps ; absent : pas de tel trajet. */
   gtfs?: GtfsSource;
+  /** Itinéraires par MOTIS ; absent ou non configuré : calcul maison (`gtfs`). */
+  motis?: MotisSource;
   /** Vacances scolaires ; absent (tests) : jamais de vacances. */
   holidays?: SchoolHolidaySource;
 };
 
 export function createDashboardService(deps: DashboardServiceDeps): DashboardService {
-  const { config, sources, clock, logger, routines, plans, transit, gtfs } = deps;
+  const { config, sources, clock, logger, routines, plans, transit, gtfs, motis } = deps;
   const household = createHousehold(config);
   const ownerIds = household.ownerIds;
   const hasOwner = household.isOwner;
@@ -134,6 +137,7 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
   const board = createTransitBoard({
     transit,
     gtfs,
+    motis,
     settings: transitSettings,
     coursesFor: coursesIn,
     clock,

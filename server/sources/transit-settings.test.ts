@@ -102,6 +102,9 @@ describe('après enregistrement', () => {
       headsigns: ['Centre-ville'],
       oneWay: false,
       label: 'Collège',
+      // Lieux de départ et d'arrivée : itinéraire par MOTIS.
+      fromPlace: { lat: 47.47, lon: -0.55 },
+      toPlace: { lat: 47.47, lon: -0.55 },
       walkFrom: 4,
       walkTo: 8,
       mode: 'school',

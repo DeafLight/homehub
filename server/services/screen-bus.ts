@@ -52,7 +52,9 @@ export function busAlertOf(commute: Commute, minutes: number, now: number, name:
   if (leave > minutes * 60_000 || leave < -LATE_MS) return null;
   const busIn = inMinutes(bus - now);
   const leaveIn = inMinutes(leave);
-  const where = `ligne ${commute.line}${commute.label ? ` vers ${commute.label}` : ''}`;
+  // Correspondances (itinéraire de MOTIS) : « ligne 3 puis tram A vers Collège ».
+  const then = (commute.plan?.legs ?? []).slice(1).map((l) => ` puis ${/^[A-Z]$/u.test(l.line) ? 'tram' : 'bus'} ${l.line}`).join('');
+  const where = `ligne ${commute.line}${then}${commute.label ? ` vers ${commute.label}` : ''}`;
   return {
     kind: 'bus',
     title: busIn === 0 ? 'Le bus arrive' : `Bus dans ${busIn} min`,

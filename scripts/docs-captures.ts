@@ -5,7 +5,7 @@
 //   node scripts/docs-captures.ts <regex>    seulement les captures dont le nom correspond (ex. « telephone »)
 //   DOCS_SERVE=1 node scripts/docs-captures.ts   le monde fictif reste ouvert (http://localhost:3190), sans captures
 // Chrome est cherché aux emplacements habituels ; sinon : CHROME=<chemin> node scripts/docs-captures.ts
-// Rien de réel : famille de test, faux ÉcoleDirecte, faux temps réel Irigo, fausse météo pluvieuse.
+// Rien de réel : famille de test, faux ÉcoleDirecte, faux temps réel Irigo, faux MOTIS, fausse météo pluvieuse.
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -1192,6 +1192,24 @@ if (!only || only.test('tablette-transports-tele')) {
   await shoot('tablette-transports-tele', `${BASE}/transports`, TABLET, {
     after: `${click('Léa')}; setTimeout(() => [...document.querySelectorAll('label')].find((l) => l.textContent.includes('Alerte sur la télé'))?.scrollIntoView({ block: 'center' }), 300)`,
   });
+}
+
+// Trajet selon l'emploi du temps calculé par MOTIS (faux MOTIS du monde fictif) : de la maison au collège, bus 3 puis
+// tram A, pour arriver avant le cours de 8 h 30 ; serveur relancé à 7 h 35 pour que le bus annoncé dans 11 min par le
+// faux temps réel soit celui de l'itinéraire. La page reste ensuite sur la plage horaire (captures suivantes).
+if (!only || only.test('tablette-trajet-correspondance')) {
+  browserNow = DOCS_NOW;
+  await startServer(DOCS_NOW);
+  const place = (id: string, label: string, icon: string, lat: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon: -0.55 });
+  const lea = (mode: 'school' | 'window') => ({
+    from: 'maison', to: 'college',
+    route: { line: '03', origin: 'RALL', originName: 'Ralliement', destination: 'LYCE', destinationName: 'Lycée', towards: 'Lycée', headsigns: ['Lycée'], oneWay: false, rideMinutes: 12, walkFrom: 4, walkTo: 3 },
+    mode, days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: null, tvAlert: 8,
+  });
+  const settings = (mode: 'school' | 'window') => ({ places: [place('maison', 'Maison', 'home', 47.47), place('college', 'Collège', 'school', 47.48)], commutes: { lea: lea(mode) }, stops: [] });
+  await call(A, 'PUT', '/transit/settings', settings('school'));
+  await shoot('tablette-trajet-correspondance', `${BASE}/p/lea`, TABLET);
+  await call(A, 'PUT', '/transit/settings', settings('window'));
 }
 
 // Mode film (fonction 15) : allumé à la main pour la télé du salon (comme le bouton de la télécommande d'Alex) ; la
