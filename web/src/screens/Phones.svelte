@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import BackButton from '../components/BackButton.svelte';
+  import BedtimePanel from '../components/BedtimePanel.svelte';
   import PhonesPanel from '../components/PhonesPanel.svelte';
   import ScreenRemindersPanel from '../components/ScreenRemindersPanel.svelte';
   import ScreensPanel from '../components/ScreensPanel.svelte';
@@ -10,7 +11,7 @@
 
   // Téléphones reliés à la famille, ouverts depuis la roue dentée : en relier un (QR code), en retirer. En dessous, les
   // télés avec l'appli HomeHub TV (appairage par le code affiché sur la télé) et
-  // leurs rappels (routine du soir, mots à lire). Réservé à la tablette.
+  // leurs rappels (routine du soir, mots à lire), puis l'heure du coucher des enfants. Réservé à la tablette.
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
@@ -30,6 +31,7 @@
     <div class="phones-wrap"><PhonesPanel /></div>
     <ScreensPanel />
     <ScreenRemindersPanel />
+    <BedtimePanel />
   {:else if me.data}
     <p class="muted">Réservé à la tablette.</p>
   {/if}

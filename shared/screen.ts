@@ -126,6 +126,8 @@ export type ScreenRainEvent = { kind: 'rain'; id: string; title: string; subtitl
 /** Bandeau de rappel (routine du soir, mots à lire) : shared/screen-reminders.ts. */
 export type { ScreenReminderEvent } from './screen-reminders.ts';
 import type { ScreenReminderEvent } from './screen-reminders.ts';
+export type { ScreenBedtimeEvent } from './bedtime.ts';
+import type { ScreenBedtimeEvent } from './bedtime.ts';
 
 /**
  * Séance de sport guidée (fonction 12) : `start` ouvre la page `page` (chemin du front, à charger avec le jeton de la
@@ -157,7 +159,8 @@ export type ScreenEventBody =
   | ScreenMediaEvent
   | ScreenWorkoutEvent
   | ScreenCookEvent
-  | ScreenTalkEvent;
+  | ScreenTalkEvent
+  | ScreenBedtimeEvent;
 export type ScreenEvent = { seq: number } & ScreenEventBody;
 export type ScreenEvents = { events: ScreenEvent[]; last: number };
 

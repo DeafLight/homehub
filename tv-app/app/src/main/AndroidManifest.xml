@@ -5,7 +5,8 @@
      du lanceur (<queries>, Android 11), service d'accessibilité (appli en cours, secours), injecteur lancé par l'adb
      local (Injecteur.kt, sans déclaration : ce n'est pas un composant Android). Écran de veille HomeHub
      (HomeHubDream, fonction 8), choisi par adb. Mode cuisine d'une recette : vue ouverte par le service
-     (CuisineActivity), permise en arrière-plan par l'affichage par-dessus les autres applis. -->
+     (CuisineActivity), permise en arrière-plan par l'affichage par-dessus les autres applis. Heure du coucher : écran
+     de veille du coucher (CoucherActivity), ouvert de la même façon. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -67,6 +68,14 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:taskAffinity="fr.homehub.tv.cuisine" />
+
+        <!-- Écran de veille du coucher (fonction 16) : sa propre tâche, pour que Retour rende le programme en pause. -->
+        <activity
+            android:name=".CoucherActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="fr.homehub.tv.coucher" />
 
         <service
             android:name=".HubService"

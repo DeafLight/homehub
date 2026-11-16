@@ -35,7 +35,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `Injecteur.kt` | Programme résident lancé par ce flux (`app_process`, identité `shell`) : injecte touches et texte |
 | `Remote.kt` | Langage de l'injecteur : noms des touches → codes Android, lignes d'ordre et de réponse, plan de frappe d'un texte (champ vidé, pauses entre les lettres) |
 | `Telecommande.kt` | Garde l'injecteur lancé (relance s'il tombe), touches, texte, veille et réveil, secours sans `adb` |
-| `Rappels.kt` | Rappels reçus (`kind: "reminder"`) et durée du bandeau (5 à 60 s) |
+| `Rappels.kt` | Rappels reçus (`kind: "reminder"`), durée du bandeau (5 à 60 s), icône (lune pour l'heure du coucher) |
 | `Applis.kt` | Applis du lanceur (nom, paquet, bannière PNG) envoyées à HomeHub, lancement d'une appli |
 | `Media.kt` | Photo ou vidéo partagée : événements « media », taille de décodage, délais, lien service ↔ écran (`MediaSession`) |
 | `MediaActivity.kt` | Plein écran : photo (ImageDecoder : orientation, HEIC, GIF animé) ou vidéo (focus audio transitoire), bandeau du titre, Retour ou délai pour fermer |
@@ -47,6 +47,7 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | `SportActivity.kt`, `Sport.kt` | Séance de sport guidée : page de HomeHub (`/tele-sport.html`) en plein écran dans une WebView, ouverte quand la personne la lance depuis son téléphone, fermée et effacée à la fin |
 | `Cuisine.kt` | Mode cuisine : lecture de la vue envoyée par HomeHub (`shared/screen-cook.ts`), décompte, taille du texte, touches |
 | `CuisineActivity.kt` | Vue cuisine native (sa propre tâche) : étape en grand, mode Cookeo, durées à lancer (OK), minuteurs de la maison, flèches gauche/droite pour les étapes, Retour pour quitter |
+| `Coucher.kt`, `CoucherActivity.kt` | Heure du coucher : événements `bedtime` ; écran de veille du coucher (page `/ecran` en plein écran, sa propre tâche), ouvert après la pause, fermé par Retour ou quand un parent repousse ou annule |
 
 ## Minuteurs
 

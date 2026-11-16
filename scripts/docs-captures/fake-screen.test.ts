@@ -1,12 +1,12 @@
 // Tests de la fausse appli HomeHub TV du monde fictif : mode allumée, en veille ou absente lu dans le dossier d'état,
 // compte rendu d'un message vocal comme l'appli (refusé écran éteint, lu, introuvable), réponse rapide demandée
-// (fonction 10) et maquette du bandeau avec ses réponses.
+// (fonction 10), maquette du bandeau avec ses réponses, écran de veille du coucher.
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SCREEN_OFF_REASON } from '../../shared/screen.ts';
-import { FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REPLY_FILE, fakeScreenTvText, fakeVoiceReport, readFakeScreenMode, readFakeScreenReply } from './fake-screen.ts';
+import { applyRemote, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_REPLY_FILE, type FakeScreenRemote, fakeScreenTvText, fakeVoiceReport, readFakeScreenMode, readFakeScreenReply } from './fake-screen.ts';
 
 describe('fausse appli HomeHub TV', () => {
   it('mode : allumée sans fichier ou illisible, sinon veille ou absente', () => {
@@ -39,5 +39,14 @@ describe('fausse appli HomeHub TV', () => {
     const base = { title: 'Message d’Alex', text: 'À table !', seconds: 10 };
     expect(fakeScreenTvText({ ...base, replies: true })).toContain('J’arrive');
     expect(fakeScreenTvText(base)).not.toContain('J’arrive');
+  });
+
+  it('coucher : écran de veille ouvert puis fermé', () => {
+    const state = { screenOn: true, foreground: null, control: 'adb' as const, addresses: [] };
+    const remote: FakeScreenRemote = { received: [], screenOn: true, foreground: 'x' };
+    expect(applyRemote({ seq: 1, kind: 'bedtime', id: 'a', action: 'sleep' }, state, remote)).toBe('coucher : écran de veille ouvert');
+    expect(remote.bedtime).toBe(true);
+    applyRemote({ seq: 2, kind: 'bedtime', id: 'b', action: 'wake' }, state, remote);
+    expect(remote.bedtime).toBe(false);
   });
 });

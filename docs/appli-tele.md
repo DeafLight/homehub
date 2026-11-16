@@ -188,7 +188,7 @@ Idées en plus, **à classer avec toi** (mon avis entre parenthèses) :
 | 13 | Mode cuisine d'une recette | Fait : vue native, voir section 10 |
 | 14 | Alerte pluie | Peu coûteux (météo déjà là) : avec 4 |
 | 15 | Mode « film » (annonces renvoyées vers le Google Home) | Fait : voir section 13 |
-| 16 | Heure du coucher des enfants | Proche de 5 : avec 5 |
+| 16 | Heure du coucher des enfants | Fait : rappel, pause, écran de veille ; voir section 14 |
 | 17 | Télécommande sur le téléphone (PWA) : flèches, clavier du téléphone, tiroir des applis, lancement, marche/arrêt | Retenue le 14 novembre 2026, détail et essais à faire en section 8 ; reprend presque toute la fonction 6 |
 
 **Ordre proposé : une idée par version**, cochée dans `TODO.md` (section « Télé : appli HomeHub TV ») à sa sortie :
@@ -244,7 +244,8 @@ applis et n'est pas documenté officiellement ; HDMI-CEC par la box, que HomeHub
 - **État** : le bouton marche/arrêt montre allumée, en veille ou injoignable (présence et écran, fonction 7). Télé
   éteinte complètement (veille profonde, prise coupée) : rien ne marche, l'écran le dit.
 - **Droits** : parents seulement à la première version (un enfant ne lance pas une appli pendant le film), vérifié par
-  `access.ts` ; à revoir avec l'heure du coucher (16).
+  `access.ts`. L'heure du coucher (16) ne s'appuie pas sur la télécommande : elle met en pause elle-même, et seul un
+  parent la repousse ou l'annule.
 - **Rien de personnel** : le tiroir ne montre que des noms d'applis.
 - **Mise en place** : `installer.ps1` active le service d'accessibilité
   (`settings put secure enabled_accessibility_services …`) ; la première connexion `adb` locale demande l'autorisation
@@ -470,6 +471,35 @@ Pendant un film, une annonce ne doit plus prendre l'écran ni couper le son. Cho
 - **À essayer sur la vraie télé** : paquets réels vus par l'accessibilité pour chaque appli (Netflix sur Android TV
   est `com.netflix.ninja`), menu de Netflix et lecture sans changement d'appli (le mode reste), bandeau discret
   lisible à 3 m sans gêner, minuteur discret sans carillon, retour aux bandeaux normaux en quittant l'appli.
+
+## 14. Heure du coucher des enfants (fonction 16)
+
+Trois temps sur les télés allumées, assemblés à partir de fonctions déjà là, sans nouveau mécanisme d'affichage :
+
+| Temps | Quand | Comment |
+|---|---|---|
+| Rappel | 5 à 30 min avant (15 par défaut) | Événement `reminder` des rappels du soir (fonction 5), genre `bedtime` : bandeau avec une lune (`Rappels.icon`) |
+| Pause | À l'heure dite | Touche `pause` avec son bandeau, comme « À table ! » (fonction 6) : « C'est l'heure d'aller au lit », « Bonne nuit Léa et Tom ! » |
+| Écran de veille | 0 à 30 min après la pause (10 par défaut) | Événement `bedtime` (`sleep`) : l'appli ouvre `CoucherActivity`, la page `/ecran` de l'écran de veille HomeHub (fonction 8) en plein écran, par-dessus le programme en pause |
+
+- **Réglages** (tablette, parent reconnu, `bedtime.json`) : une heure par soir (17:00 à 22:30, ou aucune) dans deux
+  tableaux, **période d'école** et **veilles de vacances**. Le second sert les soirs dont le lendemain est sans école
+  pour une autre raison que le week-end (`isNoSchoolDay` : vacances scolaires de la page Vacances, jours fériés) : le
+  vendredi qui ouvre les vacances en profite, le dimanche de la rentrée reprend l'heure d'école. Coupé par défaut.
+- **Pas un genre de rappel de plus** : les rappels de la fonction 5 n'ont qu'une heure par jour ; le coucher a une
+  heure par soir, trois temps et des décisions du soir. Il reprend leur bandeau, leur demi-heure de rattrapage et leur
+  envoi aux seules télés allumées (`server/services/bedtime.ts`, règles pures dans `shared/bedtime.ts`).
+- **Une fois chacun** : le serveur retient le dernier temps envoyé pour l'heure retenue ce soir. Une télé allumée en
+  retard reçoit le dernier temps passé depuis moins d'une demi-heure, seulement (pas de rappel après la pause).
+- **Un parent garde la main** (`access.parent` : son téléphone, ou reconnu à la tablette ; jamais un enfant) depuis la
+  télécommande du téléphone : repousser d'un quart d'heure (une heure au plus), annuler pour ce soir, rétablir l'heure
+  prévue. Les télés allumées l'annoncent en bandeau (« Coucher repoussé à 20:45 », « De la part d'Alex ») et ferment
+  l'écran de veille du coucher (`bedtime` / `wake`) s'il était ouvert. Les temps déjà passés à la nouvelle heure ne
+  repartent pas d'un coup. Tout s'efface le lendemain.
+- **Écran de veille** : une activité de l'appli plutôt que le vrai écran de veille Android, qu'aucune appli ordinaire
+  ne peut lancer (`IDreamManager` est réservé au système). Elle ne garde pas l'écran allumé : la mise en veille de la
+  télé suit son cours. Retour la ferme (le programme reste en pause), les autres touches sauf le volume ne font rien.
+- **À essayer sur la vraie télé** : voir `TODO.md`, 16 bis.
 
 ## Décisions (14 novembre 2026)
 

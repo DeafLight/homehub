@@ -74,6 +74,9 @@ import { createScreenAlertStore, type ScreenAlertStore } from './sources/screen-
 import { createScreenRemindersApi } from './screen-reminders-api.ts';
 import { createScreenReminders, reminderBuilders } from './services/screen-reminders.ts';
 import type { ScreenReminderStore } from './sources/screen-reminders.ts';
+import { createBedtimeApi } from './bedtime-api.ts';
+import { createBedtime } from './services/bedtime.ts';
+import type { BedtimeStore } from './sources/bedtime.ts';
 import { createScreenMediaApi } from './screen-media-api.ts';
 import { createEcranApi } from './ecran-api.ts';
 import { createEcranService } from './services/ecran.ts';
@@ -103,6 +106,8 @@ export type AppDeps = {
   screenHub?: ScreenHub;
   /** Réglages des rappels sur la télé ; absent (tests) : ni rappels, ni leurs routes. */
   screenReminders?: ScreenReminderStore;
+  /** Heure du coucher des enfants sur les télés ; absent (tests) : ni coucher, ni ses routes. */
+  bedtime?: BedtimeStore;
   /** Appareil de secours de chaque télé éteinte (Google Home) ; absent : pas de secours. */
   screenFallbacks?: ScreenFallbackStore;
   pins: PinStore;
@@ -228,6 +233,20 @@ export function createApp(deps: AppDeps): Hono {
     });
     reminders.start();
     api.route('/', createScreenRemindersApi({ store: deps.screenReminders, reminders, access, clock }));
+  }
+  if (deps.bedtime) {
+    // Heure du coucher des enfants (fonction 16) : rappel, pause puis écran de veille sur les télés allumées.
+    const bedtime = createBedtime({
+      store: deps.bedtime,
+      hub: screenHub,
+      screenIds: async () => (await deps.screens.list()).map((s) => s.id),
+      holidays: async () => (await deps.service.holidays()).holidays,
+      children: () => household.members().filter((m) => !m.parent).map((m) => m.name),
+      nameOf: (id) => household.member(id)?.name ?? null,
+      clock,
+    });
+    bedtime.start();
+    api.route('/', createBedtimeApi({ bedtime, access }));
   }
   api.route('/', createScreenMediaApi({ screens: deps.screens, hub: screenHub, household, access, pins, film }));
   api.route('/', createEcranApi({ ecran: createEcranService({ service: deps.service, menus: deps.menus, recipes: deps.recipes, household, clock }), access }));

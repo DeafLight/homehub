@@ -25,6 +25,8 @@
 // Réponses rapides (fonction 10) : elle retient l'identifiant de réponse du dernier message écrit ou vocal ; quand
 // fake-screen-reply.json apparaît ({ "reply": "coming" }), elle répond comme si on avait choisi à la télécommande,
 // puis efface le fichier.
+// Heure du coucher (fonction 16) : rappel et changements comme les autres rappels, pause comme « À table ! », écran de
+// veille du coucher ouvert ou fermé (noté dans fake-screen-remote.json, `bedtime`).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { QUICK_REPLIES, QUICK_REPLY_LABELS, type QuickReply, SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
@@ -88,7 +90,7 @@ export type FakeScreenTimer = { timerId: string; title: string; subtitle: string
 /** Minuteurs en cours reçus (événement `timers`) : l'heure du serveur à l'envoi et la liste. */
 export type FakeScreenTimers = { serverNow: string; timers: ScreenRunningTimer[] };
 /** Ordres de la télécommande reçus, en clair (« touches : bas bas ok »), et l'état qui en résulte. */
-export type FakeScreenRemote = { received: string[]; screenOn: boolean; foreground: string; paused?: boolean; notice?: { title: string; subtitle: string } };
+export type FakeScreenRemote = { received: string[]; screenOn: boolean; foreground: string; paused?: boolean; notice?: { title: string; subtitle: string }; bedtime?: boolean };
 
 /** Ce que fait la fausse télé d'un ordre de la télécommande : la ligne du journal, et l'état qui change. */
 export function applyRemote(event: ScreenEvent, state: ScreenStateReport, remote?: FakeScreenRemote): string | null {
@@ -115,6 +117,9 @@ export function applyRemote(event: ScreenEvent, state: ScreenStateReport, remote
       return event.action === 'start' ? `séance de sport : page ${event.page} ouverte` : `séance de sport : fin (bandeau « ${event.notice?.title} »)`;
     case 'cook':
       return 'mode cuisine ouvert';
+    case 'bedtime':
+      if (remote) remote.bedtime = event.action === 'sleep';
+      return event.action === 'sleep' ? 'coucher : écran de veille ouvert' : 'coucher : écran de veille fermé';
     default:
       return null;
   }
@@ -194,7 +199,7 @@ export function startFakeScreen(base: string) {
           continue;
         }
         if (event.kind === 'reminder') {
-          writeFileSync(join(dir, FAKE_SCREEN_REMINDER_FILE), JSON.stringify({ title: event.title, subtitle: event.subtitle }));
+          writeFileSync(join(dir, FAKE_SCREEN_REMINDER_FILE), JSON.stringify({ title: event.title, subtitle: event.subtitle, reminder: event.reminder }));
           console.log(`Fausse appli HomeHub TV, rappel : ${event.title} (${event.subtitle})`);
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           continue;

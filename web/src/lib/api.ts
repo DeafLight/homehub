@@ -56,6 +56,7 @@ import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '.
 import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenReplies, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
+import type { BedtimeSettings, BedtimeText, BedtimeView } from '../../../shared/bedtime.ts';
 import type { SharedMedia, ShareScreenTarget } from '../../../shared/screen-media.ts';
 import type { ScreenTalkStart } from '../../../shared/screen-talk.ts';
 import type { ScreenFilm } from '../../../shared/screen-film.ts';
@@ -323,6 +324,11 @@ export type Api = {
   screenReminders(): Promise<ScreenReminderSettings>;
   saveScreenReminders(reminders: ScreenReminderSetting[]): Promise<ScreenReminderSettings>;
   testScreenReminder(kind: ScreenReminderKind): Promise<{ title: string; subtitle: string; screens: number }>;
+  /** Heure du coucher des enfants : réglages et ce soir (tablette, téléphones), report et annulation (parent). */
+  bedtime(): Promise<BedtimeView>;
+  saveBedtime(settings: BedtimeSettings): Promise<BedtimeView>;
+  bedtimeTonight(action: 'postpone' | 'cancel' | 'restore'): Promise<BedtimeView & { screens: number }>;
+  testBedtime(): Promise<BedtimeText & { screens: number }>;
   /** Téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (lu par l'appli, son du programme baissé). */
   screenTargets(): Promise<ScreenTarget[]>;
   sendScreenVoice(id: string, audio: Blob): Promise<ScreenVoiceResult>;
@@ -566,6 +572,10 @@ export function createApi(
     screenReminders: () => request('/screens/reminders'),
     saveScreenReminders: (reminders) => send('PUT', '/screens/reminders', { reminders }),
     testScreenReminder: (kind) => send('POST', `/screens/reminders/${encodeURIComponent(kind)}/test`),
+    bedtime: () => request('/screens/bedtime'),
+    saveBedtime: (settings) => send('PUT', '/screens/bedtime', settings),
+    bedtimeTonight: (action) => send('POST', `/screens/bedtime/${action}`),
+    testBedtime: () => send('POST', '/screens/bedtime/test'),
     screenTargets: () => request('/screens/targets'),
     remoteScreens: () => request('/screens/remote'),
     remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),

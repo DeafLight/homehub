@@ -1,5 +1,5 @@
 // Rappels poussés par HomeHub à l'heure réglée (shared/screen-reminders.ts : routine du soir, mots à lire, et plus tard
-// l'heure du coucher) : lecture des événements « reminder » et durée du bandeau. Fonctions pures, testées sur la JVM
+// l'heure du coucher, icône lune) : lecture des événements « reminder » et durée du bandeau. Fonctions pures, testées sur la JVM
 // (RappelsTest) ; l'affichage est dans HubService (bandeau cloche, après un message vocal en cours).
 package fr.homehub.tv
 
@@ -24,4 +24,7 @@ object Rappels {
     const val WAIT_VOICE_MS = 60_000L
 
     fun durationMs(seconds: Int): Long = (seconds * 1_000L).coerceIn(MIN_MS, MAX_MS)
+
+    /** Icône du bandeau : la lune pour l'heure du coucher (fonction 16), sinon celle des rappels (null : la cloche). */
+    fun icon(reminder: String): Int? = if (reminder == "bedtime") R.drawable.ic_moon else null
 }

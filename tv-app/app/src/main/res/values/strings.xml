@@ -31,4 +31,5 @@
     <string name="media_standby">télé en veille : l’allumer d’abord</string>
     <string name="media_not_shown">écran pas affiché au bout de 20 s (autorisation « afficher par-dessus » ?)</string>
     <string name="media_download_failed">fichier non téléchargé : %1$s</string>
+    <string name="bedtime_not_shown">écran de veille du coucher pas affiché</string>
 </resources>

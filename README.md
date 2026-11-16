@@ -388,6 +388,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   hors de la maison sans TURN. Une voix à la fois par télé (« Sam parle déjà à Télé du salon ») ; fin aussi après 6 s
   sans nouvelles du téléphone ou de la télé, ou au bout de `camera.maxMinutes`. Choix et raisons :
   [`docs/appli-tele.md`](docs/appli-tele.md), section 11.
+- **Heure du coucher des enfants** (appli HomeHub TV ; réglage sur la tablette, **Téléphones** › **Coucher des
+  enfants**, coupé par défaut) : une heure par soir de la semaine, en **période d'école** (20 h 30, 21 h le vendredi et
+  le samedi par défaut) et les **veilles de vacances** (21 h 30) : les soirs dont le lendemain est en vacances
+  scolaires ou férié ; heure effacée : pas de coucher ce soir-là. Trois temps sur les télés allumées : un **rappel**
+  (bandeau lune « Coucher dans 15 min », « Léa et Tom : au lit à 20:30 », 5 à 30 min avant), la **pause** à l'heure dite
+  (touche pause et bandeau « C'est l'heure d'aller au lit », comme « À table ! »), puis l'**écran de veille** HomeHub
+  (la page de l'écran de veille de la télé, ouverte par-dessus le programme, de 0 à 30 min après la pause ; Retour la
+  ferme). Chaque temps part une fois ; une télé allumée plus tard le reçoit dans la demi-heure (le dernier temps passé
+  seulement, pas le rappel après la pause). Un parent garde la main **ce soir** depuis la télécommande de son
+  téléphone (ou la tablette) : **Repousser +15 min** (une heure au plus), **Annuler ce soir**, **Rétablir l'heure
+  prévue** ; la télé l'annonce en bandeau (« Coucher repoussé à 20:45, de la part d'Alex ») et quitte l'écran de veille
+  du coucher s'il était ouvert. Les décisions d'un soir s'effacent le lendemain. **Essayer le rappel** (tablette)
+  montre le bandeau sans rien mettre en pause. Rien de personnel : des prénoms et une heure.
 - **Télécommande de la télé** (téléphone d'un parent, bouton télé en haut de l'appli, `/m/tele`) : pour une télé qui a
   l'appli HomeHub TV. En-tête : nom et état de la télé (**allumée**, **en veille**, **injoignable**) et bouton
   marche/arrêt. Onglet **Touches** : pavé de flèches avec **OK** au centre, Retour, Accueil, lecture/pause, volume −,
@@ -797,7 +810,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`) et leur appareil de secours (`screen-fallbacks.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`), l'heure du coucher (`bedtime.json`) et leur appareil de secours (`screen-fallbacks.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
@@ -927,6 +940,9 @@ server/
   screen-reminders-api.ts  routes des rappels sur la télé (réglages, « Essayer »)
   services/screen-reminders.ts  rappels sur la télé : heures, rattrapage, textes (routine du soir, mots à lire)
   sources/screen-reminders.ts   réglages des rappels et jour du dernier envoi (screen-reminders.json)
+  bedtime-api.ts         routes de l'heure du coucher (réglages, ce soir : repousser, annuler, rétablir, « Essayer »)
+  services/bedtime.ts    heure du coucher sur les télés : rappel, pause, écran de veille, report et annulation
+  sources/bedtime.ts     réglages du coucher et décisions du soir (bedtime.json)
   screen-media-api.ts      pause, reprise, volume, « À table ! » et mode film depuis la tablette (parent reconnu ou code parent)
   services/screen-media.ts commandes de ce qui passe : touches, volume fixe refusé, événement « À table ! »
   services/ecran.ts        écran de veille de la télé : météo, agenda d'aujourd'hui et de demain, menu du jour
@@ -951,6 +967,7 @@ shared/recipe-text.ts      recette dans un texte copié d'une page : sections, t
 shared/ecran.ts            écran de veille de la télé : données de la page /ecran
 shared/screen.ts           protocole de l'appli HomeHub TV : version, appairage, événements, comptes rendus, télécommande
 shared/screen-reminders.ts rappels sur la télé : genres, réglages par défaut, heure due, textes
+shared/bedtime.ts         heure du coucher : tableau d'école ou de vacances, temps dus, ce soir, textes des bandeaux
 shared/screen-media.ts     photo ou vidéo vers la télé : formats, taille au plus, durées, événement « media »
 shared/screen-workout.ts   séance de sport sur la télé : plan sans rien de personnel, horloge (pause, suivant, arrêt)
 shared/screen-film.ts      mode film : applis de films, état (automatique, à la main, fin), genres rendus discrets
@@ -1016,6 +1033,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/screen/ecran` | écran de veille de la télé (page `/ecran`), avec son jeton (401 sinon) : `{ weather, days, agenda, dinner, holiday }` : météo du moment, 3 jours suivants, rendez-vous d'aujourd'hui et de demain `[{ id, title, start, end?, allDay?, who }]` (`who` : prénom, null pour la famille ; 6 au plus), recettes du jour au menu |
 | `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |
 | `GET /api/screens/reminders`, `PUT /api/screens/reminders`, `POST /api/screens/reminders/:kind/test` | rappels sur la télé, tablette : réglages `{ reminders: [{ kind, enabled, time }] }` (`kind` : `evening-routine` ou `notes`, `time` : HH:MM) ; enregistrement d'un ou plusieurs rappels (parent reconnu ; 400 heure ou genre inconnus) ; essai tout de suite (parent reconnu) → `{ title, subtitle, screens }` (409 rien à rappeler, 503 aucune télé allumée) |
+| `GET /api/screens/bedtime`, `PUT /api/screens/bedtime` | heure du coucher (tablette ou téléphone appairé) : `{ settings: { enabled, school, holidays, reminderMin, sleepMin }, tonight }` (`school`, `holidays` : 7 heures HH:MM ou null, dimanche d'abord, entre 17:00 et 22:30 ; `tonight` : `{ day, schedule, planned, delayMin, time, state, stages, canPostpone }`) ; enregistrement par un parent reconnu à la tablette (400 heure hors du soir ou délai inconnu) |
+| `POST /api/screens/bedtime/postpone`, `…/cancel`, `…/restore`, `…/test` | coucher de ce soir, parent (téléphone ou reconnu à la tablette) : repousser de 15 min (409 au-delà d'une heure), annuler, rétablir l'heure prévue → `{ settings, tonight, screens }` (bandeau sur les télés allumées) ; « Essayer le rappel » (tablette, parent reconnu) → `{ title, subtitle, screens }` (503 aucune télé allumée) |
 | `GET /api/screens/media`, `POST /api/screens/:id/media` | tablette seulement : télés `{ screens: [{ id, name, power, volume, control }], parentCode }` (`volume` : `adjustable`, `fixed` ou null) ; commande `{ action, pin? }` (`pause`, `play`, `voldown`, `volup`, `mute`, `dinner`), par un parent reconnu ou avec le code parent (403 enfant ou personne, 409 volume fixe, 502/503 comme la télécommande) |
 | `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, volume, foreground, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline`) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
 | `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `play`, `volup`, `voldown`, `mute` ; touches de volume refusées, 409, si le volume de la télé est fixe) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |

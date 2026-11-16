@@ -368,8 +368,20 @@ personne depuis son propre téléphone.
       Disney+, Prime Video, Canal+…), passage du menu de Netflix à la lecture sans changement d'appli, bandeau
       discret lisible à 3 m et assez discret pendant un film, minuteur discret sans carillon, retour normal en
       quittant l'appli.
-- [ ] 16. Heure du coucher des enfants : rappel, puis pause, puis écran de veille ; un parent garde la main depuis
-      son téléphone.
+- [x] 16. Heure du coucher des enfants : rappel, puis pause, puis écran de veille ; un parent garde la main depuis
+      son téléphone. Réglage sur la tablette (Téléphones › Coucher des enfants, coupé par défaut) : une heure par
+      soir en période d'école et les veilles de vacances (lendemain en vacances ou férié), délais du rappel et de
+      l'écran de veille, « Essayer le rappel ». Sur les télés allumées : bandeau lune, pause avec bandeau « C'est
+      l'heure d'aller au lit », puis l'écran de veille HomeHub ouvert par l'appli (`CoucherActivity`, Retour le
+      ferme). Ce soir, depuis la télécommande du téléphone d'un parent ou la tablette : repousser de 15 min (une
+      heure au plus), annuler, rétablir ; bandeau sur la télé, écran de veille du coucher fermé.
+  - [ ] 16 bis. À vérifier sur la vraie télé : pause à l'heure dite sous Netflix, YouTube et la télé en direct ;
+        écran de veille du coucher ouvert par-dessus une appli (permis par l'affichage par-dessus), page `/ecran`
+        lisible, la mise en veille de la télé qui suit ensuite son cours ; Retour qui rend le programme en pause ;
+        fermeture par « Repousser » ou « Annuler » depuis le téléphone ; bandeau lune lisible à 3 m ; télé allumée
+        après l'heure (la pause seule, pas le rappel). À décider à l'usage : faut-il insister (rouvrir l'écran de
+        veille) si un enfant le ferme ou rallume la télé après l'heure, et lancer plutôt le vrai écran de veille
+        Android (`HomeHubDream`) par l'injecteur ?
 - [x] 17. Télécommande sur le téléphone (PWA, parents) : flèches et OK, Retour, Accueil, clavier du téléphone, tiroir
       des applis installées, lancement direct, marche/arrêt (`docs/appli-tele.md`, section 8) ; « À table ! » (pause
       et bandeau) ; client `adb` de l'appli vers sa propre télé et injecteur résident ; allumage par Cast (0.73).

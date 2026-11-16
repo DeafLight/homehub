@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { filmDone, filmLabel, filmToggle } from '../../../shared/screen-film.ts';
   import { REMOTE_TEXT_MAX, type RemoteKey, type RemoteScreen } from '../../../shared/screen.ts';
+  import BedtimeTonight from '../components/BedtimeTonight.svelte';
   import Icon, { type IconName } from '../components/Icon.svelte';
   import { ApiError } from '../lib/api.ts';
   import { getAppContext } from '../lib/context.ts';
@@ -19,15 +20,19 @@
   // défile d'un bloc (le body ne défile pas). Le serveur vérifie les droits (parents) ; règles : lib/remote.ts.
   // Mode film (fonction 15) : bouton sous « À table ! », allumé tout seul par une appli de films ou à la main ; pendant
   // un film, les annonces sont discrètes sur la télé et les messages vocaux partent sur le Google Home.
+  // Le coucher des enfants de ce soir (fonction 16), quand il est réglé, s'affiche sous l'en-tête : repousser d'un
+  // quart d'heure, annuler pour ce soir, rétablir.
   const STATE_REFRESH_MS = 5_000;
   /** La liste des applis se recharge surtout quand la télé en envoie une nouvelle (date de la liste). */
   const APPS_REFRESH_MS = 10 * 60_000;
+  const BEDTIME_REFRESH_MS = 60_000;
 
   const { api, config, clock, navigate } = getAppContext();
   const pairing = loadPairing();
   const member = config.members.find((m) => m.id === pairing?.ownerId);
 
   const screens = createResource(() => api.remoteScreens(), STATE_REFRESH_MS);
+  const bedtime = createResource(async () => (member?.parent ? api.bedtime() : null), BEDTIME_REFRESH_MS);
   let chosenId = $state<string | null>(null);
   const screen = $derived<RemoteScreen | undefined>(screens.data?.find((s) => s.id === chosenId) ?? screens.data?.[0]);
   const can = $derived(screen ? capabilities(screen) : { keys: false, basic: false, apps: false });
@@ -57,6 +62,7 @@
   onDestroy(() => {
     screens.destroy();
     apps.destroy();
+    bedtime.destroy();
     feedback.stop();
   });
 
@@ -163,6 +169,9 @@
   {:else if screens.data && screens.data.length === 0}
     <p class="muted">Aucune télé appairée. Sur la tablette : roue dentée › Téléphones › Télés.</p>
   {:else if screen}
+    {#if bedtime.data && bedtime.data.settings.enabled && bedtime.data.tonight.state !== 'off'}
+      <BedtimeTonight view={bedtime.data} onchange={(next) => bedtime.set(next)} compact />
+    {/if}
     {#if screens.data && screens.data.length > 1}
       <div class="pills screens">
         {#each screens.data as s (s.id)}

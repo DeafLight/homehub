@@ -108,6 +108,8 @@ fitness.weeks = {
   [weekOf(new Date(at(-7)))]: { cardio: 75, waist: 93.5 }, [weekOf(new Date(at(0)))]: { cardio: 40, waist: 93 },
 };
 writeFileSync(join(state, 'fitness.json'), JSON.stringify({ version: 1, members: { alex: fitness } }));
+// Heure du coucher des enfants (fonction 16) : active, réglages par défaut (20 h 30 en période d'école).
+writeFileSync(join(state, 'bedtime.json'), JSON.stringify({ version: 1, settings: { enabled: true } }));
 // Visage fictif d'Alex (empreinte arbitraire) : les captures du sport de la tablette s'en servent pour être reconnues.
 const FACE = Array.from({ length: 128 }, (_, i) => Math.sin(i + 1));
 writeFileSync(join(state, 'faces.json'), JSON.stringify({ version: 1, faces: { alex: [FACE] }, learned: {} }));
@@ -482,6 +484,8 @@ await shoot('tablette-drive-panier', `${BASE}/listes`, TABLET, { after: click('R
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
 // Rappels sur la télé, en bas de la page Téléphones (la page défile).
 await shoot('tablette-rappels-tele', `${BASE}/telephones`, TABLET, { after: `document.querySelector('.reminders')?.scrollIntoView({ block: 'end' })` });
+// Heure du coucher des enfants, tout en bas de la même page.
+await shoot('tablette-coucher', `${BASE}/telephones`, TABLET, { after: `document.querySelector('.bedtime')?.scrollIntoView({ block: 'end' })` });
 // Réglage des vacances scolaires : académie de Nantes (celle du YAML fictif) et aperçu de ses prochaines vacances.
 await shoot('tablette-vacances-reglages', `${BASE}/vacances`, TABLET);
 // Sport de la tablette, Alex reconnu (pas de caméra sans fenêtre : la session ouverte par son visage fictif est
@@ -714,6 +718,8 @@ await shoot('telephone-scanner-mode', `${BASE}/m/scanner`, PHONE, { init: asPhon
 // Touches après « À table ! », puis onglet Applis (appli en cours et tiroir).
 await shoot('telephone-telecommande', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('À table !'), settle: 1500 });
 await shoot('telephone-telecommande-applis', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Applis') });
+// Coucher de ce soir dans la télécommande d'un parent, repoussé d'un quart d'heure (bandeau sur la fausse télé).
+await shoot('telephone-coucher', `${BASE}/m/tele`, PHONE, { init: asPhone('alex'), after: click('Repousser +15 min'), settle: 1500 });
 // La télé après « À table ! » (fonction 6) : maquette d'après ce qu'a reçu la fausse appli (pause, bandeau).
 if ((!only || only.test('tele-a-table')) && existsSync(join(state, FAKE_SCREEN_REMOTE_FILE))) {
   const pausedTv = join(work, 'tele-a-table.html');
@@ -763,6 +769,21 @@ if (!only || only.test('tele-appli-rappel')) {
   await sleep(500);
   await tvReminder.capture('tele-appli-rappel');
   await tvReminder.close();
+}
+
+// Rappel de l'heure du coucher sur la télé (« Essayer le rappel » de la tablette, Alex reconnu) : maquette de l'écran
+// de la télé avec le bandeau lune reçu par la fausse appli.
+if (!only || only.test('tele-appli-coucher')) {
+  // Le téléphone a repoussé le coucher plus haut : heure prévue rétablie d'abord.
+  await fetch(`${BASE}/api/screens/bedtime/restore`, { method: 'POST', headers: { 'X-Actor-Session': faceToken } });
+  const res = await fetch(`${BASE}/api/screens/bedtime/test`, { method: 'POST', headers: { 'X-Actor-Session': faceToken } });
+  if (!res.ok) console.warn(`Rappel du coucher non envoyé à la fausse télé : ${res.status} ${await res.text()}`);
+  const bedtimeTv = join(work, 'tele-coucher.html');
+  writeFileSync(bedtimeTv, fakeScreenReminderTv(JSON.parse(readFileSync(join(state, FAKE_SCREEN_REMINDER_FILE), 'utf8'))));
+  const tvBedtime = await openTarget(pathToFileURL(bedtimeTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  await sleep(500);
+  await tvBedtime.capture('tele-appli-coucher');
+  await tvBedtime.close();
 }
 
 // Photo partagée vers la télé (fonction 11) : une photo inventée (fake-photo.ts) partagée comme le ferait le menu

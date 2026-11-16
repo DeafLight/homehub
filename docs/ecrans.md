@@ -244,6 +244,13 @@ interrupteur, son heure et **Essayer** (le bandeau part tout de suite sur les t�
 
 ![Rappels sur la télé : Routine du soir à 19 h 30 et Mots à lire à 18 h 30, actifs](images/tablette-rappels-tele.png)
 
+Tout en bas, **Coucher des enfants** : l'interrupteur, le coucher de ce soir (heure, rappel, écran de veille, avec
+**Repousser +15 min** et **Annuler ce soir**), une heure par soir en **période d'école** et les **veilles de
+vacances** (heure effacée : pas de coucher ce soir-là), le délai du rappel et celui de l'écran de veille, et
+**Essayer le rappel**.
+
+![Coucher des enfants : ce soir au lit à 20:30, heures de la période d'école et des veilles de vacances, délais](images/tablette-coucher.png)
+
 ### Le NAS
 
 État général, jauges, points à surveiller, services, événements récents (relevé d'exemple).
@@ -419,6 +426,12 @@ soir, avec qui a encore des étapes à cocher (**maquette**, envoyée par « Ess
 
 ![Maquette d'une télé : bandeau « Routine du soir, Léa : encore 3 étapes · Tom : encore 3 étapes »](images/tele-appli-rappel.png)
 
+À l'heure du coucher, le **rappel** arrive de même avec une lune (« Coucher dans 15 min », « Léa et Tom : au lit à
+20:30 ») ; à l'heure dite, le programme se met en pause avec le bandeau « C'est l'heure d'aller au lit », puis l'écran
+de veille HomeHub s'ouvre par-dessus (**maquette**, envoyée par « Essayer le rappel » dans le monde fictif).
+
+![Maquette d'une télé : bandeau lune « Coucher dans 15 min, Léa et Tom : au lit à 20:30 »](images/tele-appli-coucher.png)
+
 ### Télécommande de la télé (téléphone d'un parent)
 
 Le bouton télé en haut de l'appli ouvre la **Télécommande** de la télé du salon (appli HomeHub TV) : son état
@@ -433,6 +446,12 @@ du monde fictif), à ouvrir d'un geste, avec la date de la liste.
 
 Si le volume de la télé est fixe (son par une barre de son), les touches de volume sont grisées et une ligne
 l'explique sous elles.
+
+Quand l'heure du coucher est réglée, le **coucher de ce soir** s'affiche sous l'en-tête : heure, rappel, écran de
+veille, et les gestes du parent : **Repousser +15 min**, **Annuler ce soir**, **Rétablir l'heure prévue** (ici après un
+report : la télé affiche « Coucher repoussé à 20:45 »).
+
+<img src="images/telephone-coucher.png" alt="Télécommande d'Alex : coucher de ce soir repoussé à 20:45, boutons Repousser, Annuler ce soir, Rétablir" width="260">
 
 ### Télé depuis la tablette : pause, reprise, volume, « À table ! »
 

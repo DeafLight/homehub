@@ -22,6 +22,8 @@
 // « J'arrive », « 5 minutes » à la télécommande ; la réponse choisie part à HomeHub (POST /api/screen/replies/:id).
 // Mode film (fonction 15) : les bandeaux marqués `discreet` par HomeHub (message, minuteur, bus, pluie, rappel) passent
 // en petit en bas à gauche, sans son ni focus (Film.kt) ; les messages vocaux, eux, partent sur le Google Home.
+// Heure du coucher (fonction 16) : le rappel et la pause arrivent comme les autres bandeaux et touches ; l'événement
+// « bedtime » ouvre l'écran de veille du coucher (CoucherActivity), ou le ferme si un parent repousse ou annule.
 package fr.homehub.tv
 
 import android.app.Notification
@@ -190,6 +192,7 @@ class HubService : Service() {
                 shared.forEach { event -> media.execute { handleMedia(server, token, event) } }
                 cookEventIds(json).forEach { id -> remote.execute { openCook(server, token, id) } }
                 events.talks.forEach { event -> talks.execute { handleTalk(server, token, event) } }
+                parseBedtime(json).forEach { event -> remote.execute { handleBedtime(server, token, event) } }
             } catch (e: HubError) {
                 introduced = false
                 when (e.status) {
@@ -285,7 +288,7 @@ class HubService : Service() {
             runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", answer) }
             return
         }
-        val shown = banner.show(event.title, event.subtitle, voice = false)
+        val shown = banner.show(event.title, event.subtitle, voice = false, icon = Rappels.icon(event.reminder))
         if (shown) {
             val main = Handler(mainLooper)
             main.removeCallbacks(hideReminder)
@@ -450,6 +453,32 @@ class HubService : Service() {
             e.message ?: getString(R.string.cook_not_shown)
         }
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/$id/report", reportJson(failure == null, failure)) }
+    }
+
+    /**
+     * Heure du coucher : ouvre l'écran de veille du coucher par-dessus le programme (en pause) et rend compte dès qu'il
+     * est à l'écran, ou le ferme. Écran éteint : rien à ouvrir, la télé dort déjà.
+     */
+    private fun handleBedtime(server: String, token: String, event: BedtimeEvent) {
+        val failure = try {
+            if (!event.sleep) {
+                CoucherActivity.close()
+                null
+            } else if (!getSystemService(PowerManager::class.java).isInteractive) {
+                null
+            } else {
+                val asked = SystemClock.elapsedRealtime()
+                CoucherActivity.open(this)
+                val deadline = asked + Coucher.OPEN_MS
+                while (!(CoucherActivity.visible && CoucherActivity.resumedAt >= asked) && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
+                if (CoucherActivity.visible) null else getString(R.string.bedtime_not_shown)
+            }
+        } catch (e: InterruptedException) {
+            return
+        } catch (e: Exception) {
+            e.message ?: getString(R.string.bedtime_not_shown)
+        }
+        runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", reportJson(failure == null, failure)) }
     }
 
     /** Adresses IPv4 de la télé sur le réseau local (pour que HomeHub retrouve son appareil Cast). */
