@@ -32,13 +32,6 @@ correctif (nouvelle session, nouvelle branche). Les fonctions 1, 2 et 3 sont dé
 - [ ] Le bandeau cloche arrive à l'heure réglée.
 - [ ] Télé allumée dans la demi-heure qui suit : le rappel est rattrapé.
 
-## 6. Pause, reprise, volume (0.83.0)
-
-- [ ] Pause et reprise dans Netflix.
-- [ ] Pause et reprise dans YouTube.
-- [ ] Pause et reprise dans la télé en direct.
-- [ ] Volume : la barre de son est-elle vue comme sortie ARC (volume grisé) ?
-
 ## 7. Télé éteinte, bascule sur le Google Home (0.84.0)
 
 - [ ] Écran éteint à la télécommande, puis message vocal : il part tout de suite sur le Google Home.

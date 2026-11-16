@@ -310,8 +310,9 @@ personne depuis son propre téléphone.
 - [x] 6. Pause, reprise et volume de ce qui passe, depuis le téléphone ou la tablette (« À table ! » met en pause) :
       bouton **Télé** de l'accueil de la tablette (parent reconnu ou code parent), touche `play` (reprendre) ;
       volume fixe (barre de son HDMI ARC / eARC, `AudioManager.isVolumeFixed`) annoncé par l'appli, volume grisé
-      et expliqué sur la tablette et le téléphone, refusé par le serveur. À vérifier sur la vraie télé : pause et
-      reprise dans Netflix, YouTube, la télé en direct ; la barre de son est-elle vue comme sortie ARC ?
+      et expliqué sur la tablette et le téléphone, refusé par le serveur. Vérifié sur la vraie télé (16/11/2026) :
+      pause, reprise et volume dans Netflix, YouTube et la télé en direct (pas de barre de son à la maison, volume
+      fixe non essayé).
 - [x] 7. Télé allumée ou éteinte : sinon, l'annonce part sur le Google Home. L'appli annonce l'écran allumé ou éteint
       (déjà en 0.73) et refuse un message vocal écran éteint ; télé en veille, injoignable ou qui refuse : le message
       part sur l'appareil de secours (Cast), « Télé éteinte : lu sur Google Home du salon » sur le téléphone ; réglage
