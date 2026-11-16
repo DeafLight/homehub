@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.93.2, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.94.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -325,6 +325,26 @@ les supprime tout de suite (ici le mot de Léa « Tu peux me récupérer au club
 Les tâches s'ouvrent filtrées sur la personne du téléphone (ici Léa) ; si elle n'a rien à faire, sur « Tous ». Son
 bouton reste affiché après « Tous », même à 0, pour revenir à ses tâches ; les autres n'ont un bouton que s'ils ont
 une tâche. Même règle sur la tablette pour le profil d'où l'on ouvre les listes.
+
+### Prochain trajet
+
+En tête de l'accueil du téléphone, quand un rendez-vous qui a une adresse commence dans moins de 3 h : quand partir,
+en bus et tram depuis la position du téléphone (ici simulée), temps réel compris. Tom (enfant) part pour
+l'entraînement de foot de 18 h 15 au Stade (agenda d'exemple, lieu de la famille reconnu par son nom) : « Pars dans
+6 min », à 17 h 35 pour y être à 18 h 08, les étapes (à pied, bus 3 annoncé avec 2 min de retard, tram A), puis la
+course suivante. Alex (parent) va à la réunion parents-profs de 19 h à l'École : même carte, plus la ligne voiture
+(13 min avec le trafic actuel, pars à 18 h 42, 5,3 km, faux TomTom) et le bouton **Google Maps ↗**. Chacun ne voit
+que son trajet ; la tablette n'en montre aucun.
+
+<img src="images/telephone-trajet-enfant.png" width="260" alt="Prochain trajet de Tom : pars dans 6 min pour le foot, bus 3 puis tram A"> <img src="images/telephone-trajet-parent.png" width="260" alt="Prochain trajet d'Alex : bus et tram, et ligne voiture de 13 min avec le trafic">
+
+### Réglages du téléphone : notifications
+
+Roue dentée de l'en-tête : la notification « Pars dans 5 min » (trajet du matin et prochain rendez-vous situé, une
+seule par trajet), ici activée sur le téléphone d'Alex, avec **Essayer** et **Couper**. Sur un iPhone pas encore
+ajouté à l'écran d'accueil, l'écran explique comment faire d'abord (à droite). En dessous, un mot sur la position.
+
+<img src="images/telephone-reglages-notifications.png" width="260" alt="Réglages : notifications activées, Essayer, Couper"> <img src="images/telephone-reglages-iphone.png" width="260" alt="Réglages sur iPhone : ajouter d'abord HomeHub à l'écran d'accueil">
 
 ### Caméra en direct (téléphone d'un parent)
 

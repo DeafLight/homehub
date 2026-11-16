@@ -2,6 +2,7 @@
 // Ne connaît ni HTTP ni les implémentations des sources (injectées).
 import {
   FAMILY_ID,
+  type CalendarEvent,
   type DashboardData,
   type HomeData,
   type TransitData,
@@ -69,6 +70,10 @@ export type DashboardService = {
    * null sans alerte réglée, un jour sans école, ou hors des heures du trajet (mêmes règles que la carte du dashboard).
    */
   busAlert(ownerId: string): Promise<{ commute: Commute; minutes: number } | null>;
+  /** Trajet du matin du moment de `ownerId` (notification « Pars dans 5 min ») ; null un jour sans école. */
+  commute(ownerId: string): Promise<Commute | null>;
+  /** Cours (sans ceux des jours sans école) et rendez-vous d'agenda de `ownerId` (« Prochain trajet »). */
+  appointments(ownerId: string, range: TimeRange): Promise<{ courses: SchoolCourse[]; events: CalendarEvent[] }>;
 };
 
 export type DashboardServiceDeps = {
@@ -335,6 +340,20 @@ export function createDashboardService(deps: DashboardServiceDeps): DashboardSer
       if ((await holidayToday()).off) return null;
       const commute = await board.commute(ownerId);
       return commute && { commute, minutes };
+    },
+
+    async commute(ownerId) {
+      if (!hasOwner(ownerId) || (await holidayToday()).off) return null;
+      return board.commute(ownerId);
+    },
+
+    async appointments(ownerId, range) {
+      if (!hasOwner(ownerId)) return { courses: [], events: [] };
+      const [courses, events] = await Promise.all([
+        coursesIn(ownerId, range),
+        accessory(logger, 'Agenda indisponible', () => sources.agenda.eventsFor(ownerId, range), []),
+      ]);
+      return { courses: courses ?? [], events };
     },
   };
 }

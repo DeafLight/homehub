@@ -3,7 +3,8 @@
 // (les positions de la famille ne sortent pas de la maison) ; https://api.transitous.org ne sert qu'au développement.
 // Sans adresse configurée (HOMEHUB_MOTIS_URL ou `transit.motis.url`), la source est désactivée et HomeHub garde son
 // calcul maison à lignes directes (gtfs.ts). Réponses gardées une minute ; une panne est gardée autant, pour ne pas
-// relancer MOTIS à chaque rafraîchissement de l'écran, et l'appelant se replie sur le calcul maison.
+// relancer MOTIS à chaque rafraîchissement de l'écran, et l'appelant se replie sur le calcul maison. Sert aussi au
+// « Prochain trajet » du téléphone, et en voiture (`directModes=CAR`, sans trafic) au secours de TomTom.
 import { z } from 'zod';
 import type { Logger } from '../config-store.ts';
 import type { LatLon } from './gtfs.ts';
@@ -132,7 +133,29 @@ export type MotisSource = {
   enabled(): boolean;
   /** Itinéraires (au plus 5) ; lève une erreur si MOTIS ne répond pas ou n'est pas configuré. */
   plan(request: PlanRequest): Promise<MotisItinerary[]>;
+  /**
+   * Trajet en voiture sans trafic (`directModes=CAR`), secours de la ligne voiture quand TomTom manque ; null si MOTIS
+   * n'en trouve pas. Lève une erreur si MOTIS ne répond pas.
+   */
+  car(from: LatLon, to: LatLon, time: Date): Promise<MotisCar | null>;
 };
+
+/** Trajet direct en voiture (sans trafic) : durée en secondes, distance en mètres si MOTIS la donne. */
+export type MotisCar = { seconds: number; meters?: number };
+
+const directSchema = z.object({
+  direct: z
+    .array(z.object({ duration: z.number(), legs: z.array(z.object({ mode: z.string(), distance: z.number().optional() })).default([]) }))
+    .default([]),
+});
+
+/** Premier trajet direct en voiture d'une réponse de /api/v5/plan (`directModes=CAR`), ou null. */
+export function parseCar(json: unknown): MotisCar | null {
+  const first = directSchema.parse(json).direct.find((d) => d.legs.some((l) => l.mode === 'CAR'));
+  if (!first) return null;
+  const meters = first.legs.reduce((sum, l) => sum + (l.distance ?? 0), 0);
+  return { seconds: first.duration, ...(meters > 0 && { meters: Math.round(meters) }) };
+}
 
 export type MotisSourceDeps = {
   /** Adresse du service (« http://motis:8080 ») ; undefined : désactivé. Relue à chaque appel (config rechargée). */
@@ -147,15 +170,16 @@ export type MotisSourceDeps = {
 const latLon = (p: LatLon) => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
 
 export function createMotisSource({ url, clock, logger, status, fetchFn = (...a) => fetch(...a) }: MotisSourceDeps): MotisSource {
-  const cache = new Map<string, { at: number; result: Promise<MotisItinerary[]> }>();
+  const cache = new Map<string, { at: number; result: Promise<unknown> }>();
 
-  async function request(base: string, req: PlanRequest): Promise<MotisItinerary[]> {
+  async function request<T>(base: string, req: PlanRequest, parse: (json: unknown) => T, extra: Record<string, string> = {}): Promise<T> {
     const params = new URLSearchParams({
       fromPlace: latLon(req.from),
       toPlace: latLon(req.to),
       time: req.time.toISOString(),
       arriveBy: String(req.arriveBy),
       numItineraries: String(ITINERARIES),
+      ...extra,
     });
     try {
       const res = await fetchFn(`${base.replace(/\/+$/u, '')}/api/v5/plan?${params}`, {
@@ -163,9 +187,9 @@ export function createMotisSource({ url, clock, logger, status, fetchFn = (...a)
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const itineraries = parsePlan(await res.json());
+      const result = parse(await res.json());
       status?.record(MOTIS_STATUS);
-      return itineraries;
+      return result;
     } catch (err) {
       // Jamais la requête dans le message : elle contient des positions.
       const message = err instanceof z.ZodError ? 'réponse illisible' : (err as Error).message;
@@ -175,21 +199,29 @@ export function createMotisSource({ url, clock, logger, status, fetchFn = (...a)
     }
   }
 
+  /** Réponse gardée une minute (panne comprise), par sorte de requête, adresse et requête. */
+  function cached<T>(kind: string, req: PlanRequest, run: (base: string) => Promise<T>): Promise<T> {
+    const base = url();
+    if (!base) return Promise.reject(new Error('MOTIS non configuré'));
+    const now = clock().getTime();
+    for (const [k, v] of cache) if (now - v.at >= CACHE_MS) cache.delete(k);
+    const key = `${kind}|${base}|${latLon(req.from)}|${latLon(req.to)}|${req.time.getTime()}|${req.arriveBy}`;
+    const hit = cache.get(key);
+    if (hit) return hit.result as Promise<T>;
+    const result = run(base);
+    result.catch(() => {}); // erreur gardée en cache, lue par chaque appelant
+    if (cache.size >= MAX_CACHED) cache.delete(cache.keys().next().value!);
+    cache.set(key, { at: now, result });
+    return result;
+  }
+
   return {
     enabled: () => Boolean(url()),
-    plan(req) {
-      const base = url();
-      if (!base) return Promise.reject(new Error('MOTIS non configuré'));
-      const now = clock().getTime();
-      for (const [k, v] of cache) if (now - v.at >= CACHE_MS) cache.delete(k);
-      const key = `${base}|${latLon(req.from)}|${latLon(req.to)}|${req.time.getTime()}|${req.arriveBy}`;
-      const hit = cache.get(key);
-      if (hit) return hit.result;
-      const result = request(base, req);
-      result.catch(() => {}); // erreur gardée en cache, lue par chaque appelant
-      if (cache.size >= MAX_CACHED) cache.delete(cache.keys().next().value!);
-      cache.set(key, { at: now, result });
-      return result;
+    plan: (req) => cached('plan', req, (base) => request(base, req, parsePlan)),
+    car(from, to, time) {
+      // Heure arrondie à la minute : la durée sans trafic ne change pas d'une seconde à l'autre (cache).
+      const req = { from, to, time: new Date(Math.floor(time.getTime() / 60_000) * 60_000), arriveBy: false };
+      return cached('car', req, (base) => request(base, req, parseCar, { directModes: 'CAR', numItineraries: '1' }));
     },
   };
 }

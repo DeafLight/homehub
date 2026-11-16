@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_MENU_PATH, PHONE_REMOTE_PATH, phoneScanPath, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
+import { PHONE_MENU_PATH, PHONE_REMOTE_PATH, PHONE_SETTINGS_PATH, phoneScanPath, PHONE_STOCK_PATH, allowsScreensaver, holdsActor, hostsLiveCamera, isPhoneRoute, parseRoute, returnsHomeWhenIdle, routePath, showsTimers, watchesPresence } from './route.ts';
 
 describe('stock du téléphone', () => {
   it('a sa propre adresse, aller et retour', () => {
@@ -22,6 +22,9 @@ describe('menu de la semaine', () => {
     expect(parseRoute(PHONE_REMOTE_PATH)).toEqual({ name: 'phoneremote' });
     expect(routePath({ name: 'phoneremote' })).toBe('/m/tele');
     expect(isPhoneRoute({ name: 'phoneremote' })).toBe(true);
+    expect(parseRoute(PHONE_SETTINGS_PATH)).toEqual({ name: 'phonesettings' });
+    expect(routePath({ name: 'phonesettings' })).toBe('/m/reglages');
+    expect(isPhoneRoute({ name: 'phonesettings' })).toBe(true);
     expect(isPhoneRoute(parseRoute('/m/menu'))).toBe(true);
     expect(returnsHomeWhenIdle(parseRoute('/menu'))).toBe(true);
   });

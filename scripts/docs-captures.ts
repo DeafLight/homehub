@@ -27,7 +27,7 @@ import { fakeScreenPaused } from './docs-captures/fake-screen-pause.ts';
 import { FAKE_SCREEN_MEDIA_FILE, type FakeScreenMedia, fakePhotoHtml, fakeScreenPhotoTv } from './docs-captures/fake-photo.ts';
 import { fakeScreenCook, fakeScreenCookView } from './docs-captures/fake-screen-cook.ts';
 import { FAKE_SCREEN_TALK_FILE, type FakeScreenTalk } from './docs-captures/fake-screen-talk.ts';
-import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN } from './docs-captures/fake-world.ts';
+import { DOCS_BEFORE_HOLIDAYS, DOCS_HOLIDAYS, DOCS_NOW, DOCS_PHONE_POSITION, DOCS_PUBLIC_HOLIDAY, DOCS_FOOD, DOCS_FRESH, DOCS_PRODUCTS, DOCS_UNKNOWN, FAKE_PUSH_HOST } from './docs-captures/fake-world.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const HERE = join(ROOT, 'scripts', 'docs-captures');
@@ -59,7 +59,7 @@ if (!chromePath) {
 const work = mkdtempSync(join(tmpdir(), 'homehub-docs-'));
 const state = join(work, 'state');
 mkdirSync(state);
-const TOKENS = { alex: 'docs-alex', lea: 'docs-lea' } as const;
+const TOKENS = { alex: 'docs-alex', lea: 'docs-lea', tom: 'docs-tom' } as const;
 const hash = (t: string) => createHash('sha256').update(t).digest('hex');
 const paired = new Date(DOCS_NOW - 4 * 86_400_000).toISOString();
 const seen = new Date(DOCS_NOW - 3_600_000).toISOString();
@@ -1235,6 +1235,54 @@ if (!only || FILM_SHOTS.some((name) => only.test(name))) {
     }
   }
   await call(A, 'PUT', `/screens/${FAKE_SCREEN_ID}/film`, { on: false });
+}
+
+// Prochain trajet du téléphone (chantier « Prochain trajet », version 2) : la carte de l'accueil, depuis la position
+// simulée du téléphone (fausse géolocalisation), avec le faux MOTIS (2 min de retard annoncées sur le bus) et, pour un
+// parent, le faux TomTom. Tom (enfant) va à l'entraînement de foot de 18 h 15 au Stade (agenda d'exemple, lieu de la
+// famille) : serveur relancé à 17 h 29. Alex (parent) va à la réunion parents-profs de 19 h à l'École : relancé à
+// 18 h 14, ligne voiture comprise. Puis les réglages des notifications (abonnement d'exemple vers le faux service de
+// push), dans le navigateur et sur un iPhone pas encore installé. Le serveur revient ensuite au jeudi 7 h 35.
+const TRIP_SHOTS = ['telephone-trajet-enfant', 'telephone-trajet-parent', 'telephone-reglages-notifications', 'telephone-reglages-iphone'];
+if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
+  const atPosition = `navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok({ coords: { latitude: ${DOCS_PHONE_POSITION.lat}, longitude: ${DOCS_PHONE_POSITION.lon}, accuracy: 20 }, timestamp: Date.now() }), 50);`;
+  // Téléphone de Tom, appairé pour ces captures seulement (après celle de la page Téléphones).
+  const devicesFile = join(state, 'devices.json');
+  const current = JSON.parse(readFileSync(devicesFile, 'utf8')) as { version: 1; devices: unknown[] };
+  writeFileSync(devicesFile, JSON.stringify({ ...current, devices: [...current.devices, device('tom', 'Téléphone de Tom', 'Android 15')] }));
+  const place = (id: string, label: string, icon: string, lat: number, lon: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon });
+  const tripSettings = (withTrips: boolean) => ({
+    places: [
+      place('maison', 'Maison', 'home', 47.47, -0.55),
+      place('college', 'Collège', 'school', 47.48, -0.55),
+      ...(withTrips ? [place('stade', 'Stade', 'sport', 47.455, -0.575), place('ecole', 'École', 'place', 47.49, -0.52)] : []),
+    ],
+    commutes: {
+      lea: {
+        from: 'maison', to: 'college',
+        route: { line: '03', origin: 'RALL', originName: 'Ralliement', destination: 'LYCE', destinationName: 'Lycée', towards: 'Lycée', headsigns: ['Lycée'], oneWay: false, rideMinutes: 12, walkFrom: 4, walkTo: 3 },
+        mode: 'window', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: null, tvAlert: 8,
+      },
+    },
+    stops: [],
+  });
+  const tomAt = new Date(2026, 10, 5, 17, 29).getTime();
+  browserNow = tomAt;
+  await startServer(tomAt);
+  await call(A, 'PUT', '/transit/settings', tripSettings(true));
+  await shoot('telephone-trajet-enfant', `${BASE}/m`, PHONE, { init: asPhone('tom') + atPosition, wait: 4000 });
+  const alexAt = new Date(2026, 10, 5, 18, 14).getTime();
+  browserNow = alexAt;
+  await startServer(alexAt);
+  await shoot('telephone-trajet-parent', `${BASE}/m`, PHONE, { init: asPhone('alex') + atPosition, wait: 4000 });
+  await call(A, 'PUT', '/push', { endpoint: `https://${FAKE_PUSH_HOST}/abonnement-exemple`, keys: { p256dh: `B${'A'.repeat(86)}`, auth: 'A'.repeat(22) } });
+  await shoot('telephone-reglages-notifications', `${BASE}/m/reglages`, PHONE, { init: asPhone('alex') });
+  const iphone = `Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Version/18.1 Mobile/15E148 Safari/604.1' });`;
+  await shoot('telephone-reglages-iphone', `${BASE}/m/reglages`, PHONE, { init: asPhone('lea') + iphone });
+  await call(A, 'DELETE', '/push');
+  await call(A, 'PUT', '/transit/settings', tripSettings(false));
+  browserNow = DOCS_NOW;
+  await startServer(DOCS_NOW);
 }
 
 // --- Planche du design :variables de web/src/app.css, profils de la configuration fictive.

@@ -448,9 +448,13 @@ journalisée ; MOTIS sur le NAS (pas Transitous en production) ; la tablette n'a
 - [x] 1. MOTIS remplace le calcul maison (0.93.0) : `server/sources/motis.ts`, `HOMEHUB_MOTIS_URL`, trajet selon
       l'emploi du temps de lieu à lieu avec correspondances (« bus 3 puis tram A », bandeau et alerte télé), repli sur
       les lignes directes ; flux TripUpdates d'Irigo vérifié (trip_id du GTFS) ; conteneur MOTIS sur le NAS.
-- [ ] 2. Notification « Pars dans 5 min » sur le téléphone (Web Push) et carte « Prochain trajet » sur l'accueil du
+- [x] 2. Notification « Pars dans 5 min » sur le téléphone (Web Push) et carte « Prochain trajet » sur l'accueil du
       téléphone (heure de départ en gros, étapes, autre choix) ; pour les parents, ligne voiture : durée avec trafic
-      (API TomTom Routing, clé dans l'environnement, MOTIS sans trafic en secours) et lien Google Maps.
+      (API TomTom Routing, clé dans l'environnement, MOTIS sans trafic en secours) et lien Google Maps (0.94.0 :
+      `server/services/next-trip.ts`, `web-push.ts` sans dépendance, `HOMEHUB_TOMTOM_KEY`, réglages `/m/reglages`).
+- [ ] Notification « Pars dans 5 min » à essayer sur un vrai téléphone (Android, puis iPhone ajouté à l'écran
+      d'accueil) : seulement vérifiée par les tests (chiffrement RFC 8291) et dans le monde fictif, sans vrai service
+      de push.
 - [ ] 3. Carte en route (MapLibre, tuiles PMTiles d'Angers servies par HomeHub) : position, étape en cours, véhicule à
       prendre estimé.
 - [ ] 4. Positions réelles des véhicules (GTFS-RT VehiclePositions d'Irigo, trip_id du GTFS) si les flux tiennent.

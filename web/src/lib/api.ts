@@ -44,6 +44,7 @@ import type {
   StockOutOptions,
   StockSettings,
   PublicConfig,
+  PushStatus,
   Routine,
   RoutineSettings,
   ShoppingItem,
@@ -54,6 +55,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
+import type { LatLon, TripResponse, TripStatus } from '../../../shared/trip.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenReplies, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { BedtimeSettings, BedtimeText, BedtimeView } from '../../../shared/bedtime.ts';
@@ -341,6 +343,15 @@ export type Api = {
   stopScreenTalk(id: string, talk: string): Promise<void>;
   /** Télécommande d'une télé (parents) : état, applis, touches, texte, lancement, « À table ! », marche/arrêt. */
   remoteScreens(): Promise<RemoteScreen[]>;
+  /** Prochain trajet du téléphone : faut-il demander la position ? */
+  tripStatus(): Promise<TripStatus>;
+  /** Trajet vers le prochain rendez-vous situé, depuis la position (corps de la requête) ou depuis la maison. */
+  nextTrip(position: LatLon | null): Promise<TripResponse>;
+  /** Notifications de ce téléphone (Web Push). */
+  pushStatus(): Promise<PushStatus>;
+  subscribePush(subscription: PushSubscriptionJSON): Promise<PushStatus>;
+  unsubscribePush(): Promise<PushStatus>;
+  testPush(): Promise<void>;
   remoteApps(id: string): Promise<RemoteApps>;
   remoteKeys(id: string, keys: RemoteKey[]): Promise<void>;
   remoteText(id: string, text: string, submit: boolean): Promise<void>;
@@ -578,6 +589,12 @@ export function createApi(
     testBedtime: () => send('POST', '/screens/bedtime/test'),
     screenTargets: () => request('/screens/targets'),
     remoteScreens: () => request('/screens/remote'),
+    tripStatus: () => request('/trip'),
+    nextTrip: (position) => send('POST', '/trip', { position }),
+    pushStatus: () => request('/push'),
+    subscribePush: (subscription) => send('PUT', '/push', subscription),
+    unsubscribePush: () => send('DELETE', '/push'),
+    testPush: async () => void (await send('POST', '/push/test')),
     remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),
     remoteKeys: async (id, keys) => void (await send('POST', `/screens/${encodeURIComponent(id)}/keys`, { keys })),
     remoteText: async (id, text, submit) => void (await send('POST', `/screens/${encodeURIComponent(id)}/text`, { text, submit })),

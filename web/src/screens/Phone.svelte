@@ -21,6 +21,7 @@
   import PhoneNav from '../components/phone/PhoneNav.svelte';
   import PhoneNotes from '../components/phone/PhoneNotes.svelte';
   import PhoneRoutine from '../components/phone/PhoneRoutine.svelte';
+  import NextTripCard from '../components/phone/NextTripCard.svelte';
   import ImportForm from '../components/recipes/ImportForm.svelte';
   import RecipeCards from '../components/recipes/RecipeCards.svelte';
   import HomeworkCard from '../components/widgets/HomeworkCard.svelte';
@@ -34,7 +35,7 @@
   import { createResource } from '../lib/resource.svelte.ts';
   import { SCHOOL_LIFE_REFRESH_MS, hasSchoolLife } from '../lib/school-life.ts';
   import { handoff, searchRecipes, type SharedRecipe } from '../lib/recipes.ts';
-  import { PHONE_MENU_PATH, PHONE_REMOTE_PATH, PHONE_SCAN_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
+  import { PHONE_MENU_PATH, PHONE_REMOTE_PATH, PHONE_SCAN_PATH, PHONE_SETTINGS_PATH, PHONE_STOCK_PATH, type PhoneTab, phonePath, phoneRecipePath } from '../lib/route.ts';
 
   const LISTS_REFRESH_MS = 15_000;
   const AGENDA_REFRESH_MS = 5 * 60_000;
@@ -44,7 +45,8 @@
   const HOMEWORK_REFRESH_MS = 10 * 60_000;
   const RECIPES_REFRESH_MS = 5 * 60_000;
 
-  // Appli du téléphone relié à un profil : courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
+  // Appli du téléphone relié à un profil : en tête des courses (l'accueil) le prochain trajet de la personne, et la roue
+  // dentée de l'en-tête vers ses réglages (notifications) ; courses, tâches (avec la routine du moment en tête), agenda des 7 prochains
   // jours (en tête, pour un parent, la vie scolaire des enfants), mots reçus, le carnet de recettes, pour un adulte qui
   // a un programme le sport, et pour un parent la caméra de la tablette en direct (et, dans l’en-tête, la télécommande
   // de la télé quand une télé est appairée). Tout ce qui est coché ou ajouté
@@ -239,6 +241,7 @@
       {#if remotes.data?.length}
         <button type="button" class="remote-link" aria-label="Télécommande de la télé" onclick={() => navigate(PHONE_REMOTE_PATH)}><Icon name="tv" size={24} /></button>
       {/if}
+      <button type="button" class="remote-link" aria-label="Réglages du téléphone" onclick={() => navigate(PHONE_SETTINGS_PATH)}><Icon name="settings" size={24} /></button>
     </header>
 
     <main bind:this={scroller}>
@@ -292,6 +295,8 @@
         {/if}
       {:else if lists.data}
         {#if tab === 'shopping'}
+          <!-- Accueil du téléphone : quand partir vers le prochain rendez-vous (rien s'il n'y en a pas de proche). -->
+          <NextTripCard {api} now={clock.now} />
           <div class="links">
             <button type="button" class="stock-link" onclick={() => navigate(PHONE_MENU_PATH)}><Icon name="calendar" size={24} /> Menu</button>
             <button type="button" class="stock-link" onclick={() => navigate(PHONE_STOCK_PATH)}><Icon name="box" size={24} /> Ce qu’il reste</button>

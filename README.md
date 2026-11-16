@@ -554,6 +554,34 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   pour le bus 3 de 07:46 puis le tram A · changement à Mail des Tilleuls », et la télé dit « ligne 3 puis tram A ».
   Sinon, plage horaire fixe. Option **Alerte sur la télé** : « Bus dans N min » sur la télé (voir plus haut). Tant que la page n'a pas
   été enregistrée, `transit.stops` et `commute` du YAML s'appliquent.
+- **Prochain trajet** (téléphone, en tête de l'accueil `/m` ; avec MOTIS, sinon rien) : quand partir vers son prochain
+  rendez-vous qui a une adresse, s'il commence dans moins de 3 h et qu'on n'y est pas déjà (à plus de 300 m). Un
+  **cours** mène au lieu « école » du membre (l'arrivée de son trajet sur la page « Transports », sinon le seul lieu
+  marqué école), arrivée 10 min avant (la marge du trajet, réglable) ; un **rendez-vous d'agenda** mène à un lieu de la
+  famille reconnu par son nom (champ LOCATION « Stade » → lieu « Stade »), sinon à l'adresse trouvée par la
+  Géoplateforme de l'IGN si elle en est sûre (score de 0,7 au moins) et à moins de 30 km du centre de la météo,
+  arrivée 5 min avant ; sinon pas de trajet. MOTIS calcule depuis la **position du téléphone** (demandée seulement quand
+  un rendez-vous approche ; à défaut, depuis la maison) : « Pars dans 6 min » en gros, « à 17 h 35, pour y être à
+  18 h 08 », les étapes en pastilles (à pied 4 min › bus 3 17 h 41 +2 min › tram A…), le retard annoncé, et l'autre
+  choix (le précédent) ou la course suivante ; témoin « temps réel » quand une course est suivie. Pour un **parent**,
+  la ligne voiture : durée avec le trafic actuel (TomTom, `HOMEHUB_TOMTOM_KEY`), heure de départ et distance, ou la
+  durée sans trafic de MOTIS si la clé manque ou si TomTom ne répond pas (« sans trafic »), et le bouton **Google Maps ↗**
+  qui ouvre l'itinéraire. Rafraîchie toutes les 5 min et quand le téléphone ressort de la poche. **Chacun ne voit que
+  son trajet** : la route ne prend aucun profil (le téléphone de la personne seulement, `access.ownPhone`), un parent
+  ne voit ni la position ni le trajet d'un enfant, la tablette rien. La **position** est envoyée dans le corps de la
+  requête pour le seul calcul, transmise seulement à MOTIS (sur le NAS), jamais écrite (ni état, ni journaux). TomTom,
+  un tiers, ne reçoit pas la position : l'origine arrondie à environ 100 m (trois décimales) et la destination.
+- **Notification « Pars dans 5 min »** (téléphone, roue dentée de l'en-tête › **Réglages**, `/m/reglages`) : Web Push,
+  activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**). Elle part 5 min avant
+  l'heure de partir, une seule fois par trajet : pour le **trajet du matin** (mêmes règles que la carte « Pars dans
+  N min » et l'alerte de la télé) et pour le **prochain rendez-vous situé**, calculé depuis la maison (le serveur n'a
+  pas la position ; pour un cours, seulement le premier de la journée et seulement sans trajet réglé). Le texte dit la
+  ligne et l'heure, pas le prénom : « Pars dans 5 min · Bus 3 à 7 h 49 puis tram A · Ralliement · vers Collège ».
+  **iPhone** : seulement une fois HomeHub ajouté à l'écran d'accueil (Safari › Partager › Sur l'écran d'accueil) et
+  ouvert depuis son icône, ce que l'écran explique ; une adresse en https est nécessaire partout. Chiffrement
+  (RFC 8291) et signature VAPID faits par `node:crypto`, sans dépendance ; les clés VAPID sont générées au premier
+  démarrage dans `HOMEHUB_STATE_DIR/push-vapid.json`, jamais dans le dépôt ; un abonnement est rattaché au téléphone
+  appairé et oublié s'il est retiré. Le service de push du navigateur (Google, Apple) ne voit que du chiffré.
 - **Sport** (téléphone, onglet Sport, `/m/sport` ; adulte avec `fitness: true` dans homehub.yaml) : programme de
   renforcement au poids du corps, trois séances qui tournent sans jour fixe, six exercices chacune (cardio, jambes,
   poussée, fessiers ou une jambe, dos, gainage), trois paliers (Base 3 tours, Volume 4, Intensité 4). Rythme de départ
@@ -838,11 +866,12 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
 | `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`), l'heure du coucher (`bedtime.json`) et leur appareil de secours (`screen-fallbacks.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
-, réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`) |
+, réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min » : clés VAPID (`push-vapid.json`, générées au premier démarrage) et abonnements des téléphones (`push.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
 | `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
-| `HOMEHUB_MOTIS_URL` | — | Adresse de MOTIS (ex. `http://motis:8080`), l'emporte sur `transit.motis.url` ; sans elle, trajets à lignes directes |
+| `HOMEHUB_MOTIS_URL` | — | Adresse de MOTIS (ex. `http://motis:8080`), l'emporte sur `transit.motis.url` ; sans elle, trajets à lignes directes et pas de carte « Prochain trajet » |
+| `HOMEHUB_TOMTOM_KEY` | — | Clé de l'API TomTom Routing (compte gratuit sur developer.tomtom.com) : durée en voiture avec le trafic pour les parents (« Prochain trajet ») ; sans elle, durée sans trafic de MOTIS |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
 ### Appareils Cast (Google Home, télé)
@@ -913,6 +942,11 @@ server/
   sources/gtfs.ts          horaires théoriques Irigo (GTFS) : arrêts proches, lignes directes, courses du jour
   sources/motis.ts         itinéraires par MOTIS (/api/v5/plan) : étapes, correspondances, temps réel, cache
   sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
+  sources/tomtom.ts        durée en voiture avec le trafic (TomTom Routing), cache de 5 min ; faux : tomtom-fake.ts
+  sources/push.ts          notifications : clés VAPID, abonnements des téléphones, trajets déjà annoncés
+  services/next-trip.ts    prochain trajet du téléphone : rendez-vous situé, itinéraire MOTIS, ligne voiture
+  services/web-push.ts     Web Push sans dépendance : chiffrement RFC 8291, signature VAPID
+  services/trip-push.ts    notification « Pars dans 5 min » (trajet du matin, prochain rendez-vous)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
   sources/transit-settings.ts  réglages de la page « Transports » (lieux, trajets, arrêts de l'accueil)
   sources/school-holidays.ts   vacances scolaires (calendrier officiel lu par pages, filtre local, cache d'un jour, aperçu)
@@ -1081,6 +1115,10 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/screens/:id/talk`, `POST …/talk/:talk/audio?seq=`, `DELETE …/talk/:talk` | parler en direct, téléphone d'un parent (`camera.talk`) : ouvre une prise de parole → `{ id, device, rate, maxSeconds }` (la télé reçoit l'événement `talk` et rend compte ; 409 si un autre parent parle déjà à cette télé, 502 avec la raison de la télé, 503 télé absente) ; morceau de voix numéroté (corps : PCM 16 bits mono 16 kHz, 64 ko au plus ; doublons ignorés ; 410 avec la raison quand la prise est finie) ; arrêt |
 | `GET /api/screen/talk/:talk?after=` | la télé, avec son jeton : la voix reçue depuis le morceau `after`, d'un bloc (`application/octet-stream`, numéro du dernier morceau dans `X-HomeHub-Seq`), 204 sans rien au bout de 3 s, 410 avec la raison à la fin (le parent a arrêté, plus de nouvelles depuis 6 s, `camera.maxMinutes`) |
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
+| `GET /api/trip` | `{ enabled, upcoming }` : MOTIS configuré, et rendez-vous situé dans les 3 h (faut-il demander la position ?) ; le téléphone de la personne seulement, pour son profil |
+| `POST /api/trip` | `{ "position": { lat, lon } }` (ou sans position : depuis la maison) → `{ enabled, trip }` : `destination`, `arriveBy`, `from`, `transit` et `other` (`leaveAt`, `arrives`, `legs`, `realtime`), `late`, et pour un parent `car` (`minutes`, `leaveAt`, `meters`, `traffic`, `mapsUrl`) ; `trip` null sans rendez-vous proche ou déjà sur place |
+| `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
+| `POST /api/push/test` | notification d'essai vers ce téléphone (409 s'il n'est pas abonné) |
 | `GET /api/lists` | `{ shopping, tasks, frequent, later }` ; `later` : frais du menu à acheter plus tard (`{ week, key, label, day, aisle, sources }`, `day` : jour où l'acheter) |
 | `GET /api/notes`, `POST /api/notes` | mots des 7 derniers jours ; ajout : `{ to, text, from? }` (sur la tablette, `from` : profil ouvert ; `to` ≠ `from`) |
 | `PUT /api/notes/:id/seen` | marque un mot vu (droit d'écriture sur son destinataire ; un mot à la famille : un parent) |

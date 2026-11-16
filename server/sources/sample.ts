@@ -22,7 +22,7 @@ const AGENDA_TEMPLATES: EventTemplate[][] = [
     { day: 5, hour: 15, minute: 0, title: 'Anniversaire d’un copain' },
   ],
   [
-    { day: 0, hour: 18, minute: 15, title: 'Entraînement de foot' },
+    { day: 0, hour: 18, minute: 15, title: 'Entraînement de foot', location: 'Stade' },
     { day: 2, hour: 14, minute: 0, title: 'Atelier dessin' },
   ],
 ];

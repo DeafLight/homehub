@@ -616,6 +616,9 @@ export type Me = {
 
 export type PairingCode = { code: string; ownerId: string; expiresAt: string };
 
+/** Notifications du téléphone (Web Push) : clé publique VAPID du serveur, et si ce téléphone est abonné. */
+export type PushStatus = { publicKey: string; subscribed: boolean };
+
 // --- Stock de la maison : produits scannés (code-barres), quantités, contenants ---
 
 /** Ce qu'on sait d'un produit : lu dans la base (Open Food Facts…) ou saisi à la main. */

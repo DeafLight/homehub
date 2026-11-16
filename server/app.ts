@@ -86,6 +86,17 @@ import { SCREEN_MEDIA_MAX_BYTES } from '../shared/screen-media.ts';
 import { createScreenCookApi } from './screen-cook-api.ts';
 import { createScreenCooking } from './services/screen-cook.ts';
 import { createScreenTalkApi } from './screen-talk-api.ts';
+import type { MotisSource } from './sources/motis.ts';
+import type { TomTomSource } from './sources/tomtom.ts';
+import type { PushRecord, PushStore } from './sources/push.ts';
+import { type PushMessage, type PushResult, sendPush } from './services/web-push.ts';
+import { createNextTripService } from './services/next-trip.ts';
+import { createTripPush } from './services/trip-push.ts';
+import { createTripApi } from './trip-api.ts';
+import { createPushApi } from './push-api.ts';
+
+/** Contact VAPID (exigé par les services de push) : la page publique du projet, aucune adresse personnelle. */
+const PUSH_SUBJECT = 'https://github.com/DeafLight/homehub';
 
 export type AppDeps = {
   config: ConfigStore;
@@ -135,6 +146,16 @@ export type AppDeps = {
   /** Page « Vacances scolaires » ; absent (tests) : page indisponible. */
   holidaySettings?: HolidaySettingsStore;
   searchAddress?: (query: string, near?: { lat: number; lon: number }) => Promise<AddressMatch[]>;
+  /** Lieu sûr d'un rendez-vous d'agenda (« Prochain trajet ») ; absent : seuls les lieux de la famille comptent. */
+  locateAddress?: (query: string, near: { lat: number; lon: number }) => Promise<AddressMatch | null>;
+  /** Itinéraires par MOTIS (« Prochain trajet ») ; absent ou non configuré : pas de carte. */
+  motis?: MotisSource;
+  /** Durée en voiture avec le trafic (ligne voiture des parents) ; absent : MOTIS sans trafic. */
+  tomtom?: TomTomSource;
+  /** Notifications Web Push (« Pars dans 5 min ») ; absent (tests) : ni notifications, ni leurs routes. */
+  push?: PushStore;
+  /** Envoi d'une notification ; absent : Web Push réel (services/web-push.ts). */
+  sendPush?: (subscription: PushRecord, message: PushMessage) => Promise<PushResult>;
   /** Clé de la tablette (HOMEHUB_KIOSK_KEY) ; absente : tablette reconnue à son adresse seulement. */
   kioskKey?: string;
   /** Secret partagé avec le serveur TURN de la caméra en direct (HOMEHUB_TURN_SECRET) ; absent : pas de TURN. */
@@ -187,6 +208,39 @@ export function createApp(deps: AppDeps): Hono {
   api.route('/', createDashboardApi({ ...deps, access }));
   api.route('/', createRoutinesApi({ plans: deps.plans, household, access }));
   api.route('/', createTransitApi({ ...deps, household, access }));
+  // Prochain trajet du téléphone (carte de l'accueil) et notification « Pars dans 5 min ».
+  const transitNow = () => deps.transitSettings?.current();
+  const nextTrip = createNextTripService({
+    appointments: deps.service.appointments,
+    places: () => transitNow()?.places ?? [],
+    commuteOf: (ownerId) => transitNow()?.commutes[ownerId],
+    isParent: (ownerId) => Boolean(household.member(ownerId)?.parent),
+    center: () => {
+      const weather = config.current().weather;
+      return weather && { lat: weather.latitude, lon: weather.longitude };
+    },
+    locate: deps.locateAddress,
+    motis: deps.motis,
+    tomtom: deps.tomtom,
+    clock,
+    logger: console,
+  });
+  api.route('/', createTripApi({ nextTrip, access }));
+  if (deps.push) {
+    const store = deps.push;
+    const send = deps.sendPush ?? ((sub: PushRecord, message: PushMessage) => sendPush(sub, message, { keys: store.keys(), subject: PUSH_SUBJECT, now: clock() }));
+    api.route('/', createPushApi({ store, access, send }));
+    createTripPush({
+      store,
+      devices: () => deps.devices.list(),
+      commuteOf: deps.service.commute,
+      hasCommute: (ownerId) => transitNow()?.commutes[ownerId] !== undefined,
+      nextTrip,
+      send,
+      clock,
+      logger: console,
+    }).start();
+  }
   api.route('/', createHolidaysApi({ holidaySettings: deps.holidaySettings, access }));
   api.route('/', createTimersApi({ timers: deps.timers, access, clock }));
   api.route('/', createListsApi({ ...deps, household, access, menu }));
@@ -281,7 +335,7 @@ export function createApp(deps: AppDeps): Hono {
     // Les assets ont un hash dans leur nom, ils peuvent rester en cache. L'en-tête est posé AVANT serveStatic :
     // son onFound est appelé une fois la réponse construite, trop tard pour une requête GET.
     app.use('*', async (c: Context, next) => {
-      if (!hasExtension(c.req.path) || c.req.path.endsWith('.html')) c.header('Cache-Control', 'no-cache');
+      if (!hasExtension(c.req.path) || c.req.path.endsWith('.html') || c.req.path === '/sw.js') c.header('Cache-Control', 'no-cache');
       await next();
     });
     app.use('/*', serveStatic({ root: staticRoot }));

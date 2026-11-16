@@ -1,6 +1,8 @@
 // Faux MOTIS du monde fictif (tests et captures de la doc), comme les faux ÉcoleDirecte et Pronote : répond à
 // GET /api/v5/plan dans la forme de MOTIS 2 avec un itinéraire inventé, bus 3 puis tram A, entre des arrêts
-// d'exemple. Aucun vrai arrêt, aucune vraie adresse : départ et arrivée sont ceux de la requête.
+// d'exemple, et à `directModes=CAR` un trajet en voiture sans trafic. Aucun vrai arrêt, aucune vraie adresse : départ
+// et arrivée sont ceux de la requête.
+import { distanceMeters } from '../../shared/trip.ts';
 
 /** Flux du faux MOTIS : préfixe des identifiants d'arrêt, comme celui du NAS. */
 export const FAKE_MOTIS_FEED = 'irigo';
@@ -70,6 +72,19 @@ export function fakeMotisPlan(url: URL, options: FakeMotisOptions = {}): Respons
   const to = point('END', url.searchParams.get('toPlace'));
   const time = Date.parse(url.searchParams.get('time') ?? '');
   if (!from || !to || Number.isNaN(time)) return new Response('requête invalide', { status: 400 });
+  // Voiture (ligne voiture sans TomTom) : à 25 km/h à vol d'oiseau plus un tiers, sans trafic.
+  if (url.searchParams.get('directModes') === 'CAR') {
+    const meters = Math.round(distanceMeters(from, to) * 1.35);
+    const duration = Math.round(meters / (25_000 / 3600));
+    const car = { duration, startTime: iso(time), endTime: iso(time + duration * 1000), transfers: 0, legs: [{ mode: 'CAR', distance: meters, duration }] };
+    return new Response(JSON.stringify({ requestParameters: {}, debugOutput: {}, from, to, direct: [car], itineraries: [] }), { headers: { 'content-type': 'application/json' } });
+  }
+  // Partir à l'heure demandée (arriveBy=false) : 4 min de marche puis 10 min d'attente du bus, puis un toutes les 15 min.
+  if (url.searchParams.get('arriveBy') === 'false') {
+    const bus = time + 14 * MIN;
+    const body = { requestParameters: {}, debugOutput: {}, from, to, direct: [], itineraries: [itinerary(from, to, bus), itinerary(from, to, bus + 15 * MIN)] };
+    return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+  }
   // Itinéraire de 29 min du bus à l'arrivée : bus au plus tard 31 min avant l'heure demandée (arrivée 2 min avant).
   const latest = time - 31 * MIN;
   const bus = options.busDeparts && options.busDeparts.getTime() <= latest ? options.busDeparts.getTime() : latest;

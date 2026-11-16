@@ -48,7 +48,9 @@ import { createSampleAgenda } from './sources/sample.ts';
 import { createHolidaySettingsStore } from './sources/holiday-settings.ts';
 import { createSchoolHolidaysSource } from './sources/school-holidays.ts';
 import { createSourceStatus } from './sources/source-status.ts';
-import { searchAddress } from './sources/geocode.ts';
+import { locateAddress, searchAddress } from './sources/geocode.ts';
+import { createTomTomSource } from './sources/tomtom.ts';
+import { createPushStore } from './sources/push.ts';
 import { createGtfsSource } from './sources/gtfs.ts';
 import { createIrigoClient, createTransitSource } from './sources/irigo.ts';
 import { createMotisSource } from './sources/motis.ts';
@@ -186,6 +188,18 @@ const motis = createMotisSource({
   logger: console,
   status: sourceStatus,
 });
+// Ligne voiture des parents (« Prochain trajet ») : trafic par TomTom (HOMEHUB_TOMTOM_KEY ; HOMEHUB_TOMTOM_URL pour le
+// faux service du monde fictif) ; sans clé, durée sans trafic de MOTIS.
+const tomtom = createTomTomSource({
+  key: () => process.env.HOMEHUB_TOMTOM_KEY?.trim() || undefined,
+  baseUrl: process.env.HOMEHUB_TOMTOM_URL?.trim() || undefined,
+  clock,
+  logger: console,
+  status: sourceStatus,
+});
+// Notifications « Pars dans 5 min » : clés VAPID générées au premier démarrage, gardées dans le dossier d'état.
+const push = createPushStore({ path: join(stateDir, 'push.json'), keysPath: join(stateDir, 'push-vapid.json'), clock });
+await push.load();
 // Réglage de la page « Vacances scolaires », sinon section `holidays` du YAML.
 const holidaySettings = createHolidaySettingsStore({ path: join(stateDir, 'holiday-settings.json'), clock, config });
 await holidaySettings.load();
@@ -217,7 +231,7 @@ createRainAlert({
   clock,
   logger: console,
 }).start();
-const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, screenFallbacks, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
+const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, screenFallbacks, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

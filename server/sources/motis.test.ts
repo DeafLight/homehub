@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { fixedClock, NOW, silentLogger } from '../testing.ts';
 import { FAKE_MOTIS_STOPS, fakeMotisPlan } from './motis-fake.ts';
-import { createMotisSource, gtfsStopId, isTransitLeg, MOTIS_STATUS, parsePlan } from './motis.ts';
+import { createMotisSource, gtfsStopId, isTransitLeg, MOTIS_STATUS, parseCar, parsePlan } from './motis.ts';
 import { createSourceStatus } from './source-status.ts';
 
 const HOME = { lat: 47.47, lon: -0.55 };
@@ -101,5 +101,22 @@ describe('createMotisSource', () => {
     const { source, logger } = setup({ body: { itineraries: 'non' } });
     await expect(source.plan({ from: HOME, to: SCHOOL, time: ARRIVE, arriveBy: true })).rejects.toThrow('réponse illisible');
     expect(logger.errors).toEqual(['MOTIS indisponible : réponse illisible']);
+  });
+});
+
+describe('voiture (secours de TomTom)', () => {
+  it('demande directModes=CAR et lit durée et distance', async () => {
+    const { source, urls } = setup();
+    const car = await source.car(HOME, SCHOOL, ARRIVE);
+    expect(urls[0].searchParams.get('directModes')).toBe('CAR');
+    expect(urls[0].searchParams.get('arriveBy')).toBe('false');
+    expect(car?.seconds).toBeGreaterThan(0);
+    expect(car?.meters).toBeGreaterThan(1000);
+  });
+
+  it('sans trajet direct en voiture : null', () => {
+    expect(parseCar({ direct: [{ duration: 60, legs: [{ mode: 'WALK', distance: 80 }] }] })).toBeNull();
+    expect(parseCar({})).toBeNull();
+    expect(parseCar({ direct: [{ duration: 600, legs: [{ mode: 'CAR' }] }] })).toEqual({ seconds: 600 });
   });
 });

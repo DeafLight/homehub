@@ -28,7 +28,7 @@ export type BusAlertSource = (ownerId: string) => Promise<{ commute: Commute; mi
 const departsAt = (d: Departure) => Date.parse(d.at);
 
 /** Course visée : celle de l'emploi du temps s'il y en a une, sinon la première qu'on peut encore attraper. */
-function targetOf(commute: Commute, now: number): number | null {
+export function targetOf(commute: Commute, now: number): number | null {
   const walk = commute.walkMinutes * 60_000;
   if (commute.plan) {
     const planned = Date.parse(commute.plan.departs);

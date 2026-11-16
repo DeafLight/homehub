@@ -1,6 +1,6 @@
 // Tests de la recherche d'adresse : requête envoyée à la Géoplateforme (faux service) et lecture de la réponse.
 import { describe, expect, it } from 'vitest';
-import { GEOCODE_URL, searchAddress } from './geocode.ts';
+import { GEOCODE_URL, locateAddress, searchAddress, SURE_SCORE } from './geocode.ts';
 
 function fakeFetch(body: unknown, status = 200) {
   const urls: URL[] = [];
@@ -44,5 +44,20 @@ describe('searchAddress', () => {
   it('signale un service en erreur', async () => {
     const { fetchFn } = fakeFetch({}, 503);
     await expect(searchAddress('angers', undefined, fetchFn)).rejects.toThrow('HTTP 503');
+  });
+});
+
+describe('locateAddress', () => {
+  const scored = (score: number) => ({ features: [{ properties: { label: '12 Rue des Lices 49100 Angers', score }, geometry: { coordinates: [-0.553, 47.468] } }] });
+
+  it('une seule adresse demandée, avec le centre arrondi', async () => {
+    const { fetchFn, urls } = fakeFetch(scored(0.9));
+    expect(await locateAddress('12 rue des Lices', { lat: 47.47, lon: -0.55 }, fetchFn)).toEqual({ label: '12 Rue des Lices 49100 Angers', lat: 47.468, lon: -0.553, score: 0.9 });
+    expect(Object.fromEntries(urls[0].searchParams)).toEqual({ q: '12 rue des Lices', index: 'address', limit: '1', lat: '47.470', lon: '-0.550' });
+  });
+
+  it('score trop bas ou réponse vide : null', async () => {
+    expect(await locateAddress('chez Mamie', undefined, fakeFetch(scored(SURE_SCORE - 0.01)).fetchFn)).toBeNull();
+    expect(await locateAddress('chez Mamie', undefined, fakeFetch({ features: [] }).fetchFn)).toBeNull();
   });
 });

@@ -2,12 +2,22 @@
 // notes, absences et retards, messagerie du compte Famille), faux temps réel Irigo, faux MOTIS (itinéraires),
 // fausses bases de produits (Open Food Facts et ses sœurs), calendrier scolaire d'exemple, faux site de
 // recettes (fake-recipes.ts), fausse enseigne de drive (fake-drive.ts), fausse météo
-// pluvieuse (fake-weather.ts). Aucune connexion réelle à l'école ni à Irigo ; seuls les horaires GTFS restent les vrais.
+// pluvieuse (fake-weather.ts), faux TomTom (trafic), fausse Géoplateforme (lieux d'agenda), faux service de push.
+// Aucune connexion réelle à l'école ni à Irigo ; seuls les horaires GTFS restent les vrais.
 import { DRIVE_HOST, fakeDriveSite } from './fake-drive.ts';
 import { fakeRecipeSite, RECIPE_HOST } from './fake-recipes.ts';
 import { fakeOpenMeteo } from './fake-weather.ts';
 import { fakeMotisPlan } from '../../server/sources/motis-fake.ts';
 import { fakeHolidaysPage, readHolidaysFixture } from '../../server/sources/school-holidays-fake.ts';
+import { FAKE_TOMTOM_URL, fakeTomTomRoute } from '../../server/sources/tomtom-fake.ts';
+
+/**
+ * Position simulée du téléphone (« Prochain trajet ») : un point inventé du centre d'Angers, donné par la fausse
+ * géolocalisation des captures. Le faux MOTIS annonce 2 min de retard sur le bus des trajets qui en partent.
+ */
+export const DOCS_PHONE_POSITION = { lat: 47.4655, lon: -0.5585 };
+/** Faux service de push des navigateurs (abonnement d'exemple de la capture des réglages). */
+export const FAKE_PUSH_HOST = 'push.docs.test';
 
 /** Faux MOTIS (HOMEHUB_MOTIS_URL du serveur des captures) : seul un trajet de la page « Transports » s'en sert. */
 export const FAKE_MOTIS_URL = 'http://motis.docs.test';
@@ -203,7 +213,14 @@ export function installFakeSources(): void {
     if (url.hostname === 'api.ecoledirecte.com') return fakeEcoleDirecte(url);
     if (url.hostname === 'ara-api.enroute.mobi') return fakeSiri();
     // Bus 3 de l'itinéraire : celui vers le Lycée que le faux temps réel annonce dans 11 min (reconnu par son horaire).
-    if (url.origin === FAKE_MOTIS_URL) return fakeMotisPlan(url, { busDeparts: new Date(Date.now() + 11 * 60_000) });
+    if (url.origin === FAKE_MOTIS_URL) {
+      const fromPhone = url.searchParams.get('fromPlace') === `${DOCS_PHONE_POSITION.lat.toFixed(6)},${DOCS_PHONE_POSITION.lon.toFixed(6)}`;
+      return fakeMotisPlan(url, { busDeparts: new Date(Date.now() + 11 * 60_000), ...(fromPhone && { delayMinutes: 2 }) });
+    }
+    if (url.origin === FAKE_TOMTOM_URL) return fakeTomTomRoute(url);
+    // Lieux d'agenda : rien de réel n'est demandé ; les captures n'utilisent que des lieux de la famille.
+    if (url.hostname === 'data.geopf.fr') return new Response(JSON.stringify({ type: 'FeatureCollection', features: [] }), { headers: { 'content-type': 'application/json' } });
+    if (url.hostname === FAKE_PUSH_HOST) return new Response(null, { status: 201 });
     if (url.hostname in PRODUCT_BASES) return fakeProductBase(url);
     // Calendrier scolaire d'exemple (académie de Nantes, zone B, comme Angers) : la fixture des tests, par pages.
     if (url.hostname === 'data.education.gouv.fr') return fakeHolidaysPage(readHolidaysFixture(), url);
@@ -213,6 +230,8 @@ export function installFakeSources(): void {
     return realFetch(input, init);
   }) as typeof fetch;
   process.env.HOMEHUB_MOTIS_URL = FAKE_MOTIS_URL;
+  process.env.HOMEHUB_TOMTOM_URL = FAKE_TOMTOM_URL;
+  process.env.HOMEHUB_TOMTOM_KEY = 'docs';
   process.env.ECOLEDIRECTE_IDENTIFIANT = 'docs';
   process.env.ECOLEDIRECTE_MOTDEPASSE = 'docs';
 }
