@@ -76,10 +76,10 @@ class CuisineTest {
         assertEquals(62, remainingAfter(timer, 0))
         assertEquals(60, remainingAfter(timer, 2_500))
         assertEquals(0, remainingAfter(timer, 90_000))
-        assertEquals("1:02", formatRemaining(62))
-        assertEquals("0:05", formatRemaining(5))
-        assertEquals("1:02:03", formatRemaining(3723))
-        assertEquals("0:00", formatRemaining(-3))
+        assertEquals("1:02", cookClock(62))
+        assertEquals("0:05", cookClock(5))
+        assertEquals("1:02:03", cookClock(3723))
+        assertEquals("0:00", cookClock(-3))
     }
 
     @Test

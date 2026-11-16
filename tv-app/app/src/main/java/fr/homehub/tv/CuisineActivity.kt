@@ -272,7 +272,7 @@ class CuisineActivity : Activity() {
         val cook = view ?: return
         val elapsed = SystemClock.elapsedRealtime() - receivedAt
         for (t in cook.timers) {
-            val left = formatRemaining(remainingAfter(t, elapsed))
+            val left = cookClock(remainingAfter(t, elapsed))
             countdowns[t.id]?.forEach { v -> v.text = if (v is Button) getString(R.string.cook_running, left) else left }
         }
     }

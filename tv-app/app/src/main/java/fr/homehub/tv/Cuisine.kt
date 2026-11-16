@@ -78,7 +78,7 @@ fun timerJson(seconds: Int): String = JSONObject().put("seconds", seconds).toStr
 fun remainingAfter(timer: CookTimer, elapsedMs: Long): Int = (timer.remainingSeconds - elapsedMs / 1000).toInt().coerceAtLeast(0)
 
 /** « 4:05 », « 1:02:03 ». */
-fun formatRemaining(seconds: Int): String {
+fun cookClock(seconds: Int): String {
     val s = seconds.coerceAtLeast(0)
     val h = s / 3600
     val m = (s % 3600) / 60
