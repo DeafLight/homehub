@@ -3,18 +3,17 @@
 # HomeHub TV
 
 Petite appli Android TV, compagnon de HomeHub, installée hors du Play Store par `adb`. Elle reste reliée à HomeHub
-(interrogation longue, aucun port ouvert sur la télé) et lit les messages vocaux des parents **par-dessus ce qui passe,
-le son du programme baissé**, avec un bandeau « Message d'Alex », et affiche leurs **messages écrits** en bandeau en
+(interrogation longue, aucun port ouvert sur la télé) et diffuse la **voix d'un parent en direct** **par-dessus ce
+qui passe, le son du programme baissé**, avec un bandeau « Alex vous parle » (voix relayée par HomeHub sans WebRTC ;
+le message vocal enregistré a été retiré en 0.97.0), et affiche les **messages écrits** des parents en bandeau en
 haut de l'écran pendant `tv.seconds` (10 s par défaut), en rendant compte au téléphone. Sous un message, la
 télécommande choisit une **réponse rapide** (« OK », « J'arrive », « 5 minutes »), affichée sur le téléphone de l'expéditeur. Elle sert aussi de **télécommande** depuis le
 téléphone d'un parent (touches, texte, applis, marche/arrêt). Les **minuteurs** de la maison en cours s'y décomptent en petit en bas à droite ; celui qui se termine s'y affiche avec un carillon court ;
 « Arrêter » à la télécommande l'arrête partout (tablette, téléphones). L'**alerte du bus du matin** s'y affiche (« Bus dans 9 min », bandeau icône bus pendant 45 s, réglée par
-trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche, après un
-message vocal en cours). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
+trajet sur la page Transports de la tablette). Le matin, l'**alerte pluie** s'y affiche aussi (bandeau parapluie « Pluie vers 8 h · Prenez un parapluie »). Les **rappels** de HomeHub (routine du soir, mots à lire) s'y affichent à l'heure réglée (bandeau cloche). Quand la télé passe en veille d'écran, elle sert d'**écran de veille** (heure, météo, agenda de la
 famille, menu du soir). Elle montre aussi **en plein écran** une photo ou une vidéo partagée depuis un téléphone, et la **séance de sport
 guidée** lancée depuis le téléphone d'une personne (rien d'autre que la séance en cours ; tout est effacé à la fin). Elle affiche enfin
-le **mode cuisine** d'une recette lancé depuis la fiche recette (« Sur la télé »), et diffuse la **voix d'un parent
-en direct** (« Alex vous parle », son du programme baissé, voix relayée par HomeHub sans WebRTC).
+le **mode cuisine** d'une recette lancé depuis la fiche recette (« Sur la télé »).
 Plan et décisions : [`docs/appli-tele.md`](../docs/appli-tele.md).
 
 Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au moins. Version = celle de HomeHub
@@ -23,11 +22,10 @@ Kotlin, sans bibliothèque (le système Android suffit) ; Android 10 (API 29) au
 | Fichier | Rôle |
 |---|---|
 | `MainActivity.kt` | Écran d'accueil : adresse de HomeHub, code d'appairage, état, « Essayer le bandeau » |
-| `HubService.kt` | Service au premier plan : événements, téléchargement, lecture, message écrit, compte rendu ; écran allumé ou éteint (`ACTION_SCREEN_ON/OFF`) envoyé à HomeHub, message vocal refusé écran éteint (« écran éteint » : HomeHub le fait lire par le Google Home) |
-| `VoicePlayer.kt` | Lecture avec focus audio transitoire « avec baisse du son » |
+| `HubService.kt` | Service au premier plan : événements, message écrit, compte rendu ; écran allumé ou éteint (`ACTION_SCREEN_ON/OFF`) envoyé à HomeHub, prise de parole refusée écran éteint (« écran éteint ») |
 | `LiveTalk.kt` | Parler en direct : voix PCM 16 kHz demandée par attente longue, jouée par `AudioTrack` son baissé ; attente de 0,3 s de son avant de jouer, retard au-delà d'1 s jeté (`TalkPacer`) |
-| `OverlayBanner.kt` | Bandeau par-dessus les autres applis : message vocal ou avis (en haut à droite), message écrit (en haut au centre, s'en va seul), alertes du bus et de la pluie (en haut à droite) ; sous un message, réponses rapides qui prennent la télécommande (◀ ▶ OK, Retour masque) |
-| `Reponses.kt` | Réponses rapides sous un message écrit ou vocal (« OK », « J'arrive », « 5 minutes ») : textes, corps de la réponse, durées du bandeau qui prend la télécommande |
+| `OverlayBanner.kt` | Bandeau par-dessus les autres applis : voix en direct ou avis (en haut à droite), message écrit (en haut au centre, s'en va seul), alertes du bus et de la pluie (en haut à droite) ; sous un message, réponses rapides qui prennent la télécommande (◀ ▶ OK, Retour masque) |
+| `Reponses.kt` | Réponses rapides sous un message écrit (« OK », « J'arrive », « 5 minutes ») : textes, corps de la réponse, durées du bandeau qui prend la télécommande |
 | `Pluie.kt` | Alerte pluie du matin : lecture des événements `rain`, durée du bandeau |
 | `HubClient.kt`, `Protocol.kt` | Appels HTTP et protocole (`shared/screen.ts` côté serveur) |
 | `BootReceiver.kt` | Redémarrage avec la télé et après une mise à jour |
@@ -66,7 +64,7 @@ touches média et le volume restent au système. **OK** appelle `POST /api/scree
 s'arrête sur la tablette, les téléphones et les autres télés (`timer-clear`). **Retour** masque le bandeau sur cette
 télé seulement. Sans geste, il s'en va au bout de 10 min. Plusieurs minuteurs : le dernier arrivé s'affiche, les autres
 reviennent quand il s'en va. Carillon : trois notes synthétisées (`AudioTrack`, aucun fichier), focus audio transitoire
-avec baisse du son, comme un message vocal. À vérifier sur la vraie télé : que les applis vidéo continuent bien quand le
+avec baisse du son, comme la voix en direct. À vérifier sur la vraie télé : que les applis vidéo continuent bien quand le
 bandeau prend le focus.
 
 ## Mode cuisine d'une recette

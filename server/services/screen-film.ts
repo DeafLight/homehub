@@ -1,7 +1,6 @@
 // Mode « film » des télés (fonction 15, règles dans shared/screen-film.ts), en mémoire : les choix faits à la main
 // (téléphone ou tablette) et le réglage automatique (appli de films au premier plan, panneau Télés de la tablette).
-// Le hub demande `discreet(id)` à chaque envoi pour rendre les bandeaux discrets, le secours (screen-fallback.ts)
-// demande `on(id)` pour faire lire le message vocal par le Google Home. Un choix à la main est oublié dès que la télé
+// Le hub demande `discreet(id)` à chaque envoi pour rendre les bandeaux discrets. Un choix à la main est oublié dès que la télé
 // n'est plus allumée, au plus tard au tour suivant du guet (FILM_SWEEP_MS) ; un redémarrage du serveur les oublie tous.
 import { filmState, overrideHolds, type FilmOverride, type ScreenFilm } from '../../shared/screen-film.ts';
 import type { Clock } from '../sources/types.ts';

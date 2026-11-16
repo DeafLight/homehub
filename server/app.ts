@@ -42,8 +42,6 @@ import type { RecipeImporter } from './services/recipes.ts';
 import type { NasService } from './services/nas.ts';
 import type { DeviceStore } from './sources/devices.ts';
 import type { ScreenAppStore } from './sources/screen-apps.ts';
-import type { ScreenFallbackStore } from './sources/screen-fallbacks.ts';
-import { createScreenFallback } from './services/screen-fallback.ts';
 import { createScreenFilm } from './services/screen-film.ts';
 import type { ScreenStore } from './sources/screens.ts';
 import type { DriveReader } from './sources/drive-page.ts';
@@ -120,7 +118,6 @@ export type AppDeps = {
   /** Heure du coucher des enfants sur les télés ; absent (tests) : ni coucher, ni ses routes. */
   bedtime?: BedtimeStore;
   /** Appareil de secours de chaque télé éteinte (Google Home) ; absent : pas de secours. */
-  screenFallbacks?: ScreenFallbackStore;
   pins: PinStore;
   faces: FaceStore;
   sessions: ActorSessions;
@@ -250,20 +247,19 @@ export function createApp(deps: AppDeps): Hono {
 
   api.route('/', createDevicesApi({ household, devices: deps.devices, pins, access }));
   api.route('/', createCameraApi({ camera, household, access }));
-  // Télés appairées (appli HomeHub TV) : leurs événements servent aux messages vocaux, à la télécommande et aux messages écrits.
+  // Télés appairées (appli HomeHub TV) : leurs événements servent au direct, à la télécommande, aux messages écrits et aux alertes.
   const screenHub = deps.screenHub ?? createScreenHub({ clock });
-  // Réponses rapides des télés sous un message écrit ou vocal (fonction 10).
+  // Réponses rapides des télés sous un message écrit (fonction 10).
   const screenReplies = createScreenReplies({ clock });
   api.route('/', createTvApi({ screens: deps.screens, hub: screenHub, config, household, access, replies: screenReplies }));
   api.route('/', createCastApi({ voice, config, household, access }));
-  // Mode film (fonction 15) : bandeaux discrets, message vocal sur le Google Home ; automatique selon le panneau Télés.
+  // Mode film (fonction 15) : bandeaux discrets ; automatique selon le panneau Télés.
   const screenAlerts = deps.screenAlerts ?? createScreenAlertStore();
   const film = createScreenFilm({ hub: screenHub, clock });
   void screenAlerts.get().then((a) => film.setAuto(a.film)).catch((err: unknown) => console.error('Réglage du mode film :', err));
   film.start();
   screenHub.useDiscreet(film.discreet);
-  const fallback = deps.screenFallbacks && createScreenFallback({ hub: screenHub, cast: () => config.current().cast, store: deps.screenFallbacks, film: film.on });
-  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, voice, config, household, access, fallback, film, replies: screenReplies }));
+  api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, config, household, access, film }));
   // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
   api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock, onChange: (a) => film.setAuto(a.film) }));
   createTimerAlerts({ timers: deps.timers, screens: deps.screens, hub: screenHub, alerts: screenAlerts, clock }).start();

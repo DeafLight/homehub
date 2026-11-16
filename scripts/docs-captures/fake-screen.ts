@@ -1,7 +1,7 @@
 // Fausse appli HomeHub TV du monde fictif : elle fait ce que fait l'appli sur la télé (tv-app/), avec le jeton de la
-// télé fictive écrit dans screens.json par docs-captures.ts : attente longue des événements, téléchargement du message
-// vocal, compte rendu « lecture commencée ». Le dernier message reçu va dans fake-screen.json (dossier d'état) ; les
-// captures en font une maquette d'écran de télé : un programme inventé, et le bandeau de l'appli par-dessus.
+// télé fictive écrit dans screens.json par docs-captures.ts : attente longue des événements, compte rendu de chacun.
+// Les captures font de ce qu'elle reçoit des maquettes d'écran de télé : un programme inventé, et le bandeau de l'appli
+// par-dessus.
 // Télécommande : elle envoie son état (écran allumé, appli au premier plan, injecteur prêt) et ses applis inventées
 // (fake-banners.ts), reçoit touches, texte, lancement et marche/arrêt, en tient compte (appli lancée, veille) et le
 // note dans fake-screen-remote.json. Message écrit : gardé dans fake-screen-text.json, compte rendu « affiché » ; les
@@ -16,13 +16,13 @@
 // Pause et reprise (fonction 6) : elle retient si le programme est en pause et le
 // dernier bandeau (« À table ! »), pour la maquette de fake-screen-pause.ts ; son volume est réglable.
 // Allumée, en veille ou absente (fonction 7) : fake-screen-mode.json (dossier d'état) le dit, relu à chaque tour. En
-// veille, l'écran est annoncé éteint et un message vocal est refusé comme le fait l'appli (« écran éteint ») ; absente,
+// veille, l'écran est annoncé éteint ; absente,
 // elle ne demande plus rien (HomeHub la voit partie au bout de GONE_MS).
 // Photo partagée (fonction 11) : téléchargée et notée dans fake-screen-media.json.
 // Séance de sport (fonction 12) : elle note l'ouverture et la fermeture de la page (la page elle-même est capturée
 // à part, avec le jeton de cette télé).
 // Mode cuisine d'une recette (fonction 13) : ouverture acceptée (vue lue par fake-screen-cook.ts).
-// Réponses rapides (fonction 10) : elle retient l'identifiant de réponse du dernier message écrit ou vocal ; quand
+// Réponses rapides (fonction 10) : elle retient l'identifiant de réponse du dernier message écrit ; quand
 // fake-screen-reply.json apparaît ({ "reply": "coming" }), elle répond comme si on avait choisi à la télécommande,
 // puis efface le fichier.
 // Heure du coucher (fonction 16) : rappel et changements comme les autres rappels, pause comme « À table ! », écran de
@@ -34,7 +34,7 @@
 // lancée à la télécommande n'annonce rien. Télé éteinte : le mode veille (fake-screen-mode.json).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { QUICK_REPLIES, QUICK_REPLY_LABELS, type QuickReply, SCREEN_OFF_REASON, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
+import { QUICK_REPLIES, QUICK_REPLY_LABELS, type QuickReply, SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER, type ScreenEvent, type ScreenEvents, type ScreenRunningTimer, type ScreenStateReport } from '../../shared/screen.ts';
 import type { ScreenNowPlaying } from '../../shared/now-playing.ts';
 import { bannerPng, fakeScreenApps } from './fake-banners.ts';
 import { FAKE_SCREEN_RAIN_FILE } from './fake-screen-rain.ts';
@@ -45,7 +45,6 @@ import { fakeTalk } from './fake-screen-talk.ts';
 
 export const FAKE_SCREEN_TOKEN = 'docs-tele';
 export const FAKE_SCREEN_ID = 'docs-tele';
-export const FAKE_SCREEN_FILE = 'fake-screen.json';
 export const FAKE_SCREEN_REMOTE_FILE = 'fake-screen-remote.json';
 export const FAKE_SCREEN_TEXT_FILE = 'fake-screen-text.json';
 export const FAKE_SCREEN_TIMER_FILE = 'fake-screen-timer.json';
@@ -127,11 +126,6 @@ export function readFakeScreenMode(dir: string): FakeScreenMode {
   }
 }
 
-/** Compte rendu d'un message vocal, comme l'appli (voiceRefusal dans tv-app) : refusé écran éteint, sinon lu ou introuvable. */
-export function fakeVoiceReport(screenOn: boolean, clipStatus: number): { ok: true } | { ok: false; reason: string } {
-  if (!screenOn) return { ok: false, reason: SCREEN_OFF_REASON };
-  return clipStatus >= 200 && clipStatus < 300 ? { ok: true } : { ok: false, reason: `message introuvable (HTTP ${clipStatus})` };
-}
 
 /** Ce que la fausse télé a reçu : le titre du bandeau et la taille du message. */
 export type FakeScreenMessage = { title: string; bytes: number };
@@ -198,7 +192,7 @@ export function startFakeScreen(base: string) {
   let after: number | null = null;
   let introduced = false;
   let mode: FakeScreenMode = 'allumee';
-  /** Identifiant de réponse du dernier message écrit ou vocal reçu (fonction 10). */
+  /** Identifiant de réponse du dernier message écrit reçu (fonction 10). */
   let replyId: string | null = null;
   // Réponse « choisie à la télécommande » : fake-screen-reply.json, vu en 0,3 s, envoyé puis effacé.
   setInterval(() => {
@@ -309,29 +303,15 @@ export function startFakeScreen(base: string) {
           await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
           continue;
         }
-        if (event.kind !== 'voice') {
-          const line = applyRemote(event, state, remote);
-          await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
-          if (event.kind === 'launch' || event.kind === 'power' || event.kind === 'key') await post('POST', '/api/screen/state', state);
-          if (line) {
-            remote.received.push(line);
-            Object.assign(remote, { screenOn: state.screenOn, foreground: state.foreground });
-            writeFileSync(join(dir, FAKE_SCREEN_REMOTE_FILE), JSON.stringify(remote));
-            console.log(`Fausse appli HomeHub TV, télécommande : ${line}`);
-          }
-          continue;
+        const line = applyRemote(event, state, remote);
+        await post('POST', `/api/screen/events/${event.id}/report`, { ok: true });
+        if (event.kind === 'launch' || event.kind === 'power' || event.kind === 'key') await post('POST', '/api/screen/state', state);
+        if (line) {
+          remote.received.push(line);
+          Object.assign(remote, { screenOn: state.screenOn, foreground: state.foreground });
+          writeFileSync(join(dir, FAKE_SCREEN_REMOTE_FILE), JSON.stringify(remote));
+          console.log(`Fausse appli HomeHub TV, télécommande : ${line}`);
         }
-        if (!state.screenOn) {
-          console.log(`Fausse appli HomeHub TV : ${event.title} refusé, écran éteint`);
-          await post('POST', `/api/screen/events/${event.id}/report`, fakeVoiceReport(false, 0));
-          continue;
-        }
-        replyId = event.replyId ?? null;
-        const clip = await fetch(`${base}${event.audio}`, { headers });
-        const bytes = clip.ok ? (await clip.arrayBuffer()).byteLength : 0;
-        writeFileSync(join(dir, FAKE_SCREEN_FILE), JSON.stringify({ title: event.title, bytes } satisfies FakeScreenMessage));
-        console.log(`Fausse appli HomeHub TV : ${event.title}, ${bytes} octets`);
-        await post('POST', `/api/screen/events/${event.id}/report`, fakeVoiceReport(true, clip.status));
       }
     } catch {
       // Serveur pas encore prêt : on réessaie un peu plus tard.

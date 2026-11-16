@@ -1,5 +1,5 @@
 // Protocole entre l'appli et HomeHub (shared/screen.ts côté serveur) : en-tête de version, lecture des réponses JSON
-// (messages vocaux, messages écrits avec leurs réponses rapides, ordres de la télécommande, alerte du bus, séance de sport, parler en direct), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
+// (messages écrits avec leurs réponses rapides, ordres de la télécommande, alerte du bus, séance de sport, parler en direct), compte rendu (refus écran éteint compris), état de la télé et liste de ses applis. Fonctions pures, testées sur la JVM (ProtocolTest).
 // `discreet` (mode film, fonction 15) : ajouté par HomeHub aux bandeaux pendant un film, voir Film.kt.
 package fr.homehub.tv
 
@@ -10,15 +10,15 @@ object Protocol {
     /** Doit valoir SCREEN_PROTOCOL de shared/screen.ts. */
     const val VERSION = 1
     const val HEADER = "X-HomeHub-Screen"
-    /** Refus d'un message vocal écran éteint ; doit valoir SCREEN_OFF_REASON de shared/screen.ts (HomeHub bascule alors vers le Google Home). */
+    /** Refus d'une prise de parole écran éteint ; doit valoir SCREEN_OFF_REASON de shared/screen.ts. */
     const val SCREEN_OFF = "écran éteint"
 }
 
 /**
- * Compte rendu d'un message vocal avant de le lire : écran éteint (veille rapide, réseau gardé), personne ne le verrait
- * ni ne l'entendrait, il est refusé pour que HomeHub le fasse lire ailleurs ; écran allumé : null, on le lit.
+ * Compte rendu d'une prise de parole avant de l'ouvrir : écran éteint (veille rapide, réseau gardé), personne ne la
+ * verrait ni ne l'entendrait, elle est refusée ; écran allumé : null, on l'ouvre.
  */
-fun voiceRefusal(screenOn: Boolean): String? = if (screenOn) null else reportJson(false, Protocol.SCREEN_OFF)
+fun screenOffRefusal(screenOn: Boolean): String? = if (screenOn) null else reportJson(false, Protocol.SCREEN_OFF)
 
 data class PairingStart(val id: String, val code: String, val expiresAt: String)
 
@@ -26,12 +26,6 @@ sealed interface PairingState {
     data object Pending : PairingState
     data class Paired(val token: String, val screenId: String, val name: String) : PairingState
 }
-
-/**
- * Message vocal à télécharger à `audio` (chemin de l'API) ; `title` : « Message d'Alex ». `replyId` : le bandeau propose
- * les réponses rapides (fonction 10, Reponses.kt) ; null : rien à répondre.
- */
-data class VoiceEvent(val seq: Int, val id: String, val title: String, val audio: String, val contentType: String, val replyId: String? = null)
 
 /** Ordres de la télécommande du téléphone (shared/screen.ts : key, text, launch, power). */
 sealed interface RemoteEvent {
@@ -60,7 +54,6 @@ private fun JSONObject.replyId(): String? = if (has("replyId") && !isNull("reply
 data class BusEvent(val id: String, val title: String, val subtitle: String, val seconds: Int, val discreet: Boolean = false)
 
 data class Events(
-    val voices: List<VoiceEvent>,
     val last: Int,
     val remote: List<RemoteEvent> = emptyList(),
     val messages: List<MessageEvent> = emptyList(),
@@ -93,9 +86,6 @@ fun parseEvents(json: String): Events {
     val o = JSONObject(json)
     val list: JSONArray = o.getJSONArray("events")
     val all = (0 until list.length()).map { list.getJSONObject(it) }
-    val voices = all.filter { it.optString("kind") == "voice" }.map {
-        VoiceEvent(it.getInt("seq"), it.getString("id"), it.getString("title"), it.getString("audio"), it.getString("contentType"), it.replyId())
-    }
     val remote = all.mapNotNull { e ->
         val id = e.getString("id")
         when (e.optString("kind")) {
@@ -123,7 +113,7 @@ fun parseEvents(json: String): Events {
     val talks = all.filter { it.optString("kind") == "talk" }.map {
         TalkEvent(it.getString("id"), it.getString("title"), it.getString("audio"), it.optInt("rate", TALK_RATE))
     }
-    return Events(voices, o.getInt("last"), remote, messages, bus, talks)
+    return Events(o.getInt("last"), remote, messages, bus, talks)
 }
 
 /**

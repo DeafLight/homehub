@@ -1,4 +1,4 @@
-// Réponses rapides à la télécommande (fonction 10) : sous un message écrit ou vocal, le bandeau propose « OK »,
+// Réponses rapides à la télécommande (fonction 10) : sous un message écrit, le bandeau propose « OK »,
 // « J'arrive », « 5 minutes » (QUICK_REPLIES de shared/screen.ts) ; la réponse choisie part à HomeHub
 // (POST /api/screen/replies/:replyId), qui la montre au téléphone de l'expéditeur. Règles sans Android, testées sur la
 // JVM (ReponsesTest) : réponses et leur texte, corps de la requête, durée du bandeau qui prend la télécommande.
@@ -15,8 +15,6 @@ object Reponses {
 
     /** Un message écrit avec réponses reste au moins ce temps (il faut lire, puis choisir). */
     const val MESSAGE_MIN_MS = 20_000L
-    /** Après la fin d'un message vocal, ses réponses restent ce temps à l'écran. */
-    const val AFTER_VOICE_MS = 20_000L
     /** À chaque touche sur le bandeau, il reste au moins ce temps (on est en train de choisir). */
     const val IDLE_MS = 15_000L
     /** « Réponse envoyée » reste ce temps, puis le bandeau s'en va et la télécommande revient à l'appli. */

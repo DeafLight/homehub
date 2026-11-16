@@ -16,7 +16,6 @@ import { createScreenApi } from './screen-api.ts';
 import { createScreenMediaApi, PARENT_CODE_NEEDED } from './screen-media-api.ts';
 import { VOLUME_FIXED } from './services/screen-media.ts';
 import { createScreenHub, SCREEN_OFFLINE } from './services/screens.ts';
-import { createVoiceMessages } from './services/voice-messages.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
 import { createPinStore, PARENT_PIN_ID } from './sources/pins.ts';
@@ -51,8 +50,7 @@ async function setup({ parentCode = true } = {}) {
   const household = createHousehold(config);
   const api = createRouter();
   const apps = createScreenAppStore({ path: join(dir, 'screen-apps.json'), clock });
-  const voice = createVoiceMessages({ rules: () => config.current().cast, clock });
-  api.route('/', createScreenApi({ screens, apps, hub, voice, config, household, access }));
+  api.route('/', createScreenApi({ screens, apps, hub, config, household, access }));
   api.route('/', createScreenMediaApi({ screens, hub, household, access, pins: createPinGate(pinStore) }));
 
   type Options = { from?: string; token?: string; body?: unknown; headers?: Record<string, string> };

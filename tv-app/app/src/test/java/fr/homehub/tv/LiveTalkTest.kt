@@ -17,7 +17,6 @@ class LiveTalkTest {
             """{"events":[{"seq":3,"kind":"talk","id":"t1","title":"Alex vous parle","audio":"/api/screen/talk/t1","rate":16000}],"last":3}""",
         )
         assertEquals(listOf(TalkEvent("t1", "Alex vous parle", "/api/screen/talk/t1", 16_000)), events.talks)
-        assertTrue(events.voices.isEmpty())
         assertTrue(events.remote.isEmpty())
     }
 

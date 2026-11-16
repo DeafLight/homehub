@@ -252,8 +252,8 @@ Reste :
       dépasser 15 s (page téléchargée sur Internet), HomeHub attend jusqu'à 45 s puis 20 s pour la lecture ; erreur
       qui dit l'étape (lancement, lecture, message jamais téléchargé), étapes dans le journal du conteneur ; le
       récepteur est fermé une fois le message lu, l'appareil revient à ce qu'il faisait.
-- [ ] Destination du micro, à vérifier sur les vrais appareils : retour à l'appli d'avant sur la télé (télé en
-      direct, Netflix : reprise ou pause ?), télé en veille, l'enregistrement d'un iPhone (mp4), volume.
+- [ ] Destination du micro, à vérifier sur les vrais appareils : l'enregistrement d'un iPhone (mp4), volume (la télé
+      n'est plus une destination Cast depuis 0.97.0).
 - [x] Mots, 0.74.0 : une croix en face de chaque mot déjà vu, dans l'onglet Mots du téléphone, le supprime tout de
       suite (mêmes droits que « Vu », un mot pas encore vu reste). La tablette n'affiche que les mots pas encore vus :
       rien à supprimer.
@@ -343,7 +343,7 @@ personne depuis son propre téléphone.
       (`fake-screen-reply.json`) et maquette du bandeau dans le monde fictif.
 - [ ] 10 bis. Réponses rapides sur la vraie télé : focus pris sans arrêter Netflix / YouTube / la télé en direct, ◀ ▶
       et OK sur les boutons, Retour qui masque sans répondre et rend la télécommande à l'appli, lisibilité des
-      boutons à 3 m, bandeau du message vocal qui reste 20 s après la fin, réponse reçue sur le téléphone.
+      boutons à 3 m, réponse reçue sur le téléphone.
 - [x] 11. Partager une photo ou une vidéo vers la télé depuis le menu Partager du téléphone : « Montrer sur la
       télé », plein écran (photo une minute au plus, vidéo le programme en pause), Retour ferme ; tout téléphone
       appairé, 50 Mo au plus. Reste à vérifier sur la vraie télé (vidéo par-dessus la télé en direct, HEIC).
@@ -415,7 +415,14 @@ personne depuis son propre téléphone.
       `docs/tests-tele.md`, section 18.
   - [x] 18.1. Applis muettes (0.96.2) : Netflix ne publie sur la vraie télé que l'état et la position (`metadata`
         nulle) ; « À l'écran » ne répète plus le nom de l'appli (titre de repli) dans la ligne d'état et montre le
-        temps écoulé seul (« 6:29 ») sans barre quand la durée manque ; fausse télé en scénario `muet`.
+        temps écoulé seul (« 6:29 ») sans barre quand la durée manque ; fausse télé en scénario `muet`. Les infos de
+        Netflix (titre, durée) restent hors d'atteinte : accepté tel quel pour l'instant.
+- [x] 19. Message vocal enregistré vers la télé retiré (0.97.0) : on parle à la télé en direct (9). Retirés avec lui :
+      la télé comme destination Cast (`kind: tv` ne sert plus qu'à l'allumer), l'envoi par l'appli (`VoicePlayer.kt`,
+      `POST /api/screens/:id/voice`, `GET /api/screen/clips/:token`), le secours télé éteinte → Google Home (7, réglage
+      « Si éteinte », `screen-fallbacks.json`), l'accusé de réception (`missedMs`), le renvoi vers le Google Home pendant
+      un film (15, les bandeaux discrets restent) et les réponses rapides sous un message vocal (10, elles restent sous
+      le message écrit). Télé éteinte : « Parler en direct » grisé ; pour un message enregistré, le Google Home.
 
 ## École
 

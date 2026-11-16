@@ -28,7 +28,7 @@ class HubClient(private val server: String, private val token: String? = null) {
         }
     }
 
-    /** Télécharge `path` dans `target` (message vocal). */
+    /** Télécharge `path` dans `target` (photo ou vidéo partagée). */
     fun download(path: String, target: File) {
         val conn = open(path, "GET", 15_000)
         try {

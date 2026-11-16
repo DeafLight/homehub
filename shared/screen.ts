@@ -29,10 +29,10 @@ export type Screen = {
 };
 
 /**
- * Une télé où un parent peut envoyer sa voix (onglet Caméra du téléphone). `on` : allumée, écran compris ; `fallback` :
- * appareil où part le message quand elle ne l'est pas (null : aucun).
+ * Une télé où un parent peut parler en direct (onglet Caméra du téléphone). `on` : allumée, écran compris (éteinte,
+ * personne n'entendrait : le direct n'est pas proposé).
  */
-export type ScreenTarget = { id: string; name: string; online: boolean; on?: boolean; fallback?: string | null };
+export type ScreenTarget = { id: string; name: string; online: boolean; on?: boolean };
 
 /** Demande d'appairage, côté télé : le code à afficher et l'identifiant pour attendre la réponse. */
 export type ScreenPairingStart = { id: string; code: string; expiresAt: string };
@@ -40,7 +40,7 @@ export type ScreenPairingStart = { id: string; code: string; expiresAt: string }
 export type ScreenPairingState = { status: 'pending' } | { status: 'paired'; token: string; screen: { id: string; name: string } };
 
 /**
- * Réponses rapides à la télécommande (fonction 10), sous un message écrit ou vocal : la télé renvoie l'une d'elles
+ * Réponses rapides à la télécommande (fonction 10), sous un message écrit : la télé renvoie l'une d'elles
  * (`POST /api/screen/replies/:replyId`), le téléphone de l'expéditeur l'affiche à côté du compte rendu.
  */
 export const QUICK_REPLIES = ['ok', 'coming', 'five'] as const;
@@ -56,12 +56,6 @@ export type ScreenReply = { reply: QuickReply; label: string; screen: string; at
  * et `open` tant que la télé peut encore répondre.
  */
 export type ScreenReplies = { replies: ScreenReply[]; rev: number; open: boolean };
-
-/**
- * Message vocal : à télécharger à `audio` (chemin de l'API, avec le jeton de la télé), titre du bandeau. `replyId` :
- * la télé propose les réponses rapides (fonction 10) ; absent, rien à répondre.
- */
-export type ScreenVoiceEvent = { kind: 'voice'; id: string; title: string; audio: string; contentType: string; replyId?: string };
 
 /**
  * Touches de la télécommande du téléphone (fonction 17), dans l'ordre où elles s'envoient ; l'appli les traduit en
@@ -145,7 +139,6 @@ export const SCREEN_WORKOUT_PAGE = '/tele-sport.html';
 export type ScreenCookEvent = { kind: 'cook'; id: string };
 
 export type ScreenEventBody =
-  | ScreenVoiceEvent
   | ScreenKeysEvent
   | ScreenTextEvent
   | ScreenLaunchEvent
@@ -259,37 +252,11 @@ export type MediaScreens = { screens: MediaScreen[]; parentCode: boolean };
 /** Compte rendu de la télé : lecture commencée, ou échec avec sa raison. */
 export type ScreenReport = { ok: true } | { ok: false; reason: string };
 
-// --- Télé éteinte ou film en cours : l'annonce part sur un autre appareil (fonctions 7 et 15) ---
-
 /**
- * Raison donnée par l'appli quand elle refuse un message vocal parce que l'écran est éteint (veille rapide : le réseau
- * reste, mais personne ne verrait ni n'entendrait rien). Le serveur reconnaît ce refus et bascule vers le secours.
+ * Raison donnée par l'appli quand elle refuse une annonce parce que l'écran est éteint (veille rapide : le réseau
+ * reste, mais personne ne verrait ni n'entendrait rien).
  */
 export const SCREEN_OFF_REASON = 'écran éteint';
-
-/**
- * Pourquoi une annonce destinée à la télé part ailleurs : télé injoignable, allumée mais écran éteint, film en cours,
- * ou télé vue présente qui n'a pas reçu le message à temps (`silent` : débranchée depuis moins d'une minute).
- */
-export type ScreenFallbackReason = 'offline' | 'standby' | 'film' | 'silent';
-
-/**
- * Réponse à l'envoi d'un message vocal vers une télé : l'appareil qui l'a lu, et la phrase à montrer s'il a basculé.
- * `replyId` : lu sur la télé, qui propose les réponses rapides (à attendre par `GET /api/tv/replies/:replyId`).
- */
-export type ScreenVoiceResult = { device: string; fallback: { reason: ScreenFallbackReason; notice: string } | null; replyId?: string };
-
-/** Phrase montrée au téléphone quand le message est parti sur l'appareil de secours (film : shared/screen-film.ts). */
-export const screenFallbackNotice = (device: string, reason: ScreenFallbackReason = 'offline') =>
-  reason === 'film' ? `Mode film : lu sur ${device}.` : reason === 'silent' ? `La télé n’a pas répondu : lu sur ${device}.` : `Télé éteinte : lu sur ${device}.`;
-
-/**
- * Appareil de secours d'une télé (réglage de la tablette) : `device` est un appareil Cast de `cast.devices`, ou null
- * (aucun : le message échoue comme avant). `auto` : jamais réglé, la première enceinte de la liste s'applique.
- */
-export type ScreenFallbackChoice = { id: string; device: string | null; auto: boolean };
-/** Réglages des télés et appareils Cast proposés (vide si les messages Cast ne sont pas possibles). */
-export type ScreenFallbackSettings = { devices: { id: string; name: string; kind: 'speaker' | 'tv' }[]; screens: ScreenFallbackChoice[] };
 
 /**
  * Réponses montrées au téléphone, à côté du compte rendu : « Réponse : J’arrive » (une télé), « Réponses : J’arrive

@@ -5,8 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { SCREEN_OFF_REASON } from '../../shared/screen.ts';
-import { applyRemote, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_PLAYING_FILE, fakeNowPlaying, readFakeScreenScenario, FAKE_SCREEN_REPLY_FILE, type FakeScreenRemote, fakeScreenTvText, fakeVoiceReport, readFakeScreenMode, readFakeScreenReply } from './fake-screen.ts';
+import { applyRemote, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_PLAYING_FILE, fakeNowPlaying, readFakeScreenScenario, FAKE_SCREEN_REPLY_FILE, type FakeScreenRemote, fakeScreenTvText, readFakeScreenMode, readFakeScreenReply } from './fake-screen.ts';
 
 describe('fausse appli HomeHub TV', () => {
   it('mode : allumée sans fichier ou illisible, sinon veille ou absente', () => {
@@ -37,12 +36,6 @@ describe('fausse appli HomeHub TV', () => {
     expect(state.nowPlaying?.state).toBe('paused');
     applyRemote({ seq: 1, kind: 'launch', id: 'e1', package: 'fr.exemple.musique' }, state);
     expect(state).toMatchObject({ foreground: 'fr.exemple.musique', nowPlaying: null });
-  });
-
-  it('message vocal : refusé écran éteint, comme l’appli', () => {
-    expect(fakeVoiceReport(false, 200)).toEqual({ ok: false, reason: SCREEN_OFF_REASON });
-    expect(fakeVoiceReport(true, 200)).toEqual({ ok: true });
-    expect(fakeVoiceReport(true, 404)).toEqual({ ok: false, reason: 'message introuvable (HTTP 404)' });
   });
 
   it('réponse rapide demandée : lue si c’est l’une des réponses, sinon rien', () => {

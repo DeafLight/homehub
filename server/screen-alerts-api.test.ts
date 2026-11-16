@@ -17,7 +17,6 @@ import { createScreenAlertsApi, TIMER_NOT_RINGING } from './screen-alerts-api.ts
 import { createScreenApi, SCREENS_PARENTS_ONLY } from './screen-api.ts';
 import { createScreenHub } from './services/screens.ts';
 import { createTimerAlerts, LATE_MS, runningTimers, timerAlertText } from './services/timer-alerts.ts';
-import { createVoiceMessages } from './services/voice-messages.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
 import { createScreenAlertStore } from './sources/screen-alerts.ts';
@@ -53,7 +52,7 @@ async function setup() {
   const alerts = createScreenAlertStore({ path: join(dir, 'screen-alerts.json') });
   const watcher = createTimerAlerts({ timers, screens, hub, alerts, clock });
   const api = createRouter();
-  api.route('/', createScreenApi({ screens, apps: createScreenAppStore({ path: join(dir, 'apps.json'), clock }), hub, voice: createVoiceMessages({ rules: () => config.current().cast, clock }), config, household: createHousehold(config), access }));
+  api.route('/', createScreenApi({ screens, apps: createScreenAppStore({ path: join(dir, 'apps.json'), clock }), hub, config, household: createHousehold(config), access }));
   api.route('/', createScreenAlertsApi({ alerts, timers, access, clock }));
 
   type Options = { from?: string; token?: string; body?: unknown; headers?: Record<string, string> };

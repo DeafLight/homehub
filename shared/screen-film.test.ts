@@ -1,8 +1,7 @@
 // Tests des règles du mode film (fonction 15) : applis de films reconnues, mode allumé par l'appli ou à la main, fin
-// (télé éteinte, délai d'un mode manuel, autre appli après un « éteindre » à la main), ligne d'état, phrase du secours.
+// (télé éteinte, délai d'un mode manuel, autre appli après un « éteindre » à la main), ligne d'état.
 import { describe, expect, it } from 'vitest';
 import { FILM_MANUAL_MS, FILM_OFF, filmApp, filmDone, filmLabel, filmState, filmToggle, isDiscreetKind, overrideHolds } from './screen-film.ts';
-import { screenFallbackNotice } from './screen.ts';
 
 const NETFLIX = 'com.netflix.ninja';
 const AUTRE = 'fr.exemple.video';
@@ -47,17 +46,15 @@ describe('mode film : règles', () => {
 
   it('genres rendus discrets : bandeaux seulement, pas la voix ni la télécommande', () => {
     expect(['message', 'timer', 'bus', 'rain', 'reminder'].every(isDiscreetKind)).toBe(true);
-    expect(['voice', 'key', 'media', 'cook', 'workout', 'timers', 'timer-clear'].some(isDiscreetKind)).toBe(false);
+    expect(['talk', 'key', 'media', 'cook', 'workout', 'timers', 'timer-clear'].some(isDiscreetKind)).toBe(false);
   });
 
-  it('ligne d’état et phrase du secours', () => {
+  it('ligne d’état', () => {
     expect(filmLabel({ on: true, why: 'auto', until: null })).toBe('Allumé par l’appli en cours : s’éteint en la quittant');
     expect(filmLabel({ on: true, why: 'manual', until: 'x' })).toBe('Allumé à la main : s’éteint télé en veille, ou au bout de 4 h');
     expect(filmLabel({ on: false, why: 'manual', until: null })).toBe('Mode film : éteint pour cette appli');
     expect(filmLabel(FILM_OFF)).toBeNull();
     expect(filmLabel(undefined)).toBeNull();
-    expect(screenFallbackNotice('Google Home du salon', 'film')).toBe('Mode film : lu sur Google Home du salon.');
-    expect(screenFallbackNotice('Google Home du salon', 'standby')).toBe('Télé éteinte : lu sur Google Home du salon.');
   });
 
   it('bouton Mode film : seulement télé allumée et serveur qui le connaît ; compte rendu', () => {

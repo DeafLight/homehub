@@ -21,16 +21,16 @@ class ProtocolTest {
     }
 
     @Test
-    fun evenementsVocauxSeulement() {
+    fun genresInconnusIgnores() {
+        // Un ancien message vocal (retiré en 0.97.0), ou un genre lu ailleurs : rien dans les listes de parseEvents.
         val events = parseEvents(
             """{"events":[
               {"seq":3,"kind":"voice","id":"e1","title":"Message d’Alex","audio":"/api/screen/clips/abc.webm","contentType":"audio/webm"},
               {"seq":4,"kind":"timer","id":"e2"}
             ],"last":4}""",
         )
-        assertEquals(4, events.last)
-        assertEquals(listOf(VoiceEvent(3, "e1", "Message d’Alex", "/api/screen/clips/abc.webm", "audio/webm")), events.voices)
-        assertEquals(Events(emptyList(), 0), parseEvents("""{"events":[],"last":0}"""))
+        assertEquals(Events(4), events)
+        assertEquals(Events(0), parseEvents("""{"events":[],"last":0}"""))
     }
 
     @Test
@@ -49,9 +49,9 @@ class ProtocolTest {
     }
 
     @Test
-    fun messageVocalRefuseEcranEteint() {
-        assertNull(voiceRefusal(screenOn = true))
-        val refused = JSONObject(voiceRefusal(screenOn = false)!!)
+    fun priseDeParoleRefuseeEcranEteint() {
+        assertNull(screenOffRefusal(screenOn = true))
+        val refused = JSONObject(screenOffRefusal(screenOn = false)!!)
         assertEquals(false, refused.getBoolean("ok"))
         assertEquals("écran éteint", refused.getString("reason"))
     }
@@ -88,7 +88,6 @@ class ProtocolTest {
             ),
             events.remote,
         )
-        assertEquals(emptyList<VoiceEvent>(), events.voices)
     }
 
     @Test
@@ -131,15 +130,13 @@ class ProtocolTest {
         val events = parseEvents(
             """{"events":[
               {"seq":7,"kind":"message","id":"m1","title":"Message d’Alex","text":"À table ! 🍝","seconds":15},
-              {"seq":8,"kind":"message","id":"m2","title":"Message","text":"Trop long","seconds":600},
-              {"seq":9,"kind":"voice","id":"v1","title":"Message de Sam","audio":"/api/screen/clips/x.webm","contentType":"audio/webm"}
-            ],"last":9}""",
+              {"seq":8,"kind":"message","id":"m2","title":"Message","text":"Trop long","seconds":600}
+            ],"last":8}""",
         )
         assertEquals(
             listOf(MessageEvent("m1", "Message d’Alex", "À table ! 🍝", 15), MessageEvent("m2", "Message", "Trop long", 60)),
             events.messages,
         )
-        assertEquals(1, events.voices.size)
         assertEquals(emptyList<RemoteEvent>(), events.remote)
     }
 }

@@ -1,8 +1,6 @@
 // Service au premier plan qui garde la télé reliée à HomeHub : il attend ses événements par interrogation longue
-// (GET /api/screen/events, 25 s côté serveur), télécharge chaque message vocal, le lit son du programme baissé avec le
-// bandeau, et rend compte au serveur dès que la lecture commence (ou de l'échec). Les messages passent l'un après
-// l'autre ; écran éteint (veille), un message est refusé pour que HomeHub le fasse lire par le Google Home (fonction
-// 7). HomeHub injoignable : nouvel essai de plus en plus espacé (jusqu'à 1 min). Télé retirée (401) : jeton
+// (GET /api/screen/events, 25 s côté serveur), fait ce que chacun demande et rend compte au serveur. (Le message vocal
+// enregistré, lu son du programme baissé, a été retiré en 0.97.0 : on parle à la télé en direct.) HomeHub injoignable : nouvel essai de plus en plus espacé (jusqu'à 1 min). Télé retirée (401) : jeton
 // oublié, l'écran d'accueil propose un nouveau code.
 // Télécommande du téléphone : les ordres (touches, texte, appli, marche/arrêt) passent à Telecommande (injecteur par
 // l'adb local, ou secours), l'un après l'autre, avec compte rendu. Le service dit à HomeHub où en est la télé (écran
@@ -10,7 +8,7 @@
 // lanceur quand elle change (installation, retrait).
 // Minuteurs (fonction 3) : petit décompte en bas à droite tant qu'il en tourne (sans contrôle à la télécommande), puis
 // à la fin bandeau qui prend la télécommande, carillon, « Arrêter » (MinuteurAlertes).
-// Rappels (routine du soir, mots à lire) : bandeau cloche pendant la durée demandée, après le message vocal en cours.
+// Rappels (routine du soir, mots à lire) : bandeau cloche pendant la durée demandée.
 // Volume réglable ou fixe (barre de son par HDMI ARC, Volume.kt) : annoncé avec l'état, renvoyé quand une sortie
 // audio apparaît ou disparaît.
 // Photo ou vidéo partagée depuis un téléphone : téléchargée puis montrée en plein écran (MediaActivity), compte rendu.
@@ -18,10 +16,10 @@
 // Mode cuisine d'une recette (fonction 13) : ouvre la vue cuisine (CuisineActivity).
 // Parler en direct (fonction 9) : l'événement `talk` ouvre le son (LiveTalk.kt), affiche « Alex vous parle » et rend
 // compte ; la voix arrive ensuite par sa propre attente longue, jusqu'à la fin de la prise de parole.
-// Réponses rapides (fonction 10) : sous un message écrit ou vocal qui porte un `replyId`, le bandeau propose « OK »,
+// Réponses rapides (fonction 10) : sous un message écrit qui porte un `replyId`, le bandeau propose « OK »,
 // « J'arrive », « 5 minutes » à la télécommande ; la réponse choisie part à HomeHub (POST /api/screen/replies/:id).
 // Mode film (fonction 15) : les bandeaux marqués `discreet` par HomeHub (message, minuteur, bus, pluie, rappel) passent
-// en petit en bas à gauche, sans son ni focus (Film.kt) ; les messages vocaux, eux, partent sur le Google Home.
+// en petit en bas à gauche, sans son ni focus (Film.kt).
 // Heure du coucher (fonction 16) : le rappel et la pause arrivent comme les autres bandeaux et touches ; l'événement
 // « bedtime » ouvre l'écran de veille du coucher (CoucherActivity), ou le ferme si un parent repousse ou annule.
 package fr.homehub.tv
@@ -45,22 +43,17 @@ import android.os.SystemClock
 import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class HubService : Service() {
     private lateinit var prefs: Prefs
-    private lateinit var player: VoicePlayer
     private lateinit var banner: OverlayBanner
     private lateinit var minuteurs: MinuteurAlertes
-    private val playback = Executors.newSingleThreadExecutor()
-    /** Ordres de la télécommande, l'un après l'autre (à part des messages vocaux, qui durent). */
+    /** Ordres de la télécommande, l'un après l'autre. */
     private val remote = Executors.newSingleThreadExecutor()
-    /** Rappels, l'un après l'autre (chacun attend la fin d'un message vocal en cours). */
+    /** Rappels, l'un après l'autre. */
     private val rappels = Executors.newSingleThreadExecutor()
-    /** Un message vocal est en cours : son bandeau ne doit pas être remplacé par un rappel. */
-    @Volatile private var speaking = false
     /** Fin du bandeau du dernier rappel (annulée si un autre rappel le remplace). */
     private val hideReminder = Runnable { banner.hide() }
     /** Photos et vidéos partagées, l'une après l'autre (une nouvelle ferme la précédente). */
@@ -106,7 +99,6 @@ class HubService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
-        player = VoicePlayer(this)
         banner = OverlayBanner(this)
         minuteurs = MinuteurAlertes(this, prefs)
         talker = LiveTalkPlayer(this)
@@ -140,7 +132,6 @@ class HubService : Service() {
     override fun onDestroy() {
         running = false
         worker?.interrupt()
-        playback.shutdownNow()
         remote.shutdownNow()
         rappels.shutdownNow()
         media.shutdownNow()
@@ -178,7 +169,6 @@ class HubService : Service() {
                     sendState(force = true)
                     sendApps()
                 }
-                events.voices.forEach { event -> playback.execute { handleVoice(server, token, event) } }
                 events.remote.forEach { event -> remote.execute { handleRemote(server, token, event) } }
                 events.messages.forEach { event -> remote.execute { handleMessage(server, token, event) } }
                 minuteurs.running(parseRunningTimers(json))
@@ -227,62 +217,8 @@ class HubService : Service() {
         false
     }
 
-    /**
-     * Un message vocal : téléchargement, lecture avec bandeau, compte rendu ; attend la fin avant le suivant. Écran
-     * éteint : refusé sans le télécharger (HomeHub le fait lire par le Google Home), et l'état est renvoyé.
-     */
-    private fun handleVoice(server: String, token: String, event: VoiceEvent) {
-        val client = HubClient(server, token)
-        screenOn = getSystemService(PowerManager::class.java).isInteractive
-        voiceRefusal(screenOn)?.let {
-            send(client, event, it)
-            sendState()
-            return
-        }
-        val file = File(cacheDir, "message.${event.audio.substringAfterLast('.', "audio")}")
-        speaking = true
-        val report = try {
-            client.download(event.audio, file)
-            val started = CountDownLatch(1)
-            val done = CountDownLatch(1)
-            var error: String? = null
-            player.play(
-                file,
-                onStarted = {
-                    banner.show(event.title, getString(R.string.banner_subtitle), onReply = replier(server, token, event.replyId))
-                    started.countDown()
-                },
-                onError = {
-                    error = it
-                    started.countDown()
-                },
-                onDone = {
-                    // Réponses pas encore choisies : elles restent un moment après la fin du message.
-                    banner.hideOrWait()
-                    done.countDown()
-                },
-            )
-            if (!started.await(15, TimeUnit.SECONDS)) error = "lecture pas commencée au bout de 15 s"
-            val result = error?.let { reportJson(false, it) } ?: reportJson(true)
-            send(client, event, result)
-            // Le lecteur a son garde-fou (40 s au plus) ; si la fin n'arrive quand même pas, le bandeau s'en va.
-            if (!done.await(90, TimeUnit.SECONDS)) banner.hide()
-            null
-        } catch (e: InterruptedException) {
-            speaking = false
-            return
-        } catch (e: Exception) {
-            reportJson(false, "message non téléchargé : ${e.message}")
-        }
-        report?.let { send(client, event, it) }
-        file.delete()
-        speaking = false
-    }
-
-    /** Un rappel : bandeau cloche (après le message vocal en cours), compte rendu, puis bandeau retiré à la fin de sa durée. */
+    /** Un rappel : bandeau cloche, compte rendu, puis bandeau retiré à la fin de sa durée. */
     private fun handleReminder(server: String, token: String, event: ReminderEvent) {
-        val deadline = System.currentTimeMillis() + Rappels.WAIT_VOICE_MS
-        while (speaking && System.currentTimeMillis() < deadline) if (!pause(500)) return
         if (event.discreet) {
             Handler(mainLooper).removeCallbacks(hideReminder)
             val quiet = banner.showDiscreet(event.title, event.subtitle, R.drawable.ic_bell, Film.durationMs(event.seconds))
@@ -300,16 +236,12 @@ class HubService : Service() {
         runCatching { HubClient(server, token).call("POST", "/api/screen/events/${event.id}/report", report) }
     }
 
-    private fun send(client: HubClient, event: VoiceEvent, report: String) {
-        runCatching { client.call("POST", "/api/screen/events/${event.id}/report", report) }
-    }
-
     /** Une prise de parole en direct : son ouvert, bandeau et compte rendu, puis la voix jusqu'à la fin. */
     private fun handleTalk(server: String, token: String, event: TalkEvent) {
         val client = HubClient(server, token)
         val report = { json: String -> runCatching { client.call("POST", "/api/screen/events/${event.id}/report", json) } }
-        // Écran éteint : personne n'entendrait, refus comme pour un message vocal (le téléphone grise déjà le bouton).
-        voiceRefusal(screenOn)?.let { report(it); return }
+        // Écran éteint : personne n'entendrait, refus (le téléphone grise déjà le bouton).
+        screenOffRefusal(screenOn)?.let { report(it); return }
         var started = false
         try {
             talker.listen(client, event) {

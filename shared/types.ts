@@ -863,5 +863,5 @@ export type FaceCounts = Record<string, { enrolled: number; learned: number; uni
 /** Visages connus de la tablette (GET /api/faces). */
 export type FacesOverview = { enrolled: string[]; samples: FaceCounts };
 
-/** Appareil Google Cast du réseau local (enceinte Google Home ou télé), tel que le front le propose. */
+/** Enceinte Google Cast du réseau local (Google Home), telle que le front la propose pour un message vocal. */
 export type CastDevice = { id: string; name: string; kind: 'speaker' | 'tv' };

@@ -2,9 +2,8 @@
   import { onMount } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import type { CastDevice } from '../../../../shared/types.ts';
-  import { quickRepliesText, type ScreenReply, type ScreenTarget } from '../../../../shared/screen.ts';
+  import type { ScreenTarget } from '../../../../shared/screen.ts';
   import { createLiveViewer, type LiveViewer, type ViewerState } from '../../lib/live-camera.ts';
-  import { watchReplies } from '../../lib/tv-replies.ts';
   import { createVoiceRecorder, VOICE_MAX_SECONDS, type VoiceState } from '../../lib/voice-message.ts';
   import { createScreenTalker, type TalkState } from '../../lib/screen-talk.ts';
   import Icon from '../Icon.svelte';
@@ -14,30 +13,27 @@
   // elle reprend au retour sur la page. La tablette affiche un bandeau tant qu'on regarde (sauf réglage contraire).
   // Bouton Parler (si `camera.talk`) : le micro part vers la tablette, qui sonne puis joue la voix et affiche « Alex
   // parle » ; pendant ce temps le son de la tablette est coupé ici (pas d'écho), il revient en arrêtant.
-  // Destination du micro (s'il y a des appareils Cast, `cast` dans homehub.yaml) : la tablette, en direct, ou un
-  // Google Home, une télé : message enregistré (un appui pour commencer, un pour envoyer), lu une ou deux secondes après.
-  // Une télé appairée avec l'appli HomeHub TV (`screens`) lit le message par-dessus la vidéo, le son du programme
-  // baissé, au lieu de la couper comme le récepteur Cast. Éteinte (écran en veille) ou injoignable, le message part sur
-  // son appareil de secours (Google Home, réglé sur la tablette), et l'onglet le dit. Allumée, elle peut aussi recevoir
-  // la voix en direct (« Parler en direct », relayée par HomeHub, docs/appli-tele.md section 11) : bandeau « Alex vous
-  // parle », son du programme baissé ; le son de la tablette est coupé ici pendant ce temps (pas d'écho).
-  // Lu sur la télé, le message propose les réponses rapides (fonction 10) : celle choisie à la télécommande
-  // s'affiche sous le compte rendu.
+  // Destination du micro : la tablette, en direct ; un Google Home (enceinte Cast, `cast` dans homehub.yaml) : message
+  // enregistré (un appui pour commencer, un pour envoyer), lu une ou deux secondes après ; une télé appairée avec
+  // l'appli HomeHub TV (`screens`) : la voix en direct seulement (« Parler en direct », relayée par HomeHub,
+  // docs/appli-tele.md section 11), bandeau « Alex vous parle », son du programme baissé ; le son de la tablette est
+  // coupé ici pendant ce temps (pas d'écho). Télé éteinte ou injoignable : rien à faire, l'onglet le dit (le message
+  // enregistré vers la télé et son secours sur le Google Home ont été retirés en 0.97.0).
   type Props = { api: Api; bannerShown: boolean; castDevices?: CastDevice[]; screens?: ScreenTarget[] };
   let { api, bannerShown, castDevices = [], screens = [] }: Props = $props();
 
   const TABLET = 'tablet';
   /** Préfixe des télés HomeHub TV parmi les destinations (les appareils Cast gardent leur identifiant). */
   const SCREEN = 'screen:';
-  type Destination = { id: string; name: string; kind: 'tv' | 'speaker'; screen: boolean; online: boolean; on: boolean; fallback: string | null };
+  type Destination = { id: string; name: string; kind: 'tv' | 'speaker'; screen: boolean; on: boolean };
   const destinations = $derived<Destination[]>([
-    ...screens.map((s) => ({ id: `${SCREEN}${s.id}`, name: s.name, kind: 'tv' as const, screen: true, online: s.online, on: s.on ?? s.online, fallback: s.fallback ?? null })),
-    ...castDevices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, screen: false, online: true, on: true, fallback: null })),
+    ...screens.map((s) => ({ id: `${SCREEN}${s.id}`, name: s.name, kind: 'tv' as const, screen: true, on: s.on ?? s.online })),
+    ...castDevices.filter((d) => d.kind === 'speaker').map((d) => ({ id: d.id, name: d.name, kind: d.kind, screen: false, on: true })),
   ]);
   let target = $state(TABLET);
   let voice = $state<VoiceState>({ phase: 'idle' });
   const recorder = createVoiceRecorder({
-    api: { sendVoice: (device, audio) => (device.startsWith(SCREEN) ? api.sendScreenVoice(device.slice(SCREEN.length), audio) : api.sendVoice(device, audio)) },
+    api: { sendVoice: (device, audio) => api.sendVoice(device, audio) },
     onState: (s) => (voice = s),
   });
   let screenTalk = $state<TalkState>({ phase: 'idle' });
@@ -51,15 +47,6 @@
   });
   const liveToScreen = $derived(screenTalk.phase === 'starting' || screenTalk.phase === 'live');
   const recording = $derived(voice.phase === 'recording');
-  let replies = $state<ScreenReply[]>([]);
-  const replyText = $derived(quickRepliesText(replies));
-  // Réponses de la télé au dernier message vocal, attendues jusqu'au message suivant ou en quittant l'onglet.
-  $effect(() => {
-    const replyId = voice.phase === 'sent' ? voice.replyId : undefined;
-    replies = [];
-    if (!replyId) return;
-    return watchReplies({ api, replyId, onReplies: (r) => (replies = r) });
-  });
   const targetDevice = $derived(destinations.find((d) => d.id === target) ?? null);
 
   let view = $state<ViewerState>({ phase: 'connecting' });
@@ -212,18 +199,18 @@
       </p>
     {:else}
       {#if targetDevice.screen}
-        <button type="button" class="btn talk" disabled={voice.phase === 'sending' || !targetDevice.on} onclick={() => toggleScreenTalk(targetDevice)}>
+        <button type="button" class="btn talk" disabled={!targetDevice.on} onclick={() => toggleScreenTalk(targetDevice)}>
           <Icon name="mic" size={24} />
           Parler en direct
         </button>
+      {:else}
+        <button type="button" class="btn talk" disabled={voice.phase === 'sending'} onclick={() => recorder.start(targetDevice.id)}>
+          <Icon name="mic" size={24} />
+          {voice.phase === 'sending' ? 'Envoi…' : 'Enregistrer un message'}
+        </button>
       {/if}
-      <button type="button" class="btn talk" disabled={voice.phase === 'sending'} onclick={() => recorder.start(targetDevice.id)}>
-        <Icon name="mic" size={24} />
-        {voice.phase === 'sending' ? 'Envoi…' : 'Enregistrer un message'}
-      </button>
       {#if voice.phase === 'sent'}
-        <p class="talking" role="status">{voice.notice ?? `Message lu sur ${voice.device}.`}</p>
-        {#if replyText}<p class="reply" role="status" aria-live="polite"><Icon name="tv" size={18} /> {replyText}</p>{/if}
+        <p class="talking" role="status">Message lu sur {voice.device}.</p>
       {:else if voice.phase === 'error'}
         <p class="error" role="alert">{voice.message}</p>
       {:else if screenTalk.phase === 'error'}
@@ -234,13 +221,11 @@
         {#if targetDevice.screen}
           <p class="talking">
             {targetDevice.on
-              ? `${targetDevice.name} diffuse ta voix en direct ou lit ton message par-dessus ce qui passe, le son du programme baissé, avec ton prénom en bandeau.`
-              : targetDevice.fallback
-                ? `${targetDevice.name} est éteinte : ton message part sur ${targetDevice.fallback}.`
-                : `${targetDevice.name} semble éteinte, ou l’appli HomeHub TV n’est pas lancée.`}
+              ? `${targetDevice.name} diffuse ta voix en direct par-dessus ce qui passe, le son du programme baissé, avec ton prénom en bandeau.`
+              : `${targetDevice.name} semble éteinte, ou l’appli HomeHub TV n’est pas lancée.`}
           </p>
         {:else}
-          <p class="talking">{targetDevice.name} lit ton message une ou deux secondes après l’envoi{targetDevice.kind === 'tv' ? ', par-dessus ce que montre la télé' : ' (la musique en cours s’arrête)'}.</p>
+          <p class="talking">{targetDevice.name} lit ton message une ou deux secondes après l’envoi (la musique en cours s’arrête).</p>
         {/if}
       {/if}
     {/if}
@@ -305,20 +290,6 @@
 
   .overlay p {
     margin: 0;
-  }
-
-  .reply {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    align-self: flex-start;
-    margin: 0;
-    padding: 6px 14px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    border: 1px solid var(--rain);
-    color: var(--fg);
-    font-weight: 600;
   }
 
   .error {

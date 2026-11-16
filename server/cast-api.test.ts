@@ -42,6 +42,7 @@ async function setup({ camera = {}, mediaUrl = 'http://192.168.1.10:3010/', refu
       ...(mediaUrl && { mediaUrl }),
       devices: [
         { id: 'salon', name: 'Google Home du salon', host: '127.0.0.1', port: device.port },
+        { id: 'chambre', name: 'Enceinte de la chambre', host: '127.0.0.1', port: 1 },
         { id: 'tele', name: 'Télé', host: '127.0.0.1', port: 1, kind: 'tv' },
       ],
     },
@@ -107,12 +108,13 @@ describe('messages vocaux : envoi', () => {
     expect((await get(path)).status).toBe(404);
   });
 
-  it('appareil inconnu, injoignable, format refusé, message vide, adresse du NAS absente', async () => {
+  it('appareil inconnu, télé (plus une destination depuis 0.97.0), injoignable, format refusé, message vide, adresse du NAS absente', async () => {
     const { send, alex } = await setup();
     expect((await send('cuisine', { token: alex })).status).toBe(404);
-    const unreachable = await send('tele', { token: alex });
+    expect((await send('tele', { token: alex })).status).toBe(404);
+    const unreachable = await send('chambre', { token: alex });
     expect(unreachable.status).toBe(502);
-    expect((await unreachable.json()).error).toBe('Télé : appareil injoignable');
+    expect((await unreachable.json()).error).toBe('Enceinte de la chambre : appareil injoignable');
     expect((await send('salon', { token: alex, type: 'video/mp4' })).status).toBe(400);
     expect((await send('salon', { token: alex, body: new Uint8Array() })).status).toBe(400);
     await device!.close();
@@ -137,11 +139,11 @@ describe('messages vocaux : envoi', () => {
 });
 
 describe('configuration cast', () => {
-  it('appareils proposés au front sans leur adresse ; identifiants en double refusés', async () => {
+  it('enceintes proposées au front sans leur adresse, pas la télé ; identifiants en double refusés', async () => {
     const { config } = await setup();
     expect(toPublicConfig(config.current(), 'r').cast).toEqual([
       { id: 'salon', name: 'Google Home du salon', kind: 'speaker' },
-      { id: 'tele', name: 'Télé', kind: 'tv' },
+      { id: 'chambre', name: 'Enceinte de la chambre', kind: 'speaker' },
     ]);
     const dup = { id: 'a', name: 'A', host: 'h' };
     expect(() => parseConfig({ members: [{ id: 'alex', name: 'Alex', color: '#5b8def' }], cast: { devices: [dup, dup] } })).toThrow('double');

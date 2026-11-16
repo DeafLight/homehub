@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.96.3, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.97.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -238,8 +238,7 @@ sans section `holidays` ni rien d'enregistré, la page s'ouvre sur « Aucune ».
 
 Relier un téléphone à un profil (QR code), voir et retirer les téléphones reliés. En dessous, **Télés** : appairer
 une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, en veille (point
-jaune) ou éteinte, la retirer. **Si éteinte** : le Google Home qui lit les messages vocaux quand la télé est éteinte
-(ici celui du salon, par défaut), ou « Aucun appareil ».
+jaune) ou éteinte, la retirer.
 **Alertes sur la télé** : la case **Minuteurs** (cochée par défaut, changée par un parent reconnu) fait décompter en petit
 sur les télés allumées les minuteurs en cours, et afficher et sonner celui qui se termine.
 
@@ -413,35 +412,18 @@ bulle, « Message d'Alex » en petit, le texte en gros ; il s'en va seul au bout
 
 Sous le texte, les **réponses rapides** : « OK » (qui a le focus de la télécommande), « J'arrive », « 5 minutes ». Le
 bandeau prend la télécommande le temps de choisir (◀ ▶ puis OK, Retour le masque) et reste au moins 20 s. Ici, quelqu'un
-choisit « J'arrive » sur la télé (la fausse appli répond) : le téléphone d'Alex l'affiche sous le compte rendu. Même
-chose sous un message vocal lu par la télé (« Message lu sur Télé du salon »).
+choisit « J'arrive » sur la télé (la fausse appli répond) : le téléphone d'Alex l'affiche sous le compte rendu.
 
 <img src="images/telephone-camera-tele-reponse.png" alt="Onglet Caméra : réponse « J'arrive » de la télé sous le compte rendu du message" width="260">
-Avec des appareils Cast déclarés (`cast` dans homehub.yaml ; ici deux faux appareils du monde fictif), **Ta voix sur**
-choisit la destination du micro : la tablette, en direct (« Parler »), ou le Google Home du salon, la télé : message
-enregistré. Alex choisit le Google Home, appuie sur « Enregistrer un message », parle, puis « Envoyer » : l'enceinte
+Avec une télé appairée et des enceintes Cast déclarées (`cast` dans homehub.yaml ; ici les faux appareils du monde
+fictif), **Ta voix sur** choisit la destination du micro : la tablette ou la Télé du salon, en direct, ou le Google
+Home du salon : message enregistré. Alex choisit le Google Home, appuie sur « Enregistrer un message », parle, puis « Envoyer » : l'enceinte
 le lit une ou deux secondes plus tard, et le téléphone confirme « Message lu sur Google Home du salon ».
 
 <img src="images/telephone-camera-google-home.png" alt="Onglet Caméra du téléphone d'Alex, message vocal lu sur le Google Home du salon" width="260">
 
 La **Télé du salon** a l'appli HomeHub TV (ici la fausse appli du monde fictif) : elle passe en tête de **Ta voix
-sur**. Le message enregistré est lu par-dessus le programme, sans le couper ; le téléphone confirme « Message lu sur
-Télé du salon » dès que la télé a commencé la lecture. Une télé éteinte, ou dont l'appli est fermée, est signalée
-avant l'envoi.
-
-<img src="images/telephone-camera-tele-appli.png" alt="Onglet Caméra du téléphone d'Alex, message vocal lu sur la Télé du salon par l'appli HomeHub TV" width="260">
-
-La télé se met en veille (la fausse appli annonce son écran éteint) : le message d'Alex destiné à la télé part sur le
-Google Home du salon, son appareil de secours, et le téléphone affiche « Télé éteinte : lu sur Google Home du salon ».
-Même chose quand la télé est injoignable. **Parler en direct** est grisé : la voix en direct ne part que vers une télé allumée.
-
-<img src="images/telephone-camera-tele-eteinte.png" alt="Onglet Caméra du téléphone d'Alex : « Télé éteinte : lu sur Google Home du salon »" width="260">
-
-Sur la télé (**maquette** : programme inventé, bandeau dessiné comme celui de l'appli), le bandeau « Message d'Alex »
-s'affiche en haut à droite pendant le message, avec des barres de niveau ; le son du programme baisse le temps du
-message, puis revient.
-
-![Maquette d'une télé : bandeau « Message d'Alex, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-message.png)
+sur**, et l'on n'y envoie plus de message enregistré depuis 0.97.0 : on lui parle en direct.
 
 Vers une télé qui a l'appli, **Parler en direct** envoie la voix au fur et à mesure (environ une demi-seconde de
 décalage) jusqu'à **Arrêter de parler**. Le bouton devient rouge, un point rouge rappelle que le micro part vers la
@@ -453,6 +435,12 @@ Sur la télé (**maquette**), le bandeau dit « Alex vous parle » tant que le p
 baissé jusqu'à la fin, puis revient.
 
 ![Maquette d'une télé : bandeau « Alex vous parle, le son du programme est baissé » en haut à droite d'un programme](images/tele-appli-parle.png)
+
+La télé se met en veille (la fausse appli annonce son écran éteint) : l'onglet le dit, et **Parler en direct** est
+grisé ; la voix en direct ne part que vers une télé allumée. Même chose quand la télé est injoignable ou que son appli
+est fermée. Pour laisser un message, choisir le Google Home.
+
+<img src="images/telephone-camera-tele-eteinte.png" alt="Onglet Caméra du téléphone d'Alex : la Télé du salon semble éteinte, Parler en direct grisé" width="260">
 
 Tant qu'un **minuteur** tourne, la télé le montre en petit en bas à droite (**maquette** : « Pâtes » et « Écrans »
 lancés par Alex, reçus par la fausse appli) : le plus proche de la fin avec son temps restant, « +1 » pour l'autre.

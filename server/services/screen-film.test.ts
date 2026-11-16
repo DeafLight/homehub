@@ -80,7 +80,6 @@ describe('hub : bandeaux discrets pendant un film', () => {
     void hub.send('salon', { kind: 'bus', id: 'b1', ...banner });
     void hub.send('salon', { kind: 'message', id: 'm1', title: 'Message d’Alex', text: 'Coucou', seconds: 10 });
     void hub.send('salon', { kind: 'reminder', id: 'r1', reminder: 'notes', title: 'Mots', subtitle: 'Léa', seconds: 20 });
-    void hub.send('salon', { kind: 'voice', id: 'v1', title: 'Message d’Alex', audio: '/x', contentType: 'audio/webm' });
     void hub.send('salon', { kind: 'key', id: 'k1', keys: ['pause'] });
     void hub.send('chambre', { kind: 'bus', id: 'b2', ...banner });
     const salon = await hub.events('salon', 0);
@@ -88,7 +87,6 @@ describe('hub : bandeaux discrets pendant un film', () => {
       ['bus', true],
       ['message', true],
       ['reminder', true],
-      ['voice', undefined],
       ['key', undefined],
     ]);
     const chambre = await hub.events('chambre', 0);

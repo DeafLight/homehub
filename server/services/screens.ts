@@ -5,9 +5,6 @@
 // L'appli dit aussi où en est la télé (écran allumé, appli au premier plan, moyen d'action) : avec la présence, cela
 // donne l'état montré par la télécommande (allumée, en veille, injoignable). Mode film (fonction 15) : un bandeau
 // envoyé à une télé où passe un film part avec `discreet: true` (`useDiscreet`, branché sur services/screen-film.ts).
-// Accusé de réception : l'appli redemande ses événements avec `after` aussitôt une réponse lue ; un `after` au moins
-// égal au numéro d'un événement prouve qu'elle l'a reçu. Un envoi avec `missedMs` retire l'événement que la télé n'a
-// pas reçu à temps (télé débranchée vue présente, attente longue morte) : elle ne pourra plus le lire (fonction 7).
 import { isDiscreetKind } from '../../shared/screen-film.ts';
 import type { RemotePower, ScreenEvent, ScreenEventBody, ScreenEvents, ScreenReport, ScreenStateReport } from '../../shared/screen.ts';
 import { fail } from '../http.ts';
@@ -21,8 +18,6 @@ export const REPORT_MS = 20_000;
 
 export const SCREEN_OFFLINE = 'Télé injoignable : éteinte, ou l’appli HomeHub TV n’est pas lancée';
 export const SCREEN_SILENT = 'La télé n’a pas répondu';
-/** Envoi avec `missedMs` que la télé n'a pas reçu à temps : retiré, elle ne le lira jamais. */
-export const SCREEN_MISSED = 'La télé n’a pas reçu le message';
 
 type Box = {
   seq: number;
@@ -38,8 +33,6 @@ type Box = {
   stateAt: number;
   /** Démarrages de l'appli : demandes d'événements sans `after` (elle repart de rien). */
   starts: number;
-  /** Plus grand `after` demandé par l'appli : tout événement de numéro inférieur ou égal a été reçu. */
-  received: number;
 };
 
 export type ScreenHub = ReturnType<typeof createScreenHub>;
@@ -63,7 +56,7 @@ export function createScreenHub({
   const boxOf = (id: string) => {
     let box = boxes.get(id);
     if (!box) {
-      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null, stateAt: 0, starts: 0, received: 0 };
+      box = { seq: 0, items: [], waiters: new Set(), seenAt: Number.NEGATIVE_INFINITY, polling: 0, reports: new Map(), state: null, stateAt: 0, starts: 0 };
       boxes.set(id, box);
     }
     return box;
@@ -118,7 +111,6 @@ export function createScreenHub({
       box.seenAt = now();
       box.polling++;
       if (after === null) box.starts++;
-      else box.received = Math.max(box.received, after);
       try {
         // L'attente se compte en temps réel (l'horloge injectée sert à la présence et à la fraîcheur).
         const deadline = performance.now() + waitMs;
@@ -148,10 +140,9 @@ export function createScreenHub({
 
     /**
      * Envoie un événement à la télé et attend son compte rendu ; 503 si elle est absente. `waitMs` : attente du compte
-     * rendu pour cet envoi (une touche n'attend pas autant qu'un message vocal à télécharger). `missedMs` : si la télé
-     * n'a pas accusé réception de l'événement dans ce délai, il est retiré de sa file et l'envoi rend SCREEN_MISSED.
+     * rendu pour cet envoi (une touche n'attend pas autant qu'une séance à ouvrir).
      */
-    async send(id: string, event: ScreenEventBody, waitMs = reportMs, { missedMs }: { missedMs?: number } = {}): Promise<ScreenReport> {
+    async send(id: string, event: ScreenEventBody, waitMs = reportMs): Promise<ScreenReport> {
       if (!online(id)) return fail(503, SCREEN_OFFLINE);
       const box = boxOf(id);
       sweep(box);
@@ -159,19 +150,10 @@ export function createScreenHub({
       const report = new Promise<ScreenReport>((resolve) => {
         const end = (r: ScreenReport) => {
           clearTimeout(timer);
-          clearTimeout(missed);
           box.reports.delete(event.id);
           resolve(r);
         };
         const timer = setTimeout(() => end({ ok: false, reason: SCREEN_SILENT }), waitMs);
-        const missed =
-          missedMs === undefined
-            ? undefined
-            : setTimeout(() => {
-                if (box.received >= seq) return;
-                box.items = box.items.filter((e) => e.id !== event.id);
-                end({ ok: false, reason: SCREEN_MISSED });
-              }, missedMs);
         box.reports.set(event.id, end);
       });
       const quiet = isDiscreetKind(event.kind) && discreet(id) ? { discreet: true } : {};

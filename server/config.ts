@@ -200,12 +200,13 @@ export const configSchema = z.object({
     .transform(({ seconds, host, port }) => ({ seconds, legacy: host !== undefined || port !== undefined }))
     .optional(),
   /**
-   * Appareils Google Cast du réseau local (Google Home, télé Android TV) où un parent peut envoyer un message vocal
-   * depuis l'onglet Caméra (avec `camera.talk`). Appareils donnés par leur adresse IP (réservation DHCP conseillée) :
+   * Appareils Google Cast du réseau local : les enceintes (Google Home) où un parent peut envoyer un message vocal
+   * depuis l'onglet Caméra (avec `camera.talk`), et la télé (Android TV), qui ne sert qu'à l'allumer depuis la
+   * télécommande (on lui parle en direct par l'appli HomeHub TV). Appareils donnés par leur adresse IP (réservation DHCP conseillée) :
    * pas de découverte mDNS, le conteneur garde son réseau. `mediaUrl` : d'où les appareils téléchargent le message
    * (http://<ip du NAS>:<port> ; derrière un proxy, le port des médias HOMEHUB_MEDIA_PORT) ; sans elle, aucun
    * appareil n'est proposé.
-   * `kind` : speaker (enceinte) ou tv (télé), pour l'icône.
+   * `kind` : speaker (enceinte, destination des messages) ou tv (télé, allumage seulement).
    */
   cast: z
     .object({
@@ -304,7 +305,8 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     camera: { live: config.camera.live, banner: config.camera.banner, talk: config.camera.talk },
-    cast: config.camera.talk && config.cast.mediaUrl ? config.cast.devices.map(({ id, name, kind }) => ({ id, name, kind })) : [],
+    // Destinations des messages vocaux : les enceintes seulement (une télé, kind: tv, ne sert plus qu'à l'allumer).
+    cast: config.camera.talk && config.cast.mediaUrl ? config.cast.devices.filter((d) => d.kind === 'speaker').map(({ id, name, kind }) => ({ id, name, kind })) : [],
     revision,
   };
 }

@@ -13,7 +13,7 @@ class MediaTest {
     fun evenementsMedia() {
         val json = """{"events":[
           {"seq":5,"kind":"media","id":"m1","media":"photo","title":"Photo de Léa","url":"/api/screen/media/abc.jpg","contentType":"image/jpeg","seconds":60},
-          {"seq":6,"kind":"voice","id":"v1","title":"Message d’Alex","audio":"/api/screen/clips/x.webm","contentType":"audio/webm"},
+          {"seq":6,"kind":"message","id":"v1","title":"Message d’Alex","text":"Coucou","seconds":10},
           {"seq":7,"kind":"media","id":"m2","media":"video","title":"Vidéo d’Alex","url":"/api/screen/media/def.mp4","contentType":"video/mp4"}
         ],"last":7}"""
         assertEquals(
@@ -24,7 +24,7 @@ class MediaTest {
             parseMediaEvents(json),
         )
         // Les autres lecteurs ignorent ce genre : une appli plus ancienne ne casse pas.
-        assertEquals(listOf("v1"), parseEvents(json).voices.map { it.id })
+        assertEquals(listOf("v1"), parseEvents(json).messages.map { it.id })
     }
 
     @Test

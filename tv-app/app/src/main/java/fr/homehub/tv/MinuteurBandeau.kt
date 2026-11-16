@@ -136,7 +136,7 @@ class MinuteurAlertes(private val context: Context, private val prefs: Prefs) {
         }
     }
 
-    /** Carillon court, son du programme baissé le temps de le jouer (comme un message vocal). */
+    /** Carillon court, son du programme baissé le temps de le jouer (comme la voix en direct). */
     private fun playChime() {
         val attributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)

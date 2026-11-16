@@ -12,6 +12,16 @@ ouvert sur la télé (retirée en 0.77.0). PiPup est écartée (abandonnée depu
 l'écran pour un son seul). Une appli à nous ne vaut son coût que si elle fait tout cela et plus : d'où la liste de
 fonctions plus bas.
 
+> **0.97.0 (17 novembre 2026) : message vocal enregistré vers la télé retiré.** Depuis qu'on parle à la télé en direct
+> (fonction 9, section 11), le message enregistré (fonction 1) faisait double emploi. Sont retirés avec lui : le
+> téléchargement du message par l'appli (`VoicePlayer.kt`, `GET /api/screen/clips/:token`, `POST
+> /api/screens/:id/voice`), l'appareil de secours d'une télé éteinte (fonction 7 : `screen-fallback.ts`,
+> `screen-fallbacks.json`, réglage « Si éteinte » de la tablette), l'accusé de réception (`missedMs`), le renvoi du
+> message vers le Google Home pendant un film (section 13) et les réponses rapides sous un message vocal. Restent :
+> l'état allumée ou éteinte (bouton du direct grisé, télécommande), les bandeaux discrets du mode film, les réponses
+> rapides sous un message écrit. Pour laisser un message enregistré, le Google Home (Cast) reste une destination.
+> Les sections qui suivent racontent la conception d'origine et n'ont pas été réécrites.
+
 ## 1. Architecture
 
 ```
@@ -455,10 +465,8 @@ de l'expéditeur, sous « Affiché sur la télé » ou « Message lu sur … ».
 
 Pendant un film, une annonce ne doit plus prendre l'écran ni couper le son. Choix du 16 novembre 2026 :
 
-- **Ce qui change** : le **message vocal** part sur l'appareil de secours de la télé (le même que télé éteinte,
-  fonction 7, réglage « Si éteinte » de la tablette), raison `film`, et le téléphone affiche « Mode film : lu sur
-  Google Home du salon ». Sans appareil de secours, la télé le lit comme avant (son baissé) : mieux qu'un refus. Les
-  **bandeaux** (message écrit, minuteur terminé, bus, pluie, rappels, et ce qui s'y ajoutera) partent avec
+- **Ce qui change** : (jusqu'en 0.96, le **message vocal** partait sur l'appareil de secours de la télé, raison
+  `film` ; retiré en 0.97.0 avec le message vocal vers la télé.) Les **bandeaux** (message écrit, minuteur terminé, bus, pluie, rappels, et ce qui s'y ajoutera) partent avec
   `discreet: true` : l'appli montre un petit bandeau en bas à gauche, à demi transparent, sans son, sans prendre la
   télécommande, 5 à 12 s (20 s pour un message écrit). Un minuteur discret n'a ni carillon ni « Arrêter » : la
   tablette sonne toujours. Le Google Home ne lit pas les bandeaux (pas de synthèse vocale dans HomeHub) : discrets

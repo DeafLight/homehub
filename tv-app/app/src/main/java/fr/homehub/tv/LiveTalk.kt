@@ -1,5 +1,5 @@
 // Parler en direct (fonction 9, docs/appli-tele.md section 11) : la voix d'un parent, relayée par HomeHub, lue au fur et
-// à mesure, son du programme baissé (focus audio transitoire « avec baisse du son », comme le message vocal). Format
+// à mesure, son du programme baissé (focus audio transitoire « avec baisse du son »). Format
 // de shared/screen-talk.ts : PCM 16 bits, mono, 16 kHz. L'appli demande le son par une attente longue courte
 // (GET <audio>?after=n) et reçoit d'un bloc tout ce qui est arrivé depuis ; 410 : le parent a fini. Elle attend 0,3 s de
 // son avant de jouer, et jette ce qui dépasse 1 s de retard pour ne pas parler de plus en plus en décalé (TalkPacer,

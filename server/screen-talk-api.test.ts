@@ -17,7 +17,6 @@ import { createScreenApi } from './screen-api.ts';
 import { createScreenTalkApi } from './screen-talk-api.ts';
 import { createScreenHub } from './services/screens.ts';
 import { createScreenTalk, TALK_IDLE_MS, TALK_PHONE_GONE, TALK_SCREEN_GONE, TALK_STOPPED } from './services/screen-talk.ts';
-import { createVoiceMessages } from './services/voice-messages.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
 import { createScreenAppStore } from './sources/screen-apps.ts';
@@ -54,7 +53,7 @@ async function setup({ talk = true, maxMinutes = 10 } = {}) {
   const api = createRouter();
   api.route('/', createScreenApi({
     screens, apps: createScreenAppStore({ path: join(dir, 'apps.json'), clock }), hub,
-    voice: createVoiceMessages({ rules: () => config.current().cast, clock }), config, household, access,
+    config, household, access,
   }));
   api.route('/', createScreenTalkApi({ screens, talk: talkService, household, access }));
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Screen, ScreenAlerts, ScreenFallbackSettings } from '../../../shared/screen.ts';
+  import type { Screen, ScreenAlerts } from '../../../shared/screen.ts';
   import { getAppContext } from '../lib/context.ts';
   import { formatDay } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
@@ -8,10 +8,9 @@
 
   // Télés de la maison avec l'appli HomeHub TV (tablette seulement) : l'appli affiche un code de 6 caractères au
   // premier lancement, un parent le tape ici avec le nom de la télé. Une télé n'appartient à personne et n'écrit rien ;
-  // elle lit les messages vocaux des parents par-dessus ce qui passe. « Allumée » : l'appli a appelé il y a moins de
+  // elle diffuse la voix des parents en direct par-dessus ce qui passe. « Allumée » : l'appli a appelé il y a moins de
   // 40 s ; « En veille » : l'appli répond mais l'écran est éteint. Le retrait se confirme d'un second geste, par un
-  // parent. « Si éteinte » : l'appareil Cast (Google Home) qui lit les messages vocaux quand la télé est éteinte ou
-  // injoignable (par défaut la première enceinte), réglé par un parent. En dessous, les alertes de la maison sur les
+  // parent. En dessous, les alertes de la maison sur les
   // télés (minuteur terminé : bandeau et son, « Arrêter » à la télécommande), changées par un parent.
   const SCREENS_REFRESH_MS = 15_000;
 
@@ -20,33 +19,6 @@
   onDestroy(screens.destroy);
   const alerts = createResource(() => api.screenAlerts(), 5 * 60_000);
   onDestroy(alerts.destroy);
-  let fallbacks = $state<ScreenFallbackSettings | null>(null);
-  let fallbackError = $state<string | null>(null);
-  $effect(() => {
-    // Relu quand la liste des télés change (appairage, retrait).
-    void screens.data?.length;
-    api.screenFallbacks().then(
-      (s) => (fallbacks = s),
-      () => (fallbacks = null),
-    );
-  });
-  const fallbackOf = (id: string) => fallbacks?.screens.find((s) => s.id === id) ?? null;
-
-  async function chooseFallback(screen: Screen, value: string) {
-    const previous = fallbacks;
-    if (!(await actor.allow(null))) {
-      fallbacks = previous ? { ...previous } : null;
-      return;
-    }
-    fallbackError = null;
-    try {
-      fallbacks = await api.setScreenFallback(screen.id, value || null);
-    } catch (err) {
-      fallbackError = (err as Error).message;
-      fallbacks = previous ? { ...previous } : null;
-    }
-  }
-
   const stateLabel = (screen: Screen) => (!screen.online ? 'Éteinte ou appli fermée' : screen.power === 'standby' ? 'En veille' : 'Allumée');
 
   let code = $state('');
@@ -140,17 +112,6 @@
             <span class="muted small">
               {stateLabel(screen)}{screen.app ? ` · appli ${screen.app}` : ''}{screen.system ? ` · ${screen.system}` : ''} · vue {formatDay(new Date(screen.lastSeenAt), clock.now).toLowerCase()}
             </span>
-            {#if fallbacks?.devices.length}
-              <label class="fallback muted small">
-                Si éteinte :
-                <select value={fallbackOf(screen.id)?.device ?? ''} onchange={(e) => chooseFallback(screen, e.currentTarget.value)}>
-                  {#each fallbacks.devices as device (device.id)}
-                    <option value={device.id}>{device.name}</option>
-                  {/each}
-                  <option value="">Aucun appareil</option>
-                </select>
-              </label>
-            {/if}
           </span>
           <button type="button" class="remove" class:confirm={confirmRemove === screen.id} onclick={() => askRemove(screen)}>
             {confirmRemove === screen.id ? 'Confirmer' : 'Retirer'}
@@ -161,7 +122,6 @@
       {/each}
       {#if screens.error}<li class="error">{screens.error}</li>{/if}
       {#if removeError}<li class="error">{removeError}</li>{/if}
-      {#if fallbackError}<li class="error">{fallbackError}</li>{/if}
     </ul>
   </div>
   {#if alerts.data}
@@ -307,23 +267,6 @@
 
   .dot.standby {
     background: var(--sun);
-  }
-
-  .fallback {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-  }
-
-  select {
-    min-height: 40px;
-    padding: 0 10px;
-    border: 1px solid var(--border-strong);
-    border-radius: 10px;
-    background: var(--surface-2);
-    color: var(--fg);
-    font: inherit;
   }
 
   .screen {

@@ -3,7 +3,7 @@
 // en bandeau (événement `message`, chaque télé joignable rend compte de l'affichage) ; sans télé appairée, 404.
 // Réponses rapides (fonction 10) : sous le message, la télé propose « OK », « J'arrive », « 5 minutes » ; elle envoie
 // la réponse choisie (`POST /api/screen/replies/:id`, la télé seulement) et le téléphone de l'expéditeur l'attend
-// (`GET /api/tv/replies/:id`, interrogation longue ; aussi pour un message vocal, server/screen-api.ts).
+// (`GET /api/tv/replies/:id`, interrogation longue).
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { cleanTvMessage, TV_MESSAGE_MAX, TV_SECONDS_DEFAULT, type TvMessageSent, tvTitle } from '../shared/tv.ts';

@@ -1,7 +1,6 @@
 // Tests des routes du mode film (fonction 15) : état vu de la télécommande et de la tablette, allumé tout seul par une
 // appli de films (réglage du panneau Télés), allumé ou éteint à la main par un parent (téléphone, tablette avec
-// parent reconnu ou code parent), enfant refusé, télé en veille ou injoignable ; message vocal lu sur le Google Home
-// pendant un film, et le téléphone le dit.
+// parent reconnu ou code parent), enfant refusé, télé en veille ou injoignable.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,17 +16,13 @@ import { createPinGate } from './pin-gate.ts';
 import { createScreenAlertsApi } from './screen-alerts-api.ts';
 import { createScreenApi } from './screen-api.ts';
 import { createScreenMediaApi, FILM_SCREEN_STANDBY } from './screen-media-api.ts';
-import type { CastMedia, CastTarget } from './services/cast.ts';
-import { createScreenFallback } from './services/screen-fallback.ts';
 import { createScreenFilm } from './services/screen-film.ts';
 import { createScreenHub, SCREEN_OFFLINE } from './services/screens.ts';
-import { createVoiceMessages } from './services/voice-messages.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createActorSessions } from './sources/faces.ts';
 import { createPinStore, PARENT_PIN_ID } from './sources/pins.ts';
 import { createScreenAlertStore } from './sources/screen-alerts.ts';
 import { createScreenAppStore } from './sources/screen-apps.ts';
-import { createScreenFallbackStore } from './sources/screen-fallbacks.ts';
 import { createScreenStore } from './sources/screens.ts';
 import { createTimerStore } from './sources/timers.ts';
 import { connectedFrom, NOW } from './testing.ts';
@@ -62,12 +57,9 @@ async function setup() {
   const film = createScreenFilm({ hub, clock });
   hub.useDiscreet(film.discreet);
   const household = createHousehold(config);
-  const plays: { target: CastTarget; media: CastMedia }[] = [];
-  const voice = createVoiceMessages({ rules: () => config.current().cast, clock, play: async (target, media) => void plays.push({ target, media }), logger: { log: () => {} } });
-  const fallback = createScreenFallback({ hub, cast: () => config.current().cast, store: createScreenFallbackStore({ path: join(dir, 'fallbacks.json') }), film: film.on });
   const api = createRouter();
   const apps = createScreenAppStore({ path: join(dir, 'screen-apps.json'), clock });
-  api.route('/', createScreenApi({ screens, apps, hub, voice, config, household, access, fallback, film }));
+  api.route('/', createScreenApi({ screens, apps, hub, config, household, access, film }));
   api.route('/', createScreenMediaApi({ screens, hub, household, access, pins: createPinGate(pinStore), film }));
   const alerts = createScreenAlertStore();
   api.route('/', createScreenAlertsApi({ alerts, timers: createTimerStore({ clock }), access, clock, onChange: (a) => film.setAuto(a.film) }));
@@ -103,8 +95,7 @@ async function setup() {
   const remoteFilm = async () => ((await (await call('GET', '/screens/remote', { token: alex })).json()) as RemoteScreen[])[0]!.film;
   const tabletFilm = async () => ((await (await call('GET', '/screens/media', tablet(null))).json()) as MediaScreens).screens[0]!.film;
   const setFilm = (on: boolean, opts: Options) => call('PUT', `/screens/${tv.id}/film`, { ...opts, body: { on, ...(opts.body as object) } });
-  const sendVoice = () => call('POST', `/screens/${tv.id}/voice`, { token: alex, raw: new Uint8Array([1, 2, 3, 4]), headers: { 'Content-Type': 'audio/webm' } });
-  return { call, tablet, alex, lea, tv, tvState, remoteFilm, tabletFilm, setFilm, sendVoice, plays };
+  return { call, tablet, alex, lea, tv, tvState, remoteFilm, tabletFilm, setFilm };
 }
 
 describe('API du mode film', () => {
@@ -137,12 +128,5 @@ describe('API du mode film', () => {
     expect(await (await setFilm(true, tablet())).json()).toEqual({ error: SCREEN_OFFLINE });
     await tvState(null, false);
     expect(await (await setFilm(true, tablet())).json()).toEqual({ error: FILM_SCREEN_STANDBY });
-  });
-
-  it('message vocal pendant un film : lu sur le Google Home, sans rien envoyer à la télé, et le téléphone le dit', async () => {
-    const { tvState, sendVoice, plays } = await setup();
-    await tvState(NETFLIX);
-    expect(await (await sendVoice()).json()).toEqual({ device: 'Google Home du salon', fallback: { reason: 'film', notice: 'Mode film : lu sur Google Home du salon.' } });
-    expect(plays).toHaveLength(1);
   });
 });

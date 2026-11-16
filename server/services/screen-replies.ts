@@ -1,4 +1,4 @@
-// Réponses rapides des télés (fonction 10), en mémoire seulement : un message écrit ou vocal affiché sur une télé
+// Réponses rapides des télés (fonction 10), en mémoire seulement : un message écrit affiché sur une télé
 // ouvre une attente de réponse, liée à son expéditeur et aux télés qui l'ont reçu. La télé répond « OK », « J'arrive »
 // ou « 5 minutes » à la télécommande ; le téléphone de l'expéditeur attend par interrogation longue et l'affiche. Une
 // réponse n'est acceptée que d'une télé qui a reçu le message, pendant REPLY_TTL_MS ; une par télé (la dernière fait

@@ -56,7 +56,7 @@ import type {
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { LatLon, RoutableEvents, TripResponse, TripStatus, TripWatch } from '../../../shared/trip.ts';
-import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenFallbackSettings, ScreenReplies, ScreenTarget, ScreenVoiceResult } from '../../../shared/screen.ts';
+import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenReplies, ScreenTarget } from '../../../shared/screen.ts';
 import type { RemoteArtwork } from '../../../shared/now-playing.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { BedtimeSettings, BedtimeText, BedtimeView } from '../../../shared/bedtime.ts';
@@ -332,12 +332,8 @@ export type Api = {
   saveBedtime(settings: BedtimeSettings): Promise<BedtimeView>;
   bedtimeTonight(action: 'postpone' | 'cancel' | 'restore'): Promise<BedtimeView & { screens: number }>;
   testBedtime(): Promise<BedtimeText & { screens: number }>;
-  /** Téléphone d'un parent : les télés où envoyer sa voix, et l'envoi (lu par l'appli, son du programme baissé). */
+  /** Téléphone d'un parent : les télés où parler en direct. */
   screenTargets(): Promise<ScreenTarget[]>;
-  sendScreenVoice(id: string, audio: Blob): Promise<ScreenVoiceResult>;
-  /** Appareil de secours de chaque télé éteinte (tablette). */
-  screenFallbacks(): Promise<ScreenFallbackSettings>;
-  setScreenFallback(id: string, device: string | null): Promise<ScreenFallbackSettings>;
   /** Parler en direct à une télé (parents, `camera.talk`) : ouvrir, envoyer un morceau de voix, arrêter. */
   startScreenTalk(id: string): Promise<ScreenTalkStart>;
   sendScreenTalk(id: string, talk: string, seq: number, pcm: Uint8Array): Promise<void>;
@@ -617,13 +613,10 @@ export function createApi(
     screenFilm: (id, on, pin) => send('PUT', `/screens/${encodeURIComponent(id)}/film`, { on, ...(pin && { pin }) }),
     mediaScreens: () => request('/screens/media'),
     screenMedia: async (id, action, pin) => void (await send('POST', `/screens/${encodeURIComponent(id)}/media`, { action, ...(pin && { pin }) })),
-    screenFallbacks: () => request('/screens/fallbacks'),
-    setScreenFallback: (id, device) => send('PUT', `/screens/${encodeURIComponent(id)}/fallback`, { device }),
     sharedMedia: (id) => request(`/screens/shared/${encodeURIComponent(id)}`),
     sharedMediaFile: (id) => request(`/screens/shared/${encodeURIComponent(id)}/file`, undefined, 'blob'),
     shareTargets: () => request('/screens/share-targets'),
     sendSharedMedia: (screenId, shared) => send('POST', `/screens/${encodeURIComponent(screenId)}/share`, { shared }),
-    sendScreenVoice: (id, audio) => request(`/screens/${encodeURIComponent(id)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
     screenCooks: () => request('/screens/cook'),
     startScreenCook: (id, recipeId, index) => send('POST', `/screens/${encodeURIComponent(id)}/cook`, { recipeId, index }),
     screenCookStep: (id, index) => send('POST', `/screens/${encodeURIComponent(id)}/cook/step`, { index }),

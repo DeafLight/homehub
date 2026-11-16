@@ -22,7 +22,6 @@ import { createScreenAlertStore } from './sources/screen-alerts.ts';
 import { createScreenAppStore } from './sources/screen-apps.ts';
 import { createScreenReminderStore } from './sources/screen-reminders.ts';
 import { createBedtimeStore } from './sources/bedtime.ts';
-import { createScreenFallbackStore } from './sources/screen-fallbacks.ts';
 import { createScreenStore } from './sources/screens.ts';
 import { createFitnessStore } from './sources/fitness.ts';
 import { createActorSessions, createFaceStore } from './sources/faces.ts';
@@ -114,7 +113,6 @@ const screenApps = createScreenAppStore({ path: join(stateDir, 'screen-apps.json
 const screenAlerts = createScreenAlertStore({ path: join(stateDir, 'screen-alerts.json') });
 const screenReminders = createScreenReminderStore({ path: join(stateDir, 'screen-reminders.json') });
 const bedtime = createBedtimeStore({ path: join(stateDir, 'bedtime.json') });
-const screenFallbacks = createScreenFallbackStore({ path: join(stateDir, 'screen-fallbacks.json') });
 const pins = createPinStore({ path: join(stateDir, 'pins.json'), clock });
 const notes = createNotesStore({ path: join(stateDir, 'notes.json'), clock });
 const faces = createFaceStore({ path: join(stateDir, 'faces.json') });
@@ -231,7 +229,7 @@ createRainAlert({
   clock,
   logger: console,
 }).start();
-const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, screenFallbacks, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
+const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

@@ -1,7 +1,6 @@
-// Message vocal enregistré vers un appareil Cast (Google Home, télé), depuis l'onglet Caméra d'un parent : le
-// téléphone enregistre (MediaRecorder), puis envoie le fichier au serveur, qui le fait lire par l'appareil. Un appui
-// pour commencer, un pour envoyer (ou annuler) ; au bout de `maxSeconds`, le message part de lui-même. Destiné à une
-// télé éteinte, il peut être lu ailleurs (Google Home) : `notice` le dit.
+// Message vocal enregistré vers une enceinte Cast (Google Home), depuis l'onglet Caméra d'un parent : le téléphone
+// enregistre (MediaRecorder), puis envoie le fichier au serveur, qui le fait lire par l'appareil. Un appui pour
+// commencer, un pour envoyer (ou annuler) ; au bout de `maxSeconds`, le message part de lui-même.
 import type { Api } from './api.ts';
 import { micError, phoneMicrophone } from './live-camera.ts';
 
@@ -15,15 +14,12 @@ export type RecorderLike = {
 };
 export type RecorderFactory = (stream: MediaStream, mimeType: string) => RecorderLike;
 
-/**
- * Où en est le message : `sent` dit sur quel appareil il est lu, `notice` s'il a basculé (« Télé éteinte : … »), et
- * `replyId` si la télé propose les réponses rapides (fonction 10, à suivre par tv-replies.ts).
- */
+/** Où en est le message : `sent` dit sur quel appareil il est lu. */
 export type VoiceState =
   | { phase: 'idle' }
   | { phase: 'recording'; target: string }
   | { phase: 'sending'; target: string }
-  | { phase: 'sent'; device: string; notice?: string; replyId?: string }
+  | { phase: 'sent'; device: string }
   | { phase: 'error'; message: string };
 
 export const VOICE_MAX_SECONDS = 30;
@@ -68,7 +64,7 @@ export function createVoiceRecorder({
   isSupported = browserSupports,
   maxSeconds = VOICE_MAX_SECONDS,
 }: {
-  api: { sendVoice(target: string, audio: Blob): Promise<{ device: string; fallback?: { notice: string } | null; replyId?: string }> };
+  api: { sendVoice(target: string, audio: Blob): Promise<{ device: string }> };
   onState: (s: VoiceState) => void;
   microphone?: () => Promise<MediaStream>;
   createRecorder?: RecorderFactory;
@@ -126,7 +122,7 @@ export function createVoiceRecorder({
         if (audio.size === 0) return onState({ phase: 'error', message: 'Message vide : rien n’a été enregistré.' });
         onState({ phase: 'sending', target });
         api.sendVoice(target, audio).then(
-          ({ device, fallback, replyId }) => onState({ phase: 'sent', device, ...(fallback && { notice: fallback.notice }), ...(replyId && { replyId }) }),
+          ({ device }) => onState({ phase: 'sent', device }),
           (err: Error) => onState({ phase: 'error', message: err.message }),
         );
       };

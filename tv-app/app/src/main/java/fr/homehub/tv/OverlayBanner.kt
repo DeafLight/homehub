@@ -1,9 +1,9 @@
-// Bandeau par-dessus les autres applis, en haut à droite de l'écran, pendant un message vocal : icône micro, « Message
-// d'Alex », « Le son du programme est baissé », barres de niveau qui bougent. Pour un avis (« À table ! » de la
+// Bandeau par-dessus les autres applis, en haut à droite de l'écran, pendant qu'un parent parle en direct : icône micro,
+// « Alex vous parle », « Le son du programme est baissé », barres de niveau qui bougent. Pour un avis (« À table ! » de la
 // télécommande) : icône cloche, sans barres ; pour l'alerte du bus : icône bus, pour l'alerte pluie : parapluie (`icon`). Pour un message écrit (showMessage) : en haut au centre, icône bulle, le
 // titre en petit et le texte en gros, qui s'en va seul au bout de sa durée. Couleurs du thème sombre de HomeHub.
 // Sans réponses, il ne prend ni le focus ni la télécommande. Réponses rapides (fonction 10, `onReply`) : sous un message
-// écrit ou vocal, trois boutons « OK », « J'arrive », « 5 minutes » ; le bandeau prend alors le focus de la
+// écrit, trois boutons « OK », « J'arrive », « 5 minutes » ; le bandeau prend alors le focus de la
 // télécommande, comme celui du minuteur (fenêtre focalisable : l'appli en cours continue, ◀ ▶ et OK vont au bandeau,
 // Retour le masque sans répondre). Une réponse choisie part à HomeHub et le bandeau dit « Réponse envoyée » avant de
 // s'en aller ; chaque touche le garde au moins Reponses.IDLE_MS. Mode film (showDiscreet, fonction 15) : petit bandeau
@@ -41,7 +41,7 @@ class OverlayBanner(private val context: Context) {
     private var generation = 0
     /** Le bandeau affiché propose des réponses, pas encore choisies (fil principal). */
     private var offering = false
-    /** Heure (SystemClock.uptimeMillis) où le bandeau s'en va seul ; 0 : pas de fin prévue (message vocal en cours). */
+    /** Heure (SystemClock.uptimeMillis) où le bandeau s'en va seul ; 0 : pas de fin prévue (voix en direct en cours). */
     private var expireAt = 0L
     private val expire = Runnable { hideNow() }
 
@@ -114,14 +114,6 @@ class OverlayBanner(private val context: Context) {
     }
 
     fun hide() = main.post { hideNow() }
-
-    /**
-     * Fin d'un message vocal : le bandeau s'en va, sauf s'il propose encore des réponses ; il reste alors
-     * Reponses.AFTER_VOICE_MS pour laisser choisir.
-     */
-    fun hideOrWait() = main.post {
-        if (offering) hideIn(Reponses.AFTER_VOICE_MS) else hideNow()
-    }
 
     /** Ajoute la fenêtre (focalisable s'il y a des réponses à choisir) ; false si le système la refuse. */
     private fun add(view: View, gravity: Int, x: Int, y: Int, focusable: Boolean): Boolean {

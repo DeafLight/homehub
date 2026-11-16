@@ -18,7 +18,7 @@ import { itemKey } from '../shared/drive.ts';
 import { SCREEN_PROTOCOL, SCREEN_PROTOCOL_HEADER } from '../shared/screen.ts';
 import { DRIVE_REFUSED_URL, driveProduct, driveUrl } from './docs-captures/fake-drive.ts';
 import { BLOG_URL, COPIED_TEXT, recipeUrl, REFUSED_URL } from './docs-captures/fake-recipes.ts';
-import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_PLAYING_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_REPLY_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
+import { FAKE_SCREEN_BUS_FILE, FAKE_SCREEN_ID, FAKE_SCREEN_MODE_FILE, FAKE_SCREEN_PLAYING_FILE, FAKE_SCREEN_REMOTE_FILE, FAKE_SCREEN_REPLY_FILE, FAKE_SCREEN_TEXT_FILE, FAKE_SCREEN_TIMER_FILE, FAKE_SCREEN_TIMERS_FILE, FAKE_SCREEN_TOKEN, type FakeScreenTimer, type FakeScreenTimers, fakeScreenCountdownTv, fakeScreenTimerTv, fakeScreenTv, fakeScreenTvText } from './docs-captures/fake-screen.ts';
 import { fakeScreenBusTv } from './docs-captures/fake-screen-bus.ts';
 import { fakeScreenFilmTv } from './docs-captures/fake-screen-film.ts';
 import { FAKE_SCREEN_RAIN_FILE, fakeScreenRainTv } from './docs-captures/fake-screen-rain.ts';
@@ -857,7 +857,7 @@ if (!only || TV_COOK_SHOTS.some((name) => only.test(name))) {
 
 // Caméra en direct : la tablette (onglet de fond, fausse caméra) diffuse vers le téléphone d'Alex, onglet Caméra ;
 // capturés pendant la diffusion : le téléphone qui la montre, et le bandeau de la tablette.
-const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-tele-reponse', 'telephone-camera-google-home', 'telephone-camera-tele-appli', 'tele-appli-message', 'telephone-camera-tele-direct', 'tele-appli-parle', 'telephone-camera-tele-eteinte'];
+const LIVE_SHOTS = ['telephone-camera', 'tablette-camera-direct', 'telephone-camera-parler', 'tablette-camera-parle', 'telephone-camera-tele', 'telephone-camera-tele-envoye', 'tele-message', 'telephone-camera-tele-reponse', 'telephone-camera-google-home', 'telephone-camera-tele-direct', 'tele-appli-parle', 'telephone-camera-tele-eteinte'];
 if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   await send('Browser.grantPermissions', { origin: BASE, permissions: ['videoCapture', 'audioCapture'] });
   // Les onglets partagent le stockage : sans cela, l'appairage d'un téléphone laissé par les captures précédentes
@@ -942,47 +942,37 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
     if (i === 19) console.warn('Message vocal non lu par le faux Google Home');
   }
   await phone.capture('telephone-camera-google-home');
-  // Même chose vers la télé du salon, qui a l'appli HomeHub TV (fausse appli de fake-screen.ts) : le message passe
-  // par-dessus le programme, son baissé ; maquette de l'écran de la télé avec le bandeau de l'appli.
-  await clickText('Télé du salon');
-  await sleep(300);
-  await clickText('Enregistrer un message');
-  await sleep(2000);
-  await clickText('Envoyer');
-  for (let i = 0; i < 20; i++) {
-    await sleep(500);
-    const sent = await phone.evaluate(`document.querySelector('.camera [role=status]')?.textContent.includes('Message lu sur')`);
-    if (sent.result?.value) break;
-    if (i === 19) console.warn('Message vocal non lu par la fausse appli HomeHub TV');
-  }
-  await phone.capture('telephone-camera-tele-appli');
-  // Parler en direct à la télé du salon (fonction 9) : le faux micro de Chrome part par morceaux, la fausse appli les
+  // Parler en direct à la télé du salon (fonction 9), qui a l'appli HomeHub TV (fausse appli de fake-screen.ts) : le faux micro de Chrome part par morceaux, la fausse appli les
   // reçoit (fake-screen-talk.ts) ; capturés pendant le direct : le téléphone, puis la maquette de l'écran de la télé.
   // Avant les autres maquettes : un onglet ouvert masque le téléphone, qui coupe alors le direct (et la caméra).
+  await clickText('Télé du salon');
+  await sleep(300);
   await clickText('Parler en direct');
   const talkFile = join(state, FAKE_SCREEN_TALK_FILE);
+  // Le fichier est réécrit par la fausse appli à chaque morceau : une lecture peut tomber en pleine écriture.
+  const heard = (): FakeScreenTalk | null => {
+    try {
+      return JSON.parse(readFileSync(talkFile, 'utf8')) as FakeScreenTalk;
+    } catch {
+      return null;
+    }
+  };
   for (let i = 0; i < 30; i++) {
     await sleep(300);
-    if (existsSync(talkFile) && (JSON.parse(readFileSync(talkFile, 'utf8')) as FakeScreenTalk).bytes > 16_000) break;
+    if ((heard()?.bytes ?? 0) > 16_000) break;
     if (i === 29) console.warn('Voix d’Alex absente sur la fausse appli HomeHub TV');
   }
   await phone.capture('telephone-camera-tele-direct');
   await clickText('Arrêter de parler');
   await sleep(500);
   const talkTv = join(work, 'tele-appli-parle.html');
-  writeFileSync(talkTv, fakeScreenTv({ title: (JSON.parse(readFileSync(talkFile, 'utf8')) as FakeScreenTalk).title, bytes: 0 }));
+  writeFileSync(talkTv, fakeScreenTv({ title: heard()?.title ?? 'Alex vous parle', bytes: 0 }));
   const tvTalk = await openTarget(pathToFileURL(talkTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
   await sleep(500);
   await tvTalk.capture('tele-appli-parle');
   await tvTalk.close();
-  const screenTv = join(work, 'tele-appli.html');
-  writeFileSync(screenTv, fakeScreenTv(JSON.parse(readFileSync(join(state, FAKE_SCREEN_FILE), 'utf8'))));
-  const tvApp = await openTarget(pathToFileURL(screenTv).href, { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-  await sleep(500);
-  await tvApp.capture('tele-appli-message');
-  await tvApp.close();
-  // La télé se met en veille (fausse appli : écran éteint annoncé à HomeHub) : l'onglet le dit, et le message d'Alex
-  // part sur le Google Home du salon (appareil de secours par défaut), « Télé éteinte : lu sur Google Home du salon ».
+  // La télé se met en veille (fausse appli : écran éteint annoncé à HomeHub) : l'onglet le dit, « Parler en direct »
+  // est grisé (plus de message enregistré vers la télé ni de secours sur le Google Home depuis 0.97.0).
   writeFileSync(join(state, FAKE_SCREEN_MODE_FILE), JSON.stringify({ mode: 'veille' }));
   await sleep(1000);
   await phone.evaluate('location.reload()');
@@ -993,16 +983,7 @@ if (!only || LIVE_SHOTS.some((name) => only.test(name))) {
   }
   await sleep(1000);
   await clickText('Télé du salon');
-  await sleep(300);
-  await clickText('Enregistrer un message');
-  await sleep(2000);
-  await clickText('Envoyer');
-  for (let i = 0; i < 20; i++) {
-    await sleep(500);
-    const sent = await phone.evaluate(`document.querySelector('.camera [role=status]')?.textContent.includes('Télé éteinte')`);
-    if (sent.result?.value) break;
-    if (i === 19) console.warn('Message vocal non basculé sur le Google Home');
-  }
+  await sleep(500);
   await phone.capture('telephone-camera-tele-eteinte');
   writeFileSync(join(state, FAKE_SCREEN_MODE_FILE), JSON.stringify({ mode: 'allumee' }));
   await phone.close();

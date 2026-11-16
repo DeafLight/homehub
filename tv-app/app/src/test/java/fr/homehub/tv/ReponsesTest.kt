@@ -36,13 +36,10 @@ class ReponsesTest {
         val json = """
             {"events":[
               {"seq":1,"kind":"message","id":"m1","title":"Message d’Alex","text":"On mange ?","seconds":10,"replyId":"r1"},
-              {"seq":2,"kind":"message","id":"m2","title":"Message","text":"Sans réponse","seconds":10},
-              {"seq":3,"kind":"voice","id":"v1","title":"Message d’Alex","audio":"/api/screen/clips/a.webm","contentType":"audio/webm","replyId":"r2"},
-              {"seq":4,"kind":"voice","id":"v2","title":"Message de Sam","audio":"/api/screen/clips/b.webm","contentType":"audio/webm","replyId":null}
-            ],"last":4}
+              {"seq":2,"kind":"message","id":"m2","title":"Message","text":"Sans réponse","seconds":10,"replyId":null}
+            ],"last":2}
         """.trimIndent()
         val events = parseEvents(json)
         assertEquals(listOf("r1", null), events.messages.map { it.replyId })
-        assertEquals(listOf("r2", null), events.voices.map { it.replyId })
     }
 }

@@ -7,7 +7,7 @@ import org.junit.Test
 class PluieTest {
     private val json = """
         {"events":[
-          {"seq":1,"kind":"voice","id":"v1","title":"Message d’Alex","audio":"/api/screen/voice/a.webm","contentType":"audio/webm"},
+          {"seq":1,"kind":"message","id":"v1","title":"Message d’Alex","text":"Coucou","seconds":10},
           {"seq":2,"kind":"rain","id":"r1","title":"Pluie vers 8 h","subtitle":"Prenez un parapluie","seconds":60}
         ],"last":2}
     """.trimIndent()
@@ -20,7 +20,7 @@ class PluieTest {
     @Test
     fun parseEventsLesIgnore() {
         val events = parseEvents(json)
-        assertEquals(1, events.voices.size)
+        assertEquals(1, events.messages.size)
         assertEquals(0, events.remote.size)
     }
 

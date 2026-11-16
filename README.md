@@ -310,41 +310,33 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   port ouvert sur la télé ; chaque télé appairée et joignable reçoit le message et dit s'il s'est affiché. L'appli
   tierce *Notifications for Android TV* des premières versions a été retirée en 0.77.0 (`tv.host` et `tv.port` sont
   ignorés, avec un avertissement au démarrage).
-- **Destination du micro : Google Home, télé** (même onglet Caméra, si `cast` déclare des appareils) : sous la vidéo,
-  **Ta voix sur** propose la **Tablette** (en direct, comme ci-dessus) et chaque appareil Google Cast du réseau local
-  (enceinte Google Home ou Nest, télé Android TV avec Chromecast intégré). Vers un appareil, c'est un **message
-  enregistré** : **Enregistrer un message**, puis **Envoyer** (ou **Annuler** ; envoi automatique au bout de 30 s) ;
+- **Destination du micro : Google Home** (même onglet Caméra, si `cast` déclare des enceintes) : sous la vidéo,
+  **Ta voix sur** propose la **Tablette** (en direct, comme ci-dessus), chaque télé avec l'appli HomeHub TV (en
+  direct, voir plus bas) et chaque enceinte Google Cast du réseau local (Google Home ou Nest). Vers une enceinte,
+  c'est un **message enregistré** : **Enregistrer un message**, puis **Envoyer** (ou **Annuler** ; envoi automatique au bout de 30 s) ;
   l'appareil le lit **deux à cinq secondes après l'envoi** (envoi, lancement du récepteur, chargement ; la toute
-  première fois, une télé peut mettre plus de 15 s à lancer le récepteur, HomeHub attend jusqu'à 45 s), et le
+  première fois, un appareil peut mettre plus de 15 s à lancer le récepteur, HomeHub attend jusqu'à 45 s), et le
   téléphone affiche « Message lu sur Google Home du salon » dès que la lecture démarre ; en cas d'échec, le message
-  dit à quelle étape. Le message lu, HomeHub **ferme le récepteur** : l'appareil revient à ce qu'il faisait (sur la
-  télé, l'appli d'avant). Les étapes de chaque envoi (connexion, lancement, chargement, lecture, avec leur durée) sont
+  dit à quelle étape. Le message lu, HomeHub **ferme le récepteur** : l'appareil revient à ce qu'il faisait. Les étapes de chaque envoi (connexion, lancement, chargement, lecture, avec leur durée) sont
   notées dans le journal du conteneur, sans le contenu ni l'expéditeur. Le serveur garde le message 5 minutes en mémoire, derrière
   une adresse tirée au hasard que l'appareil télécharge (il ne sait pas s'authentifier) ; rien n'est écrit sur le
   disque. Le protocole est Cast v2, publié et local : HomeHub lance le récepteur média par défaut de Google et lui fait
   lire cette adresse, sans compte Google ni service en ligne. Réservé au téléphone d'un parent (le serveur refuse un
-  enfant, la tablette, un appareil non appairé), et à `camera.talk`. **Effets de bord** : sur une enceinte, la musique
-  en cours s'arrête ; sur la télé, l'appli au premier plan est interrompue le temps du message (le récepteur Cast
-  passe devant, puis se ferme). Pas de
-  voix en direct vers ces appareils : leur récepteur garde plusieurs secondes de son en réserve, ce ne serait pas une
-  conversation. Voir [Appareils Cast](#appareils-cast-google-home-télé).
+  enfant, la tablette, un appareil non appairé), et à `camera.talk`. **Effet de bord** : la musique en cours
+  s'arrête. Pas de voix en direct vers ces enceintes : leur récepteur garde plusieurs secondes de son en réserve, ce
+  ne serait pas une conversation. **La télé n'est plus une destination des messages enregistrés depuis 0.97.0** (on
+  lui parle en direct par l'appli HomeHub TV) ; une télé de `cast.devices` (`kind: tv`) ne sert plus qu'à l'allumer
+  depuis la télécommande. Voir [Appareils Cast](#appareils-cast-google-home-télé).
 - **Télé avec l'appli HomeHub TV** (même onglet Caméra, parents, `camera.talk`) : une télé appairée apparaît dans
-  **Ta voix sur**, avant les appareils Cast (« Télé du salon »). Le message enregistré est lu **par-dessus ce qui
-  passe, sans le couper** : l'appli baisse le son du programme le temps du message (focus audio transitoire, comme le
-  guidage d'une appli GPS) et affiche en haut à droite un bandeau « Message d'Alex » avec des barres de niveau. Le
-  téléphone affiche « Message lu sur Télé du salon » dès que la télé a commencé à le lire. **Télé éteinte** : écran en
-  veille (l'appli annonce l'écran allumé ou éteint, car la veille rapide garde le réseau) ou télé injoignable (plus
-  de nouvelles depuis 40 s) : le message part sur son **appareil de secours**, un Google Home (Cast), et le téléphone
-  affiche « Télé éteinte : lu sur Google Home du salon » ; l'onglet le dit dès le choix de la télé. Si l'écran
-  s'éteint pendant l'envoi, l'appli refuse le message (« écran éteint ») et HomeHub bascule aussi. Télé débranchée
-  depuis moins d'une minute (encore vue présente) : si elle n'accuse pas réception du message en 5 s, il lui est
-  retiré et part sur le secours, « La télé n'a pas répondu : lu sur Google Home du salon » ; une télé qui l'a reçu le
-  garde (jamais lu deux fois). Appareil de
-  secours : sur la tablette, **Téléphones** › **Télés**, « Si éteinte » (parent reconnu) ; par défaut la première
-  enceinte de `cast.devices` (il faut `cast.mediaUrl`) ; « Aucun appareil » : l'envoi est refusé comme avant.
-  **Mode film** : pendant un film, la télé n'est plus interrompue. Les messages vocaux partent sur le même appareil
-  de secours (« Mode film : lu sur Google Home du salon » sur le téléphone ; sans secours, la télé les lit comme
-  avant), et les bandeaux (message écrit, minuteur, bus, pluie, rappels) deviennent **discrets** : petits, en bas à
+  **Ta voix sur**, avant les enceintes (« Télé du salon ») ; on lui **parle en direct** (voir plus bas, « Parler en
+  direct à la télé »), par-dessus ce qui passe, le son du programme baissé. Télé éteinte (écran en veille, l'appli
+  annonce l'écran allumé ou éteint car la veille rapide garde le réseau) ou injoignable (plus de nouvelles depuis
+  40 s) : l'onglet le dit et le bouton est grisé. Le **message enregistré vers la télé** (0.69 à 0.96), son
+  **appareil de secours** quand elle était éteinte (le Google Home, réglé sur la tablette, « Si éteinte ») et son
+  renvoi pendant un film ont été **retirés en 0.97.0** : le direct les remplace ; pour un message enregistré, choisir
+  le Google Home. Le fichier `screen-fallbacks.json` du dossier d'état n'est plus lu (il peut être effacé).
+  **Mode film** : pendant un film, la télé n'est plus interrompue : les bandeaux (message écrit, minuteur, bus,
+  pluie, rappels) deviennent **discrets** : petits, en bas à
   gauche, à demi transparents, sans son ni focus de la télécommande, quelques secondes. Le mode s'allume **tout seul**
   quand une appli de films est au premier plan (Netflix, Disney+, Prime Video, Apple TV, Canal+, Max, Paramount+,
   Plex, Kodi, VLC ; pas YouTube), réglage « Mode film automatique » sur la tablette (Téléphones › Télés › Alertes),
@@ -353,16 +345,15 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   s'arrête quand on quitte l'appli de films, quand la télé se met en veille, par le même bouton, et au plus tard
   4 h après un allumage à la main ; « éteint » à la main pendant Netflix vaut tant que Netflix reste devant. L'appli se connecte à HomeHub
   (interrogation longue, comme la tablette pour la caméra en direct) : **aucun port ouvert sur la télé**. Elle
-  télécharge le message avec son jeton et rend compte au serveur (lecture commencée, ou l'erreur, renvoyée au
-  téléphone). Appairage : au premier lancement, la télé affiche un code de 6 caractères ; sur la tablette,
+  rend compte au serveur de chaque événement (fait, ou l'erreur, renvoyée au téléphone). Appairage : au premier
+  lancement, la télé affiche un code de 6 caractères ; sur la tablette,
   **Téléphones** › **Télés**, un parent reconnu tape le code et le nom de la télé. Une télé n'appartient à personne
   et n'écrit rien : son jeton ne vaut que pour ses propres événements ; retirée depuis la tablette, elle revient au
   code. Installation par `adb`, hors du Play Store : voir [`tv-app/README.md`](tv-app/README.md) et le plan
-  [`docs/appli-tele.md`](docs/appli-tele.md) (message écrit en bandeau : voir plus haut ; prochaines versions : mode film…).
-- **Réponses rapides depuis la télé** : sous un message écrit ou vocal affiché par HomeHub TV, le bandeau propose
+  [`docs/appli-tele.md`](docs/appli-tele.md) (message écrit en bandeau : voir plus haut).
+- **Réponses rapides depuis la télé** : sous un message écrit affiché par HomeHub TV, le bandeau propose
   **« OK », « J'arrive », « 5 minutes »** et prend la télécommande le temps de choisir (◀ ▶ puis OK ; Retour le
-  masque sans répondre ; l'appli en cours continue derrière). Le message écrit reste au moins 20 s, le message vocal
-  20 s de plus après sa fin. La réponse s'affiche sur le téléphone de l'expéditeur sous le compte rendu :
+  masque sans répondre ; l'appli en cours continue derrière). Le message écrit reste au moins 20 s. La réponse s'affiche sur le téléphone de l'expéditeur sous le compte rendu :
   **« Réponse : J'arrive »** (avec le nom de chaque télé s'il y en a plusieurs). Seul l'expéditeur la voit, et seule une
   télé qui a affiché le message peut répondre, pendant 10 min.
 - **Alerte pluie sur la télé** (appli HomeHub TV, section `rainAlert`) : le matin, de 7 h à 8 h 30 les jours d'école
@@ -381,8 +372,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   (« Tom : 1 mot · Toute la famille : 2 mots »), jamais leur texte. Rien de plus que ce que la tablette montre déjà.
   Chaque rappel s'active ou se coupe d'un interrupteur, et son heure se règle (parent reconnu) ; **Essayer** l'envoie
   tout de suite. Un rappel part une fois par jour ; télé en veille ou injoignable à l'heure dite : il part quand une
-  télé s'allume dans la demi-heure, sinon pas du tout ce jour-là. Un message vocal en cours garde son bandeau : le
-  rappel passe après.
+  télé s'allume dans la demi-heure, sinon pas du tout ce jour-là.
 - **Parler en direct à la télé** (même onglet Caméra, parents, `camera.talk`, télé avec l'appli HomeHub TV) : la
   télé choisie dans **Ta voix sur**, **Parler en direct** envoie le micro au fur et à mesure ; la télé baisse le son
   du programme, diffuse la voix (environ une demi-seconde de décalage) et affiche « Alex vous parle » en haut à
@@ -456,7 +446,7 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   lire) ; **50 Mo au plus** (une minute de vidéo environ). Télé en veille : refusé, le téléphone dit de l'allumer.
   **Rien n'est gardé** : le fichier attend en mémoire au plus 10 minutes sous un numéro tiré au hasard (2 places, la
   navigation de « Partager » ne porte pas le jeton du téléphone), puis 5 minutes derrière une adresse impossible à
-  deviner que seule une télé appairée peut lire, comme un message vocal.
+  deviner que seule une télé appairée peut lire.
   **Parents seulement** (le serveur refuse un enfant et un appareil non appairé ; un parent reconnu à la tablette peut
   s'en servir aussi). Rien de personnel : le tiroir ne montre que des noms d'applis.
 - **Écran de veille de la télé** (appli HomeHub TV) : quand la télé passe en veille d'écran, elle affiche HomeHub au
@@ -874,11 +864,11 @@ camera:              # facultatif : caméra en direct (valeurs par défaut)
   turn: []           # ex. [turn:maison.example.org:3478?transport=udp] ; secret : HOMEHUB_TURN_SECRET
 tv:                  # facultatif : message à la télé
   seconds: 10        # durée d'affichage du bandeau sur la télé appairée, 3 à 60 s (défaut 10)
-cast:                # facultatif : appareils Google Cast où un parent envoie un message vocal (onglet Caméra)
+cast:                # facultatif : enceintes Google Cast où un parent envoie un message vocal (onglet Caméra), télé à allumer
   mediaUrl: http://192.168.1.10:3010   # d'où les appareils téléchargent : http://<ip du NAS>:<HOMEHUB_MEDIA_PORT> ; sans lui, rien n'est proposé
   devices:           # par adresse IP (réservation DHCP conseillée), pas de découverte mDNS
     - { id: salon, name: Google Home du salon, host: 192.168.1.20 }          # port: 8009 par défaut
-    - { id: tele, name: Télé, host: 192.168.1.21, kind: tv }                 # kind: speaker (défaut) ou tv
+    - { id: tele, name: Télé, host: 192.168.1.21, kind: tv }                 # kind: speaker (défaut, messages) ou tv (allumage seulement)
 weather:             # facultatif : sans cette section, pas de météo
   label: Paris
   latitude: 48.85    # deux décimales (~1 km) suffisent
@@ -900,7 +890,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `HOMEHUB_STATIC_ROOT` | `./web/dist` | Front compilé |
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
-| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`), l'heure du coucher (`bedtime.json`) et leur appareil de secours (`screen-fallbacks.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
+| `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`), l'heure du coucher (`bedtime.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min » : clés VAPID (`push-vapid.json`, générées au premier démarrage) et abonnements des téléphones (`push.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
@@ -911,13 +901,15 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 
 ### Appareils Cast (Google Home, télé)
 
-Pour envoyer un message vocal vers une enceinte Google Home ou une télé Android TV depuis l'onglet Caméra :
+Pour envoyer un message vocal vers une enceinte Google Home depuis l'onglet Caméra (et, pour la télé, l'allumer
+depuis la télécommande du téléphone) :
 
 1. **Adresse fixe de chaque appareil** : réservation DHCP sur la box (l'adresse IP se lit dans l'appli Google Home,
    réglages de l'appareil, *Informations sur l'appareil*). La télé doit avoir Chromecast intégré (Google TV, Android
    TV) et rester joignable en veille (*Réseau › Veille réseau* ou équivalent, selon le modèle).
 2. **`cast.devices`** dans `homehub.yaml` : `id`, `name` (affiché sur le téléphone), `host` (adresse IP), `kind`
-   (`speaker` ou `tv`).
+   (`speaker`, une enceinte, destination des messages ; ou `tv`, la télé, qui ne sert qu'à l'allumer : depuis 0.97.0,
+   on lui parle en direct par l'appli HomeHub TV).
 3. **`cast.mediaUrl`** : l'adresse d'où les appareils **téléchargent le message**, en http avec l'IP du NAS. Pas le
    nom public en https : les appareils Cast interrogent souvent les DNS de Google et ne voient pas les noms du réseau
    local. Si HomeHub n'est joignable que par son proxy (cas habituel), ouvrir le **port des médias** :
@@ -998,7 +990,6 @@ server/
   sources/notes.ts         mots de la famille (notes.json), effacés une fois vus ou au bout de 7 jours
   sources/devices.ts       téléphones reliés (devices.json, empreinte du jeton seulement), codes d'appairage
   sources/screens.ts       télés avec l'appli HomeHub TV (screens.json), codes affichés sur la télé
-  sources/screen-fallbacks.ts  appareil de secours de chaque télé (screen-fallbacks.json)
   sources/screen-apps.ts   applis du lanceur de chaque télé, avec leurs bannières (screen-apps.json)
   sources/stock.ts         stock (stock.json) : produits et leurs versions, mouvements annulables, contenants, produits sans code-barres
   sources/fitness.ts       programmes de sport (fitness.json), réservés au téléphone de la personne
@@ -1026,7 +1017,6 @@ server/
   services/screens.ts      télés HomeHub TV : événements par interrogation longue, présence, comptes rendus, état
   services/screen-bus.ts   alerte du bus du matin sur les télés HomeHub TV (« Bus dans 9 min »)
   services/rain-alert.ts   alerte pluie du matin sur les télés : plage, jours d'école, seuil, une fois par matin
-  services/screen-fallback.ts  annonce destinée à une télé éteinte, injoignable ou en mode film : bascule vers son Google Home
   services/screen-replies.ts   réponses rapides des télés sous un message (« OK », « J’arrive », « 5 minutes ») pour son expéditeur
   services/screen-film.ts  mode film des télés : choix à la main, réglage automatique, bandeaux discrets
   services/screen-workouts.ts  séances de sport sur la télé : horloge, pilotage, effacement de la télé à la fin
@@ -1122,11 +1112,11 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
 | `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, talk, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
 | `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats, parole ou fin (`{ kind: "offer" \| "candidate" \| "talk" \| "bye", … }` ; `{ kind: "talk", on }` : le parent parle ou s'arrête, 403 si `camera.talk` est coupé) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
-| `POST /api/cast/:device/voice` | message vocal vers l'appareil Cast `device` : corps = l'enregistrement, `Content-Type` = son format (`audio/webm`, `audio/mp4`, `audio/ogg`…, 3 Mo au plus) ; `{ device }` : nom de l'appareil qui le lit (téléphone d'un parent ; 403 enfant, tablette ou `camera.talk` coupé ; 404 appareil inconnu ; 400 format ou taille ; 502 appareil injoignable ou qui refuse ; 503 `cast.mediaUrl` absent) |
+| `POST /api/cast/:device/voice` | message vocal vers l'enceinte Cast `device` (une télé, `kind: tv` : 404) : corps = l'enregistrement, `Content-Type` = son format (`audio/webm`, `audio/mp4`, `audio/ogg`…, 3 Mo au plus) ; `{ device }` : nom de l'appareil qui le lit (téléphone d'un parent ; 403 enfant, tablette ou `camera.talk` coupé ; 404 appareil inconnu ; 400 format ou taille ; 502 appareil injoignable ou qui refuse ; 503 `cast.mediaUrl` absent) |
 | `GET /api/cast/clips/:token` | le message, pour l'appareil Cast (sans authentification : adresse aléatoire, valable 5 minutes ; 404 ensuite) |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `POST /api/screen/pairing`, `GET /api/screen/pairing/:id` | appli HomeHub TV, sans jeton (en-tête `X-HomeHub-Screen: 1`, 426 sinon) : demande d'appairage `{ system, app }` → `{ id, code, expiresAt }` (5 minutes) ; attente de la confirmation (25 s au plus) → `{ status: "pending" }` ou `{ status: "paired", token, screen }` (jeton remis une fois ; 410 code expiré) |
-| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report`, `GET /api/screen/clips/:token` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message vocal `{ kind: "voice", id, title, audio, contentType, replyId }`, message écrit `{ kind: "message", id, title, text, seconds, replyId }` (`replyId` : réponses rapides proposées), alerte du bus `{ kind: "bus", id, title, subtitle, seconds }`, rappel `{ kind: "reminder", id, reminder, title, subtitle, seconds }` ; minuteurs en cours `{ kind: "timers", id, serverNow, timers: [{ timerId, label, endsAt, durationSeconds }] }` à chaque lancement ou arrêt et à une télé qui revient ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` ; téléchargement du message (401 jeton inconnu ou télé retirée) |
+| `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message écrit `{ kind: "message", id, title, text, seconds, replyId }` (`replyId` : réponses rapides proposées), alerte du bus `{ kind: "bus", id, title, subtitle, seconds }`, rappel `{ kind: "reminder", id, reminder, title, subtitle, seconds }` ; minuteurs en cours `{ kind: "timers", id, serverNow, timers: [{ timerId, label, endsAt, durationSeconds }] }` à chaque lancement ou arrêt et à une télé qui revient ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` (401 jeton inconnu ou télé retirée) |
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online, power }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
 | `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteurs en cours décomptés, minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
 | `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |
@@ -1139,14 +1129,13 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/screens/remote`, `GET /api/screens/:id/apps` | télécommande, un parent : télés `[{ id, name, power, control, volume, foreground, nowPlaying, canWake, appsAt, appCount }]` (`power` : `on`, `standby` ou `offline` ; `nowPlaying` : `{ package, app, title, subtitle, state, positionMs, durationMs, artworkId }` ou null, télé allumée seulement, position recalculée à l'instant de la réponse) ; applis de la télé `{ at, apps: [{ package, name, banner }] }` (bannière en adresse `data:`) |
 | `GET /api/screens/:id/artwork` | télécommande, un parent : image de ce qui passe `{ id, image }` (adresse `data:` JPEG ou PNG, ou null), redemandée quand `artworkId` change |
 | `POST /api/screens/:id/keys`, `/text`, `/launch`, `/dinner`, `/power` | télécommande, un parent : touches `{ keys }` (20 au plus : `up`, `down`, `left`, `right`, `ok`, `back`, `home`, `playpause`, `pause`, `play`, `volup`, `voldown`, `mute` ; touches de volume refusées, 409, si le volume de la télé est fixe) ; texte `{ text, submit }` ; appli `{ package }` (404 si absente de la liste) ; « À table ! » (pause et bandeau) ; marche/arrêt `{ on }` → `{ power, via }` (`via` : `screen` ou `cast`). Réponse `{ ok: true }` dès le compte rendu de la télé (502 avec la raison ; 503 télé absente ou, pour allumer, aucun appareil Cast pour elle) |
-| `GET /api/screens/targets`, `POST /api/screens/:id/voice` | téléphone d'un parent (`camera.talk`) : télés où envoyer sa voix `[{ id, name, online, on, fallback }]` (`on` : écran allumé ; `fallback` : nom de l'appareil de secours, ou null) ; message vocal (corps et `Content-Type` comme vers Cast) → `{ device, fallback, replyId }` dès que la télé le lit (`replyId` : lu sur la télé, réponses rapides à attendre) ; télé en veille, injoignable ou qui refuse « écran éteint » : lu par l'appareil de secours, `fallback` : `{ reason, notice }` (`reason` : `standby` ou `offline` ; `notice` : « Télé éteinte : lu sur … ») ; sans secours : 503 télé absente, 502 échec rapporté par la télé ou pas de réponse en 20 s |
-| `GET /api/screens/fallbacks`, `PUT /api/screens/:id/fallback` | appareil de secours des télés, tablette : `{ devices: [{ id, name, kind }], screens: [{ id, device, auto }] }` (`auto` : jamais réglé, première enceinte) ; choix `{ device }` (identifiant de `cast.devices` ou null ; parent reconnu ; 400 appareil inconnu) |
+| `GET /api/screens/targets` | téléphone d'un parent (`camera.talk`) : télés où parler en direct `[{ id, name, online, on }]` (`on` : écran allumé) ; 403 enfant, tablette ou `camera.talk` coupé (le message vocal enregistré vers la télé, `POST /api/screens/:id/voice`, et l'appareil de secours, `/api/screens/fallbacks`, ont été retirés en 0.97.0) |
 | `GET /api/screens/share-targets`, `GET /api/screens/shared/:id`, `GET /api/screens/shared/:id/file`, `POST /api/screens/:id/share` | photo ou vidéo partagée, tout téléphone appairé (403 sinon) : télés `[{ id, name, online }]` ; fichier reçu par `/partager` `{ id, kind, type, name, bytes }` (`kind` : `photo` ou `video` ; 410 expiré) ; son contenu (aperçu) ; envoi à la télé `{ shared }` → `{ device }` dès qu'elle l'affiche (503 télé absente ; 502 échec rapporté, ou pas de réponse en 60 s) |
 | `GET /api/screen/media/:token` | la télé, avec son jeton : la photo ou la vidéo de l'événement `{ kind: "media", id, media, title, url, contentType, seconds }` (5 minutes au plus ; 401 sans jeton de télé) |
 | `GET /api/screens/cook`, `POST /api/screens/:id/cook`, `POST /api/screens/:id/cook/step`, `DELETE /api/screens/:id/cook` | mode cuisine sur la télé, depuis la fiche (tablette, ou téléphone appairé) : télés `[{ id, name, online, cook }]` (`cook` : vue ci-dessous, ou `null`) ; « Sur la télé » `{ recipeId, index }` → la télé, dès qu'elle a ouvert sa vue cuisine (503 télé absente ; 502 avec la raison, le mode cuisine d'avant reste) ; étape `{ index }` → `{ cook }` (ramenée dans la recette ; 404 sans mode cuisine) ; fin |
 | `GET /api/screen/cook?after=`, `POST /api/screen/cook/step`, `POST /api/screen/cook/timers`, `DELETE /api/screen/cook/timers/:id`, `DELETE /api/screen/cook` | la télé, avec son jeton : sa vue cuisine `{ cook: { rev, recipeId, title, index, total, step: { number, text, section, mode, durations: [{ seconds, text, timerId }] }, next, timers: [{ id, label, durationSeconds, remainingSeconds, ended, step }] } }` (`null` sans mode cuisine ; avec `after`, attend 5 s au plus que `rev` change) ; étape `{ index }` ; minuteur `{ seconds }` d'une durée citée par l'étape (400 sinon, 409 au-delà de 6 minuteurs ; auteur : qui a lancé le mode cuisine) ; arrêt d'un minuteur qui sonne (403 s'il tourne encore) ; fin (Retour) |
 | `POST /api/tv/message` | message à la télé : `{ text }` → `{ text, seconds, screens, replyId }` (texte nettoyé ; parent seulement, 403 sinon ; 400 vide ou plus de 140 caractères). Événement `message` (avec `replyId`) à chaque télé appairée et joignable, `screens` = celles qui l'ont affiché ; 404 aucune télé appairée, 503 aucune joignable, 502 aucune ne l'a affiché (raisons) |
-| `GET /api/tv/replies/:id?after=` | réponses rapides de la télé à un message écrit ou vocal (`replyId`), pour son expéditeur seulement (403 sinon, 404 inconnu ou oublié) : attente longue (25 s au plus) → `{ replies: [{ reply, label, screen, at }], rev, open }` ; `rev` à redonner en `after`, `open` faux au bout de 10 min |
+| `GET /api/tv/replies/:id?after=` | réponses rapides de la télé à un message écrit (`replyId`), pour son expéditeur seulement (403 sinon, 404 inconnu ou oublié) : attente longue (25 s au plus) → `{ replies: [{ reply, label, screen, at }], rev, open }` ; `rev` à redonner en `after`, `open` faux au bout de 10 min |
 | `POST /api/screen/replies/:id` | la télé, avec son jeton : réponse choisie à la télécommande `{ reply }` (`ok`, `coming` ou `five`) → la réponse enregistrée ; 404 si cette télé n'a pas affiché le message, 410 trop tard |
 | `POST /api/screens/:id/talk`, `POST …/talk/:talk/audio?seq=`, `DELETE …/talk/:talk` | parler en direct, téléphone d'un parent (`camera.talk`) : ouvre une prise de parole → `{ id, device, rate, maxSeconds }` (la télé reçoit l'événement `talk` et rend compte ; 409 si un autre parent parle déjà à cette télé, 502 avec la raison de la télé, 503 télé absente) ; morceau de voix numéroté (corps : PCM 16 bits mono 16 kHz, 64 ko au plus ; doublons ignorés ; 410 avec la raison quand la prise est finie) ; arrêt |
 | `GET /api/screen/talk/:talk?after=` | la télé, avec son jeton : la voix reçue depuis le morceau `after`, d'un bloc (`application/octet-stream`, numéro du dernier morceau dans `X-HomeHub-Seq`), 204 sans rien au bout de 3 s, 410 avec la raison à la fin (le parent a arrêté, plus de nouvelles depuis 6 s, `camera.maxMinutes`) |

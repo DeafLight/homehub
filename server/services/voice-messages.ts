@@ -1,5 +1,5 @@
-// Messages vocaux vers les appareils Cast (Google Home, télé) : le téléphone d'un parent envoie un enregistrement, le
-// serveur le garde quelques minutes en mémoire derrière une adresse impossible à deviner, puis demande à l'appareil de
+// Messages vocaux vers les enceintes Cast (Google Home ; plus vers la télé depuis 0.97.0, où l'on parle en direct par
+// l'appli HomeHub TV) : le téléphone d'un parent envoie un enregistrement, le serveur le garde quelques minutes en mémoire derrière une adresse impossible à deviner, puis demande à l'appareil de
 // le lire (client Cast v2, services/cast.ts). L'appareil ne sait pas s'authentifier : il télécharge le message à cette
 // adresse, servie par `GET /api/cast/clips/:token`, depuis `cast.mediaUrl` (adresse du NAS vue du réseau local).
 // Rien n'est écrit sur le disque ; un message expire et disparaît de lui-même.
@@ -21,15 +21,8 @@ export type VoiceClip = { data: Uint8Array; contentType: string; expiresAt: numb
 export type VoiceMessages = {
   /** Fait lire `audio` par l'appareil `deviceId` ; rejette avec un message pour l'écran. Renvoie le nom de l'appareil. */
   send(deviceId: string, audio: Uint8Array, contentType: string, senderName: string): Promise<{ device: string }>;
-  /**
-   * Garde `audio` quelques minutes derrière une adresse tirée au hasard (pour l'appli HomeHub TV) ; rejette comme
-   * `send` un format refusé, un message vide ou trop long. Renvoie le jeton et l'extension du fichier.
-   */
-  keep(audio: Uint8Array, contentType: string): { token: string; extension: string; contentType: string };
   /** Le message derrière `token`, s'il n'a pas expiré. */
   clip(token: string): VoiceClip | null;
-  /** Oublie le message derrière `token` (message retiré à la télé : elle ne pourra plus le télécharger). */
-  drop(token: string): void;
 };
 
 /** Refus d'un envoi, avec le statut HTTP qui va avec. */
@@ -85,12 +78,11 @@ export function createVoiceMessages({
   }
 
   return {
-    keep,
-
     async send(deviceId, audio, contentType, senderName) {
       const { devices, mediaUrl } = rules();
       const device = devices.find((d) => d.id === deviceId);
-      if (!device) throw new VoiceError(404, 'Appareil inconnu');
+      // Une télé (kind: tv) reste dans cast.devices pour l'allumer, mais n'est plus une destination des messages.
+      if (!device || device.kind !== 'speaker') throw new VoiceError(404, 'Appareil inconnu');
       if (!mediaUrl) throw new VoiceError(503, 'Adresse du NAS pour les appareils non configurée (cast.mediaUrl)');
       const { token, extension, contentType: type } = keep(audio, contentType);
       const clip = clips.get(token)!;
@@ -114,10 +106,6 @@ export function createVoiceMessages({
       if (!clip || clip.expiresAt <= clock().getTime()) return null;
       clip.fetched = true;
       return clip;
-    },
-
-    drop(token) {
-      clips.delete(token);
     },
   };
 }

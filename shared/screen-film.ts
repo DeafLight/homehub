@@ -1,6 +1,5 @@
 // Mode « film » des télés (fonction 15 de l'appli HomeHub TV) : pendant un film, les annonces n'interrompent plus la
-// télé. Le message vocal part sur l'appareil de secours de la télé (Google Home, comme télé éteinte, fonction 7) et les
-// bandeaux (message écrit, minuteur, bus, pluie, rappels) deviennent discrets : petits, en bas à gauche, sans son ni
+// télé : les bandeaux (message écrit, minuteur, bus, pluie, rappels) deviennent discrets : petits, en bas à gauche, sans son ni
 // focus. Le mode s'allume tout seul quand une appli de films est au premier plan (réglage de la tablette), ou à la main
 // depuis la télécommande du téléphone ou le bouton Télé de la tablette. Règles pures, communes au serveur et au front.
 
