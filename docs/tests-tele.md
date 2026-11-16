@@ -34,9 +34,9 @@ correctif (nouvelle session, nouvelle branche). Les fonctions 1, 2 et 3 sont dé
 
 ## 7. Télé éteinte, bascule sur le Google Home (0.84.0)
 
-- [ ] Écran éteint à la télécommande, puis message vocal : il part tout de suite sur le Google Home.
-- [ ] Télé débranchée : bascule au bout de 40 s.
-- [ ] Écran qui s'éteint pendant l'envoi.
+- [ ] Télé débranchée (prise retirée, sans passer par la veille), attendre plus d'une minute, puis message vocal : il
+      part tout de suite sur le Google Home. Envoyé dans la minute qui suit le débranchement, il échoue au bout de
+      20 s (« La télé n'a pas répondu »), sans secours.
 
 ## 8. Écran de veille HomeHub (0.85.0)
 
