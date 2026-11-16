@@ -1,8 +1,10 @@
 // Vacances scolaires : calendrier officiel du ministère de l'Éducation nationale (jeu de données ouvert
 // « fr-en-calendrier-scolaire » sur data.education.gouv.fr, API Opendatasoft, sans clé), pour l'académie ou la zone
-// réglée par la page « Vacances scolaires » (sinon homehub.yaml). Rechargé au plus une fois par jour ; le dernier
-// calendrier reçu est gardé dans le dossier d'état (school-holidays.json) : une panne de l'API, même au redémarrage,
-// laisse les vacances affichées. Aperçu d'un autre réglage (avant d'enregistrer) : en mémoire seulement.
+// réglée par la page « Vacances scolaires » (sinon homehub.yaml). L'API anonyme ne sert plus que des pages brutes de
+// 100 lignes (filtres, tri et exports répondent 401) : tout le jeu est lu page par page, puis filtré et trié ici.
+// Rechargé au plus une fois par jour ; le dernier calendrier reçu est gardé dans le dossier d'état
+// (school-holidays.json) : une panne de l'API, même au redémarrage, laisse les vacances affichées. Aperçu d'un autre
+// réglage (avant d'enregistrer) : en mémoire seulement, à partir du jeu déjà lu.
 import { z } from 'zod';
 import { localDay } from '../../shared/dates.ts';
 import { type SchoolHoliday, shiftDay, weekdayOf } from '../../shared/school-holidays.ts';
@@ -14,13 +16,18 @@ import type { SourceStatus } from './source-status.ts';
 import type { Clock } from './types.ts';
 
 export const HOLIDAYS_API_URL =
-  'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/exports/json';
+  'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records';
+/** Seule taille de page acceptée sans clé ; le décalage doit en être un multiple. */
+export const HOLIDAYS_PAGE_SIZE = 100;
+/** Garde-fou : Opendatasoft ne pagine pas au-delà de 10 000 lignes (le jeu en compte environ 2 600). */
+const MAX_PAGES = 100;
+/** Délai de chaque requête (une par page). */
 const REQUEST_TIMEOUT_MS = 15_000;
 /** Le calendrier change très rarement : une fois par jour suffit. */
 const REFRESH_MS = 24 * 3_600_000;
 /** Après un échec, nouvel essai au plus tôt une heure après. */
 const RETRY_MS = 3_600_000;
-/** Périodes demandées : celles qui finissent au plus tôt 30 jours avant aujourd'hui. */
+/** Périodes gardées : celles qui finissent au plus tôt 30 jours avant aujourd'hui. */
 const PAST_DAYS = 30;
 const STATUS_NAME = 'Vacances scolaires';
 /** Réglages gardés en mémoire pour l'aperçu de la page (un par académie ou zone essayée). */
@@ -60,7 +67,7 @@ export function findAcademie(name: string): string | undefined {
   return ALIASES[key] ?? Object.keys(ACADEMIES).find((a) => comparable(a) === key);
 }
 
-/** Filtre de la requête : l'académie (ses dates exactes) ou toute la zone (dates communes, dédoublonnées). */
+/** Filtre du calendrier : l'académie (ses dates exactes) ou toute la zone (dates communes, dédoublonnées). */
 export function holidaysFilter(config: HolidaysConfig): { field: 'location' | 'zones'; value: string; zone: string } {
   if (config.academie) {
     const academie = findAcademie(config.academie) ?? config.academie;
@@ -70,13 +77,9 @@ export function holidaysFilter(config: HolidaysConfig): { field: 'location' | 'z
   return { field: 'zones', value: zone, zone };
 }
 
-export function buildHolidaysUrl(config: HolidaysConfig, today: string): string {
-  const { field, value } = holidaysFilter(config);
-  const params = new URLSearchParams({
-    where: `${field}="${value}" and end_date>="${shiftDay(today, -PAST_DAYS)}"`,
-    order_by: 'start_date',
-  });
-  return `${HOLIDAYS_API_URL}?${params}`;
+/** Page `offset` du jeu complet, paramètres dans l'ordre que l'API anonyme accepte (`limit` puis `offset`). */
+export function buildHolidaysPageUrl(offset: number): string {
+  return `${HOLIDAYS_API_URL}?limit=${HOLIDAYS_PAGE_SIZE}&offset=${offset}`;
 }
 
 const recordSchema = z.object({
@@ -84,10 +87,51 @@ const recordSchema = z.object({
   population: z.string().nullish(),
   start_date: z.string(),
   end_date: z.string().nullish(),
+  location: z.string().nullish(),
+  zones: z.string().nullish(),
   annee_scolaire: z.string().nullish(),
 });
-export const holidaysResponseSchema = z.array(z.unknown());
+const pageSchema = z.object({ total_count: z.number().int().nonnegative(), results: z.array(z.unknown()) });
 type HolidayRecord = z.infer<typeof recordSchema>;
+
+/**
+ * Tout le jeu de données, page après page jusqu'à `total_count`. Une page en échec ou illisible, un total qui change
+ * en cours de lecture (jeu republié), des lignes manquantes ou un jeu vide font échouer l'ensemble : jamais de
+ * calendrier partiel, l'état gardé reste tel quel.
+ */
+export async function fetchAllHolidayRecords(fetchFn: typeof fetch): Promise<unknown[]> {
+  const records: unknown[] = [];
+  let total: number | undefined;
+  for (let page = 0; total === undefined || page * HOLIDAYS_PAGE_SIZE < total; page++) {
+    if (page >= MAX_PAGES) throw new Error(`plus de ${MAX_PAGES} pages`);
+    const res = await fetchFn(buildHolidaysPageUrl(page * HOLIDAYS_PAGE_SIZE), { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = pageSchema.parse(await res.json());
+    if (total !== undefined && body.total_count !== total) throw new Error('jeu de données modifié pendant la lecture');
+    total = body.total_count;
+    records.push(...body.results);
+    if (body.results.length === 0) break;
+  }
+  if (records.length === 0) throw new Error('jeu de données vide');
+  if (records.length !== total) throw new Error(`${records.length} lignes lues sur ${total}`);
+  return records;
+}
+
+/**
+ * Lignes du réglage (`location` de l'académie ou `zones` de la zone), finies depuis moins de 30 jours, triées par
+ * début : ce que filtrait et triait autrefois l'API. Une ligne sans fin compte par son début.
+ */
+export function selectHolidayRecords(records: unknown[], config: HolidaysConfig, today: string): unknown[] {
+  const { field, value } = holidaysFilter(config);
+  const since = shiftDay(today, -PAST_DAYS);
+  return records
+    .flatMap((raw) => {
+      const parsed = recordSchema.safeParse(raw);
+      return parsed.success ? [parsed.data] : [];
+    })
+    .filter((r) => r[field] === value && (r.end_date ?? r.start_date) >= since)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+}
 
 /**
  * Jour local d'une date du jeu de données. Les dates sont des minuits locaux exprimés en UTC (« 2026-12-18T23:00Z »
@@ -198,13 +242,25 @@ export function createSchoolHolidaysSource({
   let failedAt: { filter: string; at: number } | undefined;
   const previews = new Map<string, { at: number; holidays: SchoolHoliday[] | null }>();
   let inFlight: Promise<void> | undefined;
+  /** Dernier jeu complet lu, partagé par le calendrier réglé et les aperçus : une lecture par jour au plus. */
+  let dataset: { at: number; records: unknown[] } | undefined;
+  let datasetInFlight: Promise<unknown[]> | undefined;
+
+  function allRecords(): Promise<unknown[]> {
+    if (dataset && clock().getTime() - dataset.at < REFRESH_MS) return Promise.resolve(dataset.records);
+    datasetInFlight ??= (async () => {
+      const at = clock().getTime();
+      const records = await fetchAllHolidayRecords(fetchFn);
+      dataset = { at, records };
+      return records;
+    })().finally(() => (datasetInFlight = undefined));
+    return datasetInFlight;
+  }
 
   async function load(config: HolidaysConfig, filter: string): Promise<void> {
     const startedAt = clock();
     try {
-      const res = await fetchFn(buildHolidaysUrl(config, localDay(startedAt)), { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const records = holidaysResponseSchema.parse(await res.json());
+      const records = selectHolidayRecords(await allRecords(), config, localDay(startedAt));
       const holidays = parseHolidays(records);
       if (records.length > 0 && holidays.length === 0) throw new Error('aucune période lisible dans la réponse');
       await file.replace({ version: 1, filter, fetchedAt: startedAt.toISOString(), holidays });
@@ -253,9 +309,7 @@ export function createSchoolHolidaysSource({
     if (kept && now - kept.at < (kept.holidays ? REFRESH_MS : PREVIEW_RETRY_MS)) return kept.holidays;
     let holidays: SchoolHoliday[] | null = null;
     try {
-      const res = await fetchFn(buildHolidaysUrl(config, localDay(clock())), { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      holidays = parseHolidays(holidaysResponseSchema.parse(await res.json()));
+      holidays = parseHolidays(selectHolidayRecords(await allRecords(), config, localDay(clock())));
     } catch (err) {
       logger.error(`${STATUS_NAME} (aperçu) : ${(err as Error).message}.`);
     }

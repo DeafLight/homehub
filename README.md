@@ -524,7 +524,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   déjà la tablette (prénom, ligne, lieu d'arrivée).
 - **Vacances scolaires** (page « Vacances scolaires » de la roue dentée, sinon `holidays` du YAML : l'académie, ou
   la zone A, B ou C) : calendrier officiel du ministère
-  (data.education.gouv.fr, sans clé), relu au plus une fois par jour et gardé dans `school-holidays.json` (une panne
+  (data.education.gouv.fr, sans clé : l'API anonyme ne sert que des pages brutes, tout le jeu est lu puis filtré sur
+  place), relu au plus une fois par jour et gardé dans `school-holidays.json` (une panne
   laisse le dernier reçu). Une puce discrète sous l'horloge de l'accueil, dans l'en-tête des dashboards et en tête de
   l'agenda du téléphone : « Vacances de Noël dans 12 jours » (3 semaines avant au plus), « Dernier jour avant les
   vacances de Noël », puis « Vacances de Noël · reprise lundi 4 janvier ». Pendant les vacances : pas de trajet du
@@ -914,7 +915,8 @@ server/
   sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
   sources/transit-settings.ts  réglages de la page « Transports » (lieux, trajets, arrêts de l'accueil)
-  sources/school-holidays.ts   vacances scolaires (calendrier officiel, cache d'un jour, aperçu)
+  sources/school-holidays.ts   vacances scolaires (calendrier officiel lu par pages, filtre local, cache d'un jour, aperçu)
+  sources/school-holidays-fake.ts  faux data.education.gouv.fr du monde fictif (pages de 100, refus de l'API anonyme)
   sources/holiday-settings.ts  réglage de la page « Vacances scolaires » (académie, zone ou aucune)
   sources/refreshing-cache.ts  cache des données distantes (rafraîchissement, repli en cas de panne)
   sources/source-status.ts dernier résultat de chaque source (page NAS)

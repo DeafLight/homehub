@@ -1,5 +1,5 @@
-// Tests des vacances scolaires : lecture du calendrier officiel (fixture au format réel de l'API), requête, cache d'un
-// jour gardé sur le disque, calendrier précédent conservé en cas de panne.
+// Tests des vacances scolaires : lecture du calendrier officiel (fixture au format réel de l'API), lecture page par
+// page et filtre local, cache d'un jour gardé sur le disque, calendrier précédent conservé en cas de panne.
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,17 +7,35 @@ import { describe, expect, it } from 'vitest';
 import { parseConfig } from '../config.ts';
 import { silentLogger, testConfig } from '../testing.ts';
 import {
-  buildHolidaysUrl,
+  buildHolidaysPageUrl,
   createSchoolHolidaysSource,
+  fetchAllHolidayRecords,
   findAcademie,
   holidayName,
   holidaysFilter,
   parseHolidays,
+  selectHolidayRecords,
 } from './school-holidays.ts';
+import { fakeHolidaysPage, readHolidaysFixture } from './school-holidays-fake.ts';
 import { createSourceStatus } from './source-status.ts';
 
-/** Académie de Nantes, juillet 2026 → été 2028 (réponse réelle de l'API, export JSON). */
-const FIXTURE: unknown[] = JSON.parse(readFileSync(new URL('./fixtures/calendrier-scolaire.json', import.meta.url), 'utf8'));
+/**
+ * Académie de Nantes, juillet 2026 → été 2028 (lignes réelles de l'API), plus un Noël passé de Nantes et quelques
+ * lignes de Rennes (zone B) et de Bordeaux (zone A) pour le filtre local.
+ */
+const FIXTURE = readHolidaysFixture();
+const NANTES = (today: string) => selectHolidayRecords(FIXTURE, { academie: 'Nantes' }, today);
+/** Lignes d'une autre académie, pour un jeu de plusieurs pages. */
+const padding = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({
+    description: 'Vacances de la Toussaint',
+    population: '-',
+    start_date: `2018-10-${String((i % 28) + 1).padStart(2, '0')}T22:00:00+00:00`,
+    end_date: '2018-11-04T23:00:00+00:00',
+    location: 'Corse',
+    zones: 'Corse',
+    annee_scolaire: '2018-2019',
+  }));
 const readFileOrNull = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null);
 const record = (description: string, population: string, start: string, end: string, annee = '2026-2027') => ({
   description, population, start_date: start, end_date: end, location: 'Guadeloupe', zones: 'Guadeloupe', annee_scolaire: annee,
@@ -25,7 +43,7 @@ const record = (description: string, population: string, start: string, end: str
 
 describe('calendrier scolaire : lecture', () => {
   it('périodes de la fixture : reprise des élèves, pont d’un jour, été sans reprise publiée', () => {
-    expect(parseHolidays(FIXTURE)).toEqual([
+    expect(parseHolidays(NANTES('2026-07-01'))).toEqual([
       { name: 'Vacances d’été', start: '2026-07-04', end: '2026-09-01' },
       { name: 'Vacances de la Toussaint', start: '2026-10-17', end: '2026-11-02' },
       { name: 'Vacances de Noël', start: '2026-12-19', end: '2027-01-04' },
@@ -86,10 +104,48 @@ describe('calendrier scolaire : réglage et requête', () => {
     expect(holidaysFilter({ zone: 'C' })).toEqual({ field: 'zones', value: 'Zone C', zone: 'Zone C' });
   });
 
-  it('URL : filtre et périodes finies depuis moins de 30 jours', () => {
-    const url = new URL(buildHolidaysUrl({ academie: 'Nantes' }, '2026-11-11'));
+  it('URL : pages brutes de 100 lignes, sans filtre ni tri (seule forme acceptée sans clé)', () => {
+    const url = new URL(buildHolidaysPageUrl(200));
     expect(url.hostname).toBe('data.education.gouv.fr');
-    expect(url.searchParams.get('where')).toBe('location="Nantes" and end_date>="2026-10-12"');
+    expect(url.pathname).toMatch(/\/records$/);
+    expect(url.search).toBe('?limit=100&offset=200');
+    expect(fakeHolidaysPage(FIXTURE, url).status).toBe(200);
+    expect(fakeHolidaysPage(FIXTURE, `${url}&where=zones%3D%22Zone%20B%22`).status).toBe(401);
+  });
+
+  it('filtre local : académie ou zone, périodes finies depuis moins de 30 jours, triées', () => {
+    const nantes = NANTES('2026-11-11') as { location: string; start_date: string }[];
+    expect(nantes).toHaveLength(13); // ni l’été 2026 ni le Noël 2025, finis avant le 12 octobre
+    expect(nantes.every((r) => r.location === 'Nantes')).toBe(true);
+    expect(nantes.map((r) => r.start_date)).toEqual(nantes.map((r) => r.start_date).sort());
+    // Zone B : Nantes et Rennes, mêmes dates, une seule période par vacances.
+    const zoneB = selectHolidayRecords(FIXTURE, { zone: 'B' }, '2026-11-11');
+    expect(zoneB).toHaveLength(15);
+    expect(parseHolidays(zoneB)).toEqual(parseHolidays(nantes));
+    const zoneA = parseHolidays(selectHolidayRecords(FIXTURE, { zone: 'A' }, '2026-11-11'));
+    expect(zoneA.map((h) => h.start)).toEqual(['2026-12-19', '2027-02-06']);
+  });
+
+  it('lecture de tout le jeu, page par page jusqu’au total', async () => {
+    const all = [...padding(250), ...FIXTURE];
+    const calls: string[] = [];
+    const records = await fetchAllHolidayRecords(async (url) => {
+      calls.push(String(url));
+      return fakeHolidaysPage(all, String(url));
+    });
+    expect(records).toEqual(all);
+    expect(calls.map((u) => new URL(u).search)).toEqual(['?limit=100&offset=0', '?limit=100&offset=100', '?limit=100&offset=200']);
+  });
+
+  it('lecture incomplète : une page en échec, un total qui change, un jeu vide font tout échouer', async () => {
+    const all = padding(250);
+    const page2Down = async (url: string | URL | Request) =>
+      String(url).endsWith('offset=100') ? new Response(null, { status: 401 }) : fakeHolidaysPage(all, String(url));
+    await expect(fetchAllHolidayRecords(page2Down)).rejects.toThrow('HTTP 401');
+    let pages = 0;
+    const republished = async (url: string | URL | Request) => fakeHolidaysPage(pages++ === 0 ? all : [...all, ...FIXTURE], String(url));
+    await expect(fetchAllHolidayRecords(republished)).rejects.toThrow(/modifié/);
+    await expect(fetchAllHolidayRecords(async (url) => fakeHolidaysPage([], String(url)))).rejects.toThrow(/vide/);
   });
 
   it('configuration : académie ou zone, pas les deux, académie connue', () => {
@@ -105,10 +161,14 @@ describe('calendrier scolaire : réglage et requête', () => {
 });
 
 describe('calendrier scolaire : cache', () => {
-  function setup(settings: { academie?: string; zone?: 'A' | 'B' | 'C' } | null = { academie: 'Nantes' }, path?: string) {
+  function setup(
+    settings: { academie?: string; zone?: 'A' | 'B' | 'C' } | null = { academie: 'Nantes' },
+    path?: string,
+    records: unknown[] = FIXTURE,
+  ) {
     let now = new Date('2026-11-11T08:00:00Z').getTime();
     const calls: string[] = [];
-    let failing = false;
+    let failing: boolean | 'page2' = false;
     const logger = silentLogger();
     const status = createSourceStatus(() => new Date(now));
     const file = path ?? join(mkdtempSync(join(tmpdir(), 'homehub-holidays-')), 'school-holidays.json');
@@ -120,13 +180,14 @@ describe('calendrier scolaire : cache', () => {
       status,
       fetch: async (url) => {
         calls.push(String(url));
-        return failing ? new Response('panne', { status: 503 }) : Response.json(FIXTURE);
+        const down = failing === true || (failing === 'page2' && String(url).endsWith('offset=100'));
+        return down ? new Response('panne', { status: 503 }) : fakeHolidaysPage(records, String(url));
       },
     });
     return {
       source, calls, logger, status, file,
       advance: (ms: number) => void (now += ms),
-      fail: (value: boolean) => void (failing = value),
+      fail: (value: boolean | 'page2') => void (failing = value),
     };
   }
   const HOUR = 3_600_000;
@@ -139,7 +200,7 @@ describe('calendrier scolaire : cache', () => {
 
   it('une requête par jour au plus', async () => {
     const t = setup();
-    expect(await t.source.list()).toHaveLength(13);
+    expect(await t.source.list()).toHaveLength(12);
     t.advance(23 * HOUR);
     await t.source.list();
     expect(t.calls).toHaveLength(1);
@@ -155,7 +216,7 @@ describe('calendrier scolaire : cache', () => {
     await t.source.list();
     t.fail(true);
     t.advance(25 * HOUR);
-    expect(await t.source.list()).toHaveLength(13);
+    expect(await t.source.list()).toHaveLength(12);
     await new Promise((r) => setTimeout(r, 0));
     expect(t.logger.errors[0]).toMatch(/HTTP 503 ; calendrier précédent conservé/);
     expect(t.status.list()).toMatchObject([{ name: 'Vacances scolaires', ok: false }]);
@@ -166,13 +227,28 @@ describe('calendrier scolaire : cache', () => {
     expect(t.calls).toHaveLength(3);
   });
 
+  it('une seule page en échec : l’état gardé n’est pas écrasé', async () => {
+    const t = setup({ academie: 'Nantes' }, undefined, [...padding(250), ...FIXTURE]);
+    expect(await t.source.list()).toHaveLength(12);
+    expect(t.calls).toHaveLength(3);
+    const saved = readFileOrNull(t.file);
+    t.fail('page2');
+    t.advance(25 * HOUR);
+    expect(await t.source.list()).toHaveLength(12);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(t.calls).toHaveLength(5); // page 1 lue, page 2 en échec, pas de page 3
+    expect(readFileOrNull(t.file)).toBe(saved);
+    expect(t.logger.errors[0]).toMatch(/HTTP 503 ; calendrier précédent conservé/);
+    expect(t.status.list()).toMatchObject([{ name: 'Vacances scolaires', ok: false }]);
+  });
+
   it('redémarrage pendant une panne : le calendrier gardé sur le disque reste servi', async () => {
     const first = setup();
     await first.source.list();
     const second = setup({ academie: 'Nantes' }, first.file);
     second.fail(true);
     second.advance(48 * HOUR);
-    expect(await second.source.list()).toHaveLength(13);
+    expect(await second.source.list()).toHaveLength(12);
   });
 
   it('jamais reçu et API en panne : null ; autre réglage : l’ancien calendrier ne sert plus', async () => {
@@ -186,20 +262,22 @@ describe('calendrier scolaire : cache', () => {
     expect(await other.source.list()).toBeNull();
   });
 
-  it('aperçu d’un autre réglage : en mémoire seulement, une requête par jour, le réglage en cours passe par le cache', async () => {
+  it('aperçu d’un autre réglage : en mémoire seulement, depuis le jeu déjà lu, le réglage en cours passe par le cache', async () => {
     const t = setup();
-    expect(await t.source.preview({ zone: 'A' })).toHaveLength(13);
-    expect(t.calls[0]).toContain(encodeURIComponent('zones="Zone A"').replace(/%20/g, '+'));
-    await t.source.preview({ zone: 'A' });
-    expect(t.calls).toHaveLength(1);
+    expect(await t.source.preview({ zone: 'A' })).toHaveLength(2);
+    expect(await t.source.preview({ zone: 'B' })).toHaveLength(12);
+    expect(t.calls).toHaveLength(1); // un seul jeu complet pour tous les réglages
     expect(t.source.zone({ academie: 'Corse' })).toBe('Corse');
     expect(readFileOrNull(t.file)).toBeNull(); // l'aperçu n'écrit rien
-    expect(await t.source.preview({ academie: 'nantes' })).toHaveLength(13); // réglage en cours : list()
+    expect(await t.source.preview({ academie: 'nantes' })).toHaveLength(12); // réglage en cours : list()
     expect(readFileOrNull(t.file)).toContain('location=Nantes');
+    expect(t.calls).toHaveLength(1);
     t.fail(true);
+    t.advance(25 * 3_600_000);
     expect(await t.source.preview({ zone: 'C' })).toBeNull();
     expect(t.logger.errors.at(-1)).toMatch(/aperçu/);
+    const calls = t.calls.length;
     await t.source.preview({ zone: 'C' });
-    expect(t.calls).toHaveLength(3); // échec gardé 5 minutes
+    expect(t.calls).toHaveLength(calls); // échec gardé 5 minutes
   });
 });

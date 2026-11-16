@@ -3,11 +3,11 @@
 // fausses bases de produits (Open Food Facts et ses sœurs), calendrier scolaire d'exemple, faux site de
 // recettes (fake-recipes.ts), fausse enseigne de drive (fake-drive.ts), fausse météo
 // pluvieuse (fake-weather.ts). Aucune connexion réelle à l'école ni à Irigo ; seuls les horaires GTFS restent les vrais.
-import { readFileSync } from 'node:fs';
 import { DRIVE_HOST, fakeDriveSite } from './fake-drive.ts';
 import { fakeRecipeSite, RECIPE_HOST } from './fake-recipes.ts';
 import { fakeOpenMeteo } from './fake-weather.ts';
 import { fakeMotisPlan } from '../../server/sources/motis-fake.ts';
+import { fakeHolidaysPage, readHolidaysFixture } from '../../server/sources/school-holidays-fake.ts';
 
 /** Faux MOTIS (HOMEHUB_MOTIS_URL du serveur des captures) : seul un trajet de la page « Transports » s'en sert. */
 export const FAKE_MOTIS_URL = 'http://motis.docs.test';
@@ -191,15 +191,6 @@ function fakeProductBase(url: URL): Response {
     : new Response(JSON.stringify({ status: 0 }), { status: 404 });
 }
 
-/**
- * Calendrier scolaire d'exemple (académie de Nantes, zone B, comme Angers), au format de l'export JSON de
- * data.education.gouv.fr : la fixture des tests, sans appel au vrai service.
- */
-function fakeSchoolCalendar(): Response {
-  return new Response(readFileSync(new URL('../../server/sources/fixtures/calendrier-scolaire.json', import.meta.url), 'utf8'), {
-    headers: { 'content-type': 'application/json' },
-  });
-}
 
 /**
  * Remplace ÉcoleDirecte, le temps réel Irigo, MOTIS, les bases de produits, le calendrier scolaire, les sites de recettes,
@@ -214,7 +205,8 @@ export function installFakeSources(): void {
     // Bus 3 de l'itinéraire : celui vers le Lycée que le faux temps réel annonce dans 11 min (reconnu par son horaire).
     if (url.origin === FAKE_MOTIS_URL) return fakeMotisPlan(url, { busDeparts: new Date(Date.now() + 11 * 60_000) });
     if (url.hostname in PRODUCT_BASES) return fakeProductBase(url);
-    if (url.hostname === 'data.education.gouv.fr') return fakeSchoolCalendar();
+    // Calendrier scolaire d'exemple (académie de Nantes, zone B, comme Angers) : la fixture des tests, par pages.
+    if (url.hostname === 'data.education.gouv.fr') return fakeHolidaysPage(readHolidaysFixture(), url);
     if (url.hostname === RECIPE_HOST) return fakeRecipeSite(url);
     if (url.hostname === DRIVE_HOST) return fakeDriveSite(url);
     if (url.hostname === 'api.open-meteo.com') return fakeOpenMeteo();

@@ -13,5 +13,10 @@
   {"description":"Vacances d'Hiver","population":"-","start_date":"2028-02-04T23:00:00+00:00","end_date":"2028-02-20T23:00:00+00:00","location":"Nantes","zones":"Zone B","annee_scolaire":"2027-2028"},
   {"description":"Vacances de Printemps","population":"-","start_date":"2028-04-07T22:00:00+00:00","end_date":"2028-04-23T22:00:00+00:00","location":"Nantes","zones":"Zone B","annee_scolaire":"2027-2028"},
   {"description":"Pont de l'Ascension","population":"-","start_date":"2028-05-24T22:00:00+00:00","end_date":"2028-05-28T22:00:00+00:00","location":"Nantes","zones":"Zone B","annee_scolaire":"2027-2028"},
-  {"description":"Début des Vacances d'Été","population":"-","start_date":"2028-07-03T22:00:00+00:00","end_date":"2028-07-03T22:00:00+00:00","location":"Nantes","zones":"Zone B","annee_scolaire":"2027-2028"}
+  {"description":"Début des Vacances d'Été","population":"-","start_date":"2028-07-03T22:00:00+00:00","end_date":"2028-07-03T22:00:00+00:00","location":"Nantes","zones":"Zone B","annee_scolaire":"2027-2028"},
+  {"description":"Vacances de Noël","population":"-","start_date":"2025-12-19T23:00:00+00:00","end_date":"2026-01-04T23:00:00+00:00","location":"Nantes","zones":"Zone B","annee_scolaire":"2025-2026"},
+  {"description":"Vacances de la Toussaint","population":"-","start_date":"2026-10-16T22:00:00+00:00","end_date":"2026-11-01T23:00:00+00:00","location":"Rennes","zones":"Zone B","annee_scolaire":"2026-2027"},
+  {"description":"Vacances d'Hiver","population":"-","start_date":"2027-02-19T23:00:00+00:00","end_date":"2027-03-07T23:00:00+00:00","location":"Rennes","zones":"Zone B","annee_scolaire":"2026-2027"},
+  {"description":"Vacances de Noël","population":"-","start_date":"2026-12-18T23:00:00+00:00","end_date":"2027-01-03T23:00:00+00:00","location":"Bordeaux","zones":"Zone A","annee_scolaire":"2026-2027"},
+  {"description":"Vacances d'Hiver","population":"-","start_date":"2027-02-05T23:00:00+00:00","end_date":"2027-02-21T23:00:00+00:00","location":"Bordeaux","zones":"Zone A","annee_scolaire":"2026-2027"}
 ]
