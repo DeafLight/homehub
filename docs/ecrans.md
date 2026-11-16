@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.84.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.85.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -426,10 +426,9 @@ la fausse télé du monde fictif) :
 Quand la télé passe en veille d'écran, l'appli HomeHub TV affiche la page `/ecran` de HomeHub : l'heure et la date,
 la météo du moment et des trois jours suivants, le **menu du soir** (en jaune, jusqu'à 21 h) et l'**agenda**
 d'aujourd'hui et de demain, de la famille et de chacun (avec le prénom). Rien de personnel ; tout l'écran se déplace un
-peu chaque minute. La première touche de la télécommande la ferme. (Dans le monde fictif, l'horloge est figée un jeudi
-mais la météo est la vraie prévision du jour : les jours de prévision ne suivent pas.)
+peu chaque minute. La première touche de la télécommande la ferme.
 
-![Écran de veille de la télé : 07:35, jeudi 5 novembre, couvert 6°, trois jours de prévision ; ce soir au menu, agenda d'aujourd'hui et de demain](images/tele-ecran-veille.png)
+![Écran de veille de la télé : 07:35, jeudi 5 novembre, couvert 8°, trois jours de prévision ; ce soir au menu, agenda d'aujourd'hui et de demain](images/tele-ecran-veille.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 
