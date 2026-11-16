@@ -204,6 +204,7 @@
   .home {
     height: 100%;
     display: flex;
+    overflow: hidden;
   }
 
   /* Rappel discret : repas passés pas encore notés cuisinés. */
@@ -223,9 +224,14 @@
   }
 
 
+  /* La page ne défile pas (body en overflow: hidden) : la colonne défile d'elle-même au doigt quand l'accueil de la
+     personne reconnue, les cartes et les passages dépassent la hauteur de l'écran. */
   .ambient {
     flex: 1 1 0;
     min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     justify-content: space-between;

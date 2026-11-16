@@ -445,6 +445,8 @@ personne depuis son propre téléphone.
 - [x] Visages (0.49.1) : une tablette qui calcule la même empreinte pour tous les visages (WebView qui fausse le calcul
       par la carte graphique) ne peut plus abîmer les profils : prises anormalement uniformes refusées, profils déjà
       touchés signalés ; calcul des empreintes réglable (`faces.backend` : `webgl`, `webgl-safe`, `cpu`).
+- [x] Accueil (0.96.1) : la colonne de gauche (horloge, cartes, passages) défile au doigt quand elle dépasse la
+      hauteur de l'écran, au lieu d'être coupée.
 
 ## Transports (après le design)
 
