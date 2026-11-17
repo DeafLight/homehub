@@ -9,13 +9,19 @@
 // position. Un appareil non appairé : rien. La position n'est ni gardée ni journalisée.
 // Carte en route (version 3) : POST /trip/route, l'itinéraire du prochain trajet avec tracés et courses entières ;
 // POST /trip/rides, les nouvelles heures des courses suivies une fois monté. Le téléphone de la personne seulement.
+// Positions réelles (version 4) : POST /trip/vehicles, les véhicules des courses que le téléphone envoie (celles de son
+// trajet, au plus 4), lus dans le flux VehiclePositions partagé ; jamais tout le flux. La route ne prend ni profil ni
+// position, et ne renvoie rien du trajet d'un autre : seulement des véhicules, dont les positions sont publiques.
 import { z } from 'zod';
-import type { RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch } from '../shared/trip.ts';
+import type { RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch, VehiclesResponse } from '../shared/trip.ts';
 import { WEEKS_AHEAD } from '../shared/types.ts';
 import { type Access, REJECTED_PHONE } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import type { NextTripService, TripViewer } from './services/next-trip.ts';
 import { MAX_RIDES } from './services/trip-route.ts';
+import { MAX_VEHICLE_TRIPS, vehicleFixes } from './services/trip-vehicles.ts';
+import type { Clock } from './sources/types.ts';
+import type { VehiclePositionSource } from './sources/vehicle-positions.ts';
 
 const placeSchema = z.object({
   name: z.string().max(200),
@@ -24,6 +30,8 @@ const placeSchema = z.object({
   stopId: z.string().max(200).optional(),
 });
 const ridesSchema = z.object({ rides: z.array(z.object({ tripId: z.string().min(1).max(300), from: placeSchema, to: placeSchema })).max(MAX_RIDES) });
+
+const vehiclesSchema = z.object({ tripIds: z.array(z.string().min(1).max(300)).max(MAX_VEHICLE_TRIPS) });
 
 const positionSchema = z
   .object({ lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180) })
@@ -35,7 +43,9 @@ const weekSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 export const TRIP_DEVICES_ONLY = 'Réservé à la tablette et aux téléphones appairés';
 
-export function createTripApi({ nextTrip, access }: { nextTrip: NextTripService; access: Access }) {
+export type TripApiDeps = { nextTrip: NextTripService; access: Access; vehicles?: VehiclePositionSource; clock?: Clock };
+
+export function createTripApi({ nextTrip, access, vehicles, clock = () => new Date() }: TripApiDeps) {
   const api = createRouter();
 
   /** Le téléphone de la personne (prioritaire), ou la tablette ; sinon refusé. */
@@ -76,6 +86,14 @@ export function createTripApi({ nextTrip, access }: { nextTrip: NextTripService;
     const body = await readBody(c, ridesSchema, 'Courses illisibles');
     c.header('Cache-Control', 'no-store');
     return c.json({ rides: await nextTrip.rides(body.rides) } satisfies RidesResponse);
+  });
+
+  api.post('/trip/vehicles', async (c) => {
+    await access.ownPhone(c);
+    const body = await readBody(c, vehiclesSchema, 'Courses illisibles');
+    c.header('Cache-Control', 'no-store');
+    const feed = vehicles && body.tripIds.length > 0 ? await vehicles.vehicles() : [];
+    return c.json({ vehicles: vehicleFixes(feed, body.tripIds, clock().getTime()) } satisfies VehiclesResponse);
   });
 
   api.get('/trip/watch', async (c) => {

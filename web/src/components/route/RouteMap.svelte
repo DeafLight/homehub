@@ -3,7 +3,8 @@
   // par HomeHub (jamais un fournisseur de tuiles extérieur : les tuiles révèlent le quartier), ou fond uni sans fichier ;
   // tracé du trajet (marche en pointillés, bus et tram en couleur pleine, fait en gris), arrêts de montée, de
   // correspondance et de descente nommés, destination en carré jaune, position en point vert qui pulse, véhicules à
-  // prendre en pastille creuse (position estimée). « Recentrer » (recenter) suit la position jusqu'au prochain
+  // prendre en pastille pleine à leur position réelle (avec une pointe dans le sens de marche, si le cap est connu) ou
+  // en pastille creuse en pointillés à leur position estimée. « Recentrer » (recenter) suit la position jusqu'au prochain
   // glissement du doigt. Chargé à la demande avec l'écran (maplibre-gl et pmtiles n'alourdissent pas la tablette).
   import 'maplibre-gl/dist/maplibre-gl.css';
   import { AttributionControl, type GeoJSONSource, LngLatBounds, Map as MapLibre, Marker, addProtocol, setWorkerUrl } from 'maplibre-gl';
@@ -176,11 +177,23 @@
     if (follow) map.easeTo({ center: [fix.lon, fix.lat], padding: padding(), duration: 500 });
   });
 
-  // Véhicules à prendre, en position estimée : pastille creuse avec la ligne.
+  /** Pastille d'un véhicule : pleine (position réelle) ou creuse (estimée), pointe tournée selon le cap. */
+  function vehicleElement(v: VehicleMark): HTMLElement {
+    const el = element(`vehicle${v.current ? ' current' : ''}${v.real ? ' real' : ''}`, v.line, v.label);
+    if (v.real && v.bearing !== undefined) {
+      const heading = document.createElement('span');
+      heading.className = 'heading';
+      heading.style.transform = `rotate(${Math.round(v.bearing)}deg)`;
+      el.querySelector('.dot')?.append(heading);
+    }
+    return el;
+  }
+
+  // Véhicules à prendre : pastille avec la ligne, pleine si la position est réelle.
   $effect(() => {
     if (!ready || !map) return;
     for (const m of cars) m.remove();
-    cars = vehicles.map((v) => new Marker({ element: element(`vehicle${v.current ? ' current' : ''}`, v.line, v.label) }).setLngLat([v.lon, v.lat]).addTo(map!));
+    cars = vehicles.map((v) => new Marker({ element: vehicleElement(v) }).setLngLat([v.lon, v.lat]).addTo(map!));
     sides();
   });
 
@@ -280,6 +293,32 @@
     font-weight: 800;
     /* Creuse : une position estimée, pas une vraie position. */
     border-style: dashed;
+  }
+
+  /* Pleine : la vraie position du véhicule (flux temps réel). */
+  .map :global(.vehicle.real .dot) {
+    position: relative;
+    border-style: solid;
+    background: var(--rain);
+    color: var(--bg);
+  }
+
+  /* Pointe dans le sens de marche : un petit triangle au bord de la pastille, tourné autour de son centre. */
+  .map :global(.vehicle .heading) {
+    position: absolute;
+    inset: -9px;
+    pointer-events: none;
+  }
+
+  .map :global(.vehicle .heading::before) {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 6px solid var(--rain);
   }
 
   .map :global(.vehicle .label) {

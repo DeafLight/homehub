@@ -222,3 +222,26 @@ export type RideUpdate = {
 
 /** Réponse de POST /api/trip/rides, dans l'ordre des courses demandées. */
 export type RidesResponse = { rides: (RideUpdate | null)[] };
+
+// Positions réelles des véhicules (chantier « Prochain trajet », version 4) : flux GTFS-RT VehiclePositions d'Irigo.
+
+/** Position réelle d'un véhicule d'une course suivie, telle que le serveur la renvoie au téléphone. */
+export type VehicleFix = {
+  /** Course MOTIS demandée par le téléphone. */
+  tripId: string;
+  lat: number;
+  lon: number;
+  /** Cap en degrés (0 : nord), si le flux le donne. */
+  bearing?: number;
+  /** Âge de la position en secondes, à l'heure du serveur (l'horloge du téléphone peut être décalée). */
+  age: number;
+  /** Arrêt courant ou suivant (identifiant GTFS, sans le préfixe de flux de MOTIS) et état du véhicule par rapport à lui. */
+  stopId?: string;
+  status?: 'incoming' | 'stopped' | 'in-transit';
+};
+
+/** Réponse de POST /api/trip/vehicles : les véhicules trouvés parmi les courses demandées (les autres sont absents). */
+export type VehiclesResponse = { vehicles: VehicleFix[] };
+
+/** Identifiant GTFS d'un arrêt MOTIS (« irigo_RALL » → « RALL ») : ce que le flux de positions donne. */
+export const feedLocalId = (stopId: string) => stopId.slice(stopId.indexOf('_') + 1);

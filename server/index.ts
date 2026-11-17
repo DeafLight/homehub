@@ -53,6 +53,7 @@ import { createPushStore } from './sources/push.ts';
 import { createGtfsSource } from './sources/gtfs.ts';
 import { createIrigoClient, createTransitSource } from './sources/irigo.ts';
 import { createMotisSource } from './sources/motis.ts';
+import { createVehiclePositionSource } from './sources/vehicle-positions.ts';
 import { createTransitSettingsStore } from './sources/transit-settings.ts';
 import { type Clock, type Sources, firstSchoolSource } from './sources/types.ts';
 
@@ -176,6 +177,8 @@ const transit = createTransitSource({
   logger: console,
   status: sourceStatus,
 });
+// Positions réelles des bus et trams (carte en route) : lues seulement quand une carte est ouverte.
+const vehicles = createVehiclePositionSource({ clock, logger: console, status: sourceStatus });
 const transitSettings = createTransitSettingsStore({ path: join(stateDir, 'transit-settings.json'), clock, config });
 await transitSettings.load();
 const gtfs = createGtfsSource({ path: join(stateDir, 'irigo-gtfs.zip'), clock, logger: console, status: sourceStatus });
@@ -231,7 +234,7 @@ createRainAlert({
   clock,
   logger: console,
 }).start();
-const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot, mapTiles });
+const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, vehicles, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot, mapTiles });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

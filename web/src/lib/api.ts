@@ -55,7 +55,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { LatLon, RideRef, RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch } from '../../../shared/trip.ts';
+import type { LatLon, RideRef, RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch, VehiclesResponse } from '../../../shared/trip.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenReplies, ScreenTarget } from '../../../shared/screen.ts';
 import type { RemoteArtwork } from '../../../shared/now-playing.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
@@ -348,6 +348,8 @@ export type Api = {
   tripRoute(position: LatLon | null): Promise<RouteResponse>;
   /** Carte en route : nouvelles heures des courses suivies, une fois monté. */
   tripRides(rides: RideRef[]): Promise<RidesResponse>;
+  /** Carte en route : positions réelles des véhicules des courses demandées (celles du trajet). */
+  tripVehicles(tripIds: string[]): Promise<VehiclesResponse>;
   /** Carte en route : le fond de carte (fichier PMTiles) est-il là ? */
   mapInfo(): Promise<{ tiles: boolean }>;
   /** Rendez-vous de la semaine `week` dont le lieu est reconnu (téléphone : les siens et la famille ; tablette : tous). */
@@ -604,6 +606,7 @@ export function createApi(
     nextTrip: (position) => send('POST', '/trip', { position }),
     tripRoute: (position) => send('POST', '/trip/route', { position }),
     tripRides: (rides) => send('POST', '/trip/rides', { rides }),
+    tripVehicles: (tripIds) => send('POST', '/trip/vehicles', { tripIds }),
     mapInfo: () => request('/map'),
     routableEvents: (week) => request(`/trip/events?week=${week}`),
     eventTrip: (key, position) => send('POST', '/trip/event', { event: key, position }),

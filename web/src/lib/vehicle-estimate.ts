@@ -1,11 +1,13 @@
-// Véhicule à prendre sur la carte en route, en position estimée (les vraies positions GTFS-RT viendront avec la
-// version 4) : interpolée sur le tracé de sa course d'après les heures de ses arrêts (temps réel compris quand MOTIS le
-// connaît). À pied ou à l'arrêt : le prochain bus ou tram à prendre ; dans un véhicule : celui-ci et, s'il y a une
-// correspondance, le suivant. Logique pure, testée à part (vehicle-estimate.test.ts).
+// Véhicule à prendre sur la carte en route. À pied ou à l'arrêt : le prochain bus ou tram à prendre ; dans un
+// véhicule : celui-ci et, s'il y a une correspondance, le suivant. À sa position réelle quand le flux VehiclePositions
+// la donne et qu'elle est fraîche (version 4, vehicle-real.ts), sinon en position estimée : interpolée sur le tracé de
+// sa course d'après les heures de ses arrêts (temps réel compris quand MOTIS le connaît). Logique pure, testée à part
+// (vehicle-estimate.test.ts).
 import { type LonLat, pointAt, projectStops } from '../../../shared/geo-path.ts';
 import type { RouteCourse, TripLegMode } from '../../../shared/trip.ts';
 import { durationText } from './next-trip.ts';
 import { minutesUntil, type Step, vehicleName } from './en-route.ts';
+import { realPosition, stopsAway, stopsText, type TrackedVehicles } from './vehicle-real.ts';
 
 /** Position estimée d'une course à l'instant `now` (ms) : à un arrêt ou entre deux ; null une fois arrivée au terminus. */
 export function vehiclePosition(course: RouteCourse, now: number): LonLat | null {
@@ -28,7 +30,19 @@ export function vehiclePosition(course: RouteCourse, now: number): LonLat | null
   return pointAt(path, along[along.length - 1]);
 }
 
-export type VehicleMark = { lon: number; lat: number; mode: TripLegMode; line: string; label: string; /** Le véhicule où l'on est. */ current: boolean };
+export type VehicleMark = {
+  lon: number;
+  lat: number;
+  mode: TripLegMode;
+  line: string;
+  label: string;
+  /** Le véhicule où l'on est. */
+  current: boolean;
+  /** Position réelle (icône pleine) ; sinon estimée (icône creuse). */
+  real: boolean;
+  /** Cap du véhicule en degrés, s'il est connu (position réelle). */
+  bearing?: number;
+};
 
 /** « tram A · à l'arrêt dans 5 min » (ou « à l'arrêt » une fois l'heure passée). */
 const approach = (step: Step, now: Date) => {
@@ -36,23 +50,34 @@ const approach = (step: Step, now: Date) => {
   return `${vehicleName(step)} · ${n <= 0 ? 'à l’arrêt' : `à l’arrêt dans ${durationText(n)}`}`;
 };
 
-/** Véhicules à montrer à l'étape `index` : le prochain à prendre, ou celui où l'on est et le suivant. */
-export function vehiclesToShow(steps: Step[], index: number, now: Date): VehicleMark[] {
+/** Courses à montrer à l'étape `index` : le prochain véhicule à prendre, ou celui où l'on est et le suivant. */
+function wanted(steps: Step[], index: number): { s: Step; current: boolean }[] {
   const step = steps[index];
   if (!step) return [];
-  const rides = steps.map((s, i) => ({ s, i })).filter(({ s, i }) => s.mode !== 'walk' && i >= index);
-  const wanted: { s: Step; current: boolean }[] = [];
-  if (step.mode === 'walk') {
-    if (rides[0]) wanted.push({ s: rides[0].s, current: false });
-  } else {
-    wanted.push({ s: step, current: true });
-    if (rides[1]) wanted.push({ s: rides[1].s, current: false });
-  }
-  return wanted.flatMap(({ s, current }) => {
+  const rides = steps.filter((s, i) => s.mode !== 'walk' && i >= index);
+  if (step.mode === 'walk') return rides[0] ? [{ s: rides[0], current: false }] : [];
+  return [{ s: step, current: true }, ...(rides[1] ? [{ s: rides[1], current: false }] : [])];
+}
+
+/** Courses MOTIS dont on demande la position réelle à l'étape `index`. */
+export const wantedTrips = (steps: Step[], index: number) => wanted(steps, index).flatMap(({ s }) => (s.tripId ? [s.tripId] : []));
+
+/**
+ * Véhicules à montrer à l'étape `index` : le prochain à prendre, ou celui où l'on est et le suivant ; à leur position
+ * réelle si `tracked` en a une de fraîche, sinon estimée.
+ */
+export function vehiclesToShow(steps: Step[], index: number, now: Date, tracked: TrackedVehicles = new Map()): VehicleMark[] {
+  return wanted(steps, index).flatMap(({ s, current }): VehicleMark[] => {
+    const real = realPosition(tracked, s.tripId, s.course);
+    if (real) {
+      // Le véhicule où l'on est : son nom seul ; celui à prendre : à combien d'arrêts de la montée.
+      const label = current || !s.course ? vehicleName(s) : `${vehicleName(s)} · ${stopsText(stopsAway(s.course, real))}`;
+      return [{ lon: real.lon, lat: real.lat, mode: s.mode, line: s.line ?? '', label, current, real: true, ...(real.bearing !== undefined && { bearing: real.bearing }) }];
+    }
     const at = s.course ? vehiclePosition(s.course, now.getTime()) : null;
     if (!at) return [];
     // Le véhicule où l'on est : son nom seul (la descente est dite en gros dans le panneau).
     const label = current ? vehicleName(s) : approach(s, now);
-    return [{ lon: at[0], lat: at[1], mode: s.mode, line: s.line ?? '', label, current }];
+    return [{ lon: at[0], lat: at[1], mode: s.mode, line: s.line ?? '', label, current, real: false }];
   });
 }

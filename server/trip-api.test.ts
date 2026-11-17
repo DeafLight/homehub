@@ -1,7 +1,8 @@
 // Tests des routes du « Prochain trajet » et des notifications : le téléphone de la personne seulement (son profil,
 // jamais celui d'un autre), ni la tablette ni un appareil non appairé ; position lue dans le corps ; abonnement Web
 // Push rattaché au téléphone, notification d'essai. Version 2.1 : rendez-vous touchables et trajet d'un rendez-vous
-// (le téléphone pour lui-même et la famille, la tablette sans position), diagnostic de la notification.
+// (le téléphone pour lui-même et la famille, la tablette sans position), diagnostic de la notification. Version 4 :
+// positions réelles des véhicules, seulement ceux des courses demandées, jamais tout le flux.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { createRouter } from './http.ts';
 import { createPushApi } from './push-api.ts';
 import type { NextTripService, TripOptions, TripViewer } from './services/next-trip.ts';
 import type { PushMessage } from './services/web-push.ts';
+import type { GtfsRtVehicle } from './sources/gtfs-rt.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createPushStore, type PushRecord } from './sources/push.ts';
 import { createTripApi } from './trip-api.ts';
@@ -21,6 +23,12 @@ import { connectedFrom, NOW } from './testing.ts';
 
 const TABLET = '192.168.1.50';
 const SUB = { endpoint: 'https://push.exemple.test/abc', keys: { p256dh: `B${'A'.repeat(86)}`, auth: 'A'.repeat(22) } };
+
+/** Flux de positions d'exemple : un tram de la course demandée (au format MOTIS), un bus d'une autre course. */
+const FEED: GtfsRtVehicle[] = [
+  { tripId: 'FICTIF-A-1', lat: 47.4765, lon: -0.5487, bearing: 90, timestamp: NOW.getTime() / 1000 - 25, stopId: 'JEXE', status: 'stopped' },
+  { tripId: 'FICTIF-3-9', lat: 47.469, lon: -0.553, timestamp: NOW.getTime() / 1000 - 5 },
+];
 
 async function setup({ enabled = true, sendResult = 'sent' as const } = {}) {
   const clock = () => new Date(NOW);
@@ -60,7 +68,9 @@ async function setup({ enabled = true, sendResult = 'sent' as const } = {}) {
   await push.load();
   const sent: { sub: PushRecord; message: PushMessage }[] = [];
   const api = createRouter();
-  api.route('/', createTripApi({ nextTrip, access }));
+  let feedReads = 0;
+  const vehicles = { vehicles: async () => (feedReads++, FEED) };
+  api.route('/', createTripApi({ nextTrip, access, vehicles, clock }));
   api.route('/', createPushApi({ store: push, access, send: async (sub, message) => (sent.push({ sub, message }), sendResult) }));
   const phone = async (ownerId: string) => {
     const { code } = devices.createCode(ownerId);
@@ -72,7 +82,7 @@ async function setup({ enabled = true, sendResult = 'sent' as const } = {}) {
       { method, headers: { ...(token && { Authorization: `Bearer ${token}` }), 'content-type': 'application/json' }, ...(body !== undefined && { body: JSON.stringify(body) }) },
       connectedFrom(from),
     );
-  return { call, phone, calls, eventCalls, routableCalls, rideCalls, sent, push, devices };
+  return { call, phone, calls, eventCalls, routableCalls, rideCalls, sent, push, devices, feedReads: () => feedReads };
 }
 
 describe('API du prochain trajet', () => {
@@ -136,6 +146,28 @@ describe('API de la carte en route', () => {
     expect(await (await call('POST', '/trip/rides', { token: lea, body: { rides: [ride('a'), ride('b')] } })).json()).toEqual({ rides: [null, null] });
     expect(rideCalls).toEqual(['a', 'b']);
     expect((await call('POST', '/trip/rides', { token: lea, body: { rides: ['a', 'b', 'c', 'd', 'e'].map(ride) } })).status).toBe(400);
+  });
+
+  it('positions réelles : seulement les véhicules des courses demandées, avec leur âge', async () => {
+    const { call, phone } = await setup();
+    const lea = await phone('lea');
+    const res = await call('POST', '/trip/vehicles', { token: lea, body: { tripIds: ['20261105_07:42_irigo_FICTIF-A-1', 'absente'] } });
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({
+      vehicles: [{ tripId: '20261105_07:42_irigo_FICTIF-A-1', lat: 47.4765, lon: -0.5487, bearing: 90, age: 25, stopId: 'JEXE', status: 'stopped' }],
+    });
+  });
+
+  it('positions réelles : sans course demandée, le flux n’est pas lu ; au plus quatre courses ; téléphone appairé seulement', async () => {
+    const { call, phone, feedReads } = await setup();
+    const lea = await phone('lea');
+    expect(await (await call('POST', '/trip/vehicles', { token: lea, body: { tripIds: [] } })).json()).toEqual({ vehicles: [] });
+    expect(feedReads()).toBe(0);
+    expect((await call('POST', '/trip/vehicles', { token: lea, body: { tripIds: ['a', 'b', 'c', 'd', 'e'] } })).status).toBe(400);
+    expect((await call('POST', '/trip/vehicles', { from: TABLET, body: { tripIds: ['FICTIF-3-9'] } })).status).toBe(403);
+    expect((await call('POST', '/trip/vehicles', { body: { tripIds: ['FICTIF-3-9'] } })).status).toBe(403);
+    expect((await call('POST', '/trip/vehicles', { token: 'inconnu', body: { tripIds: ['FICTIF-3-9'] } })).status).toBe(401);
+    expect(feedReads()).toBe(0);
   });
 
   it('ni la tablette, ni un appareil non appairé ; sans MOTIS, pas d’itinéraire', async () => {

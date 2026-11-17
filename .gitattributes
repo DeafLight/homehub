@@ -1,0 +1,2 @@
+# Fixtures binaires (flux GTFS-RT fictifs) : jamais de conversion des fins de ligne.
+*.pb binary

@@ -1,18 +1,20 @@
 <script lang="ts">
   // Carte en route (chantier « Prochain trajet », version 3), ouverte en touchant la carte « Prochain trajet » de
   // l'accueil du téléphone : la carte plein écran (components/route/RouteMap.svelte) avec la position, le tracé, les
-  // arrêts, la destination et le véhicule à prendre en position estimée ; en bas, l'étape en cours, la liste des étapes
+  // arrêts, la destination et le véhicule à prendre, à sa position réelle (version 4 : flux VehiclePositions, redemandé
+  // toutes les 20 s pour les seules courses du trajet) ou, à défaut, estimée ; en bas, l'étape en cours, la liste des étapes
   // et le bouton qui passe à la suivante (elle avance aussi d'elle-même d'après la position). Trajet recalculé chaque
   // minute depuis la position tant qu'on n'est pas monté, puis seules les heures des courses suivies ; écran gardé
   // allumé. La position ne sert qu'au calcul (corps de la requête) et à la carte, jamais gardée. Chargé à la demande.
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import type { TripRoute } from '../../../shared/trip.ts';
   import Icon from '../components/Icon.svelte';
   import RouteMap from '../components/route/RouteMap.svelte';
   import { getAppContext } from '../lib/context.ts';
   import { advance, boarded, type Fix, headline, manualNext, mergeRides, nextLabel, type Progress, rideRefs, START, stepRows, stepsOf } from '../lib/en-route.ts';
   import { phonePath } from '../lib/route.ts';
-  import { vehiclesToShow } from '../lib/vehicle-estimate.ts';
+  import { vehiclesToShow, wantedTrips } from '../lib/vehicle-estimate.ts';
+  import { track, type TrackedVehicles, VEHICLES_REFRESH_MS } from '../lib/vehicle-real.ts';
   import { createWakeLock } from '../lib/wake-lock.ts';
 
   const { api, clock, navigate } = getAppContext();
@@ -27,6 +29,7 @@
   let tiles = $state(false);
   let map = $state<RouteMap>();
   let panelHeight = $state(0);
+  let tracked = $state<TrackedVehicles>(new Map());
 
   const steps = $derived(route ? stepsOf(route) : []);
   const now = $derived(clock.now);
@@ -34,7 +37,38 @@
   const head = $derived(route ? headline(route, steps, progress, fix, now) : null);
   const rows = $derived(route ? stepRows(route, steps, progress) : []);
   const label = $derived(nextLabel(steps, progress));
-  const vehicles = $derived(vehiclesToShow(steps, progress.step, now));
+  const trips = $derived(wantedTrips(steps, progress.step));
+  const vehicles = $derived(vehiclesToShow(steps, progress.step, now, tracked));
+
+  /** Positions réelles des véhicules à montrer ; le flux ne répond pas : on garde les dernières, qui vieillissent. */
+  async function loadVehicles() {
+    const wanted = trips;
+    if (wanted.length === 0) return;
+    try {
+      const { vehicles: fixes } = await api.tripVehicles(wanted);
+      tracked = track(tracked, fixes, clock.now.getTime(), trips);
+    } catch {
+      // Hors ligne ou serveur muet : positions estimées une fois les réelles trop vieilles.
+    }
+  }
+
+  // À chaque tic de l'horloge : les positions vieillissent (bascule vers l'estimée au-delà de 2 min).
+  $effect(() => {
+    const at = now.getTime();
+    const wanted = trips;
+    tracked = track(untrack(() => tracked), [], at, wanted);
+  });
+
+  // Dès que le trajet ou l'étape change les courses à montrer, puis toutes les 20 s.
+  let lastTrips = '';
+  $effect(() => {
+    const key = trips.join(' ');
+    if (key !== lastTrips) {
+      lastTrips = key;
+      void untrack(loadVehicles);
+    }
+  });
+  const vehicleTimer = setInterval(() => void loadVehicles(), VEHICLES_REFRESH_MS);
 
   async function load() {
     if (arrived) return;
@@ -84,6 +118,7 @@
   onDestroy(() => {
     clearTimeout(firstLoad);
     clearInterval(timer);
+    clearInterval(vehicleTimer);
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     wakeLock.release();
   });

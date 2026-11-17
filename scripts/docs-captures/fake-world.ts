@@ -7,7 +7,7 @@
 import { DRIVE_HOST, fakeDriveSite } from './fake-drive.ts';
 import { fakeRecipeSite, RECIPE_HOST } from './fake-recipes.ts';
 import { fakeOpenMeteo } from './fake-weather.ts';
-import { fakeMotisPlan } from '../../server/sources/motis-fake.ts';
+import { fakeMotisPlan, fakeVehiclePositions } from '../../server/sources/motis-fake.ts';
 import { fakeHolidaysPage, readHolidaysFixture } from '../../server/sources/school-holidays-fake.ts';
 import { FAKE_TOMTOM_URL, fakeTomTomRoute } from '../../server/sources/tomtom-fake.ts';
 
@@ -223,6 +223,8 @@ export function installFakeSources(): void {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input instanceof Request ? input.url : input));
     if (url.hostname === 'api.ecoledirecte.com') return fakeEcoleDirecte(url);
+    // Positions des véhicules (carte en route) : les faux trams A des itinéraires du faux MOTIS.
+    if (url.hostname === 'ara-api.enroute.mobi' && url.pathname.endsWith('/gtfs/vehicle-positions')) return new Response(fakeVehiclePositions(Date.now()));
     if (url.hostname === 'ara-api.enroute.mobi') return fakeSiri();
     // Bus 3 de l'itinéraire : celui vers le Lycée que le faux temps réel annonce dans 11 min (reconnu par son horaire).
     if (url.origin === FAKE_MOTIS_URL) {
@@ -231,7 +233,11 @@ export function installFakeSources(): void {
       const fromPhone = url.searchParams.get('fromPlace') !== '47.470000,-0.550000';
       // Un rendez-vous lointain (le lendemain) n'a pas son bus dans 11 min : itinéraire calé sur l'heure demandée.
       const soon = Date.parse(url.searchParams.get('time') ?? '') - Date.now() <= 3 * 3_600_000;
-      return fakeMotisPlan(url, { ...(soon && { busDeparts: new Date(Date.now() + 11 * 60_000) }), ...(fromPhone && { delayMinutes: 2 }) });
+      // Depuis le téléphone, le bus est calé sur la minute : comme une vraie course, il garde son identifiant (et son
+      // tram A le sien) d'un calcul à l'autre, ce que le faux flux des positions des véhicules suppose.
+      const bus = Date.now() + 11 * 60_000;
+      const busDeparts = new Date(fromPhone ? Math.round(bus / 60_000) * 60_000 : bus);
+      return fakeMotisPlan(url, { ...(soon && { busDeparts }), ...(fromPhone && { delayMinutes: 2 }) });
     }
     if (url.origin === FAKE_TOMTOM_URL) return fakeTomTomRoute(url);
     // Lieux d'agenda : rien de réel n'est demandé ; seule l'adresse d'exemple (DOCS_EVENT_ADDRESS) est trouvée.

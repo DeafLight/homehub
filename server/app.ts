@@ -85,6 +85,7 @@ import { createScreenCookApi } from './screen-cook-api.ts';
 import { createScreenCooking } from './services/screen-cook.ts';
 import { createScreenTalkApi } from './screen-talk-api.ts';
 import type { MotisSource } from './sources/motis.ts';
+import type { VehiclePositionSource } from './sources/vehicle-positions.ts';
 import type { TomTomSource } from './sources/tomtom.ts';
 import type { PushRecord, PushStore } from './sources/push.ts';
 import { type PushMessage, type PushResult, sendPush } from './services/web-push.ts';
@@ -150,6 +151,8 @@ export type AppDeps = {
   motis?: MotisSource;
   /** Durée en voiture avec le trafic (ligne voiture des parents) ; absent : MOTIS sans trafic. */
   tomtom?: TomTomSource;
+  /** Positions réelles des véhicules (carte en route) ; absent : positions estimées seulement. */
+  vehicles?: VehiclePositionSource;
   /** Notifications Web Push (« Pars dans 5 min ») ; absent (tests) : ni notifications, ni leurs routes. */
   push?: PushStore;
   /** Envoi d'une notification ; absent : Web Push réel (services/web-push.ts). */
@@ -226,7 +229,7 @@ export function createApp(deps: AppDeps): Hono {
     clock,
     logger: console,
   });
-  api.route('/', createTripApi({ nextTrip, access }));
+  api.route('/', createTripApi({ nextTrip, access, vehicles: deps.vehicles, clock }));
   api.route('/', createMapApi({ tilesPath: () => deps.mapTiles, access }));
   if (deps.push) {
     const store = deps.push;

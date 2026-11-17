@@ -1307,8 +1307,9 @@ if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
 // faux MOTIS (bus 3 dans 11 min, 2 min de retard annoncées, puis tram A), fond uni (pas de fichier PMTiles dans le monde
 // fictif). Position simulée qui avance (fausse géolocalisation, horodatée). À pied : à 180 m de l'arrêt, horloge du
 // navigateur 8 min plus tard (le bus arrive dans 5 min, estimé en approche). Dans le bus : la position part de l'arrêt
-// et suit le tracé à 32 km/h, la montée est reconnue d'elle-même ; horloge 21 min plus tard, le tram A de la
-// correspondance est estimé en approche de son arrêt.
+// et suit le tracé à 32 km/h, la montée est reconnue d'elle-même ; horloge 21 min plus tard, le bus (absent du faux
+// flux de positions) reste en position estimée, pastille creuse, et le tram A de la correspondance est à sa position
+// réelle (faux flux VehiclePositions, version 4), pastille pleine, « à 2 arrêts ».
 const ROUTE_SHOTS = ['telephone-carte-a-pied', 'telephone-carte-correspondance'];
 /** Fausse géolocalisation : `points` [lat, lon] émis toutes les 200 ms, horodatés à `stepSeconds` d'écart, le dernier répété. */
 const movingPosition = (points: [number, number][], stepSeconds: number) => `(() => {

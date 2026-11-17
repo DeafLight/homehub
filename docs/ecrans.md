@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.98.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.99.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -348,10 +348,12 @@ d'Angers en sombre). Le tracé de chaque étape (marche en pointillés, bus et t
 correspondance et de descente, la destination en carré jaune, la position en point vert. À gauche, à pied : à 180 m
 de l'arrêt Ralliement, le bus 3 arrive dans 5 min, et sa position estimée (pastille creuse, en pointillés) le montre
 en approche. À droite, dans le bus : la montée a été reconnue d'elle-même (passé à l'arrêt, puis à 32 km/h sur le
-tracé) ; « descente dans 4 min », 2 min de retard, et le tram A de la correspondance déjà estimé en route vers son
-arrêt. En bas, la liste des étapes horodatées et le bouton de l'étape suivante.
+tracé) ; « descente dans 4 min », 2 min de retard. Le bus, absent du flux des positions, reste estimé (pastille
+creuse) ; le tram A de la correspondance est à sa **position réelle** (faux flux VehiclePositions) : pastille pleine,
+pointe dans le sens de marche, « tram A · à 2 arrêts » de Mail des Tilleuls. En bas, la liste des étapes horodatées et
+le bouton de l'étape suivante.
 
-<img src="images/telephone-carte-a-pied.png" width="260" alt="Carte en route, à pied : marche jusqu'à l'arrêt Ralliement, 180 m, le bus 3 arrive dans 5 min, estimé en approche"> <img src="images/telephone-carte-correspondance.png" width="260" alt="Carte en route, dans le bus 3 : descente dans 4 min, tram A de la correspondance estimé en approche">
+<img src="images/telephone-carte-a-pied.png" width="260" alt="Carte en route, à pied : marche jusqu'à l'arrêt Ralliement, 180 m, le bus 3 arrive dans 5 min, estimé en approche"> <img src="images/telephone-carte-correspondance.png" width="260" alt="Carte en route, dans le bus 3 (position estimée, pastille creuse) : descente dans 4 min, tram A de la correspondance à sa position réelle, pastille pleine, à 2 arrêts">
 
 ### Trajet d'un rendez-vous de l'agenda
 

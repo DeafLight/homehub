@@ -584,11 +584,19 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   d'Angers servi par HomeHub** (voir « Fond de carte ») ; sans fichier, le tracé sur un fond uni. Dessus : la
   **position** (point vert qui pulse, sauf « réduire les animations »), le **tracé** de chaque étape donné par MOTIS
   (marche en pointillés clairs, bus et tram en bleu plein, étapes faites en gris), les arrêts de **montée**, de
-  **correspondance** et de **descente** nommés, la **destination** (carré jaune), et le **véhicule à prendre en
-  position estimée** : pastille creuse (pointillés) avec la ligne et « tram A · à l'arrêt dans 5 min », placée sur le
-  tracé de sa course entre deux arrêts d'après leurs heures (arrêts de la course donnés par MOTIS, retard du temps réel
-  compris). À pied ou à l'arrêt, le prochain bus ou tram à prendre ; dans un véhicule, celui-ci et, s'il y a une
-  correspondance, le suivant (les vraies positions des véhicules viendront avec la version 4). Boutons **‹ Retour** et
+  **correspondance** et de **descente** nommés, la **destination** (carré jaune), et le **véhicule à prendre**. À pied
+  ou à l'arrêt, le prochain bus ou tram à prendre ; dans un véhicule, celui-ci et, s'il y a une correspondance, le
+  suivant. **À sa position réelle** quand le flux GTFS-RT VehiclePositions d'Irigo la donne pour sa course (0.99.0) :
+  pastille **pleine** avec la ligne, une pointe dans le sens de marche, et « tram A · à 2 arrêts » d'après l'arrêt
+  courant ou suivant du flux (sinon la position projetée sur le tracé ; « à l'arrêt », « déjà passé »). Positions
+  redemandées **toutes les 20 s** tant que la carte est ouverte. Une position de plus de **2 min**, un véhicule absent
+  du flux ou à plus de 300 m du tracé : retour à la **position estimée**, pastille **creuse** (pointillés) avec
+  « tram A · à l'arrêt dans 5 min », placée sur le tracé de sa course entre deux arrêts d'après leurs heures (arrêts de
+  la course donnés par MOTIS, retard du temps réel compris). Sans clignoter : on ne repasse à la position réelle
+  qu'avec une position de moins de 90 s. L'âge d'une position est compté par le serveur (l'horloge du téléphone peut
+  être décalée). Le serveur lit le flux **à la demande**, quand une carte est ouverte, une fois toutes les 15 s au plus
+  pour tous les téléphones, et ne renvoie au téléphone que les véhicules des courses de son trajet, jamais tout le
+  flux. Boutons **‹ Retour** et
   **Recentrer** (suit la position jusqu'au prochain glissement du doigt). En bas, l'**étape en cours** en gros
   (« Marche jusqu'à l'arrêt Ralliement · 180 m · 3 min · le bus arrive dans 5 min », « Attends le tram A »,
   « Correspondance : tram A à Mail des Tilleuls », « Bus 3 jusqu'à Mail des Tilleuls · 4 arrêts · descente dans
@@ -795,7 +803,11 @@ trois flux GTFS-RT, positions des véhicules, alertes et **TripUpdates**
 départ à chaque arrêt). Tous leurs `trip_id` existent dans le GTFS du même jeu (409 sur 409 ; 215 sur 215 pour les
 positions) : MOTIS compte donc les retards et les suppressions lui-même, par le flux TripUpdates déclaré dans son
 `config.yml`. HomeHub garde SIRI pour les prochains passages affichés et pour reconnaître la course prévue
-(« annoncé à », supprimée, manquée).
+(« annoncé à », supprimée, manquée). Le flux des **positions** (`https://ara-api.enroute.mobi/irigo/gtfs/vehicle-positions`,
+sans clé ni réglage) sert à la carte en route depuis la 0.99.0 : décodé par `server/sources/gtfs-rt.ts` (sans
+dépendance protobuf), la course MOTIS (« AAAAMMJJ_HH:MM_irigo_<trip_id> ») y est retrouvée par son `trip_id`. Le monde
+fictif a son faux flux, où avancent les trams A du faux MOTIS (`fakeVehiclePositions`), et les tests une fixture
+binaire inventée (`server/sources/fixtures/vehicle-positions.pb`).
 
 Les **produits** viennent des bases libres [Open Food Facts](https://world.openfoodfacts.org), puis Open Beauty Facts
 (hygiène) et Open Products Facts (lessive, entretien…) : sans compte, avec un User-Agent qui nomme HomeHub ; seul le
@@ -1013,7 +1025,9 @@ server/
   sources/pronote.ts       emploi du temps, devoirs et vie scolaire Pronote (Pawnote, jeton enregistré à chaque connexion)
   sources/homework.ts      devoirs : consigne HTML → texte, tri, fenêtre
   sources/irigo.ts         bus et tram Irigo : passages (SIRI), perturbations, cache
-  sources/gtfs-rt.ts       lecture minimale d'un flux d'alertes GTFS-RT (protobuf)
+  sources/gtfs-rt.ts       lecture minimale des flux GTFS-RT (protobuf) : alertes, positions des véhicules
+  sources/gtfs-rt-encode.ts encodeur des positions (tests, fixture, faux flux du monde fictif)
+  sources/vehicle-positions.ts flux VehiclePositions d'Irigo, lu à la demande, 15 s de cache partagé
   sources/gtfs.ts          horaires théoriques Irigo (GTFS) : arrêts proches, lignes directes, courses du jour
   sources/motis.ts         itinéraires par MOTIS (/api/v5/plan) et course entière (/api/v5/trip), temps réel, cache
   sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
@@ -1021,6 +1035,7 @@ server/
   sources/push.ts          notifications : clés VAPID, abonnements des téléphones, trajets déjà annoncés
   services/next-trip.ts    prochain trajet, trajet d'un rendez-vous touché, rendez-vous touchables, diagnostic
   services/trip-route.ts   carte en route : tracés, courses entières (montée, descente), nouvelles heures des courses
+  services/trip-vehicles.ts carte en route : véhicules des seules courses demandées, âge de chaque position
   map-api.ts               fond de la carte en route : fichier PMTiles servi par morceaux (Range)
   services/web-push.ts     Web Push sans dépendance : chiffrement RFC 8291, signature VAPID
   services/trip-push.ts    notification « Pars dans 5 min » (trajet du matin, prochain rendez-vous)
@@ -1196,6 +1211,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/trip` | `{ "position": { lat, lon } }` (ou sans position : depuis la maison) → `{ enabled, trip }` : `destination`, `arriveBy`, `from`, `transit` et `other` (`leaveAt`, `arrives`, `legs`, `realtime`), `late`, et pour un parent `car` (`minutes`, `leaveAt`, `meters`, `traffic`, `mapsUrl`) ; `trip` null sans rendez-vous proche ou déjà sur place |
 | `POST /api/trip/route` | carte en route : `{ "position"?: { lat, lon } }` → `{ enabled, route }` : `destination`, `arriveBy`, `late`, `legs` (`mode`, `line`, `headsign`, `tripId`, `from` et `to` placés, heures prévues et théoriques, `delayMinutes`, `path` [lon, lat], `course` : arrêts horodatés, tracé, `board`, `alight`), `mapsUrl` pour un parent ; le téléphone de la personne seulement |
 | `POST /api/trip/rides` | `{ "rides": [{ tripId, from, to }] }` (4 au plus) → `{ rides }` : nouvelles heures des courses suivies (`departs`, `arrives`, `delayMinutes`, `course`), null pour une course introuvable ; le téléphone de la personne seulement |
+| `POST /api/trip/vehicles` | `{ "tripIds": [...] }` (courses MOTIS du trajet, 4 au plus) → `{ vehicles }` : position réelle de chaque véhicule trouvé dans le flux VehiclePositions (`tripId`, `lat`, `lon`, `bearing`, `age` en secondes, `stopId`, `status`), les autres absents ; jamais tout le flux ; le téléphone de la personne seulement |
 | `GET /api/map`, `GET /api/map/tiles.pmtiles` | fond de carte : `{ tiles }` (le fichier est-il là ?), puis le fichier PMTiles par morceaux (`Range` → 206 ; 416 hors du fichier, 404 sans fichier) ; téléphones appairés seulement |
 | `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
 | `GET /api/trip/watch` | ce que surveille la notification de ce téléphone : `{ enabled, next, unplaced }` ; `next` : `kind`, `title`, `start`, `place`, `leaveAt` (depuis la maison, null sans itinéraire à temps), `byCommute` ; `unplaced` : rendez-vous des 3 h au lieu non reconnu (`title`, `start`, `location`, `reason` : `no-search`, `not-found`, `too-far`) |

@@ -1,11 +1,14 @@
 // Faux MOTIS du monde fictif (tests et captures de la doc), comme les faux ÉcoleDirecte et Pronote : répond à
 // GET /api/v5/plan dans la forme de MOTIS 2 avec un itinéraire inventé, bus 3 puis tram A, entre des arrêts
 // d'exemple (arrêts intermédiaires et tracés compris), à `directModes=CAR` un trajet en voiture sans trafic, et à
-// GET /api/v5/trip la course entière d'un de ces bus ou trams (carte en route). Aucun vrai arrêt, aucune vraie rue :
+// GET /api/v5/trip la course entière d'un de ces bus ou trams (carte en route), et le faux flux GTFS-RT des positions
+// des véhicules, où avancent les trams A des itinéraires donnés (version 4). Aucun vrai arrêt, aucune vraie rue :
 // les arrêts sont placés dans un quartier imaginaire, les tracés relient les arrêts en lignes brisées, et départ et
 // arrivée sont ceux de la requête.
-import { encodePolyline, type LonLat } from '../../shared/geo-path.ts';
+import { encodePolyline, type LonLat, pointAt, projectStops } from '../../shared/geo-path.ts';
 import { distanceMeters } from '../../shared/trip.ts';
+import { encodeVehiclePositions } from './gtfs-rt-encode.ts';
+import type { GtfsRtVehicle } from './gtfs-rt.ts';
 
 /** Flux du faux MOTIS : préfixe des identifiants d'arrêt, comme celui du NAS. */
 export const FAKE_MOTIS_FEED = 'irigo';
@@ -125,7 +128,15 @@ function walkLeg(from: Point, to: Point, start: number, end: number) {
 
 /** Identifiants des fausses courses : la ligne, l'heure de montée prévue (ms) et le retard (min) y sont écrits. */
 const busTripId = (bus: number, delayMin: number) => `fake_3_${bus}_${delayMin}`;
-const tramTripId = (tram: number) => `fake_A_${tram}_0`;
+const tramTripId = (tram: number) => {
+  const id = `fake_A_${tram}_0`;
+  // Retenu pour le faux flux des positions (les 20 derniers suffisent).
+  servedTrams.set(id, tram);
+  if (servedTrams.size > 20) servedTrams.delete(servedTrams.keys().next().value!);
+  return id;
+};
+/** Trams A des itinéraires donnés : identifiant et heure de montée à Mail des Tilleuls (ms). */
+const servedTrams = new Map<string, number>();
 
 const place = (s: CourseStop, stopId = s.id): Point => ({ name: s.name, stopId, lat: s.lat, lon: s.lon });
 
@@ -200,4 +211,42 @@ export function fakeMotisPlan(url: URL, options: FakeMotisOptions = {}): Respons
     direct: [],
     itineraries: [itinerary(from, to, bus - 15 * MIN), itinerary(from, to, bus, { cancelled: options.cancelled, delay: options.delayMinutes })],
   });
+}
+
+/**
+ * Position d'un faux tram A à l'instant `t` (ms), `ref` étant son heure à Mail des Tilleuls : sur son tracé, entre deux
+ * arrêts ou à l'un d'eux, avec l'arrêt suivant (identifiant GTFS, sans le préfixe de flux) et le cap.
+ */
+function tramAt(tripId: string, ref: number, t: number): GtfsRtVehicle | null {
+  const minutes = (t - ref) / MIN;
+  const last = TRAM_A.length - 1;
+  if (minutes < TRAM_A[0].at || minutes > TRAM_A[last].at) return null;
+  const path = coursePath(TRAM_A, 0, last);
+  const along = projectStops(path, TRAM_A);
+  const k = TRAM_A.findIndex((s) => s.at >= minutes);
+  const stopped = TRAM_A[k].at === minutes;
+  const from = Math.max(0, k - 1);
+  const ratio = stopped || k === 0 ? 1 : (minutes - TRAM_A[from].at) / (TRAM_A[k].at - TRAM_A[from].at);
+  const here = stopped ? along[k] : along[from] + ratio * (along[k] - along[from]);
+  const point = pointAt(path, here);
+  const ahead = pointAt(path, here + 15);
+  if (!point || !ahead) return null;
+  const bearing = (Math.atan2((ahead[0] - point[0]) * Math.cos((point[1] * Math.PI) / 180), ahead[1] - point[1]) * 180) / Math.PI;
+  const gtfsId = TRAM_A[k].id.slice(TRAM_A[k].id.indexOf('_') + 1);
+  return { tripId, lat: point[1], lon: point[0], bearing: (bearing + 360) % 360, timestamp: Math.round(t / 1000), stopId: gtfsId, status: stopped ? 'stopped' : 'in-transit' };
+}
+
+/**
+ * Faux flux GTFS-RT VehiclePositions : chaque tram A des itinéraires donnés, en approche de son arrêt de montée (à
+ * 5 min de celui-ci, deux arrêts avant) tant que l'heure n'y est pas, puis à l'heure le long de sa course ; position
+ * vieille de 8 s. Plus un bus d'une autre course, que le serveur ne doit jamais renvoyer au téléphone.
+ */
+export function fakeVehiclePositions(now: number): Uint8Array<ArrayBuffer> {
+  const vehicles: GtfsRtVehicle[] = [];
+  for (const [tripId, ref] of servedTrams) {
+    const v = tramAt(tripId, ref, Math.max(now, ref - 5 * MIN));
+    if (v) vehicles.push({ ...v, timestamp: Math.round(now / 1000) - 8 });
+  }
+  vehicles.push({ tripId: 'fake_9_autre_course', lat: 47.465, lon: -0.56, bearing: 90, timestamp: Math.round(now / 1000) - 8 });
+  return encodeVehiclePositions(vehicles, Math.round(now / 1000));
 }

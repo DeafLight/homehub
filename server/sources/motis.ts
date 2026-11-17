@@ -100,6 +100,12 @@ export const isTransitLeg = (leg: MotisLeg) => leg.mode !== 'WALK' && leg.line !
  */
 export const gtfsStopId = (stopId: string) => stopId.slice(stopId.indexOf('_') + 1);
 
+/**
+ * Identifiant GTFS d'une course MOTIS : MOTIS 2 écrit « AAAAMMJJ_HH:MM_<flux>_<trip_id> » (« 20261105_07:42_irigo_123 ») ;
+ * un identifiant d'une autre forme (faux MOTIS du monde fictif) est gardé tel quel.
+ */
+export const gtfsTripId = (tripId: string) => /^\d{8}_\d{2}:\d{2}_[^_]+_(.+)$/u.exec(tripId)?.[1] ?? tripId;
+
 const place = (p: z.infer<typeof placeSchema>): MotisPlace => ({ name: p.name, ...(p.stopId && { stopId: p.stopId }), lat: p.lat, lon: p.lon });
 const iso = (s: string) => new Date(s).toISOString();
 const stop = (p: z.infer<typeof placeSchema>): MotisStop => ({

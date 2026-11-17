@@ -485,8 +485,14 @@ journalisée ; MOTIS sur le NAS (pas Transitous en production) ; la tablette n'a
       prendre estimé (0.98.0 : `/m/trajet`, `POST /api/trip/route` et `/api/trip/rides`, course entière par
       `/api/v5/trip` de MOTIS, `GET /api/map/tiles.pmtiles`, `HOMEHUB_MAP_TILES` ; avance automatique, Wake Lock).
 - [ ] Carte en route sur un vrai téléphone, dans un vrai bus : avance automatique de l'étape (montée, descente),
-      fond PMTiles d'Angers sur le NAS, véhicule estimé à l'heure.
-- [ ] 4. Positions réelles des véhicules (GTFS-RT VehiclePositions d'Irigo, trip_id du GTFS) si les flux tiennent.
+      fond PMTiles d'Angers sur le NAS, véhicule estimé à l'heure, véhicule réel (pastille pleine) à sa place.
+- [x] 4. Positions réelles des véhicules (GTFS-RT VehiclePositions d'Irigo, trip_id du GTFS) si les flux tiennent
+      (0.99.0 : décodeur `VehiclePosition` maison, `POST /api/trip/vehicles` limité aux courses du trajet, flux lu à
+      la demande avec 15 s de cache partagé ; pastille pleine, « tram A · à 2 arrêts », retour à l'estimée au-delà de
+      2 min sans clignoter ; faux flux dans le monde fictif).
+
+Feuille de route du chantier « Prochain trajet » entièrement réalisée (versions 1 à 4, de 0.93.0 à 0.99.0) ; reste
+l'essai dans un vrai bus ci-dessus.
 
 - [ ] Accueil : bloc bus compact, une ligne par arrêt avec le prochain passage par ligne, alertes en icône, tableau
       complet en touchant le bloc (maquette du 2026-11-05).
