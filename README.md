@@ -578,6 +578,32 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   requête pour le seul calcul, transmise seulement à MOTIS (sur le NAS), jamais écrite (ni état, ni journaux). TomTom,
   un tiers, ne reçoit pas la position : l'origine arrondie à environ 100 m (trois décimales) et la destination.
   Sous le trajet, d'où le calcul part (« Calculé depuis ta position actuelle », ou depuis la maison, et pourquoi).
+  Un toucher sur la carte (ou **Voir sur la carte**) ouvre la carte en route.
+- **Carte en route** (téléphone, `/m/trajet`, depuis la carte « Prochain trajet ») : la carte plein écran du trajet,
+  pour être guidé. Fond sombre aux couleurs du thème (rues discrètes, rivière, parcs), tiré d'un **fichier PMTiles
+  d'Angers servi par HomeHub** (voir « Fond de carte ») ; sans fichier, le tracé sur un fond uni. Dessus : la
+  **position** (point vert qui pulse, sauf « réduire les animations »), le **tracé** de chaque étape donné par MOTIS
+  (marche en pointillés clairs, bus et tram en bleu plein, étapes faites en gris), les arrêts de **montée**, de
+  **correspondance** et de **descente** nommés, la **destination** (carré jaune), et le **véhicule à prendre en
+  position estimée** : pastille creuse (pointillés) avec la ligne et « tram A · à l'arrêt dans 5 min », placée sur le
+  tracé de sa course entre deux arrêts d'après leurs heures (arrêts de la course donnés par MOTIS, retard du temps réel
+  compris). À pied ou à l'arrêt, le prochain bus ou tram à prendre ; dans un véhicule, celui-ci et, s'il y a une
+  correspondance, le suivant (les vraies positions des véhicules viendront avec la version 4). Boutons **‹ Retour** et
+  **Recentrer** (suit la position jusqu'au prochain glissement du doigt). En bas, l'**étape en cours** en gros
+  (« Marche jusqu'à l'arrêt Ralliement · 180 m · 3 min · le bus arrive dans 5 min », « Attends le tram A »,
+  « Correspondance : tram A à Mail des Tilleuls », « Bus 3 jusqu'à Mail des Tilleuls · 4 arrêts · descente dans
+  4 min »), la **liste des étapes** horodatées (en cours en gras, retard en orange « +2 min ») et le bouton qui passe à
+  l'étape suivante (« Je suis dans le bus », « J'ai quitté le bus », « Je suis sur place ») ; pour un parent, aussi
+  **Google Maps**. Chaque changement de mode est une étape. L'étape **avance d'elle-même** : montée quand on est passé
+  à moins de 60 m de l'arrêt (ou qu'on suit le tracé de la course) et qu'on va à plus de 16 km/h deux positions de
+  suite ; descente à moins de 100 m de l'arrêt, au pas, deux fois de suite ; arrivée à moins de 50 m. Une position
+  imprécise (plus de 80 m) est ignorée, un **saut du GPS** (plus de 160 km/h) écarté sauf si la position suivante le
+  confirme. Tant qu'on n'est pas monté, le trajet est **recalculé chaque minute** depuis la position (un bus plus
+  tard si l'on traîne) ; une fois monté, seules les **heures des courses suivies** sont redemandées à MOTIS (il ne sait
+  pas qu'on est dans ce tram), les marches suivantes glissent d'autant. **Écran gardé allumé** (Wake Lock, refus
+  toléré). Mêmes règles que la carte « Prochain trajet » : le téléphone de la personne seulement, la position dans le
+  corps des requêtes, jamais écrite (ni état, ni journaux) ; rien de nouveau sur la tablette. Code chargé à la demande
+  (`maplibre-gl` et `pmtiles` ne sont téléchargés qu'à l'ouverture de la carte).
 - **Trajet d'un rendez-vous de l'agenda** (avec MOTIS) : dans l'agenda du téléphone (`/m/agenda`), un rendez-vous dont
   le lieu est reconnu (mêmes règles : lieu de la famille par son nom, ou adresse sûre de la Géoplateforme à moins de
   30 km ; pas un rendez-vous sur la journée, ni déjà commencé, ni à la maison) porte une **petite icône de bus** ; le
@@ -742,6 +768,27 @@ panne aussi), HomeHub garde son calcul à lignes directes. Pour développer sans
 répond de la même façon, mais il reçoit alors les coordonnées des lieux : jamais en production. Les captures de la
 doc utilisent un faux MOTIS (`server/sources/motis-fake.ts`).
 
+**Fond de carte** (carte en route) : un extrait **PMTiles** d'Angers, servi par HomeHub lui-même
+(`GET /api/map/tiles.pmtiles`, par morceaux avec des requêtes `Range`), jamais un fournisseur de tuiles extérieur :
+les tuiles demandées révèlent le quartier où l'on est. Chemin : `HOMEHUB_MAP_TILES`, sinon `angers.pmtiles` dans le
+dossier d'état ; sans fichier, la carte montre le tracé sur un fond uni. Le style (`web/src/lib/map-style.ts`) suit
+le schéma de [Protomaps](https://docs.protomaps.com/basemaps/layers) et n'a **pas d'étiquettes** : les noms de rues
+demanderaient des polices à servir à part (les arrêts, la destination et les véhicules sont nommés par des marqueurs,
+en HTML), et aucune icône ; rien d'autre n'est donc chargé. L'extrait vient d'un build quotidien de Protomaps
+(données OpenStreetMap, © les contributeurs d'OpenStreetMap), découpé avec l'outil
+[`pmtiles`](https://github.com/protomaps/go-pmtiles/releases) (`extract` ne télécharge que les morceaux de la zone) :
+
+```bash
+pmtiles extract https://build.protomaps.com/20261101.pmtiles angers.pmtiles --bbox=-0.75,47.38,-0.40,47.60 --maxzoom=15
+```
+
+(une date de build récente, voir https://maps.protomaps.com/builds ; quelques dizaines de Mo). Le refaire quelques
+fois par an suffit (rues nouvelles) : le fichier remplacé est pris à la requête suivante. Côté téléphone, deux
+dépendances, chargées à la demande avec l'écran : **`maplibre-gl`** (affichage des tuiles vectorielles en WebGL,
+libre, sans compte ni clé) et **`pmtiles`** (lecture du fichier par morceaux depuis la route de HomeHub, avec le jeton
+du téléphone). Le monde fictif n'a pas de fichier PMTiles (rien de réel dans le dépôt) : ses captures montrent le fond
+uni.
+
 Temps réel d'Irigo pour MOTIS (vérifié le 16 novembre 2026 sur transport.data.gouv.fr, jeu « Réseau urbain Irigo ») :
 trois flux GTFS-RT, positions des véhicules, alertes et **TripUpdates**
 (`https://ara-api.enroute.mobi/irigo/gtfs/trip-updates`, 409 courses à 11 h 30 un lundi, avec heures d'arrivée et de
@@ -896,6 +943,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
 | `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
 | `HOMEHUB_MOTIS_URL` | — | Adresse de MOTIS (ex. `http://motis:8080`), l'emporte sur `transit.motis.url` ; sans elle, trajets à lignes directes et pas de carte « Prochain trajet » |
+| `HOMEHUB_MAP_TILES` | `angers.pmtiles` dans le dossier d'état | Fond de la carte en route : extrait PMTiles d'Angers (voir « Fond de carte ») ; sans fichier, fond uni |
 | `HOMEHUB_TOMTOM_KEY` | — | Clé de l'API TomTom Routing (compte gratuit sur developer.tomtom.com) : durée en voiture avec le trafic pour les parents (« Prochain trajet ») ; sans elle, durée sans trafic de MOTIS |
 | `HOMEHUB_NAS_STATUS` | `nas-status.json` à côté de la configuration | Relevé du NAS lu par la page NAS (écrit par `scripts/nas-status.sh` de nas-config) |
 
@@ -967,11 +1015,13 @@ server/
   sources/irigo.ts         bus et tram Irigo : passages (SIRI), perturbations, cache
   sources/gtfs-rt.ts       lecture minimale d'un flux d'alertes GTFS-RT (protobuf)
   sources/gtfs.ts          horaires théoriques Irigo (GTFS) : arrêts proches, lignes directes, courses du jour
-  sources/motis.ts         itinéraires par MOTIS (/api/v5/plan) : étapes, correspondances, temps réel, cache
+  sources/motis.ts         itinéraires par MOTIS (/api/v5/plan) et course entière (/api/v5/trip), temps réel, cache
   sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
   sources/tomtom.ts        durée en voiture avec le trafic (TomTom Routing), cache de 5 min ; faux : tomtom-fake.ts
   sources/push.ts          notifications : clés VAPID, abonnements des téléphones, trajets déjà annoncés
   services/next-trip.ts    prochain trajet, trajet d'un rendez-vous touché, rendez-vous touchables, diagnostic
+  services/trip-route.ts   carte en route : tracés, courses entières (montée, descente), nouvelles heures des courses
+  map-api.ts               fond de la carte en route : fichier PMTiles servi par morceaux (Range)
   services/web-push.ts     Web Push sans dépendance : chiffrement RFC 8291, signature VAPID
   services/trip-push.ts    notification « Pars dans 5 min » (trajet du matin, prochain rendez-vous)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
@@ -1069,7 +1119,9 @@ web/src/
   App.svelte               choix de l'écran, retour à l'accueil, surveillance de version
   screens/                 écrans (chargent leurs données via l'API du contexte)
   components/              composants d'affichage ; widgets/ = purement présentationnels
-  lib/                     API, routeur, formats, couleurs, minuteries (logique testable sans DOM)
+  lib/                     API, routeur, formats, couleurs, minuteries (logique testable sans DOM) ; carte en route :
+                           en-route.ts (étapes, avance, textes), vehicle-estimate.ts (véhicule estimé), map-style.ts
+  screens/EnRoute.svelte   carte en route (chargée à la demande) ; components/route/RouteMap.svelte : MapLibre
 extension/                 extension « Remplir le panier » (Manifest V3, construite dans extension/dist)
   manifest.json            droits : stockage, site coursesu.com seulement
   popup.html               panneau du bouton de l'extension
@@ -1142,6 +1194,9 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/me` | `{ kiosk, device }` : l'appareil qui appelle (401 pour un téléphone retiré) |
 | `GET /api/trip` | `{ enabled, upcoming }` : MOTIS configuré, et rendez-vous situé dans les 3 h (faut-il demander la position ?) ; le téléphone de la personne seulement, pour son profil |
 | `POST /api/trip` | `{ "position": { lat, lon } }` (ou sans position : depuis la maison) → `{ enabled, trip }` : `destination`, `arriveBy`, `from`, `transit` et `other` (`leaveAt`, `arrives`, `legs`, `realtime`), `late`, et pour un parent `car` (`minutes`, `leaveAt`, `meters`, `traffic`, `mapsUrl`) ; `trip` null sans rendez-vous proche ou déjà sur place |
+| `POST /api/trip/route` | carte en route : `{ "position"?: { lat, lon } }` → `{ enabled, route }` : `destination`, `arriveBy`, `late`, `legs` (`mode`, `line`, `headsign`, `tripId`, `from` et `to` placés, heures prévues et théoriques, `delayMinutes`, `path` [lon, lat], `course` : arrêts horodatés, tracé, `board`, `alight`), `mapsUrl` pour un parent ; le téléphone de la personne seulement |
+| `POST /api/trip/rides` | `{ "rides": [{ tripId, from, to }] }` (4 au plus) → `{ rides }` : nouvelles heures des courses suivies (`departs`, `arrives`, `delayMinutes`, `course`), null pour une course introuvable ; le téléphone de la personne seulement |
+| `GET /api/map`, `GET /api/map/tiles.pmtiles` | fond de carte : `{ tiles }` (le fichier est-il là ?), puis le fichier PMTiles par morceaux (`Range` → 206 ; 416 hors du fichier, 404 sans fichier) ; téléphones appairés seulement |
 | `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
 | `GET /api/trip/watch` | ce que surveille la notification de ce téléphone : `{ enabled, next, unplaced }` ; `next` : `kind`, `title`, `start`, `place`, `leaveAt` (depuis la maison, null sans itinéraire à temps), `byCommute` ; `unplaced` : rendez-vous des 3 h au lieu non reconnu (`title`, `start`, `location`, `reason` : `no-search`, `not-found`, `too-far`) |
 | `GET /api/trip/events?week=N` | `{ keys }` : clés (`<id>@<début>`) des rendez-vous à venir de la semaine N (0 à 2) dont le lieu est reconnu ; un téléphone : les siens et ceux de la famille ; la tablette : tous les profils ; un appareil non appairé : 403 |

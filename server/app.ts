@@ -91,6 +91,7 @@ import { type PushMessage, type PushResult, sendPush } from './services/web-push
 import { createNextTripService } from './services/next-trip.ts';
 import { createTripPush } from './services/trip-push.ts';
 import { createTripApi } from './trip-api.ts';
+import { createMapApi } from './map-api.ts';
 import { createPushApi } from './push-api.ts';
 
 /** Contact VAPID (exigé par les services de push) : la page publique du projet, aucune adresse personnelle. */
@@ -163,6 +164,8 @@ export type AppDeps = {
   version: string;
   /** Dossier du front compilé ; absent en test et en dev (Vite sert le front). */
   staticRoot?: string;
+  /** Fichier PMTiles du fond de la carte en route ; absent : tracé sur un fond uni. */
+  mapTiles?: string;
 };
 
 const hasExtension = (path: string) => /\.[^/]+$/.test(path);
@@ -224,6 +227,7 @@ export function createApp(deps: AppDeps): Hono {
     logger: console,
   });
   api.route('/', createTripApi({ nextTrip, access }));
+  api.route('/', createMapApi({ tilesPath: () => deps.mapTiles, access }));
   if (deps.push) {
     const store = deps.push;
     const send = deps.sendPush ?? ((sub: PushRecord, message: PushMessage) => sendPush(sub, message, { keys: store.keys(), subject: PUSH_SUBJECT, now: clock() }));

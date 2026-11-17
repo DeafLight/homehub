@@ -226,7 +226,9 @@ export function installFakeSources(): void {
     if (url.hostname === 'ara-api.enroute.mobi') return fakeSiri();
     // Bus 3 de l'itinéraire : celui vers le Lycée que le faux temps réel annonce dans 11 min (reconnu par son horaire).
     if (url.origin === FAKE_MOTIS_URL) {
-      const fromPhone = url.searchParams.get('fromPlace') === `${DOCS_PHONE_POSITION.lat.toFixed(6)},${DOCS_PHONE_POSITION.lon.toFixed(6)}`;
+      // Depuis la position du téléphone (pas depuis la maison d'exemple) : 2 min de retard annoncées. La carte en route
+      // demande depuis une position qui avance, d'où « pas la maison » plutôt que la position d'exemple exacte.
+      const fromPhone = url.searchParams.get('fromPlace') !== '47.470000,-0.550000';
       // Un rendez-vous lointain (le lendemain) n'a pas son bus dans 11 min : itinéraire calé sur l'heure demandée.
       const soon = Date.parse(url.searchParams.get('time') ?? '') - Date.now() <= 3 * 3_600_000;
       return fakeMotisPlan(url, { ...(soon && { busDeparts: new Date(Date.now() + 11 * 60_000) }), ...(fromPhone && { delayMinutes: 2 }) });

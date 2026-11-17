@@ -481,8 +481,11 @@ journalisée ; MOTIS sur le NAS (pas Transitous en production) ; la tablette n'a
       lieu non reconnu et pourquoi) ; routes `GET /api/trip/events`, `POST /api/trip/event`, `GET /api/trip/watch`.
 - [x] Notification « Pars dans 5 min » sur un vrai téléphone : « Essayer » des réglages reçu, vrai service de push
       (vérifié sur un vrai téléphone le 17/11/2026).
-- [ ] 3. Carte en route (MapLibre, tuiles PMTiles d'Angers servies par HomeHub) : position, étape en cours, véhicule à
-      prendre estimé.
+- [x] 3. Carte en route (MapLibre, tuiles PMTiles d'Angers servies par HomeHub) : position, étape en cours, véhicule à
+      prendre estimé (0.98.0 : `/m/trajet`, `POST /api/trip/route` et `/api/trip/rides`, course entière par
+      `/api/v5/trip` de MOTIS, `GET /api/map/tiles.pmtiles`, `HOMEHUB_MAP_TILES` ; avance automatique, Wake Lock).
+- [ ] Carte en route sur un vrai téléphone, dans un vrai bus : avance automatique de l'étape (montée, descente),
+      fond PMTiles d'Angers sur le NAS, véhicule estimé à l'heure.
 - [ ] 4. Positions réelles des véhicules (GTFS-RT VehiclePositions d'Irigo, trip_id du GTFS) si les flux tiennent.
 
 - [ ] Accueil : bloc bus compact, une ligne par arrêt avec le prochain passage par ligne, alertes en icône, tableau

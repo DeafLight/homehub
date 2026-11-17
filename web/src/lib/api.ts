@@ -55,7 +55,7 @@ import type {
 } from '../../../shared/types.ts';
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
-import type { LatLon, RoutableEvents, TripResponse, TripStatus, TripWatch } from '../../../shared/trip.ts';
+import type { LatLon, RideRef, RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch } from '../../../shared/trip.ts';
 import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenReplies, ScreenTarget } from '../../../shared/screen.ts';
 import type { RemoteArtwork } from '../../../shared/now-playing.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
@@ -344,6 +344,12 @@ export type Api = {
   tripStatus(): Promise<TripStatus>;
   /** Trajet vers le prochain rendez-vous situé, depuis la position (corps de la requête) ou depuis la maison. */
   nextTrip(position: LatLon | null): Promise<TripResponse>;
+  /** Carte en route : l'itinéraire du prochain trajet, avec tracés et courses entières. */
+  tripRoute(position: LatLon | null): Promise<RouteResponse>;
+  /** Carte en route : nouvelles heures des courses suivies, une fois monté. */
+  tripRides(rides: RideRef[]): Promise<RidesResponse>;
+  /** Carte en route : le fond de carte (fichier PMTiles) est-il là ? */
+  mapInfo(): Promise<{ tiles: boolean }>;
   /** Rendez-vous de la semaine `week` dont le lieu est reconnu (téléphone : les siens et la famille ; tablette : tous). */
   routableEvents(week: number): Promise<RoutableEvents>;
   /** Trajet d'un rendez-vous d'agenda touché (position : téléphone seulement, et seulement dans les 3 h). */
@@ -596,6 +602,9 @@ export function createApi(
     remoteScreens: () => request('/screens/remote'),
     tripStatus: () => request('/trip'),
     nextTrip: (position) => send('POST', '/trip', { position }),
+    tripRoute: (position) => send('POST', '/trip/route', { position }),
+    tripRides: (rides) => send('POST', '/trip/rides', { rides }),
+    mapInfo: () => request('/map'),
     routableEvents: (week) => request(`/trip/events?week=${week}`),
     eventTrip: (key, position) => send('POST', '/trip/event', { event: key, position }),
     tripWatch: () => request('/trip/watch'),

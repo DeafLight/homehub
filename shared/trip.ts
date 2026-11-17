@@ -159,3 +159,66 @@ export const roughly = (p: LatLon): LatLon => ({ lat: Math.round(p.lat * 1000) /
 /** Itinéraire en voiture vers `to` dans Google Maps (départ : la position que Google Maps trouvera lui-même). */
 export const googleMapsUrl = (to: LatLon) =>
   `https://www.google.com/maps/dir/?api=1&destination=${to.lat.toFixed(6)},${to.lon.toFixed(6)}&travelmode=driving`;
+
+// Carte en route (chantier « Prochain trajet », version 3) : l'itinéraire retenu avec ses tracés, et pour chaque bus ou
+// tram la course entière (arrêts horodatés et tracé), d'où le téléphone estime la position du véhicule à prendre.
+
+/** Point d'une étape : arrêt (avec son identifiant MOTIS) ou point de départ et d'arrivée. */
+export type RoutePlace = { name: string; lat: number; lon: number; stopId?: string };
+
+/** Arrêt d'une course, avec ses heures prévues (temps réel compris) et théoriques (ISO 8601). */
+export type RouteStop = RoutePlace & { arrives?: string; departs?: string; scheduledArrives?: string; scheduledDeparts?: string };
+
+/** Course entière d'un bus ou d'un tram : tracé [lon, lat], arrêts, et ceux de montée et de descente (indices). */
+export type RouteCourse = { path: [number, number][]; stops: RouteStop[]; board: number; alight: number };
+
+export type RouteLeg = {
+  mode: TripLegMode;
+  line?: string;
+  headsign?: string;
+  /** Course MOTIS (bus et tram) : pour rafraîchir ses heures en route. */
+  tripId?: string;
+  from: RoutePlace;
+  to: RoutePlace;
+  departs: string;
+  arrives: string;
+  scheduledDeparts: string;
+  scheduledArrives: string;
+  delayMinutes?: number;
+  cancelled?: boolean;
+  /** Tracé de l'étape, [lon, lat] (vide si MOTIS n'en donne pas). */
+  path: [number, number][];
+  /** Course entière (bus et tram), si MOTIS la donne. */
+  course?: RouteCourse;
+};
+
+/** Itinéraire suivi sur la carte en route. */
+export type TripRoute = {
+  destination: TripDestination;
+  arriveBy: string;
+  late: boolean;
+  legs: RouteLeg[];
+  /** Parents : l'itinéraire en voiture dans Google Maps. */
+  mapsUrl?: string;
+};
+
+/** Réponse de POST /api/trip/route. */
+export type RouteResponse = { enabled: boolean; route: TripRoute | null };
+
+/** Course suivie en route, dont le téléphone demande les nouvelles heures : course MOTIS, arrêts de montée et de descente. */
+export type RideRef = { tripId: string; from: RoutePlace; to: RoutePlace };
+
+/** Nouvelles heures d'une course suivie (null : MOTIS ne la trouve plus). */
+export type RideUpdate = {
+  tripId: string;
+  departs: string;
+  arrives: string;
+  scheduledDeparts: string;
+  scheduledArrives: string;
+  delayMinutes?: number;
+  cancelled?: boolean;
+  course: RouteCourse;
+};
+
+/** Réponse de POST /api/trip/rides, dans l'ordre des courses demandées. */
+export type RidesResponse = { rides: (RideUpdate | null)[] };

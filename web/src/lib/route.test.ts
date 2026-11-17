@@ -25,6 +25,10 @@ describe('menu de la semaine', () => {
     expect(parseRoute(PHONE_SETTINGS_PATH)).toEqual({ name: 'phonesettings' });
     expect(routePath({ name: 'phonesettings' })).toBe('/m/reglages');
     expect(isPhoneRoute({ name: 'phonesettings' })).toBe(true);
+    expect(parseRoute('/m/trajet')).toEqual({ name: 'phonetrip' });
+    expect(routePath({ name: 'phonetrip' })).toBe('/m/trajet');
+    expect(isPhoneRoute({ name: 'phonetrip' })).toBe(true);
+    expect(hostsLiveCamera({ name: 'phonetrip' })).toBe(false);
     expect(isPhoneRoute(parseRoute('/m/menu'))).toBe(true);
     expect(returnsHomeWhenIdle(parseRoute('/menu'))).toBe(true);
   });

@@ -7,12 +7,23 @@
 // lieu est reconnu, POST /trip/event le trajet de l'un d'eux. Un téléphone : les siens et ceux de la famille, position
 // prise seulement dans les 3 h ; la tablette : ceux qu'elle affiche déjà (tous les profils), depuis la maison, sans
 // position. Un appareil non appairé : rien. La position n'est ni gardée ni journalisée.
+// Carte en route (version 3) : POST /trip/route, l'itinéraire du prochain trajet avec tracés et courses entières ;
+// POST /trip/rides, les nouvelles heures des courses suivies une fois monté. Le téléphone de la personne seulement.
 import { z } from 'zod';
-import type { RoutableEvents, TripResponse, TripStatus, TripWatch } from '../shared/trip.ts';
+import type { RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch } from '../shared/trip.ts';
 import { WEEKS_AHEAD } from '../shared/types.ts';
 import { type Access, REJECTED_PHONE } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import type { NextTripService, TripViewer } from './services/next-trip.ts';
+import { MAX_RIDES } from './services/trip-route.ts';
+
+const placeSchema = z.object({
+  name: z.string().max(200),
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  stopId: z.string().max(200).optional(),
+});
+const ridesSchema = z.object({ rides: z.array(z.object({ tripId: z.string().min(1).max(300), from: placeSchema, to: placeSchema })).max(MAX_RIDES) });
 
 const positionSchema = z
   .object({ lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180) })
@@ -50,6 +61,21 @@ export function createTripApi({ nextTrip, access }: { nextTrip: NextTripService;
     if (!nextTrip.enabled()) return c.json({ enabled: false, trip: null } satisfies TripResponse);
     const trip = await nextTrip.plan(ownerId, body?.position ?? null, { car: true });
     return c.json({ enabled: true, trip } satisfies TripResponse);
+  });
+
+  api.post('/trip/route', async (c) => {
+    const ownerId = await access.ownPhone(c);
+    const body = await readBody(c, bodySchema, 'Position illisible');
+    c.header('Cache-Control', 'no-store');
+    if (!nextTrip.enabled()) return c.json({ enabled: false, route: null } satisfies RouteResponse);
+    return c.json({ enabled: true, route: await nextTrip.route(ownerId, body?.position ?? null) } satisfies RouteResponse);
+  });
+
+  api.post('/trip/rides', async (c) => {
+    await access.ownPhone(c);
+    const body = await readBody(c, ridesSchema, 'Courses illisibles');
+    c.header('Cache-Control', 'no-store');
+    return c.json({ rides: await nextTrip.rides(body.rides) } satisfies RidesResponse);
   });
 
   api.get('/trip/watch', async (c) => {

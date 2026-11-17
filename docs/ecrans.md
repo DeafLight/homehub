@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.97.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.98.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -337,6 +337,21 @@ course suivante. Alex (parent) va à la réunion parents-profs de 19 h à l'Éco
 que son trajet ; la tablette, seulement celui des rendez-vous qu'elle affiche (plus bas). Sous le trajet, d'où le calcul part.
 
 <img src="images/telephone-trajet-enfant.png" width="260" alt="Prochain trajet de Tom : pars dans 6 min pour le foot, bus 3 puis tram A"> <img src="images/telephone-trajet-parent.png" width="260" alt="Prochain trajet d'Alex : bus et tram, et ligne voiture de 13 min avec le trafic">
+
+Un toucher sur la carte, ou **Voir sur la carte**, ouvre la carte en route.
+
+### Carte en route
+
+Plein écran, pour être guidé jusqu'au rendez-vous (ici Léa vers son cours de 8 h 30 au Collège, faux MOTIS, position
+simulée qui avance, fond uni : le monde fictif n'a pas de fichier PMTiles ; en vrai, les rues, la rivière et les parcs
+d'Angers en sombre). Le tracé de chaque étape (marche en pointillés, bus et tram en bleu), les arrêts de montée, de
+correspondance et de descente, la destination en carré jaune, la position en point vert. À gauche, à pied : à 180 m
+de l'arrêt Ralliement, le bus 3 arrive dans 5 min, et sa position estimée (pastille creuse, en pointillés) le montre
+en approche. À droite, dans le bus : la montée a été reconnue d'elle-même (passé à l'arrêt, puis à 32 km/h sur le
+tracé) ; « descente dans 4 min », 2 min de retard, et le tram A de la correspondance déjà estimé en route vers son
+arrêt. En bas, la liste des étapes horodatées et le bouton de l'étape suivante.
+
+<img src="images/telephone-carte-a-pied.png" width="260" alt="Carte en route, à pied : marche jusqu'à l'arrêt Ralliement, 180 m, le bus 3 arrive dans 5 min, estimé en approche"> <img src="images/telephone-carte-correspondance.png" width="260" alt="Carte en route, dans le bus 3 : descente dans 4 min, tram A de la correspondance estimé en approche">
 
 ### Trajet d'un rendez-vous de l'agenda
 

@@ -6,7 +6,8 @@
 // position seulement s'il commence dans les 3 h, sinon depuis la maison ; la liste des rendez-vous touchables ; et ce
 // que la notification surveille (diagnostic). Pour un parent (et sur la tablette), la ligne voiture : TomTom avec le
 // trafic (origine arrondie à environ 100 m), sinon MOTIS sans trafic. La position n'est ni gardée ni journalisée :
-// elle ne sert qu'au calcul et ne part qu'à MOTIS (sur le NAS).
+// elle ne sert qu'au calcul et ne part qu'à MOTIS (sur le NAS). Carte en route (version 3) : le même itinéraire,
+// avec tracés et courses entières (trip-route.ts), et les nouvelles heures des courses suivies.
 import {
   type CarTrip,
   distanceMeters,
@@ -15,13 +16,15 @@ import {
   type LatLon,
   type NextTrip,
   type PlaceMiss,
+  type RideRef,
+  type RideUpdate,
   roughly,
   startOfKey,
   type TripDestination,
   type TripLeg,
-  type TripLegMode,
   type TripMissing,
   type TripOption,
+  type TripRoute,
   type TripWatch,
 } from '../../shared/trip.ts';
 import { type CalendarEvent, type CommuteSettings, FAMILY_ID, type SchoolCourse, type TransitPlace } from '../../shared/types.ts';
@@ -30,6 +33,7 @@ import { isTransitLeg, type MotisItinerary, type MotisSource } from '../sources/
 import type { TomTomSource } from '../sources/tomtom.ts';
 import { DEFAULT_ARRIVE_BEFORE } from '../sources/transit-settings.ts';
 import { type Clock, startOfWeek, type TimeRange } from '../sources/types.ts';
+import { modeOf, rideUpdates, routeLegsOf } from './trip-route.ts';
 
 /** Rendez-vous pris en compte : ceux qui commencent dans les 3 h. */
 export const TRIP_WINDOW_MS = 3 * 3_600_000;
@@ -97,6 +101,13 @@ export type NextTripService = {
   planEvent(viewer: TripViewer, key: string, position: LatLon | null): Promise<{ trip: NextTrip | null; missing?: TripMissing }>;
   /** Ce que surveille la notification de `ownerId` (calcul depuis la maison, comme elle). */
   watch(ownerId: string): Promise<TripWatch>;
+  /**
+   * Carte en route : l'itinéraire vers le prochain rendez-vous situé, depuis `position` (ou la maison), avec tracés et
+   * courses entières ; null sans rendez-vous, sans point de départ ou déjà sur place.
+   */
+  route(ownerId: string, position: LatLon | null): Promise<TripRoute | null>;
+  /** Nouvelles heures des courses suivies en route. */
+  rides(refs: RideRef[]): Promise<(RideUpdate | null)[]>;
 };
 
 const normalize = (s: string) =>
@@ -125,8 +136,6 @@ export function homePlaceOf(places: TransitPlace[], commute: CommuteSettings | u
   return (commute && places.find((p) => p.id === commute.from)) ?? places.find((p) => p.icon === 'home');
 }
 
-const MODES: Record<string, TripLegMode> = { WALK: 'walk', BUS: 'bus', COACH: 'bus', TRAM: 'tram', SUBWAY: 'tram', CABLE_CAR: 'tram' };
-const modeOf = (mode: string): TripLegMode => MODES[mode] ?? 'rail';
 const minutesBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 60_000);
 
 /** Itinéraire de MOTIS tel que la carte le montre : étapes à pied de moins d'une minute retirées, retards en minutes. */
@@ -154,6 +163,9 @@ export function optionOf(it: MotisItinerary): TripOption {
 }
 
 const usable = (o: TripOption) => !o.legs.some((l) => l.cancelled);
+
+/** Itinéraire de MOTIS et sa forme pour la carte « Prochain trajet ». */
+type Choice = { option: TripOption; raw: MotisItinerary };
 
 type Place = { label: string; lat: number; lon: number };
 type Located = { place: Place } | { miss: PlaceMiss };
@@ -243,10 +255,10 @@ export function createNextTripService(deps: NextTripDeps): NextTripService {
     return null;
   }
 
-  async function itineraries(from: LatLon, to: LatLon, time: Date, arriveBy: boolean): Promise<TripOption[]> {
+  async function itineraries(from: LatLon, to: LatLon, time: Date, arriveBy: boolean): Promise<Choice[]> {
     if (!motis) return [];
     try {
-      return (await motis.plan({ from, to, time, arriveBy })).map(optionOf).filter(usable);
+      return (await motis.plan({ from, to, time, arriveBy })).map((raw) => ({ option: optionOf(raw), raw })).filter((c) => usable(c.option));
     } catch {
       return []; // déjà journalisé par la source, sans les positions
     }
@@ -285,47 +297,55 @@ export function createNextTripService(deps: NextTripDeps): NextTripService {
     return null;
   }
 
-  /** Trajet vers `target` depuis `origin` ; null si déjà sur place. */
-  async function planTarget(target: Target, origin: Origin, withCar: boolean): Promise<NextTrip | null> {
+  /** Trajet vers `target` depuis `origin`, avec l'itinéraire de MOTIS retenu ; null si déjà sur place. */
+  async function planChoices(target: Target, origin: Origin, withCar: boolean): Promise<{ trip: NextTrip; chosen: MotisItinerary | null } | null> {
     const { destination: dest, margin } = target;
     if (distanceMeters(origin.at, dest) <= HERE_METERS) return null;
     const now = clock().getTime();
     const arriveBy = Date.parse(dest.start) - margin * 60_000;
+    const leave = (c: Choice) => Date.parse(c.option.leaveAt);
     // Arriver à temps : parmi les itinéraires qui arrivent avant l'heure visée et qu'on peut encore prendre, celui qui
     // fait partir le plus tard ; l'autre choix, le précédent.
     const onTime = (await itineraries(origin.at, dest, new Date(arriveBy), true))
-      .filter((o) => Date.parse(o.arrives) <= arriveBy && Date.parse(o.leaveAt) >= now - LATE_MS)
-      .sort((a, b) => Date.parse(b.leaveAt) - Date.parse(a.leaveAt));
-    let [transit = null, other = null] = onTime;
+      .filter((c) => Date.parse(c.option.arrives) <= arriveBy && leave(c) >= now - LATE_MS)
+      .sort((a, b) => leave(b) - leave(a));
+    let [transit = null, other = null]: (Choice | null)[] = onTime;
     let late = false;
     if (!transit) {
       // Trop tard pour arriver à temps : le prochain départ, et le suivant.
-      const next = (await itineraries(origin.at, dest, new Date(now), false))
-        .filter((o) => Date.parse(o.leaveAt) >= now - LATE_MS)
-        .sort((a, b) => Date.parse(a.leaveAt) - Date.parse(b.leaveAt));
+      const next = (await itineraries(origin.at, dest, new Date(now), false)).filter((c) => leave(c) >= now - LATE_MS).sort((a, b) => leave(a) - leave(b));
       [transit = null, other = null] = next;
-      late = transit !== null && Date.parse(transit.arrives) > arriveBy;
+      late = transit !== null && Date.parse(transit.option.arrives) > arriveBy;
     } else if (!other) {
       // Le précédent est déjà parti : la course suivante, comme autre choix (même si elle arrive après l'heure visée).
-      const after = Date.parse(transit.leaveAt);
-      other = (await itineraries(origin.at, dest, new Date(after + 60_000), false)).filter((o) => Date.parse(o.leaveAt) > after).sort((a, b) => Date.parse(a.leaveAt) - Date.parse(b.leaveAt))[0] ?? null;
+      const after = leave(transit);
+      other = (await itineraries(origin.at, dest, new Date(after + 60_000), false)).filter((c) => leave(c) > after).sort((a, b) => leave(a) - leave(b))[0] ?? null;
     }
     const far = Date.parse(dest.start) - now > TRIP_WINDOW_MS;
-    return {
+    const trip: NextTrip = {
       destination: dest,
       arriveBy: new Date(arriveBy).toISOString(),
       from: origin.from,
       ...(origin.homeBecause && { homeBecause: origin.homeBecause }),
-      transit,
-      other,
+      transit: transit?.option ?? null,
+      other: other?.option ?? null,
       late,
       ...(withCar && { car: await carOf(origin.at, dest, arriveBy, far) }),
     };
+    return { trip, chosen: transit?.raw ?? null };
   }
+
+  const planTarget = async (target: Target, origin: Origin, withCar: boolean) => (await planChoices(target, origin, withCar))?.trip ?? null;
 
   const homeOf = (ownerId: string | null): LatLon | undefined => {
     const home = homePlaceOf(deps.places(), ownerId === null ? undefined : deps.commuteOf(ownerId));
     return home && { lat: home.lat, lon: home.lon };
+  };
+
+  /** Départ : la position du téléphone, sinon la maison. */
+  const originOf = (ownerId: string, position: LatLon | null): Origin | undefined => {
+    const home = homeOf(ownerId);
+    return position ? { at: position, from: 'position' } : home && { at: home, from: 'home' };
   };
 
   const ownersOf = (viewer: TripViewer) => ('phone' in viewer ? [viewer.phone, FAMILY_ID] : deps.owners());
@@ -351,10 +371,32 @@ export function createNextTripService(deps: NextTripDeps): NextTripService {
       if (!motis?.enabled()) return null;
       const target = await destination(ownerId, options);
       if (!target) return null;
-      const home = homeOf(ownerId);
-      const origin: Origin | undefined = position ? { at: position, from: 'position' } : home && { at: home, from: 'home' };
+      const origin = originOf(ownerId, position);
       if (!origin) return null;
       return planTarget(target, origin, Boolean(options.car && deps.isParent(ownerId)));
+    },
+
+    async route(ownerId, position) {
+      if (!motis?.enabled()) return null;
+      const target = await destination(ownerId);
+      if (!target) return null;
+      const origin = originOf(ownerId, position);
+      if (!origin) return null;
+      const planned = await planChoices(target, origin, false);
+      if (!planned) return null;
+      const { trip, chosen } = planned;
+      return {
+        destination: trip.destination,
+        arriveBy: trip.arriveBy,
+        late: trip.late,
+        legs: chosen ? await routeLegsOf(chosen, motis) : [],
+        ...(deps.isParent(ownerId) && { mapsUrl: googleMapsUrl(trip.destination) }),
+      };
+    },
+
+    async rides(refs) {
+      if (!motis?.enabled()) return refs.map(() => null);
+      return rideUpdates(refs, motis);
     },
 
     async routable(viewer, week) {

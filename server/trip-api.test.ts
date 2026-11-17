@@ -6,7 +6,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { LatLon, NextTrip } from '../shared/trip.ts';
+import type { LatLon, NextTrip, TripRoute } from '../shared/trip.ts';
 import { createAccess, kioskKeyMatcher, OWN_PHONE_ONLY } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
@@ -39,6 +39,7 @@ async function setup({ enabled = true, sendResult = 'sent' as const } = {}) {
   const calls: { ownerId: string; position: LatLon | null; options?: TripOptions }[] = [];
   const eventCalls: { viewer: TripViewer; key: string; position: LatLon | null }[] = [];
   const routableCalls: { viewer: TripViewer; week: number }[] = [];
+  const rideCalls: string[] = [];
   const nextTrip: NextTripService = {
     enabled: () => enabled,
     destination: async (ownerId) => (ownerId === 'lea' ? { destination: { kind: 'course', title: 'Maths', start: NOW.toISOString(), place: 'Collège', lat: 47.48, lon: -0.55 }, margin: 10 } : null),
@@ -46,6 +47,11 @@ async function setup({ enabled = true, sendResult = 'sent' as const } = {}) {
       calls.push({ ownerId, position, options });
       return { destination: { title: ownerId } } as unknown as NextTrip;
     },
+    route: async (ownerId, position) => {
+      calls.push({ ownerId, position });
+      return { destination: { title: ownerId } } as unknown as TripRoute;
+    },
+    rides: async (refs) => (rideCalls.push(...refs.map((r) => r.tripId)), refs.map(() => null)),
     routable: async (viewer, week) => (routableCalls.push({ viewer, week }), ['rdv@2026-11-05T09:00:00.000Z']),
     planEvent: async (viewer, key, position) => (eventCalls.push({ viewer, key, position }), { trip: null, missing: 'here' }),
     watch: async (ownerId) => ({ enabled: true, next: null, unplaced: [{ title: ownerId, start: NOW.toISOString(), location: 'chez Mamie', reason: 'not-found' }] }),
@@ -66,7 +72,7 @@ async function setup({ enabled = true, sendResult = 'sent' as const } = {}) {
       { method, headers: { ...(token && { Authorization: `Bearer ${token}` }), 'content-type': 'application/json' }, ...(body !== undefined && { body: JSON.stringify(body) }) },
       connectedFrom(from),
     );
-  return { call, phone, calls, eventCalls, routableCalls, sent, push, devices };
+  return { call, phone, calls, eventCalls, routableCalls, rideCalls, sent, push, devices };
 }
 
 describe('API du prochain trajet', () => {
@@ -109,6 +115,36 @@ describe('API du prochain trajet', () => {
     expect(await (await call('GET', '/trip', { token: lea })).json()).toEqual({ enabled: false, upcoming: false });
     expect(await (await call('POST', '/trip', { token: lea, body: {} })).json()).toEqual({ enabled: false, trip: null });
     expect(calls).toEqual([]);
+  });
+});
+
+describe('API de la carte en route', () => {
+  it('itinéraire du téléphone pour lui-même seulement, position lue dans le corps', async () => {
+    const { call, phone, calls } = await setup();
+    const alex = await phone('alex');
+    const res = await call('POST', '/trip/route', { token: alex, body: { ownerId: 'lea', position: { lat: 47.46, lon: -0.55 } } });
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ enabled: true, route: { destination: { title: 'alex' } } });
+    expect(calls).toEqual([{ ownerId: 'alex', position: { lat: 47.46, lon: -0.55 } }]);
+  });
+
+  it('nouvelles heures des courses suivies, au plus quatre', async () => {
+    const { call, phone, rideCalls } = await setup();
+    const lea = await phone('lea');
+    const stop = { name: 'Ralliement', lat: 47.4668, lon: -0.557, stopId: 'irigo_RALL' };
+    const ride = (tripId: string) => ({ tripId, from: stop, to: { ...stop, name: 'Mail des Tilleuls' } });
+    expect(await (await call('POST', '/trip/rides', { token: lea, body: { rides: [ride('a'), ride('b')] } })).json()).toEqual({ rides: [null, null] });
+    expect(rideCalls).toEqual(['a', 'b']);
+    expect((await call('POST', '/trip/rides', { token: lea, body: { rides: ['a', 'b', 'c', 'd', 'e'].map(ride) } })).status).toBe(400);
+  });
+
+  it('ni la tablette, ni un appareil non appairé ; sans MOTIS, pas d’itinéraire', async () => {
+    const { call } = await setup();
+    expect((await call('POST', '/trip/route', { from: TABLET, body: {} })).status).toBe(403);
+    expect((await call('POST', '/trip/rides', { body: { rides: [] } })).status).toBe(403);
+    const off = await setup({ enabled: false });
+    const lea = await off.phone('lea');
+    expect(await (await off.call('POST', '/trip/route', { token: lea, body: {} })).json()).toEqual({ enabled: false, route: null });
   });
 });
 

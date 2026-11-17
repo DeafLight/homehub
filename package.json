@@ -1,6 +1,6 @@
 {
   "name": "homehub",
-  "version": "0.97.0",
+  "version": "0.98.0",
   "private": true,
   "type": "module",
   "description": "Tableau de bord maison affiché sur la tablette (Fully Kiosk)",
@@ -36,6 +36,8 @@
     "@vladmandic/human": "3.3.6",
     "concurrently": "^10.0.6",
     "jsqr": "1.4.0",
+    "maplibre-gl": "6.16.0",
+    "pmtiles": "4.5.0",
     "pngjs": "7.0.0",
     "svelte": "^5.57.3",
     "svelte-check": "^4.7.8",

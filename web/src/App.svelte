@@ -115,6 +115,11 @@
   <PhoneSettings />
 {:else if router.route.name === 'phoneremote'}
   <Remote />
+{:else if router.route.name === 'phonetrip'}
+  <!-- Carte en route : MapLibre et pmtiles chargés à la demande, jamais sur la tablette. -->
+  {#await import('./screens/EnRoute.svelte') then { default: EnRoute }}
+    <EnRoute />
+  {/await}
 {:else if router.route.name === 'phone'}
   <Phone tab={router.route.tab} trip={router.route.trip} />
 {:else if router.route.name === 'share'}

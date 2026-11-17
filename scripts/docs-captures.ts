@@ -1247,29 +1247,30 @@ const TRIP_SHOTS = [
 ];
 /** Touche le rendez-vous dont le bouton contient `title` (agenda du téléphone, semaine de la tablette). */
 const openTrip = (title: string) => `[...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') ?? '').startsWith(${JSON.stringify(title)}))?.click()`;
+/** Lieux et trajets de la page Transports pour les captures de trajet : maison et collège, trajet de Léa ; `withTrips` : stade et école ; `pool` : centre aquatique. */
+const tripPlace = (id: string, label: string, icon: string, lat: number, lon: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon });
+const tripSettings = (withTrips: boolean, pool = false) => ({
+  places: [
+    tripPlace('maison', 'Maison', 'home', 47.47, -0.55),
+    tripPlace('college', 'Collège', 'school', 47.48, -0.55),
+    ...(withTrips ? [tripPlace('stade', 'Stade', 'sport', 47.455, -0.575), tripPlace('ecole', 'École', 'place', 47.49, -0.52)] : []),
+    ...(pool ? [tripPlace('piscine', 'Centre aquatique', 'sport', 47.46, -0.53)] : []),
+  ],
+  commutes: {
+    lea: {
+      from: 'maison', to: 'college',
+      route: { line: '03', origin: 'RALL', originName: 'Ralliement', destination: 'LYCE', destinationName: 'Lycée', towards: 'Lycée', headsigns: ['Lycée'], oneWay: false, rideMinutes: 12, walkFrom: 4, walkTo: 3 },
+      mode: 'window', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: null, tvAlert: 8,
+    },
+  },
+  stops: [],
+});
 if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   const atPosition = `navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok({ coords: { latitude: ${DOCS_PHONE_POSITION.lat}, longitude: ${DOCS_PHONE_POSITION.lon}, accuracy: 20 }, timestamp: Date.now() }), 50);`;
   // Téléphone de Tom, appairé pour ces captures seulement (après celle de la page Téléphones).
   const devicesFile = join(state, 'devices.json');
   const current = JSON.parse(readFileSync(devicesFile, 'utf8')) as { version: 1; devices: unknown[] };
   writeFileSync(devicesFile, JSON.stringify({ ...current, devices: [...current.devices, device('tom', 'Téléphone de Tom', 'Android 15'), device('sam', 'Téléphone de Sam', 'Android 16')] }));
-  const place = (id: string, label: string, icon: string, lat: number, lon: number) => ({ id, label, icon, address: `${label}, Angers`, lat, lon });
-  const tripSettings = (withTrips: boolean, pool = false) => ({
-    places: [
-      place('maison', 'Maison', 'home', 47.47, -0.55),
-      place('college', 'Collège', 'school', 47.48, -0.55),
-      ...(withTrips ? [place('stade', 'Stade', 'sport', 47.455, -0.575), place('ecole', 'École', 'place', 47.49, -0.52)] : []),
-      ...(pool ? [place('piscine', 'Centre aquatique', 'sport', 47.46, -0.53)] : []),
-    ],
-    commutes: {
-      lea: {
-        from: 'maison', to: 'college',
-        route: { line: '03', origin: 'RALL', originName: 'Ralliement', destination: 'LYCE', destinationName: 'Lycée', towards: 'Lycée', headsigns: ['Lycée'], oneWay: false, rideMinutes: 12, walkFrom: 4, walkTo: 3 },
-        mode: 'window', days: [1, 2, 3, 4, 5], window: { from: '07:00', to: '08:30' }, arriveBefore: 10, showBefore: 30, walkFrom: null, walkTo: null, tvAlert: 8,
-      },
-    },
-    stops: [],
-  });
   const tomAt = new Date(2026, 10, 5, 17, 29).getTime();
   browserNow = tomAt;
   await startServer(tomAt);
@@ -1300,6 +1301,42 @@ if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   await call(A, 'PUT', '/transit/settings', tripSettings(false));
   browserNow = DOCS_NOW;
   await startServer(DOCS_NOW);
+}
+
+// Carte en route (chantier « Prochain trajet », version 3) : Léa va à son cours de 8 h 30 au Collège ; serveur à 7 h 35,
+// faux MOTIS (bus 3 dans 11 min, 2 min de retard annoncées, puis tram A), fond uni (pas de fichier PMTiles dans le monde
+// fictif). Position simulée qui avance (fausse géolocalisation, horodatée). À pied : à 180 m de l'arrêt, horloge du
+// navigateur 8 min plus tard (le bus arrive dans 5 min, estimé en approche). Dans le bus : la position part de l'arrêt
+// et suit le tracé à 32 km/h, la montée est reconnue d'elle-même ; horloge 21 min plus tard, le tram A de la
+// correspondance est estimé en approche de son arrêt.
+const ROUTE_SHOTS = ['telephone-carte-a-pied', 'telephone-carte-correspondance'];
+/** Fausse géolocalisation : `points` [lat, lon] émis toutes les 200 ms, horodatés à `stepSeconds` d'écart, le dernier répété. */
+const movingPosition = (points: [number, number][], stepSeconds: number) => `(() => {
+  const pts = ${JSON.stringify(points)}; let i = 0; const t0 = Date.now();
+  navigator.geolocation.watchPosition = (ok) => setInterval(() => { const [lat, lon] = pts[Math.min(i, pts.length - 1)];
+    ok({ coords: { latitude: lat, longitude: lon, accuracy: 8 }, timestamp: t0 + i * ${stepSeconds * 1000} }); i++; }, 200);
+  navigator.geolocation.clearWatch = (id) => clearInterval(id); })();`;
+/** Points tous les `meters` mètres le long d'une ligne brisée [lat, lon]. */
+function alongLine(line: [number, number][], meters: number): [number, number][] {
+  const out: [number, number][] = [line[0]];
+  for (let k = 1; k < line.length; k++) {
+    const [a, b] = [line[k - 1], line[k]];
+    const length = Math.hypot((b[0] - a[0]) * 110_540, (b[1] - a[1]) * 75_000);
+    for (let d = meters; d <= length; d += meters) out.push([a[0] + ((b[0] - a[0]) * d) / length, a[1] + ((b[1] - a[1]) * d) / length]);
+  }
+  return out;
+}
+if (!only || ROUTE_SHOTS.some((name) => only.test(name))) {
+  await call(A, 'PUT', '/transit/settings', tripSettings(false));
+  await startServer(DOCS_NOW);
+  const { lat, lon } = DOCS_PHONE_POSITION;
+  browserNow = DOCS_NOW + 8 * 60_000;
+  await shoot('telephone-carte-a-pied', `${BASE}/m/trajet`, PHONE, { init: asPhone('lea') + movingPosition(alongLine([[lat - 0.0004, lon - 0.0004], [lat, lon]], 4), 3), wait: 7000 });
+  // Arrêts d'exemple du faux MOTIS : Ralliement, Place des Essais, Rue Imaginaire, puis vers Pont du Modèle.
+  const bus: [number, number][] = [[47.4668, -0.557], [47.469, -0.553], [47.4712, -0.55], [47.4723, -0.549]];
+  browserNow = DOCS_NOW + 21 * 60_000;
+  await shoot('telephone-carte-correspondance', `${BASE}/m/trajet`, PHONE, { init: asPhone('lea') + movingPosition([bus[0], bus[0], ...alongLine(bus, 45)], 5), wait: 7000 });
+  browserNow = DOCS_NOW;
 }
 
 // --- Planche du design :variables de web/src/app.css, profils de la configuration fictive.

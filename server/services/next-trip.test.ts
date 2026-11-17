@@ -219,6 +219,63 @@ describe('ligne voiture', () => {
   });
 });
 
+describe('carte en route', () => {
+  it('itinéraire retenu avec tracés, arrêts placés et courses entières (montée et descente repérées)', async () => {
+    const { service, motisUrls } = setup({ courses: [course(at(8, 30))], motis: { delayMinutes: 2 } });
+    const route = await service.route('lea', FAR);
+    expect(route?.destination.place).toBe('Collège');
+    expect(route?.arriveBy).toBe(at(8, 20));
+    expect(route).not.toHaveProperty('mapsUrl');
+    const legs = route!.legs;
+    expect(legs.map((l) => `${l.mode}${l.line ?? ''}`)).toEqual(['walk', 'bus3', 'walk', 'tramA', 'walk']);
+    // Marche depuis la position : tracé du point de départ jusqu'à l'arrêt.
+    expect(legs[0].path[0]).toEqual([FAR.lon, FAR.lat]);
+    expect(legs[0].path.at(-1)).toEqual([legs[1].from.lon, legs[1].from.lat]);
+    const bus = legs[1];
+    expect(bus).toMatchObject({ from: { name: 'Ralliement', stopId: 'irigo_RALL' }, to: { name: 'Mail des Tilleuls' }, delayMinutes: 2 });
+    expect(bus.course?.stops).toHaveLength(8);
+    expect(bus.course?.stops[bus.course.board].name).toBe('Ralliement');
+    expect(bus.course?.stops[bus.course.alight].name).toBe('Mail des Tilleuls');
+    expect(bus.course?.stops[bus.course.board].departs).toBe(bus.departs);
+    expect(legs[3].course?.stops[legs[3].course.alight].name).toBe('Les Collèges');
+    expect(motisUrls.filter((u) => u.pathname === '/api/v5/trip')).toHaveLength(2);
+    // La position ne part qu'à MOTIS, pour l'itinéraire ; jamais pour une course.
+    expect(motisUrls.filter((u) => u.pathname === '/api/v5/trip').some((u) => u.href.includes('47.46'))).toBe(false);
+  });
+
+  it('parent : lien Google Maps ; sans rendez-vous ou déjà sur place : rien', async () => {
+    const event = [ev(at(9, 0), 'Dentiste', 'Stade')];
+    expect((await setup({ events: event, parent: true }).service.route('alex', FAR))?.mapsUrl).toContain('google.com/maps');
+    expect(await setup().service.route('lea', FAR)).toBeNull();
+    expect(await setup({ courses: [course(at(8, 30))] }).service.route('lea', { lat: 47.48, lon: -0.55 })).toBeNull();
+  });
+
+  it('course introuvable : étape gardée, sans course entière', async () => {
+    const { service } = setup({ courses: [course(at(8, 30))] });
+    const route = await service.route('lea', FAR);
+    const [update, missing] = await service.rides([
+      { tripId: route!.legs[3].tripId!, from: route!.legs[3].from, to: route!.legs[3].to },
+      { tripId: 'inconnue', from: route!.legs[3].from, to: route!.legs[3].to },
+    ]);
+    expect(update).toMatchObject({ departs: route!.legs[3].departs, arrives: route!.legs[3].arrives });
+    expect(update?.course.stops[update.course.board].name).toBe('Mail des Tilleuls');
+    expect(missing).toBeNull();
+  });
+
+  it('nouvelles heures d’une course suivie : retard du temps réel', async () => {
+    const { service } = setup({ courses: [course(at(8, 30))], motis: { delayMinutes: 3 } });
+    const bus = (await service.route('lea', FAR))!.legs[1];
+    const [update] = await service.rides([{ tripId: bus.tripId!, from: bus.from, to: bus.to }]);
+    expect(update).toMatchObject({ delayMinutes: 3, departs: bus.departs, scheduledDeparts: bus.scheduledDeparts });
+  });
+
+  it('sans MOTIS : ni itinéraire ni heures', async () => {
+    const { service } = setup({ courses: [course(at(8, 30))], motisUrl: '' });
+    expect(await service.route('lea', FAR)).toBeNull();
+    expect(await service.rides([{ tripId: 'x', from: { name: 'a', lat: 0, lon: 0 }, to: { name: 'b', lat: 0, lon: 0 } }])).toEqual([null]);
+  });
+});
+
 describe('sans MOTIS', () => {
   it('pas de carte', async () => {
     const { service } = setup({ courses: [course(at(8, 30))], motisUrl: '' });

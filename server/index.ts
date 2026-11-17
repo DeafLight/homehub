@@ -65,6 +65,8 @@ const stateDir = process.env.HOMEHUB_STATE_DIR ?? 'state';
 /** Relevé du NAS écrit par la tâche cron nas-status.sh (nas-config), à côté de la configuration. */
 const nasStatusPath = process.env.HOMEHUB_NAS_STATUS ?? join(dirname(configPath), 'nas-status.json');
 mkdirSync(stateDir, { recursive: true });
+/** Fond de la carte en route : extrait PMTiles d'Angers (README, « Fond de carte »). */
+const mapTiles = process.env.HOMEHUB_MAP_TILES?.trim() || join(stateDir, 'angers.pmtiles');
 /** Clé de la tablette, donnée une fois dans son adresse de démarrage (/#key=…) ; secret, dans app.env. */
 const kioskKey = process.env.HOMEHUB_KIOSK_KEY?.trim() || undefined;
 if (kioskKey && kioskKey.length < KIOSK_KEY_MIN_LENGTH) {
@@ -229,7 +231,7 @@ createRainAlert({
   clock,
   logger: console,
 }).start();
-const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot });
+const app = createApp({ screenHub, voice, config, service, schoolLife, nas, lists, notes, devices, screens, screenApps, screenAlerts, screenReminders, bedtime, pins, faces, sessions, timers, plans, stock, fitness, recipes, recipeNotes, menus, drive, driveReader, recipeImporter, productBase, transitSettings, gtfs, holidaySettings, searchAddress, locateAddress, motis, tomtom, push, kioskKey, turnSecret: process.env.HOMEHUB_TURN_SECRET?.trim() || undefined, clock, version, staticRoot, mapTiles });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

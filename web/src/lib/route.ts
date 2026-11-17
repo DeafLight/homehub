@@ -5,7 +5,8 @@
 // scanner (/m/scanner), son stock (/m/stock), la télécommande de la télé (/m/tele), ses réglages (/m/reglages), le menu de la semaine (/m/menu), une recette (/m/recette/<id>, /m/recette/<id>/modifier,
 // /m/recette/nouvelle), l'appairage (/appairer) et le partage (/partager). Le scanner du téléphone peut s'ouvrir
 // directement dans un mode : /m/scanner?mode=ranger ou ?mode=jete (QR des affichettes). L'agenda peut s'ouvrir sur le
-// trajet d'un rendez-vous : /m/agenda?trajet=<clé> (notification « Pars dans 5 min »).
+// trajet d'un rendez-vous : /m/agenda?trajet=<clé> (notification « Pars dans 5 min »). La carte en route du prochain
+// trajet : /m/trajet.
 // Une page de détail porte dans son chemin la page qui l'a ouverte, pour y revenir : /meteo (depuis
 // l'accueil) ou /meteo/p/<id> (depuis un profil). Le retour survit ainsi au rechargement.
 import { TRIP_PARAM, eventTripPath } from '../../../shared/trip.ts';
@@ -26,6 +27,7 @@ export type Route =
   | { name: 'phonemenu' }
   | { name: 'phoneremote' }
   | { name: 'phonesettings' }
+  | { name: 'phonetrip' }
   | { name: 'recipe'; id: string | null; mode: RecipeMode }
   | { name: 'phonerecipe'; id: string | null; mode: Exclude<RecipeMode, 'cook'> }
   | { name: 'share' };
@@ -53,6 +55,8 @@ export const PHONE_MENU_PATH = '/m/menu';
 export const PHONE_REMOTE_PATH = '/m/tele';
 /** Réglages du téléphone (notifications « Pars dans 5 min »). */
 export const PHONE_SETTINGS_PATH = '/m/reglages';
+/** Carte en route du prochain trajet (chantier « Prochain trajet », version 3). */
+export const PHONE_TRIP_PATH = '/m/trajet';
 const NEW_RECIPE = 'nouvelle';
 const RECIPE_SUFFIX: Record<RecipeMode, string> = { view: '', edit: '/modifier', cook: '/cuisine' };
 
@@ -81,6 +85,7 @@ const TRAITS: Partial<Record<Route['name'], RouteTraits>> = {
   phonemenu: { phone: true },
   phoneremote: { phone: true },
   phonesettings: { phone: true },
+  phonetrip: { phone: true },
   phonerecipe: { phone: true },
   recipe: { awake: true },
   scan: { holdsActor: true },
@@ -124,6 +129,7 @@ export function routePath(route: Route): string {
   if (route.name === 'phonemenu') return PHONE_MENU_PATH;
   if (route.name === 'phoneremote') return PHONE_REMOTE_PATH;
   if (route.name === 'phonesettings') return PHONE_SETTINGS_PATH;
+  if (route.name === 'phonetrip') return PHONE_TRIP_PATH;
   if (route.name === 'recipe') return recipePath(route.id, route.mode);
   if (route.name === 'phonerecipe') return phoneRecipePath(route.id, route.mode);
   const prefix = DETAIL_PREFIXES[route.name];
@@ -166,6 +172,7 @@ export function parseRoute(location: string): Route {
   if (path === PHONE_MENU_PATH) return { name: 'phonemenu' };
   if (path === PHONE_REMOTE_PATH) return { name: 'phoneremote' };
   if (path === PHONE_SETTINGS_PATH) return { name: 'phonesettings' };
+  if (path === PHONE_TRIP_PATH) return { name: 'phonetrip' };
   const recipe = /^(\/m)?\/recette\/([^/]+)(?:\/(modifier|cuisine))?$/u.exec(path);
   if (recipe) {
     const [, phone, rawId, suffix] = recipe;

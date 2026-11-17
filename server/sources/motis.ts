@@ -4,7 +4,8 @@
 // Sans adresse configurée (HOMEHUB_MOTIS_URL ou `transit.motis.url`), la source est désactivée et HomeHub garde son
 // calcul maison à lignes directes (gtfs.ts). Réponses gardées une minute ; une panne est gardée autant, pour ne pas
 // relancer MOTIS à chaque rafraîchissement de l'écran, et l'appelant se replie sur le calcul maison. Sert aussi au
-// « Prochain trajet » du téléphone, et en voiture (`directModes=CAR`, sans trafic) au secours de TomTom.
+// « Prochain trajet » du téléphone, et en voiture (`directModes=CAR`, sans trafic) au secours de TomTom. Pour la carte
+// en route (version 3), la course entière d'un bus ou d'un tram (GET /api/v5/trip) : arrêts horodatés et tracé.
 import { z } from 'zod';
 import type { Logger } from '../config-store.ts';
 import type { LatLon } from './gtfs.ts';
@@ -49,21 +50,22 @@ const legSchema = z.object({
   displayName: z.string().optional(),
   cancelled: z.boolean().optional(),
   legGeometry: z.object({ points: z.string(), precision: z.number().default(6) }).optional(),
+  intermediateStops: z.array(placeSchema).nullish(),
 });
 
-const planSchema = z.object({
-  itineraries: z.array(
-    z.object({
-      startTime: isoTime,
-      endTime: isoTime,
-      duration: z.number(),
-      transfers: z.number().default(0),
-      legs: z.array(legSchema).min(1),
-    }),
-  ),
+const itinerarySchema = z.object({
+  startTime: isoTime,
+  endTime: isoTime,
+  duration: z.number(),
+  transfers: z.number().default(0),
+  legs: z.array(legSchema).min(1),
 });
+const planSchema = z.object({ itineraries: z.array(itinerarySchema) });
 
 export type MotisPlace = { name: string; stopId?: string; lat: number; lon: number };
+
+/** Arrêt d'une course : heures prévues (temps réel compris) et théoriques, ISO 8601, quand MOTIS les donne. */
+export type MotisStop = MotisPlace & { arrives?: string; departs?: string; scheduledArrives?: string; scheduledDeparts?: string };
 
 /** Étape d'un itinéraire : marche, ou course d'un bus ou d'un tram. Heures ISO 8601. */
 export type MotisLeg = {
@@ -84,6 +86,8 @@ export type MotisLeg = {
   cancelled: boolean;
   /** Tracé (polyline Google, précision `precision`). */
   geometry?: { points: string; precision: number };
+  /** Bus et tram : les arrêts de l'étape, montée et descente comprises, horodatés. */
+  stops?: MotisStop[];
 };
 
 export type MotisItinerary = { departs: string; arrives: string; transfers: number; legs: MotisLeg[] };
@@ -98,15 +102,22 @@ export const gtfsStopId = (stopId: string) => stopId.slice(stopId.indexOf('_') +
 
 const place = (p: z.infer<typeof placeSchema>): MotisPlace => ({ name: p.name, ...(p.stopId && { stopId: p.stopId }), lat: p.lat, lon: p.lon });
 const iso = (s: string) => new Date(s).toISOString();
+const stop = (p: z.infer<typeof placeSchema>): MotisStop => ({
+  ...place(p),
+  ...(p.arrival && { arrives: iso(p.arrival) }),
+  ...(p.departure && { departs: iso(p.departure) }),
+  ...(p.scheduledArrival && { scheduledArrives: iso(p.scheduledArrival) }),
+  ...(p.scheduledDeparture && { scheduledDeparts: iso(p.scheduledDeparture) }),
+});
 
-/** Itinéraires d'une réponse de /api/v5/plan (les étapes sans course, marche comprise, restent dans l'ordre). */
-export function parsePlan(json: unknown): MotisItinerary[] {
-  return planSchema.parse(json).itineraries.map((it) => ({
+function itineraryOf(it: z.infer<typeof itinerarySchema>): MotisItinerary {
+  return {
     departs: iso(it.startTime),
     arrives: iso(it.endTime),
     transfers: it.transfers,
     legs: it.legs.map((leg): MotisLeg => {
       const name = leg.mode === 'WALK' ? undefined : (leg.routeShortName || leg.displayName);
+      const transit = leg.mode !== 'WALK' && name;
       return {
         mode: leg.mode,
         ...(name && { line: lineLabel(name) }),
@@ -121,10 +132,17 @@ export function parsePlan(json: unknown): MotisItinerary[] {
         realtime: leg.realTime,
         cancelled: Boolean(leg.cancelled || leg.from.cancelled || leg.to.cancelled),
         ...(leg.legGeometry && { geometry: leg.legGeometry }),
+        ...(transit && { stops: [stop(leg.from), ...(leg.intermediateStops ?? []).map(stop), stop(leg.to)] }),
       };
     }),
-  }));
+  };
 }
+
+/** Itinéraires d'une réponse de /api/v5/plan (les étapes sans course, marche comprise, restent dans l'ordre). */
+export const parsePlan = (json: unknown): MotisItinerary[] => planSchema.parse(json).itineraries.map(itineraryOf);
+
+/** Course d'une réponse de /api/v5/trip : un itinéraire dont les étapes de bus ou de tram couvrent toute la course. */
+export const parseTrip = (json: unknown): MotisItinerary => itineraryOf(itinerarySchema.parse(json));
 
 export type PlanRequest = { from: LatLon; to: LatLon; time: Date; arriveBy: boolean };
 
@@ -138,6 +156,8 @@ export type MotisSource = {
    * n'en trouve pas. Lève une erreur si MOTIS ne répond pas.
    */
   car(from: LatLon, to: LatLon, time: Date): Promise<MotisCar | null>;
+  /** Course entière d'un bus ou d'un tram (`tripId` d'une étape) ; lève une erreur si MOTIS ne la donne pas. */
+  trip(tripId: string): Promise<MotisItinerary>;
 };
 
 /** Trajet direct en voiture (sans trafic) : durée en secondes, distance en mètres si MOTIS la donne. */
@@ -172,8 +192,8 @@ const latLon = (p: LatLon) => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
 export function createMotisSource({ url, clock, logger, status, fetchFn = (...a) => fetch(...a) }: MotisSourceDeps): MotisSource {
   const cache = new Map<string, { at: number; result: Promise<unknown> }>();
 
-  async function request<T>(base: string, req: PlanRequest, parse: (json: unknown) => T, extra: Record<string, string> = {}): Promise<T> {
-    const params = new URLSearchParams({
+  const planParams = (req: PlanRequest, extra: Record<string, string> = {}) =>
+    new URLSearchParams({
       fromPlace: latLon(req.from),
       toPlace: latLon(req.to),
       time: req.time.toISOString(),
@@ -181,8 +201,10 @@ export function createMotisSource({ url, clock, logger, status, fetchFn = (...a)
       numItineraries: String(ITINERARIES),
       ...extra,
     });
+
+  async function request<T>(base: string, path: string, params: URLSearchParams, parse: (json: unknown) => T): Promise<T> {
     try {
-      const res = await fetchFn(`${base.replace(/\/+$/u, '')}/api/v5/plan?${params}`, {
+      const res = await fetchFn(`${base.replace(/\/+$/u, '')}${path}?${params}`, {
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -199,13 +221,15 @@ export function createMotisSource({ url, clock, logger, status, fetchFn = (...a)
     }
   }
 
+  const planKey = (req: PlanRequest) => `${latLon(req.from)}|${latLon(req.to)}|${req.time.getTime()}|${req.arriveBy}`;
+
   /** Réponse gardée une minute (panne comprise), par sorte de requête, adresse et requête. */
-  function cached<T>(kind: string, req: PlanRequest, run: (base: string) => Promise<T>): Promise<T> {
+  function cached<T>(kind: string, what: string, run: (base: string) => Promise<T>): Promise<T> {
     const base = url();
     if (!base) return Promise.reject(new Error('MOTIS non configuré'));
     const now = clock().getTime();
     for (const [k, v] of cache) if (now - v.at >= CACHE_MS) cache.delete(k);
-    const key = `${kind}|${base}|${latLon(req.from)}|${latLon(req.to)}|${req.time.getTime()}|${req.arriveBy}`;
+    const key = `${kind}|${base}|${what}`;
     const hit = cache.get(key);
     if (hit) return hit.result as Promise<T>;
     const result = run(base);
@@ -217,11 +241,12 @@ export function createMotisSource({ url, clock, logger, status, fetchFn = (...a)
 
   return {
     enabled: () => Boolean(url()),
-    plan: (req) => cached('plan', req, (base) => request(base, req, parsePlan)),
+    plan: (req) => cached('plan', planKey(req), (base) => request(base, '/api/v5/plan', planParams(req), parsePlan)),
     car(from, to, time) {
       // Heure arrondie à la minute : la durée sans trafic ne change pas d'une seconde à l'autre (cache).
       const req = { from, to, time: new Date(Math.floor(time.getTime() / 60_000) * 60_000), arriveBy: false };
-      return cached('car', req, (base) => request(base, req, parseCar, { directModes: 'CAR', numItineraries: '1' }));
+      return cached('car', planKey(req), (base) => request(base, '/api/v5/plan', planParams(req, { directModes: 'CAR', numItineraries: '1' }), parseCar));
     },
+    trip: (tripId) => cached('trip', tripId, (base) => request(base, '/api/v5/trip', new URLSearchParams({ tripId }), parseTrip)),
   };
 }
