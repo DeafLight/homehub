@@ -436,6 +436,9 @@ personne depuis son propre téléphone.
       « Férié · 11 novembre », la veille « Demain férié » (0.46).
 - [x] Vie scolaire en lecture seule (ÉcoleDirecte, Pronote) : notes récentes, absences et retards, messages de
       l'établissement, sur le dashboard d'un parent et le téléphone d'un parent (0.48).
+- [x] Pronote limité (0.99.1) : une connexion par cycle pour tous les enfants, aucune la nuit, rythme ×3 le week-end,
+      notes, carnet et messagerie toutes les 3 h, période des notes retenue ; recul de 15 min à 6 h après un échec,
+      pause de 6 h si Pronote limite ou suspend l'adresse IP ; prochain essai affiché sur la page « Le NAS ».
 
 ## Famille
 

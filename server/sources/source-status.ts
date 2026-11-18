@@ -4,8 +4,11 @@ import type { SourceState } from '../../shared/types.ts';
 import type { Clock } from './types.ts';
 
 export type SourceStatus = {
-  /** Note le résultat d'un chargement : `error` absent si réussi. `name` ne contient jamais de secret. */
-  record(name: string, error?: unknown): void;
+  /**
+   * Note le résultat d'un chargement : `error` absent si réussi, `retryAt` la prochaine tentative après un échec.
+   * `name` ne contient jamais de secret.
+   */
+  record(name: string, error?: unknown, retryAt?: Date): void;
   /** Sources, celles en échec d'abord, puis par nom. */
   list(): SourceState[];
 };
@@ -13,7 +16,7 @@ export type SourceStatus = {
 export function createSourceStatus(clock: Clock): SourceStatus {
   const states = new Map<string, SourceState>();
   return {
-    record(name, error) {
+    record(name, error, retryAt) {
       const at = clock().toISOString();
       if (error === undefined) {
         states.set(name, { name, ok: true, at });
@@ -22,7 +25,7 @@ export function createSourceStatus(clock: Clock): SourceStatus {
       const previous = states.get(name);
       const failingSince = previous && !previous.ok ? (previous.failingSince ?? at) : at;
       const message = error instanceof Error ? error.message : String(error);
-      states.set(name, { name, ok: false, at, error: message, failingSince });
+      states.set(name, { name, ok: false, at, error: message, failingSince, ...(retryAt && { retryAt: retryAt.toISOString() }) });
     },
     list: () => [...states.values()].sort((a, b) => Number(a.ok) - Number(b.ok) || a.name.localeCompare(b.name, 'fr')),
   };

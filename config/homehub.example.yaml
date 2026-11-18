@@ -61,7 +61,10 @@ ecoledirecte:
   refreshMinutes: 60
 
 pronote:
-  # Intervalle entre deux connexions à Pronote (minutes, 15 à 1440).
+  # Intervalle entre deux connexions à Pronote (minutes, 15 à 1440), en semaine et en journée : une connexion pour
+  # tous les enfants, trois fois moins souvent le week-end, aucune de 22 h à 6 h ; notes, carnet et messagerie relus
+  # toutes les 3 h au plus. Après un échec, HomeHub attend 15 min, puis 30 min… jusqu'à 6 h (6 h d'emblée si Pronote
+  # limite les requêtes).
   refreshMinutes: 60
 
 # Tablette de la maison : elle peut modifier les listes et appairer les téléphones. Elle est reconnue de préférence à

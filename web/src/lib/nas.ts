@@ -132,6 +132,17 @@ const checkTitle = (check: NasCheck) => CHECK_TITLES[check.check.split(' ')[0]] 
 const LEVEL_ORDER: Record<NasLevel, number> = { bad: 0, warn: 1, off: 2, ok: 3 };
 
 /** « À surveiller » : problèmes du NAS et de HomeHub, puis les points faibles connus du matériel. */
+/**
+ * Prochain essai d'une source en échec : « Nouvel essai à partir de 15:30. », « … de demain 06:00. » ; rien s'il est déjà
+ * permis (la source réessaie à la prochaine demande).
+ */
+export function retryText(retryAt: Date, now: Date): string {
+  if (retryAt <= now) return '';
+  const diff = dayDiff(now, retryAt);
+  const from = diff === 0 ? 'de ' : diff === 1 ? 'de demain ' : `du ${dayMonth.format(retryAt)} `;
+  return `Nouvel essai à partir ${from}${formatTime(retryAt)}.`;
+}
+
 export function nasWatch({ status, sources }: NasData, now: Date): NasWatchItem[] {
   const items: NasWatchItem[] = [];
 
@@ -156,7 +167,9 @@ export function nasWatch({ status, sources }: NasData, now: Date): NasWatchItem[
   for (const source of sources) {
     if (source.ok) continue;
     const since = source.failingSince ? ` depuis ${formatPast(new Date(source.failingSince), now).toLowerCase()}` : '';
-    items.push({ level: 'bad', title: `${source.name} : en erreur`, text: `${source.error ?? 'Erreur'}${since}.` });
+    const retry = source.retryAt && retryText(new Date(source.retryAt), now);
+    const text = [`${source.error ?? 'Erreur'}${since}.`, retry].filter(Boolean).join(' ');
+    items.push({ level: 'bad', title: `${source.name} : en erreur`, text });
   }
 
   if (status) {

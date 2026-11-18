@@ -749,6 +749,19 @@ Pronote donne un nouveau jeton à chaque connexion : HomeHub le réenregistre au
 fichier copié ne sert donc qu'une fois ; s'il est perdu ou refusé, refaire l'appairage. L'appareil apparaît dans
 la liste des appareils connectés du compte Pronote, d'où il peut être révoqué.
 
+Pronote limite les requêtes (« You've been rate-limited ») et peut suspendre l'adresse IP, sans seuil publié.
+HomeHub s'y connecte donc le moins possible (depuis la 0.99.1) :
+- **une seule connexion par cycle pour tous les enfants** (ceux qui ont `pronote:` sur leur profil) ; un enfant
+  introuvable sur le compte ne masque pas les autres ;
+- emploi du temps et devoirs toutes les `pronote.refreshMinutes` (60 par défaut) en semaine, **trois fois moins
+  souvent le week-end** ; **aucune connexion de 22 h à 6 h** tant que les données ont moins de 48 h ;
+- **notes, carnet et messagerie toutes les 3 h** seulement (la valeur précédente est gardée entre deux), la
+  messagerie du compte lue une fois pour tous les enfants, et les notes lues d'abord dans la période où elles ont été
+  trouvées la fois précédente ;
+- après un échec, **recul** de 15 min, puis 30 min, 1 h… jusqu'à 6 h, remis à zéro au premier succès ; si Pronote
+  limite ou suspend l'adresse IP, **pause de 6 h** d'emblée. Les dernières données restent affichées pendant ce
+  temps (48 h au plus), et la page « Le NAS » dit à partir de quand HomeHub réessaiera.
+
 Les **bus et trams** viennent de l'open data d'Angers Loire Métropole (licence ODbL, sans compte ni clé) : prochains
 passages par l'API SIRI d'Ara (`StopMonitoring`, en tant que `opendata`), au plus une fois par minute et par arrêt,
 et seulement quand un écran les demande ; perturbations par le flux GTFS-RT d'alertes, toutes les 10 min. SIRI ne

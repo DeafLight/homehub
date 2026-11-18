@@ -107,4 +107,65 @@ describe('createRefreshingCache', () => {
     await cache.get('https://secret', 600_000, 'Agenda CAL_A');
     expect(status.list()).toMatchObject([{ name: 'Agenda CAL_A', ok: true }]);
   });
+
+  it('recul après des échecs répétés (retryDelay), remis à zéro au premier succès', async () => {
+    let now = NOW.getTime();
+    let fail = true;
+    const delays: number[] = [];
+    const status = createSourceStatus(() => new Date(now));
+    const cache = createRefreshingCache<string>({
+      clock: () => new Date(now),
+      logger: silentLogger(),
+      staleMaxMs: 3_600_000,
+      status,
+      retryDelay: (failures) => {
+        const delay = 15 * 60_000 * 2 ** (failures - 1);
+        delays.push(delay);
+        return delay;
+      },
+      async load() {
+        if (fail) throw new Error('panne');
+        return 'ok';
+      },
+    });
+    const get = () => cache.get('k', 600_000, 'Test');
+
+    await expect(get()).rejects.toThrow('panne');
+    expect(status.list()[0].retryAt).toBe(new Date(now + 15 * 60_000).toISOString());
+    now += 14 * 60_000;
+    await expect(get()).rejects.toThrow('panne');
+    now += 60_000;
+    await expect(get()).rejects.toThrow('panne'); // deuxième échec : 30 min
+    now += 29 * 60_000;
+    await expect(get()).rejects.toThrow('panne');
+    expect(delays).toEqual([15 * 60_000, 30 * 60_000]);
+    now += 60_000;
+    fail = false;
+    expect(await get()).toBe('ok');
+
+    // Nouvel échec après un succès : le recul repart du début.
+    fail = true;
+    now += 601_000;
+    expect(await get()).toBe('ok'); // valeur encore utilisable, rechargement en arrière-plan
+    await new Promise((r) => setTimeout(r, 0));
+    expect(delays).toEqual([15 * 60_000, 30 * 60_000, 15 * 60_000]);
+  });
+
+  it('retryScope cache : un échec suspend aussi les autres clés, qui rendent la dernière erreur', async () => {
+    let calls = 0;
+    const cache = createRefreshingCache<string>({
+      clock: () => NOW,
+      logger: silentLogger(),
+      staleMaxMs: 3_600_000,
+      retryDelay: () => 6 * 3_600_000,
+      retryScope: 'cache',
+      async load() {
+        calls++;
+        throw new Error('trop de requêtes');
+      },
+    });
+    await expect(cache.get('semaine-1', 600_000, 'Test')).rejects.toThrow('trop de requêtes');
+    await expect(cache.get('semaine-2', 600_000, 'Test')).rejects.toThrow('trop de requêtes');
+    expect(calls).toBe(1);
+  });
 });

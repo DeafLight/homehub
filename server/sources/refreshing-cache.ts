@@ -1,7 +1,8 @@
 // Cache des données distantes (météo, agendas, emplois du temps) : rafraîchies au plus toutes les `maxAgeMs`, une
 // seule requête à la fois par clé. Une valeur encore utilisable est servie tout de suite et rafraîchie en
 // arrière-plan : un service lent ou muet ne ralentit jamais l'affichage. En cas de panne, la dernière valeur reste
-// servie tant qu'elle n'est pas trop vieille.
+// servie tant qu'elle n'est pas trop vieille. Après un échec, la tentative suivante attend `retryDelayMs`, ou le délai
+// que donne `retryDelay` d'après le nombre d'échecs à la suite (recul exponentiel, longue pause si l'API limite).
 import type { Logger } from '../config-store.ts';
 import type { SourceStatus } from './source-status.ts';
 import type { Clock } from './types.ts';
@@ -24,11 +25,23 @@ export type RefreshingCacheDeps<T> = {
   staleMaxMs: number;
   /** Délai minimal entre deux tentatives après un échec : évite de marteler une API en panne. */
   retryDelayMs?: number;
+  /**
+   * Délai avant la tentative suivante, d'après le nombre d'échecs à la suite (1 au premier) et la dernière erreur ;
+   * remplace `retryDelayMs`. Le compte repart de zéro au premier succès.
+   */
+  retryDelay?: (failures: number, error: unknown) => number;
+  /**
+   * `key` (par défaut) : chaque clé attend après son propre échec. `cache` : un échec suspend toutes les clés, pour
+   * une API unique qui limite le compte entier (une nouvelle clé n'est pas une raison de la réveiller).
+   */
+  retryScope?: 'key' | 'cache';
   /** Reçoit le résultat de chaque chargement, sous le nom `label`. */
   status?: SourceStatus;
 };
 
-type Entry<T> = { value?: T; fetchedAt?: number; failedAt?: number; error?: unknown; inFlight?: Promise<void> };
+type Entry<T> = { value?: T; fetchedAt?: number; error?: unknown; inFlight?: Promise<void> };
+/** Échecs à la suite et moment à partir duquel on peut réessayer. */
+type Backoff = { failures: number; retryAt?: number; error?: unknown };
 
 export function createRefreshingCache<T>({
   load,
@@ -36,9 +49,18 @@ export function createRefreshingCache<T>({
   logger,
   staleMaxMs,
   retryDelayMs = 60_000,
+  retryDelay = () => retryDelayMs,
+  retryScope = 'key',
   status,
 }: RefreshingCacheDeps<T>): RefreshingCache<T> {
   const entries = new Map<string, Entry<T>>();
+  const backoffs = new Map<string, Backoff>();
+  const backoffFor = (key: string): Backoff => {
+    const id = retryScope === 'cache' ? '' : key;
+    let backoff = backoffs.get(id);
+    if (!backoff) backoffs.set(id, (backoff = { failures: 0 }));
+    return backoff;
+  };
   const ageOf = (entry: Entry<T>, now: number) => (entry.fetchedAt === undefined ? Infinity : now - entry.fetchedAt);
   const usable = (entry: Entry<T>, now: number) => entry.value !== undefined && ageOf(entry, now) <= staleMaxMs;
 
@@ -49,13 +71,19 @@ export function createRefreshingCache<T>({
         (value) => {
           entry.value = value;
           entry.fetchedAt = startedAt;
-          entry.failedAt = entry.error = undefined;
+          entry.error = undefined;
+          const backoff = backoffFor(key);
+          backoff.failures = 0;
+          backoff.retryAt = backoff.error = undefined;
           status?.record(label);
         },
         (err) => {
-          entry.failedAt = startedAt;
           entry.error = err;
-          status?.record(label, err);
+          const backoff = backoffFor(key);
+          backoff.failures++;
+          backoff.error = err;
+          backoff.retryAt = startedAt + retryDelay(backoff.failures, err);
+          status?.record(label, err, new Date(backoff.retryAt));
           const kept = usable(entry, clock().getTime()) ? ' ; données précédentes conservées' : '';
           logger.error(`${label} : ${(err as Error).message}${kept}.`);
         },
@@ -71,14 +99,15 @@ export function createRefreshingCache<T>({
       let entry = entries.get(key);
       if (!entry) entries.set(key, (entry = {}));
       const now = clock().getTime();
-      const waitingRetry = entry.failedAt !== undefined && now - entry.failedAt < retryDelayMs;
+      const { retryAt } = backoffFor(key);
+      const waitingRetry = retryAt !== undefined && now < retryAt;
 
       if (ageOf(entry, now) > maxAgeMs && !waitingRetry) {
         const pending = refresh(entry, key, now, label);
         if (!usable(entry, now)) await pending;
       }
 
-      if (!usable(entry, clock().getTime())) throw entry.error ?? new Error(`${label} indisponible`);
+      if (!usable(entry, clock().getTime())) throw entry.error ?? backoffFor(key).error ?? new Error(`${label} indisponible`);
       return entry.value as T;
     },
   };

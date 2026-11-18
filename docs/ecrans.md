@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.99.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.99.1, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -259,7 +259,8 @@ vacances** (heure effacée : pas de coucher ce soir-là), le délai du rappel et
 ### Le NAS
 
 État général, jauges, points à surveiller, services, événements récents (relevé d'exemple). Une liste plus longue que sa
-carte (ici les services) défile au doigt, le titre reste en place.
+carte (ici les services) défile au doigt, le titre reste en place. Une source en échec qui attend avant de réessayer
+(Pronote après une limitation, par exemple) le dit : « Nouvel essai à partir de 21:30. ».
 
 ![Le NAS](images/tablette-nas.png)
 

@@ -5,6 +5,9 @@
 // Les devoirs (cahier de texte) viennent de la même connexion, en lecture seule. De même la vie scolaire, réservée aux
 // parents : notes et carnet (absences, retards) de la période en cours, et la liste des discussions de la messagerie,
 // sans ouvrir leurs messages (Pronote les marquerait lus).
+// Pronote limite les connexions (« You've been rate-limited », adresse IP suspendue) : une seule connexion par cycle
+// pour tous les enfants, aucune la nuit tant que les données restent utilisables, un rythme plus lent le week-end,
+// la vie scolaire relue toutes les 3 h seulement, et un long recul après un échec (6 h si Pronote limite).
 import { chmod, readFile, rename, writeFile } from 'node:fs/promises';
 import * as pawnote from 'pawnote';
 import { z } from 'zod';
@@ -18,8 +21,23 @@ import type { SourceStatus } from './source-status.ts';
 import { type Clock, SCHOOL_WINDOW_DAYS, type SchoolLifeData, type SchoolSource, startOfWeek, type TimeRange } from './types.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
-/** En cas de panne, l'emploi du temps reste affiché tant qu'il a moins de 24 h. */
-const STALE_MAX_MS = 24 * 3_600_000;
+/**
+ * En cas de panne, l'emploi du temps reste affiché tant qu'il a moins de 48 h : plus long que la nuit sans connexion
+ * suivie de plusieurs pauses après échec.
+ */
+export const STALE_MAX_MS = 48 * 3_600_000;
+/** Recul après un échec : 15 min, puis 30 min, 1 h… jusqu'à 6 h ; remis à zéro au premier succès. */
+const RETRY_FIRST_MS = 15 * 60_000;
+const RETRY_MAX_MS = 6 * 3_600_000;
+/** Pause quand Pronote limite les requêtes ou suspend l'adresse IP : chaque essai entretiendrait le blocage. */
+export const RATE_LIMIT_PAUSE_MS = 6 * 3_600_000;
+/** Nuit sans connexion (heure locale), tant que les données sont utilisables. */
+const NIGHT_START_HOUR = 22;
+const NIGHT_END_HOUR = 6;
+/** Le week-end, l'emploi du temps est relu trois fois moins souvent. */
+const WEEKEND_FACTOR = 3;
+/** Notes, carnet et messagerie : relus au plus toutes les 3 h (ou à `refreshMinutes` s'il est plus long). */
+export const LIFE_REFRESH_MS = 3 * 3_600_000;
 const PAIRING_HINT = 'refaire l’appairage (scripts/pronote-pair.ts, voir README)';
 
 /** Ce qu'il faut pour se reconnecter : le format de RefreshInformation de Pawnote, plus l'appareil. */
@@ -50,9 +68,9 @@ export type PronoteSession = {
   homework(child: string, from: Date, to: Date): Promise<Homework[]>;
   /**
    * Notes de la période en cours, récentes d'abord, avec les noms des périodes lues pour les trouver ; null si
-   * l'onglet est fermé au compte.
+   * l'onglet est fermé au compte. `preferred` : période où les notes ont été trouvées la dernière fois, lue d'abord.
    */
-  grades(child: string, now: Date): Promise<{ items: SchoolGrade[]; periods: string[] } | null>;
+  grades(child: string, now: Date, preferred?: string): Promise<{ items: SchoolGrade[]; periods: string[] } | null>;
   /** Absences et retards de la période en cours, récents d'abord ; null si l'onglet est fermé au compte. */
   attendance(child: string, now: Date): Promise<SchoolAttendance[] | null>;
   /** Discussions de la messagerie du compte, récentes d'abord ; null si le compte ne peut pas les lire. */
@@ -244,6 +262,12 @@ export function gradePeriods(tab: pawnote.Tab | undefined, now: Date): pawnote.P
   return unique.slice(0, GRADE_PERIODS_MAX).map(withKind);
 }
 
+/** Met en tête la période de ce nom (celle où les notes ont été trouvées la dernière fois), si elle est dans la liste. */
+export function preferPeriod(periods: pawnote.Period[], preferred: string | undefined): pawnote.Period[] {
+  const found = periods.find((p) => p.name === preferred);
+  return found ? [found, ...periods.filter((p) => p !== found)] : periods;
+}
+
 /** Notes de la première période qui en a, et les noms des périodes lues ; null s'il n'y a aucune période à lire. */
 export async function gradesFromPeriods(
   periods: pawnote.Period[],
@@ -292,8 +316,8 @@ export function createPawnoteClient(): PronoteClient {
       return {
         state: { ...refresh, kind: refresh.kind, deviceUUID: state.deviceUUID },
         children: resources.map((r) => r.name),
-        async grades(child, now) {
-          const periods = gradePeriods(useChild(child).tabs.get(pawnote.TabLocation.Grades), now);
+        async grades(child, now, preferred) {
+          const periods = preferPeriod(gradePeriods(useChild(child).tabs.get(pawnote.TabLocation.Grades), now), preferred);
           return gradesFromPeriods(periods, async (period) => {
             const { grades } = await pawnote.gradesOverview(session, period);
             return grades
@@ -338,11 +362,40 @@ export function createPawnoteClient(): PronoteClient {
   };
 }
 
+/** Vrai si Pronote limite les requêtes ou a suspendu l'adresse IP. */
+export function isRateLimited(err: unknown): boolean {
+  return err instanceof pawnote.RateLimitedError || err instanceof pawnote.SuspendedIPError;
+}
+
+/** Délai avant de retenter après `failures` échecs à la suite. */
+export function pronoteRetryDelay(failures: number, err: unknown): number {
+  if (isRateLimited(err)) return RATE_LIMIT_PAUSE_MS;
+  return Math.min(RETRY_FIRST_MS * 2 ** Math.max(0, failures - 1), RETRY_MAX_MS);
+}
+
+/**
+ * Âge au-delà duquel les données sont rechargées : `refreshMinutes` en semaine, trois fois plus le week-end ; la
+ * nuit, seulement quand elles ne sont plus utilisables (STALE_MAX_MS).
+ */
+export function pronoteMaxAgeMs(now: Date, refreshMinutes: number): number {
+  const hour = now.getHours();
+  if (hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR) return STALE_MAX_MS;
+  const weekend = now.getDay() === 0 || now.getDay() === 6;
+  return refreshMinutes * 60_000 * (weekend ? WEEKEND_FACTOR : 1);
+}
+
 type SchoolData = { courses: SchoolCourse[]; homework: Homework[] | null; life: SchoolLifeData };
+/** Résultat d'un cycle : par prénom, les données de l'enfant ou l'erreur qui le concerne seul. */
+type WeekData = Record<string, SchoolData | { error: string }>;
+/** Vie scolaire d'un enfant relue au dernier passage, et la période où ses notes ont été trouvées. */
+type ChildLife = { grades: SchoolGrade[] | null; attendance: SchoolAttendance[] | null; at: number; gradePeriod?: string };
+type ChildData = { courses: SchoolCourse[]; homework: Homework[] | null; life: ChildLife };
 
 export type PronoteSourceDeps = {
   /** Prénom de l'enfant pour un profil, ou undefined si le profil n'a pas d'emploi du temps Pronote. */
   childFor: (ownerId: string) => string | undefined;
+  /** Prénoms de tous les enfants suivis sur Pronote : chargés ensemble, en une seule connexion. */
+  children: () => string[];
   refreshMinutes: () => number;
   store: PronoteStateStore;
   client: PronoteClient;
@@ -352,7 +405,7 @@ export type PronoteSourceDeps = {
   status?: SourceStatus;
 };
 
-export function createPronoteSource({ childFor, refreshMinutes, store, client, clock, logger, status }: PronoteSourceDeps): SchoolSource {
+export function createPronoteSource({ childFor, children, refreshMinutes, store, client, clock, logger, status }: PronoteSourceDeps): SchoolSource {
   // Le jeton change à chaque connexion : deux connexions en parallèle avec le même jeton en invalideraient une.
   let queue: Promise<unknown> = Promise.resolve();
   const exclusive = <T>(task: () => Promise<T>): Promise<T> => {
@@ -374,53 +427,112 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
   }
 
   const gradeSummaries = new Map<string, string>();
+  const lives = new Map<string, ChildLife>();
+  let accountMessages: { items: SchoolMessage[] | null; at: number } | undefined;
+  /** Dernières données réussies de chaque enfant, avec leur semaine : servies si un cycle échoue pour lui seul. */
+  const lastGood = new Map<string, { from: string; data: SchoolData }>();
 
-  // Clé : enfant et début de la fenêtre (lundi de la semaine en cours), pour recharger au changement de semaine.
-  // Devoirs chargés avec l'emploi du temps (une seule connexion, le jeton change à chacune) ; leur échec (onglet
-  // fermé par l'établissement...) n'empêche pas d'afficher les cours.
-  const cache = createRefreshingCache<SchoolData>({
+  /** Une rubrique qui peut être fermée au compte : son échec ne masque qu'elle, sauf une limitation de Pronote. */
+  async function part<T>(label: string, task: () => Promise<T | null>, previous: T | null): Promise<T | null> {
+    try {
+      return await task();
+    } catch (err) {
+      if (isRateLimited(err)) throw err;
+      logger.error(`Pronote : ${label} indisponibles : ${(err as Error).message}.`);
+      return previous;
+    }
+  }
+
+  /** Emploi du temps et devoirs d'un enfant à chaque cycle ; notes et carnet seulement quand `lifeDue`. */
+  async function loadChild(session: PronoteSession, prenom: string, start: Date, end: Date, lifeDue: boolean): Promise<ChildData> {
+    const child = session.children.find((name) => matchesChild(name, prenom));
+    if (!child) throw new Error(`enfant « ${prenom} » introuvable sur le compte Pronote (${session.children.length} enfant(s))`);
+    const courses = await session.timetable(child, start, end);
+    const homework = await part(`devoirs de ${prenom}`, async () => sortHomework(await session.homework(child, start, end)), null);
+    let life = lives.get(prenom);
+    if (!life || lifeDue) {
+      const now = clock();
+      const read = await part(`notes de ${prenom}`, () => session.grades(child, now, life?.gradePeriod), null);
+      // Diagnostic discret : nombre de notes reçues et périodes lues (sans le contenu des notes), noté quand il change.
+      const summary = read
+        ? `${read.items.length} note(s) de ${prenom} (${read.periods.length > 1 ? 'périodes lues' : 'période'} : ${read.periods.map((p) => `« ${p} »`).join(', ')})`
+        : `pas d’onglet Notes pour ${prenom}`;
+      if (gradeSummaries.get(prenom) !== summary) {
+        gradeSummaries.set(prenom, summary);
+        logger.log(`Pronote : ${summary}.`);
+      }
+      const attendance = await part(`absences et retards de ${prenom}`, () => session.attendance(child, now), life?.attendance ?? null);
+      life = {
+        grades: read ? read.items : (life?.grades ?? null),
+        attendance,
+        at: now.getTime(),
+        // Période où les notes ont été trouvées (la dernière lue) : lue en premier la prochaine fois.
+        gradePeriod: read?.items.length ? read.periods.at(-1) : life?.gradePeriod,
+      };
+      lives.set(prenom, life);
+    }
+    return { courses, homework, life };
+  }
+
+  // Clé : début de la fenêtre (lundi de la semaine en cours) et enfants suivis, pour recharger au changement de
+  // semaine ou de configuration. Une seule connexion par cycle pour tous les enfants (le jeton change à chacune).
+  const cache = createRefreshingCache<WeekData>({
     clock,
     logger,
     status,
     staleMaxMs: STALE_MAX_MS,
+    retryDelay: pronoteRetryDelay,
+    // Toutes les clés interrogent le même compte : un échec suspend aussi la semaine suivante.
+    retryScope: 'cache',
     load: (key) =>
       exclusive(async () => {
-        const { prenom, from } = JSON.parse(key) as { prenom: string; from: string };
+        const { from, children: prenoms } = JSON.parse(key) as { from: string; children: string[] };
         const session = await login();
-        const child = session.children.find((name) => matchesChild(name, prenom));
-        if (!child) throw new Error(`enfant « ${prenom} » introuvable sur le compte Pronote (${session.children.length} enfant(s))`);
         const start = new Date(from);
         const end = new Date(start.getTime() + SCHOOL_WINDOW_DAYS * 86_400_000);
-        const courses = await session.timetable(child, start, end);
-        let homework: Homework[] | null = null;
-        try {
-          homework = sortHomework(await session.homework(child, start, end));
-        } catch (err) {
-          logger.error(`Pronote : devoirs de ${prenom} indisponibles : ${(err as Error).message}.`);
-        }
-        // Vie scolaire : chaque rubrique peut être fermée au compte ; son échec ne masque que cette rubrique.
-        const part = async <T>(label: string, task: () => Promise<T | null>): Promise<T | null> => {
+        const now = clock().getTime();
+        const lifeMs = Math.max(LIFE_REFRESH_MS, refreshMinutes() * 60_000);
+        const due = (at: number | undefined) => at === undefined || now - at >= lifeMs;
+
+        const loaded = new Map<string, ChildData | { error: unknown }>();
+        for (const prenom of prenoms) {
           try {
-            return await task();
+            loaded.set(prenom, await loadChild(session, prenom, start, end, due(lives.get(prenom)?.at)));
           } catch (err) {
-            logger.error(`Pronote : ${label} de ${prenom} indisponibles : ${(err as Error).message}.`);
-            return null;
+            if (isRateLimited(err)) throw err;
+            loaded.set(prenom, { error: err });
           }
-        };
-        const now = clock();
-        const read = await part('notes', () => session.grades(child, now));
-        const grades = read && read.items;
-        // Diagnostic discret : nombre de notes reçues et périodes lues (sans le contenu des notes), noté quand il change.
-        const summary = read
-          ? `${read.items.length} note(s) de ${prenom} (${read.periods.length > 1 ? 'périodes lues' : 'période'} : ${read.periods.map((p) => `« ${p} »`).join(', ')})`
-          : `pas d’onglet Notes pour ${prenom}`;
-        if (gradeSummaries.get(prenom) !== summary) {
-          gradeSummaries.set(prenom, summary);
-          logger.log(`Pronote : ${summary}.`);
         }
-        const attendance = await part('absences et retards', () => session.attendance(child, now));
-        const messages = await part('messages', () => session.messages());
-        return { courses, homework, life: { grades, attendance, messages: messages && { service: 'Pronote', items: messages } } };
+        // Tous en échec : c'est le cycle qui échoue (recul, dernières données conservées par le cache).
+        const failed = [...loaded.values()].filter((r) => 'error' in r);
+        if (failed.length > 0 && failed.length === prenoms.length) throw failed[0].error;
+
+        // Messagerie : celle du compte, la même pour tous les enfants, lue une seule fois.
+        if (due(accountMessages?.at)) {
+          const items = await part('messages du compte', () => session.messages(), accountMessages?.items ?? null);
+          accountMessages = { items, at: now };
+        }
+        const messages = accountMessages?.items ?? null;
+
+        const week: WeekData = {};
+        for (const [prenom, result] of loaded) {
+          if ('error' in result) {
+            const previous = lastGood.get(prenom);
+            const kept = previous?.from === from;
+            logger.error(`Pronote : ${(result.error as Error).message}${kept ? ' ; données précédentes conservées' : ''}.`);
+            week[prenom] = kept ? previous.data : { error: (result.error as Error).message };
+            continue;
+          }
+          const life: SchoolLifeData = {
+            grades: result.life.grades,
+            attendance: result.life.attendance,
+            messages: messages && { service: 'Pronote', items: messages },
+          };
+          const data = { courses: result.courses, homework: result.homework, life };
+          lastGood.set(prenom, { from, data });
+          week[prenom] = data;
+        }
+        return week;
       }),
   });
   let warnedNotPaired = false;
@@ -434,8 +546,13 @@ export function createPronoteSource({ childFor, refreshMinutes, store, client, c
       warnedNotPaired = true;
       return null;
     }
-    const monday = startOfWeek(clock());
-    return cache.get(JSON.stringify({ prenom, from: monday.toISOString() }), refreshMinutes() * 60_000, 'Pronote');
+    const now = clock();
+    const prenoms = [...new Set([...children(), prenom])].sort();
+    const key = JSON.stringify({ from: startOfWeek(now).toISOString(), children: prenoms });
+    const data = (await cache.get(key, pronoteMaxAgeMs(now, refreshMinutes()), 'Pronote'))[prenom];
+    if (!data) return null;
+    if ('error' in data) throw new Error(data.error);
+    return data;
   }
 
   return {

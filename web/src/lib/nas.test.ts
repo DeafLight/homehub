@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NasData, NasStatus } from '../../../shared/types.ts';
 import fixture from '../../../server/sources/fixtures/nas-status.json' with { type: 'json' };
-import { formatGb, formatPast, nasBanner, nasRings, nasServices, nasTimeline, nasWatch } from './nas.ts';
+import { formatGb, formatPast, nasBanner, nasRings, nasServices, nasTimeline, nasWatch, retryText } from './nas.ts';
 
 /** Lundi 2 novembre 2026, 18:00, 5 minutes après le relevé. */
 const now = new Date(2026, 10, 2, 18, 0);
@@ -74,6 +74,15 @@ describe('page NAS', () => {
     ]);
     expect(items[0].text).toBe('HTTP 404 depuis auj. 09:00.');
     expect(nasWatch({ ...data(), status: null }, now)[0].title).toBe('Relevé du NAS absent');
+  });
+
+  it('source en pause après un échec : dit à partir de quand elle réessaiera', () => {
+    const failing = (retryAt: Date) =>
+      nasWatch(data({}, { sources: [{ name: 'Pronote', ok: false, at: now.toISOString(), error: 'limité', failingSince: now.toISOString(), retryAt: retryAt.toISOString() }] }), now)[0].text;
+    expect(failing(new Date(2026, 10, 2, 21, 30))).toBe('limité depuis auj. 18:00. Nouvel essai à partir de 21:30.');
+    expect(failing(new Date(2026, 10, 3, 6, 0))).toBe('limité depuis auj. 18:00. Nouvel essai à partir de demain 06:00.');
+    expect(failing(new Date(2026, 10, 2, 17, 59))).toBe('limité depuis auj. 18:00.');
+    expect(retryText(new Date(2026, 10, 5, 8, 15), now)).toBe('Nouvel essai à partir du 5 nov. 08:15.');
   });
 
   it('services : en marche, arrêté, en partie', () => {

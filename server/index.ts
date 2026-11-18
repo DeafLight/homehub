@@ -161,6 +161,7 @@ const sources: Sources = {
     }),
     createPronoteSource({
       childFor: (ownerId) => household.member(ownerId)?.pronote,
+      children: () => household.members().flatMap((m) => (m.pronote ? [m.pronote] : [])),
       refreshMinutes: () => config.current().pronote.refreshMinutes,
       store: createFileStateStore(join(stateDir, 'pronote.json')),
       client: createPawnoteClient(),

@@ -505,6 +505,8 @@ export type SourceState = {
   /** En échec : message de la dernière erreur, et début de la série d'échecs. */
   error?: string;
   failingSince?: string;
+  /** En échec : prochaine tentative prévue, ISO 8601 (absente si la source réessaie à la prochaine demande). */
+  retryAt?: string;
 };
 
 /** Page « Le NAS ». */

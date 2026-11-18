@@ -1,7 +1,19 @@
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Assignment, type Discussion, type Grade, GradeKind, type NotebookAbsence, type NotebookDelay, type Period, type Tab, type TimetableClassLesson } from 'pawnote';
+import {
+  type Assignment,
+  type Discussion,
+  type Grade,
+  GradeKind,
+  type NotebookAbsence,
+  type NotebookDelay,
+  type Period,
+  RateLimitedError,
+  SuspendedIPError,
+  type Tab,
+  type TimetableClassLesson,
+} from 'pawnote';
 import { describe, expect, it } from 'vitest';
 import type { Homework, SchoolAttendance, SchoolCourse, SchoolGrade, SchoolMessage } from '../../shared/types.ts';
 import { NOW, silentLogger } from '../testing.ts';
@@ -12,6 +24,11 @@ import {
   createFileStateStore,
   createPronoteSource,
   gradePeriods,
+  LIFE_REFRESH_MS,
+  preferPeriod,
+  pronoteMaxAgeMs,
+  pronoteRetryDelay,
+  RATE_LIMIT_PAUSE_MS,
   gradesFromPeriods,
   gradeText,
   matchesChild,
@@ -64,13 +81,23 @@ function memoryStore(initial: PronoteState | null = STATE) {
 function fakeClient(
   children = ['DUPONT Héloïse', 'DUPONT Jean'],
   homeworkFor: () => Promise<Homework[]> = async () => HOMEWORK,
-  gradesFor: () => Promise<{ items: SchoolGrade[]; periods: string[] } | null> = async () => ({ items: GRADES, periods: ['Semestre 1'] }),
+  gradesFor: (child: string, now: Date, preferred?: string) => Promise<{ items: SchoolGrade[]; periods: string[] } | null> = async () => ({
+    items: GRADES,
+    periods: ['Semestre 1'],
+  }),
+  /** Erreur à lever à la connexion (Pronote en panne ou qui limite), ou undefined. */
+  loginError: () => unknown = () => undefined,
 ) {
   let token = 'token-1';
   let busy = false;
   const logins: string[] = [];
+  const attempts = { count: 0 };
+  const calls = { timetable: [] as string[], grades: [] as Array<string | undefined>, messages: 0 };
   const client: PronoteClient = {
     async login(state) {
+      attempts.count++;
+      const error = loginError();
+      if (error) throw error;
       if (busy) throw new Error('connexion simultanée');
       if (state.token !== token) throw new Error('jeton refusé');
       busy = true;
@@ -81,30 +108,47 @@ function fakeClient(
       return {
         state: { ...state, token },
         children,
-        timetable: async () => COURSES,
+        async timetable(child) {
+          calls.timetable.push(child);
+          return COURSES;
+        },
         homework: homeworkFor,
-        grades: gradesFor,
+        async grades(child, now, preferred) {
+          calls.grades.push(preferred);
+          return gradesFor(child, now, preferred);
+        },
         attendance: async () => ATTENDANCE,
-        messages: async () => MESSAGES,
+        async messages() {
+          calls.messages++;
+          return MESSAGES;
+        },
       };
     },
   };
-  return { client, logins };
+  return { client, logins, attempts, calls };
 }
 
-function setup({ store = memoryStore(), client = fakeClient() } = {}) {
+function setup({ store = memoryStore(), client = fakeClient(), children = ['heloise'] } = {}) {
   const logger = silentLogger();
-  const children: Record<string, string> = { helo: 'heloise', jean: 'Jean', zoe: 'Zoé' };
+  const profiles: Record<string, string> = { helo: 'heloise', jean: 'Jean', zoe: 'Zoé' };
+  let now = NOW.getTime();
   const source = createPronoteSource({
-    childFor: (ownerId) => children[ownerId],
+    childFor: (ownerId) => profiles[ownerId],
+    children: () => children,
     refreshMinutes: () => 60,
     store: store.store,
     client: client.client,
-    clock: () => new Date(NOW),
+    clock: () => new Date(now),
     logger,
   });
-  return { source, logger, store, client };
+  /** Avance l'horloge, ou la met à une date précise. */
+  const at = (date: Date) => void (now = date.getTime());
+  const advance = (ms: number) => void (now += ms);
+  return { source, logger, store, client, at, advance };
 }
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+const tick = () => new Promise((r) => setTimeout(r, 20));
 const RANGE = { from: new Date('2026-11-02T00:00:00.000Z'), to: new Date('2026-11-04T00:00:00.000Z') };
 
 describe('createPronoteSource', () => {
@@ -135,12 +179,124 @@ describe('createPronoteSource', () => {
     expect(courses?.map((c) => c.id)).toEqual(['svt']);
   });
 
+  it('une seule connexion pour tous les enfants à chaque cycle, messagerie du compte lue une fois', async () => {
+    const { source, client, store } = setup({ children: ['heloise', 'Jean'] });
+    await Promise.all([source.coursesFor('helo', RANGE), source.coursesFor('jean', RANGE), source.lifeFor!('jean')]);
+    expect(client.logins).toEqual(['token-1']);
+    expect(client.calls.timetable.toSorted()).toEqual(['DUPONT Héloïse', 'DUPONT Jean']);
+    expect(client.calls.messages).toBe(1);
+    expect(store.current()?.token).toBe('token-2');
+  });
+
   it('ne lance jamais deux connexions à la fois : chacune repart du dernier jeton', async () => {
-    const { source, client, store } = setup();
+    // Profil absent de la liste des enfants (configuration changée entre-temps) : autre clé, autre connexion.
+    const { source, client, store } = setup({ children: ['heloise'] });
     await Promise.all([source.coursesFor('helo', RANGE), source.coursesFor('jean', RANGE)]);
     expect(client.logins).toEqual(['token-1', 'token-2']);
     expect(store.current()?.token).toBe('token-3');
   });
+
+  it('un enfant introuvable ne masque pas les autres', async () => {
+    const { source, client, logger } = setup({ children: ['heloise', 'Jean', 'Zoé'] });
+    await expect(source.coursesFor('zoe', RANGE)).rejects.toThrow('introuvable');
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    expect(await source.coursesFor('jean', RANGE)).toEqual(COURSES);
+    expect(client.logins).toHaveLength(1);
+    expect(logger.errors).toEqual([expect.stringContaining('« Zoé » introuvable')]);
+  });
+
+  it('recul après un échec : 15 min, puis 30 min, remis à zéro au premier succès', async () => {
+    let down = true;
+    const client = fakeClient(undefined, undefined, undefined, () => (down ? new Error('Pronote en panne') : undefined));
+    const { source, advance } = setup({ client });
+    await expect(source.coursesFor('helo', RANGE)).rejects.toThrow('Pronote en panne');
+    advance(14 * MINUTE); // l'ancien délai (1 min) aurait fait 14 connexions
+    await expect(source.coursesFor('helo', RANGE)).rejects.toThrow('Pronote en panne');
+    expect(client.attempts.count).toBe(1);
+    advance(MINUTE);
+    await expect(source.coursesFor('helo', RANGE)).rejects.toThrow('Pronote en panne');
+    expect(client.attempts.count).toBe(2);
+    advance(29 * MINUTE);
+    await expect(source.coursesFor('helo', RANGE)).rejects.toThrow();
+    expect(client.attempts.count).toBe(2);
+    advance(MINUTE);
+    down = false;
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    expect(client.attempts.count).toBe(3);
+  });
+
+  it('Pronote limite (rate limit, IP suspendue) : pause de plusieurs heures, dernières données servies', async () => {
+    let error: unknown;
+    const client = fakeClient(undefined, undefined, undefined, () => error);
+    const { source, advance, at } = setup({ client });
+    at(new Date(2026, 10, 3, 8, 0)); // la pause finit en journée, hors de la nuit sans connexion
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    error = new RateLimitedError();
+    advance(HOUR + MINUTE);
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES); // rechargement en arrière-plan, qui échoue
+    await tick();
+    expect(client.attempts.count).toBe(2);
+    advance(RATE_LIMIT_PAUSE_MS - MINUTE);
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    expect(client.attempts.count).toBe(2);
+    advance(MINUTE);
+    error = undefined;
+    await source.coursesFor('helo', RANGE);
+    await tick();
+    expect(client.attempts.count).toBe(3);
+  });
+
+  it('une limitation pendant la lecture des notes fait échouer tout le cycle (pas de nouvel essai aussitôt)', async () => {
+    const client = fakeClient(undefined, undefined, async () => {
+      throw new SuspendedIPError();
+    });
+    const { source, logger } = setup({ client });
+    await expect(source.lifeFor!('helo')).rejects.toThrow('suspended');
+    await expect(source.coursesFor('helo', RANGE)).rejects.toThrow('suspended');
+    expect(client.attempts.count).toBe(1);
+    expect(logger.errors).toEqual([expect.stringContaining('suspended')]);
+  });
+
+  it('pas de connexion la nuit tant que les données sont utilisables, reprise à 6 h', async () => {
+    const { source, client, at } = setup();
+    await source.coursesFor('helo', RANGE); // lundi 18:00
+    at(new Date(2026, 10, 2, 23, 30));
+    await source.coursesFor('helo', RANGE);
+    at(new Date(2026, 10, 3, 5, 59));
+    await source.coursesFor('helo', RANGE);
+    await tick();
+    expect(client.attempts.count).toBe(1);
+    at(new Date(2026, 10, 3, 6, 0));
+    await source.coursesFor('helo', RANGE);
+    await tick();
+    expect(client.attempts.count).toBe(2);
+  });
+
+  it('la nuit, se connecte quand même s’il n’y a aucune donnée', async () => {
+    const { source, client, at } = setup();
+    at(new Date(2026, 10, 2, 23, 30));
+    expect(await source.coursesFor('helo', RANGE)).toEqual(COURSES);
+    expect(client.attempts.count).toBe(1);
+  });
+
+  it('notes, carnet et messagerie relus toutes les 3 h seulement, en commençant par la période des notes trouvées', async () => {
+    const { source, client, advance } = setup();
+    await source.lifeFor!('helo'); // 18:00
+    advance(HOUR + MINUTE);
+    await source.lifeFor!('helo');
+    await tick();
+    expect(client.logins).toHaveLength(2);
+    expect(client.calls.grades).toEqual([undefined]);
+    expect(client.calls.messages).toBe(1);
+    expect((await source.lifeFor!('helo'))?.grades).toEqual(GRADES); // valeur précédente gardée
+    advance(LIFE_REFRESH_MS - HOUR);
+    await source.lifeFor!('helo'); // 21:01 : plus de 3 h depuis la dernière lecture
+    await tick();
+    expect(client.logins).toHaveLength(3);
+    expect(client.calls.grades).toEqual([undefined, 'Semestre 1']);
+    expect(client.calls.messages).toBe(2);
+  });
+
 
   it('charge les devoirs avec la même connexion, triés par jour puis matière', async () => {
     const { source, client } = setup();
@@ -201,7 +357,7 @@ describe('createPronoteSource', () => {
   });
 
   it('garde le nouveau jeton même si l’enfant est introuvable', async () => {
-    const { source, store } = setup();
+    const { source, store } = setup({ children: ['Zoé'] });
     await expect(source.coursesFor('zoe', RANGE)).rejects.toThrow('introuvable');
     expect(store.saved).toEqual(['token-2']);
   });
@@ -377,6 +533,14 @@ describe('vie scolaire Pronote', () => {
     });
   });
 
+  it('lit d’abord la période où les notes ont été trouvées la dernière fois', () => {
+    const period = (name: string) => ({ id: name, name }) as unknown as Period;
+    const [s1, t1, year] = [period('Semestre 1'), period('Trimestre 1'), period('Année continue')];
+    expect(preferPeriod([s1, t1, year], 'Trimestre 1').map((p) => p.name)).toEqual(['Trimestre 1', 'Semestre 1', 'Année continue']);
+    expect(preferPeriod([s1, t1], 'Semestre 2')).toEqual([s1, t1]);
+    expect(preferPeriod([s1, t1], undefined)).toEqual([s1, t1]);
+  });
+
   it('accepte une note sans commentaire (champ absent de la réponse)', () => {
     const grade = { id: 'g', value: value(9), outOf: value(10), date: new Date(2026, 10, 10), subject, coefficient: 1 } as unknown as Grade;
     expect(toGrade(grade)).toEqual({ id: 'g', subject: 'Mathématiques', date: '2026-11-10', value: '9', outOf: 10 });
@@ -458,5 +622,23 @@ describe('firstSchoolSource', () => {
     const life = { grades: null, attendance: null, messages: null };
     expect(await firstSchoolSource(none, { coursesFor: async () => null, lifeFor: async () => life }).lifeFor!('x')).toBe(life);
     expect(await firstSchoolSource(none).lifeFor!('x')).toBeNull();
+  });
+});
+
+describe('rythme des connexions Pronote', () => {
+  it('recul exponentiel jusqu’à 6 h, et 6 h d’emblée si Pronote limite ou suspend l’adresse IP', () => {
+    const panne = new Error('panne');
+    expect([1, 2, 3, 4, 5, 6, 10].map((n) => pronoteRetryDelay(n, panne) / MINUTE)).toEqual([15, 30, 60, 120, 240, 360, 360]);
+    expect(pronoteRetryDelay(1, new RateLimitedError())).toBe(6 * HOUR);
+    expect(pronoteRetryDelay(1, new SuspendedIPError())).toBe(6 * HOUR);
+  });
+
+  it('refreshMinutes en semaine, trois fois plus le week-end, rien la nuit tant que les données sont utilisables', () => {
+    expect(pronoteMaxAgeMs(new Date(2026, 10, 2, 18, 0), 60)).toBe(HOUR); // lundi
+    expect(pronoteMaxAgeMs(new Date(2026, 10, 7, 10, 0), 60)).toBe(3 * HOUR); // samedi
+    expect(pronoteMaxAgeMs(new Date(2026, 10, 8, 10, 0), 60)).toBe(3 * HOUR); // dimanche
+    expect(pronoteMaxAgeMs(new Date(2026, 10, 2, 22, 0), 60)).toBe(48 * HOUR);
+    expect(pronoteMaxAgeMs(new Date(2026, 10, 3, 5, 59), 60)).toBe(48 * HOUR);
+    expect(pronoteMaxAgeMs(new Date(2026, 10, 3, 6, 0), 60)).toBe(HOUR);
   });
 });
