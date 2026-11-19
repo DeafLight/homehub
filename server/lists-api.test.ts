@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { Note } from '../shared/types.ts';
 import { parseConfig } from './config.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { createConfigStore } from './config-store.ts';
@@ -50,7 +51,9 @@ function setup() {
   const gate = createPinGate(pins);
   const recognition = createFaceRecognition({ faces, sessions, household, rules: () => config.current().faces, clock: fixedClock, logger: { info() {} } });
   const api = createRouter();
-  api.route('/', createListsApi({ household, lists, notes, access }));
+  /** Mots annoncés aux téléphones (notification « Nouveau mot »). */
+  const announced: Note[] = [];
+  api.route('/', createListsApi({ household, lists, notes, access, onNote: (n) => void announced.push(n) }));
   api.route('/', createDevicesApi({ household, devices, pins: gate, access }));
   api.route('/', createFacesApi({ household, faces, recognition, sessions, pins: gate, access }));
   /** Session de la personne reconnue devant la tablette. */
@@ -71,7 +74,7 @@ function setup() {
       },
       connectedFrom(from),
     );
-  return { call, pins, as, parent };
+  return { call, pins, as, parent, announced };
 }
 
 describe('API des listes', () => {
@@ -217,7 +220,7 @@ describe('API des listes', () => {
   });
 
   it('mots : envoyés depuis un profil, à un autre ; vus par leur destinataire', async () => {
-    const { call, as, parent } = setup();
+    const { call, as, parent, announced } = setup();
     const { code } = await (await call('POST', '/pairing', { key: KEY, actor: parent, body: { ownerId: 'tom' } })).json();
     const { token } = await (await call('POST', '/pairing/claim', { body: { code, name: 'Pixel' } })).json();
     const alex = as('alex');
@@ -250,6 +253,8 @@ describe('API des listes', () => {
     expect((await call('PUT', '/notes/inconnu/seen', { key: KEY, actor: alex })).status).toBe(404);
     const all = await (await call('GET', '/notes')).json();
     expect(all.filter((n: { seenAt?: string }) => !n.seenAt)).toHaveLength(1); // « Repas à 19 h », pas encore vu
+    // Chaque mot enregistré, et lui seul, est annoncé aux téléphones (notification « Nouveau mot »).
+    expect(announced.map((n) => n.text)).toEqual(['Range ta chambre', 'Repas à 19 h', 'Je rentre à 18 h', 'Bonne journée']);
 
     // Supprimer un mot déjà vu : mêmes droits que « Vu ».
     const unseen = all.find((n: { seenAt?: string }) => !n.seenAt);

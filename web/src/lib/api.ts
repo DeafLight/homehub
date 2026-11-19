@@ -45,6 +45,7 @@ import type {
   StockOutOptions,
   StockSettings,
   PublicConfig,
+  PushPrefs,
   PushStatus,
   Routine,
   RoutineSettings,
@@ -365,6 +366,8 @@ export type Api = {
   pushStatus(): Promise<PushStatus>;
   subscribePush(subscription: PushSubscriptionJSON): Promise<PushStatus>;
   unsubscribePush(): Promise<PushStatus>;
+  /** Réglages des notifications de ce téléphone (« Pars dans 5 min », « Nouveaux mots »). */
+  savePushPrefs(change: Partial<PushPrefs>): Promise<PushStatus>;
   testPush(): Promise<void>;
   remoteApps(id: string): Promise<RemoteApps>;
   /** Image de ce qui passe sur la télé (fonction 18), demandée quand son empreinte change. */
@@ -618,6 +621,7 @@ export function createApi(
     pushStatus: () => request('/push'),
     subscribePush: (subscription) => send('PUT', '/push', subscription),
     unsubscribePush: () => send('DELETE', '/push'),
+    savePushPrefs: (change) => send('PUT', '/push/prefs', change),
     testPush: async () => void (await send('POST', '/push/test')),
     remoteApps: (id) => request(`/screens/${encodeURIComponent(id)}/apps`),
     remoteArtwork: (id) => request(`/screens/${encodeURIComponent(id)}/artwork`),

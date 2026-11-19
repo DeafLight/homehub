@@ -230,7 +230,11 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   (onglet Mots) ou la tablette (bloc « Mots » d'un dashboard, envoyé depuis ce profil ; on choisit seulement à qui). Le
   destinataire le voit sur son dashboard et son téléphone, touche « Vu » et il disparaît du dashboard ; sur le
   téléphone il reste en grisé, avec une **croix** qui le supprime tout de suite (mêmes droits que « Vu », un mot pas
-  encore vu ne se supprime pas) ; sinon il s'efface au bout de 7 jours (`notes.json`).
+  encore vu ne se supprime pas) ; sinon il s'efface au bout de 7 jours (`notes.json`). **Notification « Nouveau
+  mot »** (Web Push, même quand l'appli est fermée) sur le téléphone du destinataire, ou de chaque membre sauf l'auteur
+  pour un mot à toute la famille : « Mot de Sam » (« … pour toute la famille »), avec le texte du mot (seul le
+  téléphone de la personne la reçoit, chiffrée de bout en bout) ; touchée, elle ouvre `/m/mots`. Réglage
+  **Nouveaux mots** dans les réglages du téléphone (activé par défaut, voir « Pars dans 5 min » plus bas).
 - **Téléphones** (`/telephones`, par la roue dentée de la tablette) : on choisit le profil, le téléphone scanne le QR code
   (valable 5 min, une seule fois) et devient l'appli de ce profil : `/m` (courses), `/m/taches` (avec, en tête, la
   routine du moment à cocher ; pastille sur l'onglet : étapes restantes), `/m/agenda`
@@ -636,7 +640,9 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   tableaux de bord et la frise du jour du tableau « focus » d'un élève (les rendez-vous d'agenda, pas les cours), les rendez-vous qu'elle affiche déjà s'ouvrent de même, calculés depuis la maison, sans position,
   ligne voiture comprise. Les lieux reconnus sont cherchés par le serveur (une recherche par lieu, gardée 24 h).
 - **Notification « Pars dans 5 min »** (téléphone, roue dentée de l'en-tête › **Réglages**, `/m/reglages`) : Web Push,
-  activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**). Elle part 5 min avant
+  activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**) ; une fois activées, un
+  interrupteur par notification, **Pars dans 5 min** et **Nouveaux mots** (les mots, plus haut), tous deux activés au
+  départ et gardés par le serveur pour ce téléphone (`push.json`), même après « Couper » puis « Activer ». Elle part 5 min avant
   l'heure de partir, une seule fois par trajet : pour le **trajet du matin** (mêmes règles que la carte « Pars dans
   N min » et l'alerte de la télé) et pour le **prochain rendez-vous situé**, calculé depuis la maison (le serveur n'a
   pas la position ; pour un cours, seulement le premier de la journée et seulement sans trajet réglé). Le texte dit la
@@ -974,7 +980,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
 | `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`), l'heure du coucher (`bedtime.json`), dernier chargement de la page de la tablette (`tablet-page.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
-, réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min » : clés VAPID (`push-vapid.json`, générées au premier démarrage) et abonnements des téléphones (`push.json`) |
+, réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min » et « Nouveaux mots » : clés VAPID (`push-vapid.json`, générées au premier démarrage), abonnements et réglages des téléphones (`push.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
 | `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
@@ -1056,13 +1062,14 @@ server/
   sources/motis.ts         itinéraires par MOTIS (/api/v5/plan) et course entière (/api/v5/trip), temps réel, cache
   sources/motis-fake.ts    faux MOTIS du monde fictif (tests et captures)
   sources/tomtom.ts        durée en voiture avec le trafic (TomTom Routing), cache de 5 min ; faux : tomtom-fake.ts
-  sources/push.ts          notifications : clés VAPID, abonnements des téléphones, trajets déjà annoncés
+  sources/push.ts          notifications : clés VAPID, abonnements et réglages des téléphones, trajets déjà annoncés
   services/next-trip.ts    prochain trajet, trajet d'un rendez-vous touché, rendez-vous touchables, diagnostic
   services/trip-route.ts   carte en route : tracés, courses entières (montée, descente), nouvelles heures des courses
   services/trip-vehicles.ts carte en route : véhicules des seules courses demandées, âge de chaque position
   map-api.ts               fond de la carte en route : fichier PMTiles servi par morceaux (Range)
   services/web-push.ts     Web Push sans dépendance : chiffrement RFC 8291, signature VAPID
   services/trip-push.ts    notification « Pars dans 5 min » (trajet du matin, prochain rendez-vous)
+  services/note-push.ts    notification « Nouveau mot » (destinataire, ou toute la famille sauf l'auteur)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
   sources/transit-settings.ts  réglages de la page « Transports » (lieux, trajets, arrêts de l'accueil)
   sources/school-holidays.ts   vacances scolaires (calendrier officiel lu par pages, filtre local, cache d'un jour, aperçu)
@@ -1238,7 +1245,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/trip/rides` | `{ "rides": [{ tripId, from, to }] }` (4 au plus) → `{ rides }` : nouvelles heures des courses suivies (`departs`, `arrives`, `delayMinutes`, `course`), null pour une course introuvable ; le téléphone de la personne seulement |
 | `POST /api/trip/vehicles` | `{ "tripIds": [...] }` (courses MOTIS du trajet, 4 au plus) → `{ vehicles }` : position réelle de chaque véhicule trouvé dans le flux VehiclePositions (`tripId`, `lat`, `lon`, `bearing`, `age` en secondes, `stopId`, `status`), les autres absents ; jamais tout le flux ; le téléphone de la personne seulement |
 | `GET /api/map`, `GET /api/map/tiles.pmtiles` | fond de carte : `{ tiles }` (le fichier est-il là ?), puis le fichier PMTiles par morceaux (`Range` → 206 ; 416 hors du fichier, 404 sans fichier) ; téléphones appairés seulement |
-| `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
+| `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed, prefs }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
+| `PUT /api/push/prefs` | `{ "trips"?: bool, "notes"?: bool }` → même réponse : réglages de ce téléphone (« Pars dans 5 min », « Nouveaux mots »), tout activé au départ ; le téléphone de la personne seulement |
 | `GET /api/trip/watch` | ce que surveille la notification de ce téléphone : `{ enabled, next, unplaced }` ; `next` : `kind`, `title`, `start`, `place`, `leaveAt` (depuis la maison, null sans itinéraire à temps), `byCommute` ; `unplaced` : rendez-vous des 3 h au lieu non reconnu (`title`, `start`, `location`, `reason` : `no-search`, `not-found`, `too-far`) |
 | `GET /api/trip/events?week=N` | `{ keys }` : clés (`<id>@<début>`) des rendez-vous à venir de la semaine N (0 à 2) dont le lieu est reconnu ; un téléphone : les siens et ceux de la famille ; la tablette : tous les profils ; un appareil non appairé : 403 |
 | `POST /api/trip/event` | `{ "event": "<clé>", "position"?: { lat, lon } }` → `{ enabled, trip, missing? }` : le trajet de ce rendez-vous (`trip.from`, `trip.homeBecause` : `far` ou `tablet`, `car.typical`) ; position prise seulement d'un téléphone et pour un rendez-vous des 3 h ; `missing` : `event`, `place`, `past`, `origin`, `here` |

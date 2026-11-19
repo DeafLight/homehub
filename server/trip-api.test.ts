@@ -226,7 +226,7 @@ describe('API des notifications', () => {
     const { call, phone, sent, push } = await setup();
     const lea = await phone('lea');
     const status = await (await call('GET', '/push', { token: lea })).json();
-    expect(status).toEqual({ publicKey: push.keys().publicKey, subscribed: false });
+    expect(status).toEqual({ publicKey: push.keys().publicKey, subscribed: false, prefs: { trips: true, notes: true } });
     expect((await call('POST', '/push/test', { token: lea })).status).toBe(409);
     expect((await call('PUT', '/push', { token: lea, body: SUB })).status).toBe(200);
     expect((await push.all()).map((s) => s.ownerId)).toEqual(['lea']);
@@ -234,6 +234,18 @@ describe('API des notifications', () => {
     expect(sent[0].sub.endpoint).toBe(SUB.endpoint);
     expect(await (await call('DELETE', '/push', { token: lea })).json()).toMatchObject({ subscribed: false });
     expect(await push.all()).toEqual([]);
+  });
+
+  it('réglages du téléphone : « Nouveaux mots » coupé puis remis, gardés à part de l’abonnement', async () => {
+    const { call, phone } = await setup();
+    const lea = await phone('lea');
+    const off = await (await call('PUT', '/push/prefs', { token: lea, body: { notes: false } })).json();
+    expect(off.prefs).toEqual({ trips: true, notes: false });
+    await call('PUT', '/push', { token: lea, body: SUB });
+    expect((await (await call('GET', '/push', { token: lea })).json()).prefs).toEqual({ trips: true, notes: false });
+    expect((await (await call('PUT', '/push/prefs', { token: lea, body: { notes: true } })).json()).prefs.notes).toBe(true);
+    expect((await call('PUT', '/push/prefs', { token: lea, body: { notes: 'oui' } })).status).toBe(400);
+    expect((await call('PUT', '/push/prefs', { from: TABLET, body: { notes: false } })).status).toBe(403);
   });
 
   it('refuse un abonnement mal formé, la tablette et un appareil non appairé', async () => {

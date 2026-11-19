@@ -2,7 +2,7 @@
 // les dépendances communes (droits, membres, PIN, reconnaissance faciale), le montage sous /api et le front compilé.
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Context, Hono } from 'hono';
-import type { AddressMatch } from '../shared/types.ts';
+import type { AddressMatch, Note } from '../shared/types.ts';
 import { type Access, createAccess, kioskKeyMatcher } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import { createCameraApi } from './camera-api.ts';
@@ -91,6 +91,7 @@ import type { PushRecord, PushStore } from './sources/push.ts';
 import { type PushMessage, type PushResult, sendPush } from './services/web-push.ts';
 import { createNextTripService } from './services/next-trip.ts';
 import { createTripPush } from './services/trip-push.ts';
+import { createNotePush } from './services/note-push.ts';
 import { createTripApi } from './trip-api.ts';
 import { createMapApi } from './map-api.ts';
 import { createPushApi } from './push-api.ts';
@@ -153,7 +154,7 @@ export type AppDeps = {
   tomtom?: TomTomSource;
   /** Positions réelles des véhicules (carte en route) ; absent : positions estimées seulement. */
   vehicles?: VehiclePositionSource;
-  /** Notifications Web Push (« Pars dans 5 min ») ; absent (tests) : ni notifications, ni leurs routes. */
+  /** Notifications Web Push (« Pars dans 5 min », « Nouveaux mots ») ; absent (tests) : ni notifications, ni leurs routes. */
   push?: PushStore;
   /** Envoi d'une notification ; absent : Web Push réel (services/web-push.ts). */
   sendPush?: (subscription: PushRecord, message: PushMessage) => Promise<PushResult>;
@@ -231,10 +232,13 @@ export function createApp(deps: AppDeps): Hono {
   });
   api.route('/', createTripApi({ nextTrip, access, vehicles: deps.vehicles, clock }));
   api.route('/', createMapApi({ tilesPath: () => deps.mapTiles, access }));
+  /** Mot enregistré : notification « Nouveau mot » aux téléphones du destinataire (sans notifications : rien). */
+  let onNote: ((note: Note) => void) | undefined;
   if (deps.push) {
     const store = deps.push;
     const send = deps.sendPush ?? ((sub: PushRecord, message: PushMessage) => sendPush(sub, message, { keys: store.keys(), subject: PUSH_SUBJECT, now: clock() }));
     api.route('/', createPushApi({ store, access, send }));
+    onNote = createNotePush({ store, devices: () => deps.devices.list(), nameOf: household.nameOf, send, logger: console }).announce;
     createTripPush({
       store,
       devices: () => deps.devices.list(),
@@ -248,7 +252,7 @@ export function createApp(deps: AppDeps): Hono {
   }
   api.route('/', createHolidaysApi({ holidaySettings: deps.holidaySettings, access }));
   api.route('/', createTimersApi({ timers: deps.timers, access, clock }));
-  api.route('/', createListsApi({ ...deps, household, access, menu }));
+  api.route('/', createListsApi({ ...deps, household, access, menu, onNote }));
   api.route('/', createMenuApi({ menus: deps.menus, service: menu, recipes: deps.recipes, access, clock }));
   api.route('/', createCookApi({ service: cook, access }));
 

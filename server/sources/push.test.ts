@@ -1,5 +1,5 @@
-// Tests du magasin des notifications : clés VAPID générées une fois puis relues, abonnement par téléphone, trajets
-// annoncés une seule fois (même après relecture du fichier), oubliés au bout de deux jours.
+// Tests du magasin des notifications : clés VAPID générées une fois puis relues, abonnement et réglages par téléphone,
+// trajets annoncés une seule fois (même après relecture du fichier), oubliés au bout de deux jours.
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,9 +31,20 @@ describe('magasin des notifications', () => {
     const { store } = setup();
     await store.subscribe('tel-1', 'alex', SUB);
     await store.subscribe('tel-1', 'alex', { ...SUB, endpoint: 'https://push.exemple.test/def' });
-    expect(await store.all()).toEqual([{ deviceId: 'tel-1', ownerId: 'alex', ...SUB, endpoint: 'https://push.exemple.test/def' }]);
+    expect(await store.all()).toEqual([{ deviceId: 'tel-1', ownerId: 'alex', ...SUB, endpoint: 'https://push.exemple.test/def', prefs: { trips: true, notes: true } }]);
     await store.unsubscribe('tel-1');
     expect(await store.get('tel-1')).toBeNull();
+  });
+
+  it('réglages par téléphone : tout activé au départ, gardés après « Couper » puis « Activer »', async () => {
+    const { store, dir } = setup();
+    expect(await store.prefs('tel-1')).toEqual({ trips: true, notes: true });
+    expect(await store.setPrefs('tel-1', { notes: false })).toEqual({ trips: true, notes: false });
+    await store.subscribe('tel-1', 'alex', SUB);
+    await store.unsubscribe('tel-1');
+    await store.subscribe('tel-1', 'alex', SUB);
+    expect((await setup(dir).store.get('tel-1'))?.prefs).toEqual({ trips: true, notes: false });
+    expect(await store.prefs('tel-2')).toEqual({ trips: true, notes: true });
   });
 
   it('un trajet annoncé une seule fois, oublié au bout de deux jours', async () => {

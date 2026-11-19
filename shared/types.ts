@@ -629,8 +629,13 @@ export type Me = {
 
 export type PairingCode = { code: string; ownerId: string; expiresAt: string };
 
-/** Notifications du téléphone (Web Push) : clé publique VAPID du serveur, et si ce téléphone est abonné. */
-export type PushStatus = { publicKey: string; subscribed: boolean };
+/** Notifications voulues sur un téléphone abonné : « Pars dans 5 min » (`trips`) et « Nouveaux mots » (`notes`). */
+export type PushPrefs = { trips: boolean; notes: boolean };
+/** Réglages d'un téléphone qui n'a encore rien choisi : tout est activé. */
+export const DEFAULT_PUSH_PREFS: PushPrefs = { trips: true, notes: true };
+
+/** Notifications du téléphone (Web Push) : clé publique VAPID, si ce téléphone est abonné, et ce qu'il veut recevoir. */
+export type PushStatus = { publicKey: string; subscribed: boolean; prefs: PushPrefs };
 
 // --- Stock de la maison : produits scannés (code-barres), quantités, contenants ---
 

@@ -1,8 +1,10 @@
-// Notifications Web Push (« Pars dans 5 min ») : clés VAPID du serveur, générées au premier démarrage et gardées dans
-// push-vapid.json (dossier d'état, jamais dans le dépôt) ; abonnements des téléphones appairés dans push.json, un par
-// téléphone (identifiant de l'appareil), avec les trajets déjà annoncés (une seule notification par trajet, même après
-// un redémarrage), oubliés au bout de deux jours.
+// Notifications Web Push (« Pars dans 5 min », « Nouveaux mots ») : clés VAPID du serveur, générées au premier
+// démarrage et gardées dans push-vapid.json (dossier d'état, jamais dans le dépôt) ; abonnements des téléphones appairés
+// dans push.json, un par téléphone (identifiant de l'appareil), avec les trajets déjà annoncés (une seule notification
+// par trajet, même après un redémarrage), oubliés au bout de deux jours. Les réglages de chaque téléphone (quelles
+// notifications il veut) sont gardés à part de l'abonnement : ils survivent à « Couper » puis « Activer ».
 import { z } from 'zod';
+import { DEFAULT_PUSH_PREFS, type PushPrefs } from '../../shared/types.ts';
 import { generateVapidKeys, type PushSubscriptionJson, type VapidKeys } from '../services/web-push.ts';
 import { createJsonFile } from './json-file.ts';
 import type { Clock } from './types.ts';
@@ -21,10 +23,12 @@ const fileSchema = z.object({
   subscriptions: z.record(z.string(), subscriptionSchema.extend({ ownerId: z.string(), at: z.string() })),
   /** Trajets déjà annoncés : clé → heure d'envoi. */
   sent: z.record(z.string(), z.string()),
+  /** Réglages par téléphone ; absents : tout activé (fichiers d'avant les réglages compris). */
+  prefs: z.record(z.string(), z.object({ trips: z.boolean(), notes: z.boolean() }).partial()).default({}),
 });
 type PushFile = z.infer<typeof fileSchema>;
 
-export type PushRecord = PushSubscriptionJson & { deviceId: string; ownerId: string };
+export type PushRecord = PushSubscriptionJson & { deviceId: string; ownerId: string; prefs: PushPrefs };
 
 export type PushStore = {
   /** Lit les clés VAPID, ou les génère et les enregistre la première fois. */
@@ -34,6 +38,10 @@ export type PushStore = {
   all(): Promise<PushRecord[]>;
   subscribe(deviceId: string, ownerId: string, subscription: PushSubscriptionJson): Promise<void>;
   unsubscribe(deviceId: string): Promise<void>;
+  /** Réglages du téléphone (tout activé tant qu'il n'a rien choisi). */
+  prefs(deviceId: string): Promise<PushPrefs>;
+  /** Change une partie des réglages du téléphone ; renvoie les réglages complets. */
+  setPrefs(deviceId: string, change: Partial<PushPrefs>): Promise<PushPrefs>;
   /** Marque un trajet annoncé ; faux s'il l'était déjà (pas de seconde notification). */
   markSent(key: string): Promise<boolean>;
 };
@@ -43,14 +51,21 @@ export function createPushStore({ path, keysPath, clock }: { path: string; keysP
   const state = createJsonFile<PushFile>({
     path,
     schema: fileSchema,
-    initial: () => ({ version: 1, subscriptions: {}, sent: {} }),
+    initial: () => ({ version: 1, subscriptions: {}, sent: {}, prefs: {} }),
     beforeSave: (file) => {
       const now = clock().getTime();
       for (const [key, at] of Object.entries(file.sent)) if (now - Date.parse(at) > SENT_KEEP_MS) delete file.sent[key];
     },
   });
   let vapid: VapidKeys | null = null;
-  const record = (deviceId: string, s: PushFile['subscriptions'][string]): PushRecord => ({ deviceId, ownerId: s.ownerId, endpoint: s.endpoint, keys: s.keys });
+  const prefsOf = (file: PushFile, deviceId: string): PushPrefs => ({ ...DEFAULT_PUSH_PREFS, ...file.prefs[deviceId] });
+  const record = (file: PushFile, deviceId: string, s: PushFile['subscriptions'][string]): PushRecord => ({
+    deviceId,
+    ownerId: s.ownerId,
+    endpoint: s.endpoint,
+    keys: s.keys,
+    prefs: prefsOf(file, deviceId),
+  });
 
   return {
     async load() {
@@ -69,12 +84,25 @@ export function createPushStore({ path, keysPath, clock }: { path: string; keysP
     },
 
     async get(deviceId) {
-      const s = (await state.read()).subscriptions[deviceId];
-      return s ? record(deviceId, s) : null;
+      const file = await state.read();
+      const s = file.subscriptions[deviceId];
+      return s ? record(file, deviceId, s) : null;
     },
 
     async all() {
-      return Object.entries((await state.read()).subscriptions).map(([id, s]) => record(id, s));
+      const file = await state.read();
+      return Object.entries(file.subscriptions).map(([id, s]) => record(file, id, s));
+    },
+
+    async prefs(deviceId) {
+      return prefsOf(await state.read(), deviceId);
+    },
+
+    setPrefs(deviceId, change) {
+      return state.update((file) => {
+        file.prefs[deviceId] = { ...prefsOf(file, deviceId), ...change };
+        return prefsOf(file, deviceId);
+      });
     },
 
     async subscribe(deviceId, ownerId, { endpoint, keys }) {

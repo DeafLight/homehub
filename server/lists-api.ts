@@ -4,7 +4,7 @@
 // (services/menu.ts) ; en retirer une à la main vaut « j'en ai déjà » pour sa semaine. Les frais d'un repas tardif
 // attendent à part (`later`), jusqu'au jour où les acheter.
 import { z } from 'zod';
-import { FAMILY_ID, type Lists } from '../shared/types.ts';
+import { FAMILY_ID, type Lists, type Note } from '../shared/types.ts';
 import type { Access } from './access.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail, readBody } from './http.ts';
@@ -19,6 +19,8 @@ export type ListsApiDeps = {
   access: Access;
   /** Menu de la semaine : la liste suit le menu (absent : liste seule). */
   menu?: MenuService;
+  /** Mot enregistré : notification aux téléphones du destinataire (services/note-push.ts), sans l'attendre. */
+  onNote?: (note: Note) => void;
 };
 
 const label = z.string().trim().min(1).max(LABEL_MAX);
@@ -36,7 +38,7 @@ const taskSchema = z.object({
 /** `from` : profil ouvert sur la tablette (sur un téléphone, son profil, quoi qu'il annonce). */
 const noteSchema = z.object({ to: z.string(), from: z.string().nullish(), text: z.string().trim().min(1).max(NOTE_MAX) });
 
-export function createListsApi({ household, lists, notes, access, menu }: ListsApiDeps) {
+export function createListsApi({ household, lists, notes, access, menu, onNote }: ListsApiDeps) {
   const api = createRouter();
 
   /** Profil d'une tâche des listes ; tâche inconnue : 404. */
@@ -105,7 +107,9 @@ export function createListsApi({ household, lists, notes, access, menu }: ListsA
     if (!household.isOwner(input.to)) return fail(400, 'Destinataire inconnu');
     if (input.to === from) return fail(400, 'Un mot va à un autre profil');
     const author = await access.writer(c, from);
-    return c.json(await notes.add(input.to, input.text, { ownerId: from, via: author.via }), 201);
+    const note = await notes.add(input.to, input.text, { ownerId: from, via: author.via });
+    onNote?.(note);
+    return c.json(note, 201);
   });
 
   /** Marquer « Vu » : droit d'écriture sur le destinataire (un mot à toute la famille : un parent). */

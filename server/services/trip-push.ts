@@ -98,11 +98,13 @@ export function createTripPush({ store, devices, commuteOf, hasCommute, nextTrip
       for (const sub of subscriptions) {
         if (paired.get(sub.deviceId) !== sub.ownerId) await store.unsubscribe(sub.deviceId);
       }
-      const owners = [...new Set(subscriptions.filter((s) => paired.get(s.deviceId) === s.ownerId).map((s) => s.ownerId))];
+      // Téléphones encore appairés qui veulent « Pars dans 5 min » (réglage du téléphone).
+      const wanted = subscriptions.filter((s) => paired.get(s.deviceId) === s.ownerId && s.prefs.trips);
+      const owners = [...new Set(wanted.map((s) => s.ownerId))];
       for (const ownerId of owners) {
         for (const { key, message } of await messagesFor(ownerId, now)) {
           if (!(await store.markSent(key))) continue;
-          for (const sub of subscriptions.filter((s) => s.ownerId === ownerId && paired.get(s.deviceId) === ownerId)) {
+          for (const sub of wanted.filter((s) => s.ownerId === ownerId)) {
             const result = await send(sub, message);
             if (result === 'gone') await store.unsubscribe(sub.deviceId);
             else if (result === 'failed') logger.error('Notification « Pars dans 5 min » non remise au service de push');

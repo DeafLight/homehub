@@ -67,10 +67,10 @@ describe('textes', () => {
   });
 });
 
-function setup({ result = 'sent' as PushResult, devices = [{ id: 'tel-lea', ownerId: 'lea' }], hasCommute = true, planned = trip(at(7, 45), 'event') } = {}) {
+function setup({ result = 'sent' as PushResult, devices = [{ id: 'tel-lea', ownerId: 'lea' }], hasCommute = true, planned = trip(at(7, 45), 'event'), trips = true } = {}) {
   let subs: PushRecord[] = [
-    { deviceId: 'tel-lea', ownerId: 'lea', endpoint: 'https://push.exemple.test/1', keys: { p256dh: 'p', auth: 'a' } },
-    { deviceId: 'tel-vieux', ownerId: 'lea', endpoint: 'https://push.exemple.test/2', keys: { p256dh: 'p', auth: 'a' } },
+    { deviceId: 'tel-lea', ownerId: 'lea', endpoint: 'https://push.exemple.test/1', keys: { p256dh: 'p', auth: 'a' }, prefs: { trips, notes: true } },
+    { deviceId: 'tel-vieux', ownerId: 'lea', endpoint: 'https://push.exemple.test/2', keys: { p256dh: 'p', auth: 'a' }, prefs: { trips: true, notes: true } },
   ];
   const marked = new Set<string>();
   const sent: { to: string; message: PushMessage }[] = [];
@@ -104,6 +104,12 @@ describe('envoi', () => {
     const { push, sent } = setup({ planned: trip(at(7, 45), 'course') });
     await push.tick();
     expect(sent).toHaveLength(1);
+  });
+
+  it('« Pars dans 5 min » coupé dans les réglages du téléphone : rien', async () => {
+    const { push, sent } = setup({ trips: false });
+    await push.tick();
+    expect(sent).toEqual([]);
   });
 
   it('abonnement périmé : oublié', async () => {

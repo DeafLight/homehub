@@ -7,9 +7,11 @@
   import { browserEnvironment, isIos, pushSupport, subscribeBrowser, unsubscribeBrowser } from '../lib/push.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { phonePath } from '../lib/route.ts';
+  import type { PushPrefs } from '../../../shared/types.ts';
 
-  // Réglages du téléphone (/m/reglages, roue dentée de l'en-tête) : la notification « Pars dans 5 min » (Web Push),
-  // pour le trajet du matin et le prochain rendez-vous situé. Sur iPhone, possible seulement une fois HomeHub ajouté à
+  // Réglages du téléphone (/m/reglages, roue dentée de l'en-tête) : les notifications (Web Push), « Pars dans 5 min »
+  // pour le trajet du matin et le prochain rendez-vous situé, et « Nouveaux mots » ; une fois activées, un interrupteur
+  // pour chacune (gardé par le serveur pour ce téléphone, tout activé au départ). Sur iPhone, possible seulement une fois HomeHub ajouté à
   // l'écran d'accueil et ouvert depuis son icône : l'écran le dit. Un mot sur la position, utilisée pour le prochain
   // trajet sans être gardée. Le serveur rattache l'abonnement à ce téléphone appairé (et l'oublie s'il est retiré).
   // Sous la carte, une ligne discrète dit quel rendez-vous la notification surveille, ou pourquoi aucun (lieu non
@@ -54,6 +56,24 @@
       await api.unsubscribePush();
       return 'Notifications coupées.';
     });
+  /** Coupe ou remet une notification ; l'interrupteur bouge tout de suite, le serveur confirme. */
+  async function toggle(kind: keyof PushPrefs) {
+    const current = status.data;
+    if (!current) return;
+    error = null;
+    message = null;
+    status.set({ ...current, prefs: { ...current.prefs, [kind]: !current.prefs[kind] } });
+    try {
+      status.set(await api.savePushPrefs({ [kind]: !current.prefs[kind] }));
+    } catch (err) {
+      status.set(current);
+      error = (err as Error).message;
+    }
+  }
+  const KINDS: { kind: keyof PushPrefs; name: string; hint: string }[] = [
+    { kind: 'trips', name: 'Pars dans 5 min', hint: 'Trajet du matin et prochain rendez-vous qui a une adresse (calculé depuis la maison). Une seule par trajet ; touchée, elle ouvre le trajet.' },
+    { kind: 'notes', name: 'Nouveaux mots', hint: 'Un mot laissé pour toi ou pour toute la famille, avec son texte ; touchée, elle ouvre les mots.' },
+  ];
   const test = () =>
     run(async () => {
       await api.testPush();
@@ -72,7 +92,7 @@
   {:else}
     <section class="card">
       <h2><Icon name="bell" size={22} /> Notifications</h2>
-      <p class="muted">« Pars dans 5 min » : pour le trajet du matin, et pour le prochain rendez-vous qui a une adresse (calculé depuis la maison). Une seule par trajet ; touchée, elle ouvre le trajet du rendez-vous.</p>
+      <p class="muted">« Pars dans 5 min » pour tes trajets, et les nouveaux mots qu’on te laisse. Elles arrivent même quand HomeHub est fermé.</p>
 
       {#if support === 'ios-install'}
         <div class="notice">
@@ -85,6 +105,19 @@
         <p class="notice">Ce navigateur ne sait pas recevoir de notifications.</p>
       {:else if status.data}
         <p class="state" class:on={status.data.subscribed}>{status.data.subscribed ? 'Activées sur ce téléphone' : 'Coupées sur ce téléphone'}</p>
+        {#if status.data.subscribed}
+          <ul class="kinds">
+            {#each KINDS as k (k.kind)}
+              <li>
+                <button type="button" class="switch" role="switch" aria-checked={status.data.prefs[k.kind]} aria-label={k.name} onclick={() => toggle(k.kind)}><span></span></button>
+                <span class="what" class:off={!status.data.prefs[k.kind]}>
+                  <span class="name">{k.name}</span>
+                  <span class="muted small">{k.hint}</span>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
         <div class="actions">
           {#if status.data.subscribed}
             <button type="button" class="btn small" disabled={busy} onclick={test}>Essayer</button>
@@ -114,6 +147,68 @@
 </div>
 
 <style>
+  .kinds {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kinds li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .switch {
+    flex-shrink: 0;
+    position: relative;
+    width: 60px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+  }
+
+  .switch span {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--fg-muted);
+    transition: transform 0.15s;
+  }
+
+  .switch[aria-checked='true'] {
+    background: var(--rain);
+  }
+
+  .switch[aria-checked='true'] span {
+    transform: translateX(26px);
+    background: var(--bg);
+  }
+
+  .what {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .name {
+    font-weight: 600;
+  }
+
+  .what.off .name {
+    color: var(--fg-muted);
+  }
+
   .watch {
     display: flex;
     flex-direction: column;

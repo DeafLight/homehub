@@ -1,6 +1,6 @@
-// Service worker de HomeHub, pour les notifications du téléphone seulement (« Pars dans 5 min ») : il affiche le
+// Service worker de HomeHub, pour les notifications du téléphone seulement (« Pars dans 5 min », « Nouveaux mots ») : il affiche le
 // message poussé par le serveur (Web Push, chiffré jusqu'ici) et, quand on le touche, ouvre l'appli à l'adresse du
-// message (le trajet du rendez-vous annoncé). Aucun cache, aucune
+// message (le trajet du rendez-vous annoncé, les mots). Aucun cache, aucune
 // interception des requêtes : l'appli se charge comme sans lui.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));

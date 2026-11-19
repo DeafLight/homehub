@@ -257,8 +257,10 @@ Reste :
 - [x] Mots, 0.74.0 : une croix en face de chaque mot déjà vu, dans l'onglet Mots du téléphone, le supprime tout de
       suite (mêmes droits que « Vu », un mot pas encore vu reste). La tablette n'affiche que les mots pas encore vus :
       rien à supprimer.
-- [ ] Notifications (Web Push dans la PWA) : mot reçu, minuteur qui sonne, heure de partir pour le bus, tâche en
-      retard. Sur iPhone, seulement si l'appli est installée sur l'écran d'accueil.
+- [x] Notification « Nouveau mot » (Web Push, 0.101.0) : sur le téléphone du destinataire, ou de chaque membre sauf
+      l'auteur pour un mot à toute la famille ; titre « Mot de Sam », texte du mot, ouvre `/m/mots` ; interrupteurs
+      « Pars dans 5 min » et « Nouveaux mots » par téléphone dans ses réglages (activés par défaut).
+- [ ] Autres notifications (Web Push dans la PWA) : minuteur qui sonne, tâche en retard.
 
 ## Télé : appli HomeHub TV (une idée par version)
 
