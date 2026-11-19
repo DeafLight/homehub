@@ -58,7 +58,7 @@ import type {
 import type { CameraMessages, CameraSession, PhoneSignal, TabletSignal } from '../../../shared/camera.ts';
 import type { TvMessageSent } from '../../../shared/tv.ts';
 import type { LatLon, RideRef, RidesResponse, RoutableEvents, RouteResponse, TripResponse, TripStatus, TripWatch, VehiclesResponse } from '../../../shared/trip.ts';
-import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenReplies, ScreenTarget } from '../../../shared/screen.ts';
+import type { MediaAction, MediaScreens, RemoteApps, RemoteKey, RemotePowerResult, RemoteScreen, Screen, ScreenAlerts, ScreenAlertsView, ScreenReplies, ScreenTarget } from '../../../shared/screen.ts';
 import type { RemoteArtwork } from '../../../shared/now-playing.ts';
 import type { ScreenReminderKind, ScreenReminderSetting, ScreenReminderSettings } from '../../../shared/screen-reminders.ts';
 import type { BedtimeSettings, BedtimeText, BedtimeView } from '../../../shared/bedtime.ts';
@@ -325,8 +325,8 @@ export type Api = {
   pairScreen(code: string, name: string): Promise<Screen>;
   removeScreen(id: string): Promise<void>;
   /** Alertes de la maison sur les télés (minuteur terminé…) : réglage lu par la tablette, changé par un parent. */
-  screenAlerts(): Promise<ScreenAlerts>;
-  setScreenAlerts(alerts: ScreenAlerts): Promise<ScreenAlerts>;
+  screenAlerts(): Promise<ScreenAlertsView>;
+  setScreenAlerts(alerts: ScreenAlerts): Promise<ScreenAlertsView>;
   /** Rappels sur la télé (tablette) : réglages, enregistrement par un parent, essai tout de suite. */
   screenReminders(): Promise<ScreenReminderSettings>;
   saveScreenReminders(reminders: ScreenReminderSetting[]): Promise<ScreenReminderSettings>;

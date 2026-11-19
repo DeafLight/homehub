@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.102.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.103.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -240,9 +240,14 @@ Relier un téléphone à un profil (QR code), voir et retirer les téléphones r
 une télé avec l'appli HomeHub TV (le code qu'elle affiche, et son nom), voir si elle est allumée, en veille (point
 jaune) ou éteinte, la retirer.
 **Alertes sur la télé** : la case **Minuteurs** (cochée par défaut, changée par un parent reconnu) fait décompter en petit
-sur les télés allumées les minuteurs en cours, et afficher et sonner celui qui se termine.
+sur les télés allumées les minuteurs en cours, et afficher et sonner celui qui se termine. Juste en dessous (si
+`cast.devices` compte une enceinte), **Sonnerie sur le Google Home** : l'enceinte qui sonne une dizaine de secondes à
+la fin d'un minuteur, télé allumée ou non, ou **Aucune** (par défaut).
 
 ![Téléphones](images/tablette-telephones.png)
+
+![Alertes sur la télé : Minuteurs, Sonnerie sur le Google Home du salon, Mode film automatique](images/tablette-alertes-tele.png)
+
 
 Plus bas (la page défile), **Rappels sur la télé** : la **Routine du soir** et les **Mots à lire**, chacun avec son
 interrupteur, son heure et **Essayer** (le bandeau part tout de suite sur les télés allumées).

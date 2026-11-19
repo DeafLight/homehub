@@ -235,7 +235,15 @@ export type RemotePowerResult = { power: RemotePower; via: 'screen' | 'cast' | n
  * minuteur qui se termine s'affiche et sonne sur la télé. `film` : mode film automatique quand une appli de films est
  * au premier plan (fonction 15, shared/screen-film.ts).
  */
-export type ScreenAlerts = { timer: boolean; film: boolean };
+export type ScreenAlerts = {
+  timer: boolean;
+  film: boolean;
+  /** Enceinte Cast (identifiant de cast.devices) qui sonne à la fin d'un minuteur ; null : aucune. */
+  timerCast: string | null;
+};
+
+/** Le réglage tel que lu par la tablette, avec les enceintes Cast proposées pour la sonnerie du minuteur. */
+export type ScreenAlertsView = ScreenAlerts & { castDevices: { id: string; name: string }[] };
 
 /**
  * Commandes de ce qui passe depuis la tablette (fonction 6) : pause, reprise, volume, et « À table ! » (bandeau et

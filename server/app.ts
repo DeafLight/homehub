@@ -68,6 +68,7 @@ import { createTvApi } from './tv-api.ts';
 import { createScreenApi } from './screen-api.ts';
 import { createScreenAlertsApi } from './screen-alerts-api.ts';
 import { createTimerAlerts } from './services/timer-alerts.ts';
+import { createTimerCast, type TimerCast, timerCastDevices } from './services/timer-cast.ts';
 import { createScreenAlertStore, type ScreenAlertStore } from './sources/screen-alerts.ts';
 import { createScreenRemindersApi } from './screen-reminders-api.ts';
 import { createScreenReminders, reminderBuilders } from './services/screen-reminders.ts';
@@ -164,6 +165,8 @@ export type AppDeps = {
   kioskKey?: string;
   /** Secret partagé avec le serveur TURN de la caméra en direct (HOMEHUB_TURN_SECRET) ; absent : pas de TURN. */
   turnSecret?: string;
+  /** Sonnerie des minuteurs sur un Google Home ; absente : le vrai client Cast (cast.devices de la config). */
+  timerCast?: TimerCast;
   /** Messages vocaux vers les appareils Cast ; absent : le vrai client Cast (cast.devices de la config). */
   voice?: VoiceMessages;
   clock: Clock;
@@ -277,8 +280,11 @@ export function createApp(deps: AppDeps): Hono {
   screenHub.useDiscreet(film.discreet);
   api.route('/', createScreenApi({ screens: deps.screens, apps: deps.screenApps, hub: screenHub, config, household, access, film }));
   // Minuteur terminé : alerte sur les télés allumées (fonction 3), réglable dans le panneau Télés.
-  api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock, onChange: (a) => film.setAuto(a.film) }));
-  createTimerAlerts({ timers: deps.timers, screens: deps.screens, hub: screenHub, alerts: screenAlerts, clock }).start();
+  // Et sonnerie sur le Google Home choisi au même endroit (0.103.0).
+  const castDevices = () => timerCastDevices(config.current().cast);
+  api.route('/', createScreenAlertsApi({ alerts: screenAlerts, timers: deps.timers, access, clock, castDevices, onChange: (a) => film.setAuto(a.film) }));
+  const timerCast = deps.timerCast ?? createTimerCast({ rules: () => config.current().cast, alerts: screenAlerts });
+  createTimerAlerts({ timers: deps.timers, screens: deps.screens, hub: screenHub, alerts: screenAlerts, clock, cast: timerCast }).start();
   // Alerte du bus du matin sur la télé (réglage par trajet, page Transports).
   const busAlerts = createScreenBusAlerts({
     members: () => household.members().map((m) => ({ id: m.id, name: m.name })),

@@ -729,6 +729,11 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   fin le reçoit encore. Réglage pour toutes les télés : tablette, **Téléphones** › **Télés** › **Alertes sur la
   télé** › **Minuteurs** (actif par défaut, changé par un parent reconnu ; `screen-alerts.json`), pour le décompte
   comme pour l'alerte.
+  **Sur un Google Home** : juste en dessous, **Sonnerie sur le Google Home** choisit l'enceinte de `cast.devices`
+  (pas la télé ; il faut `cast.mediaUrl`) qui sonne à la fin d'un minuteur, ou **Aucune** (par défaut). Une fois par
+  fin de minuteur, télé allumée ou non : l'enceinte lit un carillon d'une dizaine de secondes (fichier WAV calculé par
+  HomeHub, `GET /api/cast/ringtone.wav`), fermé aussitôt si le minuteur est arrêté avant. Enceinte qui ne répond pas :
+  rien ne bloque, l'échec va au journal du conteneur.
 - Retour automatique à l'accueil après un délai sans contact ; rechargement automatique après un déploiement
   ou une modification de la configuration. La version chargée est affichée sous l'horloge de l'accueil.
 
@@ -966,7 +971,7 @@ camera:              # facultatif : caméra en direct (valeurs par défaut)
   turn: []           # ex. [turn:maison.example.org:3478?transport=udp] ; secret : HOMEHUB_TURN_SECRET
 tv:                  # facultatif : message à la télé
   seconds: 10        # durée d'affichage du bandeau sur la télé appairée, 3 à 60 s (défaut 10)
-cast:                # facultatif : enceintes Google Cast où un parent envoie un message vocal (onglet Caméra), télé à allumer
+cast:                # facultatif : enceintes Google Cast (message vocal d'un parent, sonnerie du minuteur), télé à allumer
   mediaUrl: http://192.168.1.10:3010   # d'où les appareils téléchargent : http://<ip du NAS>:<HOMEHUB_MEDIA_PORT> ; sans lui, rien n'est proposé
   devices:           # par adresse IP (réservation DHCP conseillée), pas de découverte mDNS
     - { id: salon, name: Google Home du salon, host: 192.168.1.20 }          # port: 8009 par défaut
@@ -996,7 +1001,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 , réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min », « Nouveaux mots », « Minuteurs » et « Tâches en retard » : clés VAPID (`push-vapid.json`, générées au premier démarrage), abonnements et réglages des téléphones (`push.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
-| `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
+| `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`) et la sonnerie du minuteur (`GET /api/cast/ringtone.wav`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
 | `HOMEHUB_MOTIS_URL` | — | Adresse de MOTIS (ex. `http://motis:8080`), l'emporte sur `transit.motis.url` ; sans elle, trajets à lignes directes et pas de carte « Prochain trajet » |
 | `HOMEHUB_MAP_TILES` | `angers.pmtiles` dans le dossier d'état | Fond de la carte en route : extrait PMTiles d'Angers (voir « Fond de carte ») ; sans fichier, fond uni |
 | `HOMEHUB_TOMTOM_KEY` | — | Clé de l'API TomTom Routing (compte gratuit sur developer.tomtom.com) : durée en voiture avec le trafic pour les parents (« Prochain trajet ») ; sans elle, durée sans trafic de MOTIS |
@@ -1018,7 +1023,8 @@ depuis la télécommande du téléphone) :
    local. Si HomeHub n'est joignable que par son proxy (cas habituel), ouvrir le **port des médias** :
    `HOMEHUB_MEDIA_PORT=3010` (variable du conteneur), publié sur l'IP du NAS seulement (`192.168.1.10:3010:3010`
    dans le compose), et `mediaUrl: http://192.168.1.10:3010`. Ce port ne sert que les messages vocaux (adresses
-   aléatoires valables 5 minutes) : tout le reste y répond 404, l'application reste derrière son proxy.
+   aléatoires valables 5 minutes) et la sonnerie du minuteur : tout le reste y répond 404, l'application reste
+   derrière son proxy.
 4. **Réseau du conteneur** : pas de réseau hôte. Pas de découverte mDNS (les appareils sont donnés par adresse). Le
    conteneur doit joindre le port 8009 des appareils (sortie vers le réseau local, permise par défaut en mode pont),
    et les appareils, le port des médias sur le NAS (pare-feu du NAS compris).
@@ -1137,6 +1143,8 @@ server/
   screen-cook-api.ts       mode cuisine d'une recette sur la télé : lancement, étapes, minuteurs, fin
   screen-alerts-api.ts     alertes de la maison sur les télés : réglage, « Arrêter » un minuteur depuis la télé
   services/timer-alerts.ts guetteur des minuteurs : liste `timers` en cours, alerte `timer` aux télés allumées, `timer-clear` à l'arrêt
+  services/timer-cast.ts   sonnerie du minuteur sur l'enceinte Cast choisie, arrêtée avec le minuteur
+  services/ringtone.ts     la sonnerie (WAV calculé, carillon d'une dizaine de secondes)
   sources/screen-alerts.ts réglage des alertes télé (screen-alerts.json)
   screen-reminders-api.ts  routes des rappels sur la télé (réglages, « Essayer »)
   services/screen-reminders.ts  rappels sur la télé : heures, rattrapage, textes (routine du soir, mots à lire)
@@ -1228,11 +1236,12 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats, parole ou fin (`{ kind: "offer" \| "candidate" \| "talk" \| "bye", … }` ; `{ kind: "talk", on }` : le parent parle ou s'arrête, 403 si `camera.talk` est coupé) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
 | `POST /api/cast/:device/voice` | message vocal vers l'enceinte Cast `device` (une télé, `kind: tv` : 404) : corps = l'enregistrement, `Content-Type` = son format (`audio/webm`, `audio/mp4`, `audio/ogg`…, 3 Mo au plus) ; `{ device }` : nom de l'appareil qui le lit (téléphone d'un parent ; 403 enfant, tablette ou `camera.talk` coupé ; 404 appareil inconnu ; 400 format ou taille ; 502 appareil injoignable ou qui refuse ; 503 `cast.mediaUrl` absent) |
 | `GET /api/cast/clips/:token` | le message, pour l'appareil Cast (sans authentification : adresse aléatoire, valable 5 minutes ; 404 ensuite) |
+| `GET /api/cast/ringtone.wav` | la sonnerie du minuteur, pour l'enceinte Cast (WAV calculé par le serveur, sans authentification) |
 | `GET /api/camera/tablet/signals?client=&after=`, `POST /api/camera/tablet/sessions/:id/signal?client=` | la tablette : attente des demandes et des messages des téléphones (`{ messages, last }`) ; réponse, candidats, fin (la première page qui répond prend la diffusion, 409 pour les autres) |
 | `POST /api/screen/pairing`, `GET /api/screen/pairing/:id` | appli HomeHub TV, sans jeton (en-tête `X-HomeHub-Screen: 1`, 426 sinon) : demande d'appairage `{ system, app }` → `{ id, code, expiresAt }` (5 minutes) ; attente de la confirmation (25 s au plus) → `{ status: "pending" }` ou `{ status: "paired", token, screen }` (jeton remis une fois ; 410 code expiré) |
 | `GET /api/screen/events?after=`, `POST /api/screen/events/:id/report` | la télé, avec son jeton : attente des événements (25 s au plus, `{ events, last }` ; message écrit `{ kind: "message", id, title, text, seconds, replyId }` (`replyId` : réponses rapides proposées), alerte du bus `{ kind: "bus", id, title, subtitle, seconds }`, rappel `{ kind: "reminder", id, reminder, title, subtitle, seconds }` ; minuteurs en cours `{ kind: "timers", id, serverNow, timers: [{ timerId, label, endsAt, durationSeconds }] }` à chaque lancement ou arrêt et à une télé qui revient ; minuteur terminé `{ kind: "timer", id, timerId, title, subtitle }`, puis `{ kind: "timer-clear", id, timerId }` quand il est arrêté) ; compte rendu `{ ok: true }` ou `{ ok: false, reason }` (401 jeton inconnu ou télé retirée) |
 | `GET /api/screens`, `POST /api/screens`, `PATCH /api/screens/:id`, `DELETE /api/screens/:id` | télés appairées, tablette : liste `{ id, name, system, app, pairedAt, lastSeenAt, online, power }` ; appairage `{ code, name }` (parent reconnu ; 410 code inconnu ou expiré) ; nom `{ name }` ; retrait (parent reconnu) |
-| `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer }` (minuteurs en cours décomptés, minuteur terminé affiché et sonné sur les télés) ; le changer : parent reconnu |
+| `GET /api/screens/alerts`, `PUT /api/screens/alerts` | alertes de la maison sur les télés, tablette : réglage `{ timer, film, timerCast }` (minuteurs en cours décomptés, minuteur terminé affiché et sonné sur les télés ; mode film automatique ; enceinte Cast qui sonne à la fin d'un minuteur, ou `null`), lu avec `castDevices` (enceintes proposées) ; le changer : parent reconnu (400 enceinte inconnue) |
 | `POST /api/screen/timers/:id/stop` | la télé, avec son jeton : « Arrêter » sous l'alerte d'un minuteur, l'arrête partout (204, aussi s'il est déjà arrêté ; 409 s'il ne sonne pas encore) |
 | `GET /api/screen/ecran` | écran de veille de la télé (page `/ecran`), avec son jeton (401 sinon) : `{ weather, days, agenda, dinner, holiday }` : météo du moment, 3 jours suivants, rendez-vous d'aujourd'hui et de demain `[{ id, title, start, end?, allDay?, who }]` (`who` : prénom, null pour la famille ; 6 au plus), recettes du jour au menu |
 | `POST /api/screen/state`, `PUT /api/screen/apps` | la télé, avec son jeton : son état `{ screenOn, foreground, control, addresses }` (`control` : `adb`, `authorize`, `accessibility` ou `none`) ; la liste des applis de son lanceur `{ apps: [{ package, name, banner }] }` (bannière PNG en base64, 80 applis au plus) |

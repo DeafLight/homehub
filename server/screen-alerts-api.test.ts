@@ -2,18 +2,19 @@
 // minuteurs en cours (`timers`) à chaque lancement ou arrêt, à une télé qui revient ou une appli qui redémarre,
 // événement `timer` envoyé à chaque télé allumée quand un minuteur se termine (une fois), télé qui arrive tard,
 // réglage coupé, « Arrêter » depuis la télé (minuteur qui sonne seulement, jeton de télé exigé) et bandeau retiré
-// partout quand le minuteur est arrêté ailleurs.
+// partout quand le minuteur est arrêté ailleurs ; enceinte Cast de la sonnerie (réglage), sonnerie une fois par fin
+// de minuteur, même sans télé, et arrêtée avec le minuteur.
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { SCREEN_PROTOCOL_HEADER, type ScreenAlerts, type ScreenEvents, type ScreenPairingStart, type ScreenPairingState } from '../shared/screen.ts';
+import { SCREEN_PROTOCOL_HEADER, type ScreenAlertsView, type ScreenEvents, type ScreenPairingStart, type ScreenPairingState } from '../shared/screen.ts';
 import { createAccess, kioskKeyMatcher } from './access.ts';
 import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createHousehold } from './household.ts';
 import { createRouter } from './http.ts';
-import { createScreenAlertsApi, TIMER_NOT_RINGING } from './screen-alerts-api.ts';
+import { CAST_DEVICE_UNKNOWN, createScreenAlertsApi, TIMER_NOT_RINGING } from './screen-alerts-api.ts';
 import { createScreenApi, SCREENS_PARENTS_ONLY } from './screen-api.ts';
 import { createScreenHub } from './services/screens.ts';
 import { createTimerAlerts, LATE_MS, runningTimers, timerAlertText } from './services/timer-alerts.ts';
@@ -50,10 +51,14 @@ async function setup() {
   const hub = createScreenHub({ clock, waitMs: 20 });
   const timers = createTimerStore({ clock });
   const alerts = createScreenAlertStore({ path: join(dir, 'screen-alerts.json') });
-  const watcher = createTimerAlerts({ timers, screens, hub, alerts, clock });
+  const rang: string[] = [];
+  const stopped: string[] = [];
+  const cast = { ring: async (t: { id: string; label: string }) => void rang.push(`${t.id}:${t.label}`), stop: (id: string) => void stopped.push(id) };
+  const watcher = createTimerAlerts({ timers, screens, hub, alerts, clock, cast });
+  const castDevices = () => [{ id: 'salon', name: 'Google Home du salon' }];
   const api = createRouter();
   api.route('/', createScreenApi({ screens, apps: createScreenAppStore({ path: join(dir, 'apps.json'), clock }), hub, config, household: createHousehold(config), access }));
-  api.route('/', createScreenAlertsApi({ alerts, timers, access, clock }));
+  api.route('/', createScreenAlertsApi({ alerts, timers, access, clock, castDevices }));
 
   type Options = { from?: string; token?: string; body?: unknown; headers?: Record<string, string> };
   const call = (method: string, path: string, { from = TV, token, body, headers }: Options = {}) =>
@@ -76,19 +81,30 @@ async function setup() {
   const listen = async (token: string, after?: number) =>
     (await (await call('GET', `/screen/events${after === undefined ? '' : `?after=${after}`}`, { token, headers: PROTOCOL })).json()) as ScreenEvents;
 
-  return { call, tablet, pairTv, listen, timers, watcher, dir, advance: (ms: number) => (now += ms) };
+  return { call, tablet, pairTv, listen, timers, watcher, dir, rang, stopped, advance: (ms: number) => (now += ms) };
 }
 
 describe('Alerte des minuteurs sur les télés : réglage', () => {
   it('actif par défaut ; un parent reconnu à la tablette le coupe, enregistré dans le dossier d’état', async () => {
     const { call, tablet, dir } = await setup();
-    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: true, film: true } satisfies ScreenAlerts);
+    const castDevices = [{ id: 'salon', name: 'Google Home du salon' }];
+    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: true, film: true, timerCast: null, castDevices } satisfies ScreenAlertsView);
     // Tablette d'avant le mode film : sans `film`, il reste actif.
     const res = await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false } });
-    expect(await res.json()).toEqual({ timer: false, film: true });
-    expect(JSON.parse(readFileSync(join(dir, 'screen-alerts.json'), 'utf8'))).toEqual({ version: 1, alerts: { timer: false, film: true } });
-    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: false, film: true });
-    expect(await (await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false, film: false } })).json()).toEqual({ timer: false, film: false });
+    expect(await res.json()).toEqual({ timer: false, film: true, timerCast: null, castDevices });
+    expect(JSON.parse(readFileSync(join(dir, 'screen-alerts.json'), 'utf8'))).toEqual({ version: 1, alerts: { timer: false, film: true, timerCast: null } });
+    expect(await (await call('GET', '/screens/alerts', tablet(null))).json()).toEqual({ timer: false, film: true, timerCast: null, castDevices });
+    expect(await (await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false, film: false } })).json()).toEqual({ timer: false, film: false, timerCast: null, castDevices });
+  });
+
+  it('enceinte de la sonnerie : une enceinte proposée, ou aucune ; inconnue : 400', async () => {
+    const { call, tablet, dir } = await setup();
+    const res = await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: true, film: true, timerCast: 'salon' } });
+    expect(await res.json()).toMatchObject({ timerCast: 'salon' });
+    expect(JSON.parse(readFileSync(join(dir, 'screen-alerts.json'), 'utf8')).alerts.timerCast).toBe('salon');
+    expect(await (await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: true, film: true, timerCast: 'cuisine' } })).json()).toEqual({ error: CAST_DEVICE_UNKNOWN });
+    expect((await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: true, film: true, timerCast: 'Salon !' } })).status).toBe(400);
+    expect(await (await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: true, film: true, timerCast: null } })).json()).toMatchObject({ timerCast: null });
   });
 
   it('un enfant, personne, un autre appareil : refusé ; réglage mal formé : 400', async () => {
@@ -257,5 +273,40 @@ describe('Alerte des minuteurs sur les télés : envoi et arrêt', () => {
     expect((await call('POST', `/screen/timers/${timer.id}/stop`, { from: TABLET, headers: { ...PROTOCOL, ...tablet().headers } })).status).toBe(401);
     expect((await call('POST', `/screen/timers/${timer.id}/stop`, { token: salon })).status).toBe(426);
     expect(timers.list()).toHaveLength(1);
+  });
+});
+
+describe('Sonnerie des minuteurs sur le Google Home', () => {
+  it('une fois par fin de minuteur, même sans télé ; arrêtée avec le minuteur', async () => {
+    const { timers, watcher, rang, stopped, advance } = await setup();
+    const pates = timers.start('Pâtes', 60, TABLET_AUTHOR)!;
+    await watcher.check();
+    expect(rang).toEqual([]); // pas encore fini
+    advance(60_000);
+    await watcher.check();
+    await watcher.check();
+    expect(rang).toEqual([`${pates.id}:Pâtes`]);
+    expect(stopped).toEqual([]);
+    timers.stop(pates.id);
+    await watcher.check();
+    await watcher.check();
+    expect(stopped).toEqual([pates.id]);
+  });
+
+  it('même réglage télé coupé : la sonnerie part (elle a son propre réglage)', async () => {
+    const { call, tablet, timers, watcher, rang, advance } = await setup();
+    await call('PUT', '/screens/alerts', { ...tablet(), body: { timer: false } });
+    timers.start('Dents', 30, TABLET_AUTHOR);
+    advance(30_000);
+    await watcher.check();
+    expect(rang).toHaveLength(1);
+  });
+
+  it('minuteur fini depuis plus de LATE_MS (serveur arrêté) : pas de sonnerie', async () => {
+    const { timers, watcher, rang, advance } = await setup();
+    timers.start('Pâtes', 60, TABLET_AUTHOR);
+    advance(60_000 + LATE_MS + 1000);
+    await watcher.check();
+    expect(rang).toEqual([]);
   });
 });

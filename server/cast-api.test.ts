@@ -1,6 +1,6 @@
 // Tests des messages vocaux vers les appareils Cast : réservés au téléphone d'un parent (ni enfant, ni tablette, ni
 // appareil non appairé), refusés si `camera.talk` est coupé ; le message part vers le faux appareil, qui le télécharge
-// à une adresse aléatoire servie sans authentification, puis expirée ; appareil inconnu, injoignable, format refusé.
+// à une adresse aléatoire servie sans authentification, puis expirée ; appareil inconnu, injoignable, format refusé ; sonnerie du minuteur servie sur le port des médias.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -160,5 +160,13 @@ describe('port des médias', () => {
     expect((await media.request('/api/health')).status).toBe(404);
     expect((await media.request('/api/cast/salon/voice', { method: 'POST', body: AUDIO })).status).toBe(404);
     expect((await media.request('/')).status).toBe(404);
+  });
+
+  it('sert la sonnerie du minuteur, sans authentification (comme sur l’API)', async () => {
+    const media = createMediaApp({ clip: () => null });
+    const res = await media.request('/api/cast/ringtone.wav');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('audio/wav');
+    expect(Buffer.from(await res.arrayBuffer()).toString('ascii', 0, 4)).toBe('RIFF');
   });
 });

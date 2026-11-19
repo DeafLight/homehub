@@ -146,7 +146,8 @@ export class CastError extends Error {
  * coupe la connexion SANS envoyer CLOSE : le récepteur par défaut s'arrête quand le dernier émetteur se déconnecte
  * volontairement, ce qui coupait le message avant même qu'il soit téléchargé (bip de connexion, puis rien).
  * Message fini (FINISHED) : on ferme le lecteur (STOP), pour que la télé revienne à ce qu'elle montrait avant
- * (télé en direct, autre appli) au lieu de rester sur l'écran noir du lecteur.
+ * (télé en direct, autre appli) au lieu de rester sur l'écran noir du lecteur. `signal` : arrêter la lecture en cours
+ * (STOP du lecteur), par exemple la sonnerie d'un minuteur arrêté avant sa fin.
  */
 export function castPlay(
   target: CastTarget,
@@ -157,9 +158,11 @@ export function castPlay(
     playTimeoutMs = CAST_PLAY_TIMEOUT_MS,
     lingerMs = CAST_LINGER_MS,
     log = () => {},
-  }: { connect?: CastConnect; launchTimeoutMs?: number; playTimeoutMs?: number; lingerMs?: number; log?: (step: string) => void } = {},
+    signal,
+  }: { connect?: CastConnect; launchTimeoutMs?: number; playTimeoutMs?: number; lingerMs?: number; log?: (step: string) => void; signal?: AbortSignal } = {},
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new CastError('connect', 'lecture arrêtée'));
     const t0 = Date.now();
     const step = (text: string) => log(`${text} (${Date.now() - t0} ms)`);
     let lastState = '';
@@ -182,9 +185,29 @@ export function castPlay(
       closed = true;
       clearTimeout(timer);
       clearTimeout(linger);
+      signal?.removeEventListener('abort', abort);
       socket.destroy();
       step('déconnecté');
     };
+    /**
+     * Arrêt demandé par l'appelant (minuteur arrêté pendant sa sonnerie) : on ferme le lecteur (STOP) s'il est lancé,
+     * on laisse partir l'ordre, puis on raccroche ; une lecture qui n'a pas encore démarré est rejetée.
+     */
+    function abort() {
+      if (closed) return;
+      step('arrêt demandé');
+      if (sessionId) send('receiver-0', NS.receiver, { type: 'STOP', sessionId, requestId: requestId++ });
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new CastError(stage(), 'lecture arrêtée'));
+      }
+      clearTimeout(linger);
+      clearTimeout(timer);
+      if (sessionId) linger = setTimeout(hangUp, 500);
+      else hangUp();
+    }
+    signal?.addEventListener('abort', abort, { once: true });
     /** Réponse à l'appelant : succès quand la lecture démarre, sinon l'erreur (et on raccroche). */
     const settle = (err?: CastError) => {
       if (settled) return;

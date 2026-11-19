@@ -1,6 +1,6 @@
 // Tests du client Cast v2 : encodage et décodage des messages, découpage du flux, et lecture complète contre le faux
 // appareil (vraie connexion TLS locale) : lecture démarrée sans jamais envoyer CLOSE (qui arrête le vrai récepteur par
-// défaut : bip, puis rien), média refusé ou illisible, appareil injoignable, appareil muet ; allumage d’une télé (récepteur lancé puis refermé).
+// défaut : bip, puis rien), média refusé ou illisible, arrêt demandé (STOP), appareil injoignable, appareil muet ; allumage d’une télé (récepteur lancé puis refermé).
 import { createServer } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { castFramer, castPlay, castWake, type CastMessage, decodeCastMessage, encodeCastMessage } from './cast.ts';
@@ -78,6 +78,26 @@ describe('lecture sur un appareil', () => {
   it('média refusé par l’appareil : message clair', async () => {
     device = await startFakeCastDevice({ refuse: true });
     await expect(castPlay({ host: '127.0.0.1', port: device.port }, media)).rejects.toThrow('ne sait pas lire');
+  });
+
+  it('arrêt demandé pendant la lecture : le lecteur est fermé (STOP), sans attendre la fin', async () => {
+    device = await startFakeCastDevice({ playMs: 5000 });
+    const controller = new AbortController();
+    await castPlay({ host: '127.0.0.1', port: device.port }, media, { signal: controller.signal });
+    controller.abort();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(device.stops).toBe(1);
+    expect(device.closes).toBe(0);
+  });
+
+  it('arrêt demandé avant le début de la lecture, ou déjà fait : lecture rejetée', async () => {
+    device = await startFakeCastDevice();
+    const controller = new AbortController();
+    const playing = castPlay({ host: '127.0.0.1', port: device.port }, media, { signal: controller.signal });
+    controller.abort();
+    await expect(playing).rejects.toThrow('lecture arrêtée');
+    await expect(castPlay({ host: '127.0.0.1', port: device.port }, media, { signal: AbortSignal.abort() })).rejects.toThrow('lecture arrêtée');
+    expect(device.plays).toEqual([]);
   });
 
   it('appareil injoignable', async () => {

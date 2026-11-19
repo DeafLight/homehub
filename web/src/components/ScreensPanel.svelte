@@ -11,7 +11,8 @@
   // elle diffuse la voix des parents en direct par-dessus ce qui passe. « Allumée » : l'appli a appelé il y a moins de
   // 40 s ; « En veille » : l'appli répond mais l'écran est éteint. Le retrait se confirme d'un second geste, par un
   // parent. En dessous, les alertes de la maison sur les
-  // télés (minuteur terminé : bandeau et son, « Arrêter » à la télécommande), changées par un parent.
+  // télés (minuteur terminé : bandeau et son, « Arrêter » à la télécommande), changées par un parent, et l'enceinte
+  // Google Home qui sonne à la fin d'un minuteur (proposée seulement si cast.devices en compte une).
   const SCREENS_REFRESH_MS = 15_000;
 
   const { api, actor, clock } = getAppContext();
@@ -49,6 +50,9 @@
 
   let alertsBusy = $state(false);
   let alertsError = $state<string | null>(null);
+
+  /** Le réglage seul, sans la liste des enceintes, prêt à envoyer. */
+  const settings = (): ScreenAlerts => ({ timer: alerts.data!.timer, film: alerts.data!.film, timerCast: alerts.data!.timerCast });
 
   async function saveAlerts(next: ScreenAlerts) {
     if (alertsBusy) return;
@@ -128,14 +132,33 @@
     <div class="alerts">
       <h3>Alertes sur la télé</h3>
       <label class="check">
-        <input type="checkbox" checked={alerts.data.timer} disabled={alertsBusy} onchange={(e) => saveAlerts({ ...alerts.data!, timer: e.currentTarget.checked })} />
+        <input type="checkbox" checked={alerts.data.timer} disabled={alertsBusy} onchange={(e) => saveAlerts({ ...settings(), timer: e.currentTarget.checked })} />
         <span>
           <strong>Minuteurs</strong>
           <span class="muted small">Un minuteur terminé s’affiche sur la télé allumée, avec un son court ; « Arrêter » à la télécommande l’arrête partout.</span>
         </span>
       </label>
+      {#if alerts.data.castDevices.length > 0}
+        <label class="cast">
+          <span>
+            <strong>Sonnerie sur le Google Home</strong>
+            <span class="muted small">Un minuteur terminé sonne aussi une dizaine de secondes sur l’enceinte choisie, télé allumée ou non.</span>
+          </span>
+          <select
+            value={alerts.data.timerCast ?? ''}
+            disabled={alertsBusy}
+            aria-label="Enceinte qui sonne à la fin d’un minuteur"
+            onchange={(e) => saveAlerts({ ...settings(), timerCast: e.currentTarget.value || null })}
+          >
+            <option value="">Aucune</option>
+            {#each alerts.data.castDevices as device (device.id)}
+              <option value={device.id}>{device.name}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
       <label class="check">
-        <input type="checkbox" checked={alerts.data.film} disabled={alertsBusy} onchange={(e) => saveAlerts({ ...alerts.data!, film: e.currentTarget.checked })} />
+        <input type="checkbox" checked={alerts.data.film} disabled={alertsBusy} onchange={(e) => saveAlerts({ ...settings(), film: e.currentTarget.checked })} />
         <span>
           <strong>Mode film automatique</strong>
           <span class="muted small">Pendant Netflix, Disney+, Prime Video et les autres applis de films, les annonces se font discrètes et les messages vocaux passent sur le Google Home. Il s’allume aussi à la main (bouton Télé, télécommande du téléphone).</span>
@@ -338,6 +361,35 @@
     height: 26px;
     margin: 2px 0 0;
     accent-color: var(--rain);
+  }
+
+  .cast {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 6px 0 6px 40px;
+  }
+
+  .cast > span {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 1.1rem;
+  }
+
+  .cast select {
+    flex: none;
+    min-width: 240px;
+    min-height: 48px;
+    padding: 0 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    font-size: 1.05rem;
+    color-scheme: dark;
   }
 
   .check > span {

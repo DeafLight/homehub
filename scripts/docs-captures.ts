@@ -110,6 +110,8 @@ fitness.weeks = {
 writeFileSync(join(state, 'fitness.json'), JSON.stringify({ version: 1, members: { alex: fitness } }));
 // Heure du coucher des enfants (fonction 16) : active, réglages par défaut (20 h 30 en période d'école).
 writeFileSync(join(state, 'bedtime.json'), JSON.stringify({ version: 1, settings: { enabled: true } }));
+// Sonnerie des minuteurs sur le Google Home du salon (faux appareil Cast), pour la capture des alertes télé.
+writeFileSync(join(state, 'screen-alerts.json'), JSON.stringify({ version: 1, alerts: { timer: true, film: true, timerCast: 'salon' } }));
 // Visage fictif d'Alex (empreinte arbitraire) : les captures du sport de la tablette s'en servent pour être reconnues.
 const FACE = Array.from({ length: 128 }, (_, i) => Math.sin(i + 1));
 writeFileSync(join(state, 'faces.json'), JSON.stringify({ version: 1, faces: { alex: [FACE] }, learned: {} }));
@@ -491,6 +493,7 @@ await shoot('tablette-stock-sans-code-barres', `${BASE}/stock`, TABLET, {
 await shoot('tablette-drive-panier', `${BASE}/listes`, TABLET, { after: click('Remplir le panier') });
 await shoot('tablette-routines', `${BASE}/routines`, TABLET, { after: click('Léa') });
 // Rappels sur la télé, en bas de la page Téléphones (la page défile).
+await shoot('tablette-alertes-tele', `${BASE}/telephones`, TABLET, { after: `document.querySelector('.alerts')?.scrollIntoView({ block: 'center' })` });
 await shoot('tablette-rappels-tele', `${BASE}/telephones`, TABLET, { after: `document.querySelector('.reminders')?.scrollIntoView({ block: 'end' })` });
 // Heure du coucher des enfants, tout en bas de la même page.
 await shoot('tablette-coucher', `${BASE}/telephones`, TABLET, { after: `document.querySelector('.bedtime')?.scrollIntoView({ block: 'end' })` });

@@ -6,6 +6,7 @@ import type { Access } from './access.ts';
 import type { ConfigStore } from './config-store.ts';
 import type { Household } from './household.ts';
 import { createRouter, fail } from './http.ts';
+import { RINGTONE_TYPE, ringtone } from './services/ringtone.ts';
 import { VOICE_MAX_BYTES, VoiceError, type VoiceMessages } from './services/voice-messages.ts';
 
 export const VOICE_PARENTS_ONLY = 'Les messages vocaux sont réservés aux parents';
@@ -41,6 +42,11 @@ export function createCastApi({ voice, config, household, access }: { voice: Voi
  */
 export function createCastClipsApi(voice: Pick<VoiceMessages, 'clip'>) {
   const api = createRouter();
+  // Sonnerie du minuteur (services/timer-cast.ts) : un son calculé par le serveur, rien de personnel, libre d'accès.
+  api.get('/cast/ringtone.wav', (c) => {
+    const data = ringtone();
+    return c.body(data.slice().buffer as ArrayBuffer, 200, { 'Content-Type': RINGTONE_TYPE, 'Cache-Control': 'public, max-age=86400', 'Content-Length': String(data.byteLength) });
+  });
   api.get('/cast/clips/:token', (c) => {
     const clip = voice.clip(c.req.param('token'));
     if (!clip) return fail(404, 'Message expiré');
@@ -49,7 +55,7 @@ export function createCastClipsApi(voice: Pick<VoiceMessages, 'clip'>) {
   return api;
 }
 
-/** Serveur du port des médias : les messages des appareils Cast, rien d'autre (tout le reste : 404). */
+/** Serveur du port des médias : les messages des appareils Cast et la sonnerie du minuteur, rien d'autre (tout le reste : 404). */
 export function createMediaApp(voice: Pick<VoiceMessages, 'clip'>) {
   const app = createRouter();
   app.route('/api', createCastClipsApi(voice));

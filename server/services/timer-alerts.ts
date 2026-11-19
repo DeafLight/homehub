@@ -5,6 +5,8 @@
 // chaque télé allumée reçoit `timer` (bandeau avec « Arrêter », son court). Une télé qui se rallume peu après (LATE_MS)
 // le reçoit encore. Quand le minuteur est arrêté (tablette, téléphone, ou une télé), les télés qui l'affichent
 // reçoivent `timer-clear` et retirent le bandeau. Rien n'attend la télé : sans compte rendu, tant pis.
+// Le même guetteur fait sonner le Google Home choisi (`cast`, services/timer-cast.ts), une fois par fin de minuteur,
+// qu'une télé soit allumée ou non, et arrête cette sonnerie quand le minuteur est arrêté.
 import { randomUUID } from 'node:crypto';
 import type { ScreenEventBody, ScreenRunningTimer } from '../../shared/screen.ts';
 import type { Timer } from '../../shared/types.ts';
@@ -12,6 +14,7 @@ import type { ScreenAlertStore } from '../sources/screen-alerts.ts';
 import type { TimerStore } from '../sources/timers.ts';
 import type { Clock } from '../sources/types.ts';
 import type { ScreenHub } from './screens.ts';
+import type { TimerCast } from './timer-cast.ts';
 
 /** Au-delà, un minuteur terminé n'est plus envoyé à une télé qui arrive (il sonne toujours sur la tablette). */
 export const LATE_MS = 5 * 60_000;
@@ -53,6 +56,7 @@ export function createTimerAlerts({
   hub,
   alerts,
   clock,
+  cast,
   logger = console,
 }: {
   timers: TimerStore;
@@ -61,8 +65,12 @@ export function createTimerAlerts({
   hub: ScreenHub;
   alerts: ScreenAlertStore;
   clock: Clock;
+  /** Sonnerie sur un Google Home ; absente : télés seulement. */
+  cast?: Pick<TimerCast, 'ring' | 'stop'>;
   logger?: Pick<Console, 'error'>;
 }) {
+  /** Minuteurs qui ont fait sonner le Google Home, et pas encore arrêtés. */
+  const castRung = new Set<string>();
   /** Minuteurs envoyés à chaque télé, et pas encore retirés. */
   const sent = new Map<string, Set<string>>();
   /** Minuteurs en cours envoyés à chaque télé. */
@@ -83,6 +91,19 @@ export function createTimerAlerts({
       const now = clock().getTime();
       const ringing = timers.list().filter((t) => new Date(t.endsAt).getTime() <= now);
       const ringingIds = new Set(ringing.map((t) => t.id));
+      if (cast) {
+        for (const id of castRung) {
+          if (ringingIds.has(id)) continue;
+          castRung.delete(id);
+          cast.stop(id);
+        }
+        for (const timer of ringing) {
+          if (castRung.has(timer.id)) continue;
+          castRung.add(timer.id);
+          // Terminé depuis longtemps (serveur arrêté plus de LATE_MS) : plus la peine de sonner.
+          if (now - new Date(timer.endsAt).getTime() <= LATE_MS) void cast.ring(timer);
+        }
+      }
       const known = new Set((await screens.list()).map((s) => s.id));
       const enabled = (await alerts.get()).timer;
       const runningList = enabled ? runningTimers(timers.list(), now) : [];
