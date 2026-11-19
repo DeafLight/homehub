@@ -2,7 +2,8 @@
 // l'heure réglée, la page se recharge pour rendre la mémoire du WebView (tas JavaScript, textures WebGL de la
 // reconnaissance des visages), qui grossit quand la page tourne des jours sans interruption. Seulement quand personne
 // n'est là (veille affichée, ou ni contact ni visage depuis un moment) ; sinon on réessaie à la vérification suivante,
-// jusqu'à la fin de la fenêtre. Jamais sur un téléphone. Renvoie la fonction d'arrêt.
+// jusqu'à la fin de la fenêtre. Jamais sur un téléphone. Renvoie la fonction d'arrêt. Au chargement suivant, la page
+// sait si elle vient de ce rechargement (`reloadedByNight`, pour la page « Le NAS »).
 
 const DONE_KEY = 'homehub:nightlyReload';
 /** Après l'heure réglée, le rechargement peut encore se faire pendant ce délai (reporté tant que quelqu'un est là). */
@@ -66,6 +67,26 @@ export function nightlyReloadDue(s: NightlyState): string | null {
   return quiet ? night : null;
 }
 
+/**
+ * La page chargée à `loadedAt` vient-elle du rechargement de la nuit ? Oui si la nuit notée juste avant de recharger
+ * est celle de la dernière échéance et que le chargement tombe dans sa fenêtre. Un autre chargement plus tard dans la
+ * même fenêtre (déploiement à 3 h 30) passerait aussi pour celui de la nuit : sans importance pour le suivi.
+ */
+export function reloadedByNight({ loadedAt, at, doneNight }: { loadedAt: number; at: ReloadTime | null; doneNight: string | null }): boolean {
+  if (!at || !doneNight) return false;
+  const slot = lastSlot(new Date(loadedAt), at);
+  return doneNight === nightKey(slot) && loadedAt - slot.getTime() <= NIGHTLY_WINDOW_MS + CHECK_MS;
+}
+
+/** Nuit déjà rechargée, notée dans le stockage local (null : aucune, ou stockage indisponible). */
+export function readDoneNight(storage: Pick<Storage, 'getItem'> | null = safeLocalStorage()): string | null {
+  try {
+    return storage?.getItem(DONE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export type NightlyWatchOptions = {
   /** Heure réglée (`ui.nightlyReload`), null : jamais. */
   at: string | null;
@@ -90,12 +111,8 @@ export function watchNightlyReload({
   const time = parseReloadTime(at);
   if (!time) return () => {};
   const check = () => {
-    let doneNight: string | null = null;
-    try {
-      doneNight = storage?.getItem(DONE_KEY) ?? null;
-    } catch {
-      // stockage indisponible : l'heure de chargement suffit à ne pas boucler
-    }
+    // stockage indisponible : l'heure de chargement suffit à ne pas boucler
+    const doneNight = readDoneNight(storage);
     const night = nightlyReloadDue({ now: new Date(now()), at: time, loadedAt, doneNight, ...state() });
     if (!night) return;
     try {

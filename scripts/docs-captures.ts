@@ -116,6 +116,11 @@ writeFileSync(join(state, 'faces.json'), JSON.stringify({ version: 1, faces: { a
 const nas = JSON.parse(readFileSync(join(ROOT, 'server', 'sources', 'fixtures', 'nas-status.json'), 'utf8'));
 nas.generatedAt = new Date(DOCS_NOW - 5 * 60_000).toISOString();
 writeFileSync(join(work, 'nas-status.json'), JSON.stringify(nas));
+// Page de la tablette rechargée la nuit, à 03:02 (page « Le NAS ») ; les pages capturées ne le resignalent pas
+// (keepTabletPage), sinon chaque capture la dirait chargée à l'instant.
+const reloadedAt = new Date(DOCS_NOW);
+reloadedAt.setHours(3, 2, 0, 0);
+writeFileSync(join(state, 'tablet-page.json'), JSON.stringify({ page: { loadedAt: reloadedAt.toISOString(), nightly: true } }));
 
 const children: ChildProcess[] = [];
 /** Arrête Chrome et le serveur, attend qu'ils aient lâché leurs fichiers, puis efface le dossier de travail. */
@@ -413,6 +418,9 @@ const fakeClock = () => `(() => {
   const offset = ${browserNow} - Date.now(); const R = Date;
   class F extends R { constructor(...a) { a.length ? super(...a) : super(R.now() + offset); } static now() { return R.now() + offset; } }
   globalThis.Date = F; })();`;
+/** Le chargement de chaque page capturée n'est pas signalé : la page « Le NAS » garde le rechargement de la nuit. */
+const keepTabletPage = `{ const f = globalThis.fetch; globalThis.fetch = (url, init = {}) =>
+  String(url).endsWith('/api/nas/tablet-page') ? Promise.resolve(new Response('{}', { headers: { 'content-type': 'application/json' } })) : f(url, init); }`;
 const asPhone = (ownerId: keyof typeof TOKENS) =>
   `localStorage.setItem('homehub.phone', JSON.stringify({ token: '${TOKENS[ownerId]}', ownerId: '${ownerId}' }));`;
 
@@ -423,7 +431,7 @@ async function openTarget(url: string, metrics: Metrics, init = '') {
   await send('Page.enable', {}, sessionId);
   await send('Emulation.setDeviceMetricsOverride', metrics, sessionId);
   await send('Emulation.setTimezoneOverride', { timezoneId: 'Europe/Paris' }, sessionId);
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: fakeClock() + init }, sessionId);
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: fakeClock() + keepTabletPage + init }, sessionId);
   const loaded = new Promise<void>((r) => listeners.push((m) => m.sessionId === sessionId && m.method === 'Page.loadEventFired' && r()));
   await send('Page.navigate', { url }, sessionId);
   await loaded;

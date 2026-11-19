@@ -8,6 +8,7 @@ import { parseConfig } from './config.ts';
 import { createConfigStore } from './config-store.ts';
 import { createDashboardService } from './services/dashboard.ts';
 import { createNasService } from './services/nas.ts';
+import { createTabletPageStore } from './sources/tablet-page.ts';
 import { createDeviceStore } from './sources/devices.ts';
 import { createScreenAppStore } from './sources/screen-apps.ts';
 import { createScreenStore } from './sources/screens.ts';
@@ -35,8 +36,9 @@ function setup(staticRoot?: string, clock = fixedClock) {
   const service = createDashboardService({ config, sources, clock: fixedClock, logger: silentLogger() });
   const sourceStatus = createSourceStatus(fixedClock);
   sourceStatus.record('Agenda CAL_A', new Error('HTTP 404'));
-  const nas = createNasService({ nasStatus: { read: async () => null }, sourceStatus, version: '9.9.9', startedAt: NOW });
   const dir = mkdtempSync(join(tmpdir(), 'homehub-app-'));
+  const tabletPage = createTabletPageStore({ path: join(dir, 'tablet-page.json'), clock: fixedClock });
+  const nas = createNasService({ nasStatus: { read: async () => null }, sourceStatus, tabletPage, version: '9.9.9', startedAt: NOW });
   const lists = createListsStore({ path: join(dir, 'lists.json'), clock: fixedClock });
   const devices = createDeviceStore({ path: join(dir, 'devices.json'), clock: fixedClock });
   const pins = createPinStore({ path: join(dir, 'pins.json'), clock: fixedClock });
@@ -91,7 +93,7 @@ function setup(staticRoot?: string, clock = fixedClock) {
       },
       connectedFrom(address),
     ] as const;
-  return { app, config, put, sessions, pins, faces };
+  return { app, config, put, sessions, pins, faces, devices };
 }
 
 describe('API', () => {
@@ -268,7 +270,33 @@ describe('API', () => {
       status: null,
       sources: [{ name: 'Agenda CAL_A', ok: false, at: NOW.toISOString(), error: 'HTTP 404', failingSince: NOW.toISOString() }],
       homehub: { version: '9.9.9', startedAt: NOW.toISOString() },
+      tablet: null,
     });
+  });
+
+  it('POST /api/nas/tablet-page : la tablette seule signale le chargement de sa page, relu par GET /api/nas', async () => {
+    const { app, devices } = setup();
+    const loadedAt = new Date(2026, 10, 2, 3, 2).toISOString();
+    const post = (body: unknown, address = '127.0.0.1', token?: string) =>
+      app.request(
+        '/api/nas/tablet-page',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+          body: JSON.stringify(body),
+        },
+        connectedFrom(address),
+      );
+    const phone = (await devices.claim(devices.createCode('alex').code, 'Téléphone Alex'))!.token;
+    expect((await post({ loadedAt, nightly: true }, '192.168.1.50')).status).toBe(403); // autre appareil du réseau
+    expect((await post({ loadedAt, nightly: true }, '192.168.1.50', phone)).status).toBe(403); // téléphone appairé
+    expect((await post({ loadedAt: 'hier', nightly: true })).status).toBe(400);
+    expect((await (await app.request('/api/nas')).json()).tablet).toBeNull();
+
+    const res = await post({ loadedAt, nightly: true });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ loadedAt, nightly: true });
+    expect((await (await app.request('/api/nas')).json()).tablet).toEqual({ loadedAt, nightly: true });
   });
 
   it('GET /api/week : semaine en cours par défaut, 400 hors des semaines consultables', async () => {

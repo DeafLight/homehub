@@ -516,6 +516,16 @@ export type NasData = {
   status: NasStatus | null;
   sources: SourceState[];
   homehub: { version: string; startedAt: string };
+  /** Dernier chargement de la page de la tablette ; null : jamais signalé. */
+  tablet: TabletPage | null;
+};
+
+/** Chargement de la page de la tablette, signalé par la tablette elle-même au démarrage de sa page. */
+export type TabletPage = {
+  /** ISO 8601. */
+  loadedAt: string;
+  /** Rechargement de la nuit (`ui.nightlyReload`) ; sinon version, démarrage de Fully Kiosk, rechargement à la main… */
+  nightly: boolean;
 };
 
 /** Qui a fait un ajout ou coché un élément : la tablette (profil ouvert, s'il y en a un) ou un téléphone appairé. */

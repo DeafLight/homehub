@@ -30,6 +30,7 @@ import { createRoutineStore } from './sources/routines.ts';
 import { createTimerStore } from './sources/timers.ts';
 import { createListsStore, listsTaskSource } from './sources/lists.ts';
 import { createNasStatusSource } from './sources/nas-status.ts';
+import { createTabletPageStore } from './sources/tablet-page.ts';
 import { createNotesStore } from './sources/notes.ts';
 import { createOpenFoodFactsClient } from './sources/open-food-facts.ts';
 import { createStockStore } from './sources/stock.ts';
@@ -218,6 +219,7 @@ const service = createDashboardService({ config, sources, clock, logger: console
 const nas = createNasService({
   nasStatus: createNasStatusSource({ path: nasStatusPath, logger: console }),
   sourceStatus,
+  tabletPage: createTabletPageStore({ path: join(stateDir, 'tablet-page.json'), clock }),
   version,
   startedAt,
 });

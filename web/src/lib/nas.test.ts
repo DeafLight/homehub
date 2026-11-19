@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NasData, NasStatus } from '../../../shared/types.ts';
 import fixture from '../../../server/sources/fixtures/nas-status.json' with { type: 'json' };
-import { formatGb, formatPast, nasBanner, nasRings, nasServices, nasTimeline, nasWatch, retryText } from './nas.ts';
+import { formatGb, formatPast, nasBanner, nasRings, nasServices, nasTimeline, nasWatch, retryText, tabletNotReloaded } from './nas.ts';
 
 /** Lundi 2 novembre 2026, 18:00, 5 minutes après le relevé. */
 const now = new Date(2026, 10, 2, 18, 0);
@@ -19,6 +19,7 @@ const data = (patch: Partial<NasStatus> = {}, extra: Partial<NasData> = {}): Nas
   status: { ...status, ...patch },
   sources: [],
   homehub: { version: '0.9.0', startedAt: new Date(2026, 10, 2, 2, 10).toISOString() },
+  tablet: null,
   ...extra,
 });
 
@@ -101,5 +102,37 @@ describe('page NAS', () => {
     ]);
     const failed = data({ backup: { at: status.backup!.at, result: 'FAIL rsync 23' } });
     expect(nasTimeline(failed, now)[0]).toMatchObject({ level: 'bad', text: 'Sauvegarde vers le PC en échec (FAIL rsync 23)' });
+  });
+
+  it('dernièrement : chargement de la page de la tablette, par la nuit ou non', () => {
+    const nightly = data({}, { tablet: { loadedAt: new Date(2026, 10, 2, 3, 2).toISOString(), nightly: true } });
+    expect(nasTimeline(nightly, now).slice(0, 2).map((e) => [e.when, e.text, e.level])).toEqual([
+      ['Auj. 03:05', 'Sauvegarde vers le PC réussie', 'ok'],
+      ['Auj. 03:02', 'Page de la tablette rechargée la nuit', 'ok'],
+    ]);
+    const manual = data({}, { tablet: { loadedAt: new Date(2026, 10, 2, 17, 40).toISOString(), nightly: false } });
+    expect(nasTimeline(manual, now)[0]).toMatchObject({ when: 'Auj. 17:40', text: 'Page de la tablette chargée', level: 'off' });
+  });
+
+  it('à surveiller : page de la tablette pas rechargée la dernière nuit', () => {
+    const page = (loadedAt: Date) => ({ loadedAt: loadedAt.toISOString(), nightly: false });
+    // chargée hier après-midi, rechargement de 03:00 manqué
+    const missed = tabletNotReloaded(page(new Date(2026, 10, 1, 14, 0)), '03:00', now);
+    expect(missed).toEqual({
+      level: 'warn',
+      title: 'Tablette pas rechargée cette nuit',
+      text: 'Page chargée hier 14:00 : le rechargement de 03:00 n’a pas eu lieu (quelqu’un devant la tablette, ou page bloquée ?).',
+    });
+    expect(nasWatch(data({}, { tablet: page(new Date(2026, 10, 1, 14, 0)) }), now, '03:00')[0].title).toBe('Tablette pas rechargée cette nuit');
+    // rechargée cette nuit, ou chargée depuis : rien
+    expect(tabletNotReloaded(page(new Date(2026, 10, 2, 3, 2)), '03:00', now)).toBeNull();
+    expect(tabletNotReloaded(page(new Date(2026, 10, 2, 9, 0)), '03:00', now)).toBeNull();
+    // fenêtre de la nuit en cours (04:00) : on juge la nuit d'avant
+    const early = new Date(2026, 10, 2, 4, 0);
+    expect(tabletNotReloaded(page(new Date(2026, 10, 1, 14, 0)), '03:00', early)).toBeNull();
+    expect(tabletNotReloaded(page(new Date(2026, 9, 31, 14, 0)), '03:00', early)?.text).toContain('rechargement de 03:00');
+    // sans rechargement réglé, ou sans signalement de la tablette : rien
+    expect(tabletNotReloaded(page(new Date(2026, 10, 1, 14, 0)), null, now)).toBeNull();
+    expect(tabletNotReloaded(null, '03:00', now)).toBeNull();
   });
 });

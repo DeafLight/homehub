@@ -23,6 +23,8 @@ export type DashboardApiDeps = {
 
 const doneSchema = z.object({ done: z.boolean() });
 const DONE_EXPECTED = 'Corps attendu : { "done": true|false }';
+const tabletPageSchema = z.object({ loadedAt: z.iso.datetime({ offset: true }), nightly: z.boolean() });
+const TABLET_PAGE_EXPECTED = 'Corps attendu : { "loadedAt": "<ISO 8601>", "nightly": true|false }';
 const weekOffsetSchema = z.coerce.number().int().min(0).max(WEEKS_AHEAD);
 
 export function createDashboardApi({ config, service, nas, access, clock, version }: DashboardApiDeps) {
@@ -44,6 +46,16 @@ export function createDashboardApi({ config, service, nas, access, clock, versio
   });
 
   api.get('/nas', async (c) => c.json(await nas.data()));
+
+  /**
+   * La page de la tablette vient d'être chargée (page « Le NAS », pour suivre le rechargement de la nuit) : la tablette
+   * seule le signale, avec l'heure de chargement de sa page (elle réessaie si le serveur ne répondait pas encore).
+   */
+  api.post('/nas/tablet-page', async (c) => {
+    await access.kiosk(c);
+    const { loadedAt, nightly } = await readBody(c, tabletPageSchema, TABLET_PAGE_EXPECTED);
+    return c.json(await nas.tabletLoaded({ loadedAt: new Date(loadedAt), nightly }));
+  });
 
   /** Prochains passages Irigo aux arrêts suivis (accueil, veille). */
   api.get('/transit', async (c) => c.json(await service.transit()));

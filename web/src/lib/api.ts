@@ -20,6 +20,7 @@ import type {
   ListTask,
   Me,
   NasData,
+  TabletPage,
   Note,
   PairingCode,
   Container,
@@ -105,6 +106,8 @@ export type Api = {
   weather(): Promise<{ forecast: WeatherForecast | null }>;
   week(offset: number): Promise<WeekData>;
   nas(): Promise<NasData>;
+  /** La page de la tablette vient d'être chargée (la tablette seule). */
+  tabletLoaded(page: TabletPage): Promise<TabletPage>;
   setTaskDone(ownerId: string, taskId: string, done: boolean): Promise<Task>;
   /** Étape de la routine du jour (`itemId` : `<période>-<rang>`). */
   setRoutineDone(ownerId: string, itemId: string, done: boolean): Promise<Task>;
@@ -440,6 +443,7 @@ export function createApi(
     weather: () => request('/weather'),
     week: (offset) => request(`/week?offset=${offset}`),
     nas: () => request('/nas'),
+    tabletLoaded: (page) => send('POST', '/nas/tablet-page', page),
     setTaskDone: (ownerId, taskId, done) => send('PUT', `${ownerPath(ownerId)}/tasks/${encodeURIComponent(taskId)}`, { done }),
     routine: (ownerId) => request(`${ownerPath(ownerId)}/routine`),
     homework: (ownerId) => request(`${ownerPath(ownerId)}/homework`),

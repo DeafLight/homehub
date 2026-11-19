@@ -1,6 +1,7 @@
 // Page « Le NAS » : du relevé brut à ce qu'on affiche, en mots simples pour toute la famille.
-import type { NasCheck, NasData, NasStatus } from '../../../shared/types.ts';
+import type { NasCheck, NasData, NasStatus, TabletPage } from '../../../shared/types.ts';
 import { capitalize, dayDiff, formatTime, pluralize } from './format.ts';
+import { lastSlot, NIGHTLY_WINDOW_MS, parseReloadTime } from './nightly-reload.ts';
 
 /** ok : vert ; warn : orange ; bad : rouge ; off : gris (arrêté, ou simple information). */
 export type NasLevel = 'ok' | 'warn' | 'bad' | 'off';
@@ -143,8 +144,28 @@ export function retryText(retryAt: Date, now: Date): string {
   return `Nouvel essai à partir ${from}${formatTime(retryAt)}.`;
 }
 
-export function nasWatch({ status, sources }: NasData, now: Date): NasWatchItem[] {
+/**
+ * La page de la tablette n'a pas été rechargée la dernière nuit (`ui.nightlyReload`) : chargée avant la dernière
+ * échéance dont la fenêtre est passée. Rien tant que la tablette n'a rien signalé, ni sans rechargement réglé.
+ */
+export function tabletNotReloaded(tablet: TabletPage | null, nightlyReload: string | null, now: Date): NasWatchItem | null {
+  const at = parseReloadTime(nightlyReload);
+  if (!tablet || !at) return null;
+  const slot = lastSlot(now, at);
+  if (now.getTime() - slot.getTime() <= NIGHTLY_WINDOW_MS) slot.setDate(slot.getDate() - 1); // fenêtre en cours
+  const loadedAt = new Date(tablet.loadedAt);
+  if (loadedAt >= slot) return null;
+  return {
+    level: 'warn',
+    title: 'Tablette pas rechargée cette nuit',
+    text: `Page chargée ${formatPast(loadedAt, now).toLowerCase()} : le rechargement de ${formatTime(slot)} n’a pas eu lieu (quelqu’un devant la tablette, ou page bloquée ?).`,
+  };
+}
+
+export function nasWatch({ status, sources, tablet }: NasData, now: Date, nightlyReload: string | null = null): NasWatchItem[] {
   const items: NasWatchItem[] = [];
+  const notReloaded = tabletNotReloaded(tablet, nightlyReload, now);
+  if (notReloaded) items.push(notReloaded);
 
   if (!status) {
     items.push({
@@ -221,11 +242,21 @@ export function nasServices(status: NasStatus): NasServiceRow[] | null {
 
 export type NasEvent = { at: Date; when: string; text: string; level: NasLevel };
 
-/** « Dernièrement » : sauvegarde, vérification des disques, démarrages, du plus récent au plus ancien. */
-export function nasTimeline({ status, homehub }: NasData, now: Date): NasEvent[] {
+/**
+ * « Dernièrement » : sauvegarde, vérification des disques, démarrages, chargement de la page de la tablette, du plus
+ * récent au plus ancien.
+ */
+export function nasTimeline({ status, homehub, tablet }: NasData, now: Date): NasEvent[] {
   const events: Omit<NasEvent, 'when'>[] = [
     { at: new Date(homehub.startedAt), text: `HomeHub v${homehub.version} démarré`, level: 'ok' },
   ];
+  if (tablet) {
+    events.push({
+      at: new Date(tablet.loadedAt),
+      text: tablet.nightly ? 'Page de la tablette rechargée la nuit' : 'Page de la tablette chargée',
+      level: tablet.nightly ? 'ok' : 'off',
+    });
+  }
   if (status?.backup) {
     const ok = status.backup.result === 'OK';
     events.push({

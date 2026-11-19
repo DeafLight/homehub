@@ -465,7 +465,8 @@ personne depuis son propre téléphone.
 - [x] Tablette (0.99.2) : la page se recharge une fois par nuit vers 3 h (`ui.nightlyReload`), quand personne n'est
       là, pour rendre la mémoire du WebView ; Fully Kiosk plantait depuis que les versions ne rechargeaient plus la
       page chaque jour.
-- [ ] Page « Le NAS » : date du dernier chargement de la page de la tablette, pour suivre le rechargement nocturne.
+- [x] Page « Le NAS » (0.100.0) : date du dernier chargement de la page de la tablette, pour suivre le rechargement
+      nocturne (« rechargée la nuit » ou « chargée »), et point à surveiller si la nuit passée l'a manqué.
 
 ## Transports (après le design)
 

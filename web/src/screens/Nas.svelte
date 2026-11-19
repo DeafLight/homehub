@@ -18,7 +18,7 @@
   type Props = { back: PageRoute };
   let { back }: Props = $props();
 
-  const { api, clock } = getAppContext();
+  const { api, clock, config } = getAppContext();
   const nas = createResource(() => api.nas(), NAS_REFRESH_MS);
   onDestroy(nas.destroy);
 
@@ -46,7 +46,7 @@
   {#if nas.data}
     {@const data = nas.data}
     {@const banner = nasBanner(data, clock.now)}
-    {@const watch = nasWatch(data, clock.now)}
+    {@const watch = nasWatch(data, clock.now, config.ui.nightlyReload)}
     {@const timeline = nasTimeline(data, clock.now)}
     <div class="layout">
       <div class="column">

@@ -1,6 +1,6 @@
 // Tests du rechargement nocturne de la tablette : heure réglée, fenêtre, nuit déjà faite, personne là, téléphone.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { lastSlot, nightKey, nightlyReloadDue, type NightlyState, parseReloadTime, watchNightlyReload } from './nightly-reload.ts';
+import { lastSlot, nightKey, nightlyReloadDue, type NightlyState, parseReloadTime, readDoneNight, reloadedByNight, watchNightlyReload } from './nightly-reload.ts';
 
 /** Date locale (les tests passent aussi avec TZ=UTC). */
 const at = (day: number, h: number, m = 0) => new Date(2026, 10, day, h, m);
@@ -65,6 +65,27 @@ describe('nightlyReloadDue', () => {
   it('jamais sur un téléphone ni sans heure réglée', () => {
     expect(nightlyReloadDue(state({ phone: true }))).toBeNull();
     expect(nightlyReloadDue(state({ at: null }))).toBeNull();
+  });
+});
+
+describe('reloadedByNight', () => {
+  const three = { hours: 3, minutes: 0 };
+  it('page chargée juste après le rechargement de la nuit noté : oui', () => {
+    expect(reloadedByNight({ loadedAt: at(20, 3, 2).getTime(), at: three, doneNight: '2026-11-20' })).toBe(true);
+    expect(reloadedByNight({ loadedAt: at(20, 4, 55).getTime(), at: three, doneNight: '2026-11-20' })).toBe(true);
+  });
+
+  it('autre nuit notée, chargement hors fenêtre, sans heure réglée ni nuit notée : non', () => {
+    expect(reloadedByNight({ loadedAt: at(20, 3, 2).getTime(), at: three, doneNight: '2026-11-19' })).toBe(false);
+    expect(reloadedByNight({ loadedAt: at(20, 9, 0).getTime(), at: three, doneNight: '2026-11-20' })).toBe(false);
+    expect(reloadedByNight({ loadedAt: at(20, 3, 2).getTime(), at: null, doneNight: '2026-11-20' })).toBe(false);
+    expect(reloadedByNight({ loadedAt: at(20, 3, 2).getTime(), at: three, doneNight: null })).toBe(false);
+  });
+
+  it('readDoneNight : stockage absent ou refusé, null', () => {
+    expect(readDoneNight({ getItem: (k) => (k === 'homehub:nightlyReload' ? '2026-11-20' : null) })).toBe('2026-11-20');
+    expect(readDoneNight(null)).toBeNull();
+    expect(readDoneNight({ getItem: () => { throw new Error('refusé'); } })).toBeNull();
   });
 });
 
