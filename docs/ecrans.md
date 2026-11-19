@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.103.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.104.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -397,14 +397,19 @@ Roue dentée de l'en-tête : la notification « Pars dans 5 min » (trajet du ma
 seule par trajet ; touchée, elle ouvre le trajet du rendez-vous) et « Nouveaux mots » (un mot laissé pour soi ou pour
 toute la famille, avec son texte ; touchée, elle ouvre les mots), « Minuteurs » (un minuteur qu'on a lancé arrive à
 zéro, même tablette éteinte) et « Tâches en retard » (le lendemain matin d'une échéance manquée, avec le texte de la
-tâche ; celles de la famille vont aux parents), ici activées sur le téléphone d'Alex, avec **Essayer** et **Couper**,
-et un interrupteur pour chacune (toutes activées au départ). Sous les boutons, une ligne discrète dit ce que la notification surveille : chez Alex, la
-réunion de 19 h, départ de la maison à 18 h 20, notification vers 18 h 15. Chez Sam (au milieu), aucun rendez-vous
-situé dans les 3 h : son théâtre de 19 h 30 a pour lieu « Salle des fêtes », introuvable, et l'écran le dit. Sur un
-iPhone pas encore ajouté à l'écran d'accueil, l'écran explique comment faire d'abord (à droite). En dessous, un mot
-sur la position.
+tâche ; celles de la famille vont aux parents). Le bloc **vérifie qu'elles marchent vraiment sur ce téléphone**, à
+l'ouverture et au retour au premier plan : permission du navigateur, abonnement du navigateur comparé à celui que
+garde le serveur. Chez Alex (à gauche), tout est bon : **Notifications actives** avec la coche verte, un interrupteur
+pour chacune (toutes activées au départ), **Envoyer un essai** et **Couper**, et le rappel Android sur l'optimisation
+de la batterie. Sous les boutons, une ligne discrète dit ce que « Pars dans 5 min » surveille : chez Alex, la réunion
+de 19 h, départ de la maison à 18 h 20, notification vers 18 h 15. Sur le même téléphone dont le navigateur a perdu
+son abonnement (2e), le bloc dit **À réparer** et pourquoi, avec **Réparer** (réabonnement). Chez Sam (3e), permission
+pas encore demandée : **Activer** ; aucun rendez-vous situé dans les 3 h, son théâtre de 19 h 30 a pour lieu « Salle
+des fêtes », introuvable, et l'écran le dit. Sur un iPhone pas encore ajouté à l'écran d'accueil (à droite), l'écran
+explique qu'il faut iOS 16.4 ou plus et comment l'ajouter. Permission refusée : l'écran dit où la réautoriser (on ne
+peut pas la redemander). En dessous, un mot sur la position.
 
-<img src="images/telephone-reglages-notifications.png" width="260" alt="Réglages : notifications activées, rendez-vous suivi et heure de la notification"> <img src="images/telephone-reglages-diagnostic.png" width="260" alt="Réglages de Sam : aucun rendez-vous situé, lieu Salle des fêtes non reconnu"> <img src="images/telephone-reglages-iphone.png" width="260" alt="Réglages sur iPhone : ajouter d'abord HomeHub à l'écran d'accueil">
+<img src="images/telephone-reglages-notifications.png" width="200" alt="Réglages : notifications actives, coche verte, rendez-vous suivi et heure de la notification"> <img src="images/telephone-reglages-reparer.png" width="200" alt="Réglages : abonnement perdu par le navigateur, bouton Réparer"> <img src="images/telephone-reglages-diagnostic.png" width="200" alt="Réglages de Sam : bouton Activer, lieu Salle des fêtes non reconnu"> <img src="images/telephone-reglages-iphone.png" width="200" alt="Réglages sur iPhone : iOS 16.4 et HomeHub sur l'écran d'accueil d'abord">
 
 ### Caméra en direct (téléphone d'un parent)
 

@@ -28,12 +28,14 @@ export function createPushApi({
     return device ? { ownerId, deviceId: device.id } : fail(403, 'Réservé au téléphone de la personne');
   }
 
-  /** État des notifications de ce téléphone : abonné ou non, et ses réglages. */
-  const statusOf = async (deviceId: string): Promise<PushStatus> => ({
-    publicKey: store.keys().publicKey,
-    subscribed: (await store.get(deviceId)) !== null,
-    prefs: await store.prefs(deviceId),
-  });
+  /**
+   * État des notifications de ce téléphone : abonné ou non, son adresse de push (la sienne seulement, pour que le
+   * téléphone vérifie qu'elle est toujours celle de son navigateur) et ses réglages.
+   */
+  const statusOf = async (deviceId: string): Promise<PushStatus> => {
+    const subscription = await store.get(deviceId);
+    return { publicKey: store.keys().publicKey, subscribed: subscription !== null, endpoint: subscription?.endpoint ?? null, prefs: await store.prefs(deviceId) };
+  };
 
   api.get('/push', async (c) => {
     const { deviceId } = await phone(c);

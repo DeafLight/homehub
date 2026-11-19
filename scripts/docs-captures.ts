@@ -1254,7 +1254,7 @@ const TRIP_SHOTS = [
   'telephone-trajet-enfant', 'telephone-agenda-trajet-enfant', 'telephone-trajet-rdv-enfant',
   'telephone-trajet-parent', 'telephone-agenda-trajet-parent', 'telephone-trajet-rdv-parent', 'tablette-semaine-trajet', 'tablette-tableau-trajet',
   'tablette-frise-trajet', 'tablette-frise-trajet-rdv',
-  'telephone-reglages-notifications', 'telephone-reglages-diagnostic', 'telephone-reglages-iphone',
+  'telephone-reglages-notifications', 'telephone-reglages-reparer', 'telephone-reglages-diagnostic', 'telephone-reglages-iphone',
 ];
 /** Touche le rendez-vous dont le bouton contient `title` (agenda du téléphone, semaine de la tablette). */
 const openTrip = (title: string) => `[...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') ?? '').startsWith(${JSON.stringify(title)}))?.click()`;
@@ -1303,9 +1303,16 @@ if (!only || TRIP_SHOTS.some((name) => only.test(name))) {
   await shoot('tablette-frise-trajet', `${BASE}/p/lea`, TABLET, { wait: 4000 });
   await shoot('tablette-frise-trajet-rdv', `${BASE}/p/lea`, TABLET, { wait: 4000, after: openTrip('Piscine'), settle: 2500 });
   await call(A, 'PUT', '/transit/settings', tripSettings(true));
-  await call(A, 'PUT', '/push', { endpoint: `https://${FAKE_PUSH_HOST}/abonnement-exemple`, keys: { p256dh: `B${'A'.repeat(86)}`, auth: 'A'.repeat(22) } });
-  await shoot('telephone-reglages-notifications', `${BASE}/m/reglages`, PHONE, { init: asPhone('alex') });
-  await shoot('telephone-reglages-diagnostic', `${BASE}/m/reglages`, PHONE, { init: asPhone('sam') });
+  const pushEndpoint = `https://${FAKE_PUSH_HOST}/abonnement-exemple`;
+  await call(A, 'PUT', '/push', { endpoint: pushEndpoint, keys: { p256dh: `B${'A'.repeat(86)}`, auth: 'A'.repeat(22) } });
+  // Ce que dit le navigateur au diagnostic des notifications : permission, et abonnement local (adresse) ou aucun.
+  const browserPush = (permission: NotificationPermission, endpoint: string | null) =>
+    `Object.defineProperty(Notification, 'permission', { get: () => '${permission}' });` +
+    `navigator.serviceWorker.getRegistration = async () => ({ pushManager: { getSubscription: async () => ${endpoint ? `({ endpoint: '${endpoint}' })` : 'null'} } });`;
+  await shoot('telephone-reglages-notifications', `${BASE}/m/reglages`, PHONE, { init: asPhone('alex') + browserPush('granted', pushEndpoint) });
+  // Même téléphone, mais le navigateur a perdu son abonnement : à réparer.
+  await shoot('telephone-reglages-reparer', `${BASE}/m/reglages`, PHONE, { init: asPhone('alex') + browserPush('granted', null) });
+  await shoot('telephone-reglages-diagnostic', `${BASE}/m/reglages`, PHONE, { init: asPhone('sam') + browserPush('default', null) });
   const iphone = `Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Version/18.1 Mobile/15E148 Safari/604.1' });`;
   await shoot('telephone-reglages-iphone', `${BASE}/m/reglages`, PHONE, { init: asPhone('lea') + iphone });
   await call(A, 'DELETE', '/push');

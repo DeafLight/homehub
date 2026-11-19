@@ -266,6 +266,12 @@ Reste :
       de la famille : les parents), une fois par échéance. Interrupteurs « Minuteurs » et « Tâches en retard » dans les
       réglages du téléphone (activés par défaut).
 - [x] Notifications « Minuteur » et « Tâche en retard » sur un vrai téléphone : vérifiées le 19/11/2026.
+- [x] Vérification des notifications (0.104.0) : en tête des réglages du téléphone, un bloc dit si elles marchent
+      vraiment ici (prise en charge, permission, abonnement du navigateur comparé à celui du serveur), revérifié au
+      retour au premier plan, avec Activer, Réparer (réabonnement) ou Envoyer un essai ; iPhone hors écran d'accueil,
+      permission refusée et rappel batterie Android expliqués. Interrupteur général au-dessus des réglages par type.
+- [ ] Vérification des notifications sur un vrai téléphone (Android et iPhone) : états « Actives », « À réparer »
+      après effacement des données du navigateur, « Refusées ».
 - [x] Sonnerie du minuteur sur un Google Home (0.103.0) : réglage « Sonnerie sur le Google Home » dans Téléphones ›
       Télés › Alertes sur la télé (parent ; une enceinte de `cast.devices`, ou Aucune par défaut). À la fin d'un
       minuteur, une fois, télé allumée ou non, l'enceinte lit un carillon d'une dizaine de secondes calculé par

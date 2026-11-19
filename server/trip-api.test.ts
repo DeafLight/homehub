@@ -226,13 +226,15 @@ describe('API des notifications', () => {
     const { call, phone, sent, push } = await setup();
     const lea = await phone('lea');
     const status = await (await call('GET', '/push', { token: lea })).json();
-    expect(status).toEqual({ publicKey: push.keys().publicKey, subscribed: false, prefs: { trips: true, notes: true, timers: true, tasks: true } });
+    expect(status).toEqual({ publicKey: push.keys().publicKey, subscribed: false, endpoint: null, prefs: { trips: true, notes: true, timers: true, tasks: true } });
     expect((await call('POST', '/push/test', { token: lea })).status).toBe(409);
-    expect((await call('PUT', '/push', { token: lea, body: SUB })).status).toBe(200);
+    expect(await (await call('PUT', '/push', { token: lea, body: SUB })).json()).toMatchObject({ subscribed: true, endpoint: SUB.endpoint });
+    // Chaque téléphone ne voit que sa propre adresse de push.
+    expect(await (await call('GET', '/push', { token: await phone('alex') })).json()).toMatchObject({ subscribed: false, endpoint: null });
     expect((await push.all()).map((s) => s.ownerId)).toEqual(['lea']);
     expect(await (await call('POST', '/push/test', { token: lea })).json()).toEqual({ ok: true });
     expect(sent[0].sub.endpoint).toBe(SUB.endpoint);
-    expect(await (await call('DELETE', '/push', { token: lea })).json()).toMatchObject({ subscribed: false });
+    expect(await (await call('DELETE', '/push', { token: lea })).json()).toMatchObject({ subscribed: false, endpoint: null });
     expect(await push.all()).toEqual([]);
   });
 

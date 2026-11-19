@@ -1,6 +1,8 @@
-// Notifications du téléphone (Web Push, « Pars dans 5 min ») côté navigateur : ce que l'appareil permet (sur iPhone,
-// seulement une fois HomeHub ajouté à l'écran d'accueil et ouvert depuis l'icône), service worker (/sw.js) et
-// abonnement avec la clé publique du serveur. Règles pures testées à part (push.test.ts).
+// Notifications du téléphone (Web Push) côté navigateur : ce que l'appareil permet (sur iPhone, seulement une fois
+// HomeHub ajouté à l'écran d'accueil et ouvert depuis l'icône), service worker (/sw.js), abonnement avec la clé publique
+// du serveur, et diagnostic « est-ce que ça marche vraiment ici ? » (permission, abonnement du navigateur comparé à
+// celui que garde le serveur) avec l'action qui répare. Règles pures testées à part (push.test.ts).
+import type { PushStatus } from '../../../shared/types.ts';
 
 /** Ce que le téléphone permet : prêt, iPhone pas encore installé, connexion non sécurisée, ou pas de notifications. */
 export type PushSupport = 'ok' | 'ios-install' | 'insecure' | 'unsupported';
@@ -36,6 +38,45 @@ export function browserEnvironment(): PushEnvironment {
   };
 }
 
+/** Permission des notifications : `null` quand le navigateur n'a pas l'API. */
+export type PushPermission = NotificationPermission | null;
+
+/** Ce que le diagnostic regarde : ce que l'appareil permet, la permission, l'abonnement du navigateur, l'état serveur. */
+export type PushHealthInput = {
+  support: PushSupport;
+  permission: PushPermission;
+  /** Adresse de push de l'abonnement du navigateur (pushManager.getSubscription), `null` sans abonnement. */
+  localEndpoint: string | null;
+  /** Réponse de GET /api/push ; `null` tant qu'elle n'est pas arrivée. */
+  server: Pick<PushStatus, 'subscribed' | 'endpoint'> | null;
+};
+
+/**
+ * Verdict, dans l'ordre où on le cherche : pas pris en charge (iPhone pas installé, http, navigateur sans push), permission
+ * à demander ou refusée, état du serveur pas encore lu, coupées des deux côtés, abonnement à réparer (le navigateur ou
+ * le serveur l'a perdu, ou ils n'ont pas la même adresse), actives.
+ */
+export type PushHealth =
+  | { state: 'ios-install' | 'insecure' | 'unsupported' | 'denied' | 'checking'; action: 'none' }
+  | { state: 'ask' | 'off'; action: 'enable' }
+  | { state: 'repair'; reason: 'browser' | 'server' | 'mismatch'; action: 'repair' }
+  | { state: 'active'; action: 'test' };
+
+/** Diagnostic des notifications de ce téléphone : un état et l'action qui va avec. */
+export function pushHealth({ support, permission, localEndpoint, server }: PushHealthInput): PushHealth {
+  if (support !== 'ok') return { state: support, action: 'none' };
+  if (permission === null) return { state: 'unsupported', action: 'none' };
+  if (permission === 'denied') return { state: 'denied', action: 'none' };
+  if (permission === 'default') return { state: 'ask', action: 'enable' };
+  if (!server) return { state: 'checking', action: 'none' };
+  // Coupées des deux côtés : « Couper » a été choisi (ou rien n'a jamais été activé), ce n'est pas une panne.
+  if (!localEndpoint && !server.subscribed) return { state: 'off', action: 'enable' };
+  if (!localEndpoint) return { state: 'repair', reason: 'browser', action: 'repair' };
+  if (!server.subscribed) return { state: 'repair', reason: 'server', action: 'repair' };
+  if (server.endpoint !== null && server.endpoint !== localEndpoint) return { state: 'repair', reason: 'mismatch', action: 'repair' };
+  return { state: 'active', action: 'test' };
+}
+
 /** Clé publique VAPID (base64url) en octets, comme l'attend pushManager.subscribe. */
 export function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const base64 = base64url.replace(/-/gu, '+').replace(/_/gu, '/').padEnd(Math.ceil(base64url.length / 4) * 4, '=');
@@ -61,6 +102,15 @@ export async function subscribeBrowser(publicKey: string): Promise<PushSubscript
   if (existing) await existing.unsubscribe();
   const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
   return subscription.toJSON();
+}
+
+/** Permission et abonnement du navigateur, sans rien demander (relu à l'ouverture et au retour au premier plan). */
+export async function browserPushState(): Promise<{ permission: PushPermission; localEndpoint: string | null }> {
+  const permission = 'Notification' in window ? Notification.permission : null;
+  if (!('serviceWorker' in navigator)) return { permission, localEndpoint: null };
+  const reg = await navigator.serviceWorker.getRegistration('/').catch(() => undefined);
+  const subscription = await reg?.pushManager?.getSubscription().catch(() => null);
+  return { permission, localEndpoint: subscription?.endpoint ?? null };
 }
 
 /** Désabonne le navigateur (s'il l'était). */

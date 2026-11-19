@@ -637,8 +637,11 @@ export type PushPrefs = { trips: boolean; notes: boolean; timers: boolean; tasks
 /** Réglages d'un téléphone qui n'a encore rien choisi : tout est activé. */
 export const DEFAULT_PUSH_PREFS: PushPrefs = { trips: true, notes: true, timers: true, tasks: true };
 
-/** Notifications du téléphone (Web Push) : clé publique VAPID, si ce téléphone est abonné, et ce qu'il veut recevoir. */
-export type PushStatus = { publicKey: string; subscribed: boolean; prefs: PushPrefs };
+/**
+ * Notifications du téléphone (Web Push) : clé publique VAPID, si ce téléphone est abonné (et l'adresse de push que le
+ * serveur garde pour lui, à comparer avec celle du navigateur), et ce qu'il veut recevoir.
+ */
+export type PushStatus = { publicKey: string; subscribed: boolean; endpoint: string | null; prefs: PushPrefs };
 
 // --- Stock de la maison : produits scannés (code-barres), quantités, contenants ---
 

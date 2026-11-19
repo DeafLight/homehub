@@ -647,7 +647,15 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   tableaux de bord et la frise du jour du tableau « focus » d'un élève (les rendez-vous d'agenda, pas les cours), les rendez-vous qu'elle affiche déjà s'ouvrent de même, calculés depuis la maison, sans position,
   ligne voiture comprise. Les lieux reconnus sont cherchés par le serveur (une recherche par lieu, gardée 24 h).
 - **Notification « Pars dans 5 min »** (téléphone, roue dentée de l'en-tête › **Réglages**, `/m/reglages`) : Web Push,
-  activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**) ; une fois activées, un
+  activé par téléphone. En tête des réglages, le bloc **Notifications** vérifie qu'elles **marchent vraiment sur ce
+  téléphone**, à l'ouverture et à chaque retour au premier plan, et propose l'action qui va : **Non prises en charge**
+  (navigateur sans Web Push ; sur iPhone, iOS 16.4 ou plus et HomeHub ajouté à l'écran d'accueil), **Activer**
+  (permission pas encore demandée, ou coupées), **Refusées** (on ne peut pas redemander : où les réautoriser dans les
+  réglages du navigateur ou du téléphone), **À réparer** (abonnement perdu par le navigateur, inconnu du serveur, ou
+  adresse de push différente entre les deux : **Réparer** réabonne), ou **Notifications actives** (coche verte, **Envoyer
+  un essai**, **Couper**, et sur Android un rappel sur l'optimisation de la batterie si rien n'arrive appli fermée).
+  Diagnostic pur testé (`pushHealth`, `web/src/lib/push.ts`) ; `GET /api/push` donne l'adresse de push de ce téléphone
+  seulement. Une fois actives, un
   interrupteur par notification, **Pars dans 5 min**, **Nouveaux mots** (les mots, plus haut), **Minuteurs** et
   **Tâches en retard** (minuteurs et listes, plus haut), tous activés au départ et gardés par le serveur pour ce téléphone (`push.json`), même après « Couper » puis « Activer ». Elle part 5 min avant
   l'heure de partir, une seule fois par trajet : pour le **trajet du matin** (mêmes règles que la carte « Pars dans
@@ -1269,7 +1277,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/trip/rides` | `{ "rides": [{ tripId, from, to }] }` (4 au plus) → `{ rides }` : nouvelles heures des courses suivies (`departs`, `arrives`, `delayMinutes`, `course`), null pour une course introuvable ; le téléphone de la personne seulement |
 | `POST /api/trip/vehicles` | `{ "tripIds": [...] }` (courses MOTIS du trajet, 4 au plus) → `{ vehicles }` : position réelle de chaque véhicule trouvé dans le flux VehiclePositions (`tripId`, `lat`, `lon`, `bearing`, `age` en secondes, `stopId`, `status`), les autres absents ; jamais tout le flux ; le téléphone de la personne seulement |
 | `GET /api/map`, `GET /api/map/tiles.pmtiles` | fond de carte : `{ tiles }` (le fichier est-il là ?), puis le fichier PMTiles par morceaux (`Range` → 206 ; 416 hors du fichier, 404 sans fichier) ; téléphones appairés seulement |
-| `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed, prefs }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
+| `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed, endpoint, prefs }` (`endpoint` : son adresse de push, ou `null`) ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
 | `PUT /api/push/prefs` | `{ "trips"?: bool, "notes"?: bool, "timers"?: bool, "tasks"?: bool }` → même réponse : réglages de ce téléphone (« Pars dans 5 min », « Nouveaux mots », « Minuteurs », « Tâches en retard »), tout activé au départ ; le téléphone de la personne seulement |
 | `GET /api/trip/watch` | ce que surveille la notification de ce téléphone : `{ enabled, next, unplaced }` ; `next` : `kind`, `title`, `start`, `place`, `leaveAt` (depuis la maison, null sans itinéraire à temps), `byCommute` ; `unplaced` : rendez-vous des 3 h au lieu non reconnu (`title`, `start`, `location`, `reason` : `no-search`, `not-found`, `too-far`) |
 | `GET /api/trip/events?week=N` | `{ keys }` : clés (`<id>@<début>`) des rendez-vous à venir de la semaine N (0 à 2) dont le lieu est reconnu ; un téléphone : les siens et ceux de la famille ; la tablette : tous les profils ; un appareil non appairé : 403 |

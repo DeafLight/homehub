@@ -4,28 +4,52 @@
   import { getAppContext } from '../lib/context.ts';
   import { loadPairing } from '../lib/phone.ts';
   import { watchLines } from '../lib/next-trip.ts';
-  import { browserEnvironment, isIos, pushSupport, subscribeBrowser, unsubscribeBrowser } from '../lib/push.ts';
+  import { browserEnvironment, browserPushState, isIos, pushHealth, pushSupport, subscribeBrowser, unsubscribeBrowser, type PushPermission } from '../lib/push.ts';
   import { createResource } from '../lib/resource.svelte.ts';
   import { phonePath } from '../lib/route.ts';
   import type { PushPrefs } from '../../../shared/types.ts';
 
-  // Réglages du téléphone (/m/reglages, roue dentée de l'en-tête) : les notifications (Web Push), « Pars dans 5 min »
-  // pour le trajet du matin et le prochain rendez-vous situé, « Nouveaux mots », « Minuteurs » et « Tâches en retard » ;
-  // une fois activées, un interrupteur pour chacune (gardé par le serveur pour ce téléphone, tout activé au départ).
-  // Sur iPhone, possible seulement une fois HomeHub ajouté à l'écran d'accueil et ouvert depuis son icône : l'écran le dit. Un mot sur la position, utilisée pour le prochain
-  // trajet sans être gardée. Le serveur rattache l'abonnement à ce téléphone appairé (et l'oublie s'il est retiré).
-  // Sous la carte, une ligne discrète dit quel rendez-vous la notification surveille, ou pourquoi aucun (lieu non
-  // reconnu, rien dans les 3 h) : de quoi comprendre une notification qui ne vient pas.
+  // Réglages du téléphone (/m/reglages, roue dentée de l'en-tête). En tête, le bloc « Notifications » vérifie qu'elles
+  // marchent vraiment sur ce téléphone (diagnostic pur pushHealth : prise en charge, permission, abonnement du navigateur
+  // comparé à celui que garde le serveur), revérifié à l'ouverture et au retour au premier plan, et propose l'action qui
+  // va : Activer, Réparer (réabonnement), ou, quand tout est bon, Envoyer un essai et Couper. C'est l'interrupteur
+  // général : une fois actives, un interrupteur par notification (« Pars dans 5 min », « Nouveaux mots », « Minuteurs »,
+  // « Tâches en retard », gardés par le serveur pour ce téléphone, tout activé au départ). Sur iPhone, possible seulement
+  // une fois HomeHub ajouté à l'écran d'accueil et ouvert depuis son icône : l'écran le dit. Un mot sur la position,
+  // utilisée pour le prochain trajet sans être gardée. Le serveur rattache l'abonnement à ce téléphone appairé (et
+  // l'oublie s'il est retiré). Sous la carte, une ligne discrète dit quel rendez-vous « Pars dans 5 min » surveille, ou
+  // pourquoi aucun (lieu non reconnu, rien dans les 3 h) : de quoi comprendre une notification qui ne vient pas.
   const { api, navigate } = getAppContext();
   const pairing = loadPairing();
   const env = browserEnvironment();
+  const ios = isIos(env.userAgent);
   const support = pushSupport(env);
   const status = createResource(() => api.pushStatus(), 5 * 60_000);
   const watch = createResource(async () => (pairing ? api.tripWatch() : null), 60_000);
+  /** Ce que dit le navigateur (permission, abonnement) ; `null` tant qu'il n'a pas répondu. */
+  let local = $state<{ permission: PushPermission; localEndpoint: string | null } | null>(null);
+  async function readLocal() {
+    if (support === 'ok') local = await browserPushState().catch(() => ({ permission: null, localEndpoint: null }));
+  }
+  /** Revérifie tout : navigateur et serveur. */
+  const recheck = () => Promise.all([readLocal(), status.refresh()]);
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') void recheck();
+  };
+  void readLocal();
+  document.addEventListener('visibilitychange', onVisible);
   onDestroy(() => {
+    document.removeEventListener('visibilitychange', onVisible);
     status.destroy();
     watch.destroy();
   });
+  const health = $derived(
+    support !== 'ok'
+      ? pushHealth({ support, permission: null, localEndpoint: null, server: null })
+      : local
+        ? pushHealth({ support, ...local, server: status.data })
+        : ({ state: 'checking', action: 'none' } as const),
+  );
   let busy = $state(false);
   let message = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -40,15 +64,16 @@
       error = (err as Error).message;
     } finally {
       busy = false;
-      await status.refresh();
+      await recheck();
     }
   }
 
-  const enable = () =>
+  /** Activer et Réparer : permission (accordée d'office si elle l'est déjà), nouvel abonnement, envoyé au serveur. */
+  const enable = (done: string) =>
     run(async () => {
       const current = status.data ?? (await api.pushStatus());
       await api.subscribePush(await subscribeBrowser(current.publicKey));
-      return 'Notifications activées sur ce téléphone.';
+      return done;
     });
   const disable = () =>
     run(async () => {
@@ -76,10 +101,16 @@
     { kind: 'timers', name: 'Minuteurs', hint: 'Un minuteur que tu as lancé arrive à zéro, même tablette éteinte (sans auteur connu : les parents).' },
     { kind: 'tasks', name: 'Tâches en retard', hint: 'Le lendemain matin d’une échéance, une tâche à toi pas cochée, avec son texte (celles de la famille : les parents) ; touchée, elle ouvre les tâches.' },
   ];
+  /** Pourquoi réparer, dit simplement. */
+  const REPAIR = {
+    browser: 'Le téléphone a perdu son abonnement aux notifications (données du navigateur effacées, mise à jour…).',
+    server: 'HomeHub ne connaît plus ce téléphone pour les notifications (abonnement expiré ou refusé par le service de push).',
+    mismatch: 'Le téléphone et HomeHub n’ont pas le même abonnement : les notifications partiraient vers un ancien.',
+  };
   const test = () =>
     run(async () => {
       await api.testPush();
-      return 'Notification d’essai envoyée.';
+      return 'Notification d’essai envoyée : elle doit arriver dans quelques secondes.';
     });
 </script>
 
@@ -96,41 +127,67 @@
       <h2><Icon name="bell" size={22} /> Notifications</h2>
       <p class="muted">« Pars dans 5 min » pour tes trajets, les nouveaux mots qu’on te laisse, tes minuteurs et tes tâches en retard. Elles arrivent même quand HomeHub est fermé.</p>
 
-      {#if support === 'ios-install'}
+      {#if health.state === 'ios-install'}
+        <p class="state">Pas encore possibles ici</p>
         <div class="notice">
           <strong>Sur iPhone, ajoute d’abord HomeHub à l’écran d’accueil.</strong>
-          <p>Dans Safari : bouton Partager, puis « Sur l’écran d’accueil ». Ouvre ensuite HomeHub depuis son icône et reviens ici.</p>
+          <p>Il faut iOS 16.4 ou plus récent. Dans Safari : bouton Partager, puis « Sur l’écran d’accueil ». Ouvre ensuite HomeHub depuis son icône et reviens ici.</p>
         </div>
-      {:else if support === 'insecure'}
+      {:else if health.state === 'insecure'}
+        <p class="state">Non prises en charge</p>
         <p class="notice">Les notifications demandent une connexion sécurisée (adresse en https).</p>
-      {:else if support === 'unsupported'}
-        <p class="notice">Ce navigateur ne sait pas recevoir de notifications.</p>
-      {:else if status.data}
-        <p class="state" class:on={status.data.subscribed}>{status.data.subscribed ? 'Activées sur ce téléphone' : 'Coupées sur ce téléphone'}</p>
-        {#if status.data.subscribed}
-          <ul class="kinds">
-            {#each KINDS as k (k.kind)}
-              <li>
-                <button type="button" class="switch" role="switch" aria-checked={status.data.prefs[k.kind]} aria-label={k.name} onclick={() => toggle(k.kind)}><span></span></button>
-                <span class="what" class:off={!status.data.prefs[k.kind]}>
-                  <span class="name">{k.name}</span>
-                  <span class="muted small">{k.hint}</span>
-                </span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-        <div class="actions">
-          {#if status.data.subscribed}
-            <button type="button" class="btn small" disabled={busy} onclick={test}>Essayer</button>
-            <button type="button" class="btn small" disabled={busy} onclick={disable}>Couper</button>
-          {:else}
-            <button type="button" class="btn primary" disabled={busy} onclick={enable}>Activer les notifications</button>
-          {/if}
+      {:else if health.state === 'unsupported'}
+        <p class="state">Non prises en charge</p>
+        <p class="notice">
+          {ios
+            ? 'Cet iPhone ne sait pas recevoir les notifications de HomeHub : il faut iOS 16.4 ou plus récent, et HomeHub ouvert depuis son icône de l’écran d’accueil.'
+            : 'Ce navigateur ne sait pas recevoir de notifications : ouvre HomeHub dans Chrome, Firefox, Edge ou Samsung Internet.'}
+        </p>
+      {:else if health.state === 'denied'}
+        <p class="state bad">Refusées sur ce téléphone</p>
+        <div class="notice">
+          <strong>HomeHub ne peut pas redemander : réautorise-les à la main, puis reviens ici.</strong>
+          <p>
+            {ios
+              ? 'Réglages de l’iPhone › Notifications › HomeHub › Autoriser les notifications.'
+              : 'Dans le navigateur : cadenas à gauche de l’adresse › Autorisations › Notifications ; ou Paramètres du téléphone › Applis › HomeHub (ou le navigateur) › Notifications.'}
+          </p>
         </div>
-        {#if isIos(env.userAgent)}<p class="muted small">iPhone : réglage aussi dans Réglages › Notifications › HomeHub.</p>{/if}
-      {:else if status.error}
-        <p class="error">{status.error}</p>
+      {:else if health.state === 'checking'}
+        {#if status.error}<p class="error">{status.error}</p>{:else}<p class="state">Vérification…</p>{/if}
+      {:else if health.state === 'ask' || health.state === 'off'}
+        <p class="state">{health.state === 'ask' ? 'Pas encore activées sur ce téléphone' : 'Coupées sur ce téléphone'}</p>
+        <div class="actions">
+          <button type="button" class="btn primary" disabled={busy} onclick={() => enable('Notifications activées sur ce téléphone.')}>Activer</button>
+        </div>
+      {:else if health.state === 'repair'}
+        <p class="state bad">À réparer</p>
+        <p class="notice">{REPAIR[health.reason]}</p>
+        <div class="actions">
+          <button type="button" class="btn primary" disabled={busy} onclick={() => enable('Notifications réparées : envoie un essai pour vérifier.')}>Réparer</button>
+        </div>
+      {:else if status.data}
+        <p class="state on"><Icon name="check" size={22} strokeWidth={2.6} /> Notifications actives</p>
+        <ul class="kinds">
+          {#each KINDS as k (k.kind)}
+            <li>
+              <button type="button" class="switch" role="switch" aria-checked={status.data.prefs[k.kind]} aria-label={k.name} onclick={() => toggle(k.kind)}><span></span></button>
+              <span class="what" class:off={!status.data.prefs[k.kind]}>
+                <span class="name">{k.name}</span>
+                <span class="muted small">{k.hint}</span>
+              </span>
+            </li>
+          {/each}
+        </ul>
+        <div class="actions">
+          <button type="button" class="btn small" disabled={busy} onclick={test}>Envoyer un essai</button>
+          <button type="button" class="btn small" disabled={busy} onclick={disable}>Couper</button>
+        </div>
+        <p class="muted small">
+          {ios
+            ? 'iPhone : réglage aussi dans Réglages › Notifications › HomeHub.'
+            : 'Rien n’arrive quand HomeHub est fermé ? Vérifie l’optimisation de la batterie : Paramètres › Applis › le navigateur (ou HomeHub) › Batterie › Sans restriction.'}
+        </p>
       {/if}
       {#if message}<p class="ok">{message}</p>{/if}
       {#if error}<p class="error">{error}</p>{/if}
@@ -303,7 +360,14 @@
   }
 
   .state.on {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: var(--ok);
+  }
+
+  .state.bad {
+    color: var(--danger-fg);
   }
 
   .actions {
