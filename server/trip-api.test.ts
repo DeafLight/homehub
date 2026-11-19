@@ -226,7 +226,7 @@ describe('API des notifications', () => {
     const { call, phone, sent, push } = await setup();
     const lea = await phone('lea');
     const status = await (await call('GET', '/push', { token: lea })).json();
-    expect(status).toEqual({ publicKey: push.keys().publicKey, subscribed: false, prefs: { trips: true, notes: true } });
+    expect(status).toEqual({ publicKey: push.keys().publicKey, subscribed: false, prefs: { trips: true, notes: true, timers: true, tasks: true } });
     expect((await call('POST', '/push/test', { token: lea })).status).toBe(409);
     expect((await call('PUT', '/push', { token: lea, body: SUB })).status).toBe(200);
     expect((await push.all()).map((s) => s.ownerId)).toEqual(['lea']);
@@ -240,12 +240,24 @@ describe('API des notifications', () => {
     const { call, phone } = await setup();
     const lea = await phone('lea');
     const off = await (await call('PUT', '/push/prefs', { token: lea, body: { notes: false } })).json();
-    expect(off.prefs).toEqual({ trips: true, notes: false });
+    expect(off.prefs).toEqual({ trips: true, notes: false, timers: true, tasks: true });
     await call('PUT', '/push', { token: lea, body: SUB });
-    expect((await (await call('GET', '/push', { token: lea })).json()).prefs).toEqual({ trips: true, notes: false });
+    expect((await (await call('GET', '/push', { token: lea })).json()).prefs).toEqual({ trips: true, notes: false, timers: true, tasks: true });
     expect((await (await call('PUT', '/push/prefs', { token: lea, body: { notes: true } })).json()).prefs.notes).toBe(true);
     expect((await call('PUT', '/push/prefs', { token: lea, body: { notes: 'oui' } })).status).toBe(400);
     expect((await call('PUT', '/push/prefs', { from: TABLET, body: { notes: false } })).status).toBe(403);
+  });
+
+  it('réglages « Minuteurs » et « Tâches en retard » : par téléphone, refusés à la tablette et sans téléphone', async () => {
+    const { call, phone } = await setup();
+    const lea = await phone('lea');
+    const alex = await phone('alex');
+    const off = await (await call('PUT', '/push/prefs', { token: lea, body: { timers: false, tasks: false } })).json();
+    expect(off.prefs).toEqual({ trips: true, notes: true, timers: false, tasks: false });
+    expect((await (await call('GET', '/push', { token: alex })).json()).prefs).toEqual({ trips: true, notes: true, timers: true, tasks: true });
+    expect((await call('PUT', '/push/prefs', { token: lea, body: { autre: true } })).status).toBe(400);
+    expect((await call('PUT', '/push/prefs', { from: TABLET, body: { tasks: false } })).status).toBe(403);
+    expect((await call('PUT', '/push/prefs', { body: { timers: false } })).status).toBe(403);
   });
 
   it('refuse un abonnement mal formé, la tablette et un appareil non appairé', async () => {

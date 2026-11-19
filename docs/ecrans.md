@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.101.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.102.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -390,8 +390,10 @@ maison (en dessous). Les cours restent tels quels.
 
 Roue dentée de l'en-tête : la notification « Pars dans 5 min » (trajet du matin et prochain rendez-vous situé, une
 seule par trajet ; touchée, elle ouvre le trajet du rendez-vous) et « Nouveaux mots » (un mot laissé pour soi ou pour
-toute la famille, avec son texte ; touchée, elle ouvre les mots), ici activées sur le téléphone d'Alex, avec
-**Essayer** et **Couper**, et un interrupteur pour chacune (toutes deux activées au départ). Sous les boutons, une ligne discrète dit ce que la notification surveille : chez Alex, la
+toute la famille, avec son texte ; touchée, elle ouvre les mots), « Minuteurs » (un minuteur qu'on a lancé arrive à
+zéro, même tablette éteinte) et « Tâches en retard » (le lendemain matin d'une échéance manquée, avec le texte de la
+tâche ; celles de la famille vont aux parents), ici activées sur le téléphone d'Alex, avec **Essayer** et **Couper**,
+et un interrupteur pour chacune (toutes activées au départ). Sous les boutons, une ligne discrète dit ce que la notification surveille : chez Alex, la
 réunion de 19 h, départ de la maison à 18 h 20, notification vers 18 h 15. Chez Sam (au milieu), aucun rendez-vous
 situé dans les 3 h : son théâtre de 19 h 30 a pour lieu « Salle des fêtes », introuvable, et l'écran le dit. Sur un
 iPhone pas encore ajouté à l'écran d'accueil, l'écran explique comment faire d'abord (à droite). En dessous, un mot

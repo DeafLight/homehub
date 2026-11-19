@@ -226,6 +226,13 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   dashboard d'où l'on vient) si elle a quelque chose à faire, sinon sur « Tous » ; son bouton reste toujours là, même
   à 0, les autres personnes n'en ont un que si elles ont une tâche. Les tâches d'un membre apparaissent sur son dashboard, les
   courses sur celui de la famille. Sur la tablette, ce qui est coché ou ajouté l'est au nom de la personne reconnue.
+  **Notification « Tâche en retard »** (Web Push, même appli fermée) : une tâche à échéance pas cochée est en retard le
+  lendemain de son échéance ; ce matin-là, à partir de 8 h (jamais la nuit), le téléphone du profil à qui elle est
+  attribuée reçoit « Tâche en retard » avec le texte de la tâche ; une **tâche de la famille** va aux téléphones des
+  **parents** (« Tâche de la famille en retard »). Une seule fois par tâche et par échéance (une tâche qui revient est
+  annoncée à chaque échéance manquée) ; seules les tâches devenues en retard le jour même sont annoncées, pas les
+  vieilles. Le texte ne passe que par le téléphone de la personne (chiffré de bout en bout), jamais par la tablette ;
+  touchée, elle ouvre les tâches (`/m/taches`). Interrupteur **Tâches en retard** dans les réglages du téléphone.
 - **Mots** : envoyés depuis un profil à un autre, ou à toute la famille (200 caractères) : depuis son téléphone
   (onglet Mots) ou la tablette (bloc « Mots » d'un dashboard, envoyé depuis ce profil ; on choisit seulement à qui). Le
   destinataire le voit sur son dashboard et son téléphone, touche « Vu » et il disparaît du dashboard ; sur le
@@ -641,8 +648,8 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   ligne voiture comprise. Les lieux reconnus sont cherchés par le serveur (une recherche par lieu, gardée 24 h).
 - **Notification « Pars dans 5 min »** (téléphone, roue dentée de l'en-tête › **Réglages**, `/m/reglages`) : Web Push,
   activé par téléphone (bouton **Activer les notifications**, puis **Essayer** et **Couper**) ; une fois activées, un
-  interrupteur par notification, **Pars dans 5 min** et **Nouveaux mots** (les mots, plus haut), tous deux activés au
-  départ et gardés par le serveur pour ce téléphone (`push.json`), même après « Couper » puis « Activer ». Elle part 5 min avant
+  interrupteur par notification, **Pars dans 5 min**, **Nouveaux mots** (les mots, plus haut), **Minuteurs** et
+  **Tâches en retard** (minuteurs et listes, plus haut), tous activés au départ et gardés par le serveur pour ce téléphone (`push.json`), même après « Couper » puis « Activer ». Elle part 5 min avant
   l'heure de partir, une seule fois par trajet : pour le **trajet du matin** (mêmes règles que la carte « Pars dans
   N min » et l'alerte de la télé) et pour le **prochain rendez-vous situé**, calculé depuis la maison (le serveur n'a
   pas la position ; pour un cours, seulement le premier de la journée et seulement sans trajet réglé). Le texte dit la
@@ -706,6 +713,12 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   Lancer ou annuler un minuteur demande quelqu'un de reconnu (n'importe qui, enfant compris) ; arrêter celui qui
   sonne, non. Enregistrés (`timers.json`) : une mise à jour ou un redémarrage du serveur ne les perd pas ; celui qui
   s'est terminé entre-temps sonne au retour.
+  **Notification « Minuteur »** (Web Push, même appli fermée) : quand un minuteur arrive à zéro, le téléphone de la
+  personne qui l'a lancé (reconnue à la tablette, ou son téléphone) reçoit son nom et « C'est l'heure ! (10 min) » ;
+  sans auteur connu, les téléphones des parents. Le serveur la fait partir lui-même (le minuteur y est enregistré),
+  même tablette éteinte, une seule fois par minuteur, même après un redémarrage ; un minuteur arrêté avant la fin
+  n'envoie rien. Touchée, elle ouvre l'accueil du téléphone (le minuteur s'arrête sur la tablette ou une télé).
+  Interrupteur **Minuteurs** dans les réglages du téléphone.
   **Sur la télé** (appli HomeHub TV) : tant qu'un minuteur tourne, chaque télé allumée montre en petit, en bas à
   droite, par-dessus tout, le plus proche de la fin (nom et temps restant, « +1 » s'il y en a d'autres) ; rien n'y
   prend la télécommande. La télé décompte seule à l'heure du serveur. Un minuteur qui se termine s'affiche aussi sur chaque télé allumée, en haut à
@@ -980,7 +993,7 @@ rainAlert:           # facultatif : alerte pluie sur la télé (appli HomeHub TV
 | `CAL_…` (noms libres) | — | Adresses secrètes iCal référencées par `calendars` |
 | `ECOLEDIRECTE_IDENTIFIANT`, `_MOTDEPASSE`, `_CN`, `_CV` | — | Compte Famille ÉcoleDirecte et jetons de confiance (script d'appairage) |
 | `HOMEHUB_STATE_DIR` | `state` (image Docker : `/state`) | Dossier inscriptible : jeton Pronote (`pronote.json`), listes (`lists.json`), mots (`notes.json`), téléphones reliés (`devices.json`), télés avec l'appli HomeHub TV (`screens.json`), leurs applis (`screen-apps.json`) le réglage de leurs alertes (`screen-alerts.json`) leurs rappels (`screen-reminders.json`), l'heure du coucher (`bedtime.json`), dernier chargement de la page de la tablette (`tablet-page.json`), PIN des profils (`pins.json`), visages (`faces.json`), routines cochées (`routines.json`) et leurs réglages (`routine-plans.json`), minuteurs (`timers.json`), stock, produits et contenants (`stock.json`), programmes de sport (`fitness.json`), carnet de recettes (`recipes.json`) et leurs photos (`recipes/`), notes de la famille sur les recettes (`recipe-notes.json`), menus de la semaine, « j'en ai déjà », décisions « à vérifier au placard », frais avancés (« Acheter maintenant »), placards et produits reliés aux ingrédients (`menus.json`), drive : enseigne, magasin, produits retenus (avec les pièces par paquet, le dernier prix vu par l’extension et la trace d'une rupture) et panier en cours avec ses articles introuvables (`drive.json`)
-, réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min » et « Nouveaux mots » : clés VAPID (`push-vapid.json`, générées au premier démarrage), abonnements et réglages des téléphones (`push.json`) |
+, réglage des vacances scolaires (`holiday-settings.json`) et dernier calendrier reçu (`school-holidays.json`), notifications « Pars dans 5 min », « Nouveaux mots », « Minuteurs » et « Tâches en retard » : clés VAPID (`push-vapid.json`, générées au premier démarrage), abonnements et réglages des téléphones (`push.json`) |
 | `HOMEHUB_KIOSK_KEY` | — | Clé secrète de la tablette (20 caractères au moins, ex. `openssl rand -base64 24`), donnée une fois dans son adresse de démarrage : `https://…/#key=<clé>` |
 | `HOMEHUB_TURN_SECRET` | — | Secret partagé avec le relais TURN de la caméra en direct (coturn, `static-auth-secret`) ; sans lui, `camera.turn` est ignoré |
 | `HOMEHUB_MEDIA_PORT` | — | Port des médias : ne sert que les messages vocaux des appareils Cast (`GET /api/cast/clips/…`), pour les rendre joignables du réseau local quand l'application est derrière un proxy ; `cast.mediaUrl` pointe dessus |
@@ -1070,6 +1083,8 @@ server/
   services/web-push.ts     Web Push sans dépendance : chiffrement RFC 8291, signature VAPID
   services/trip-push.ts    notification « Pars dans 5 min » (trajet du matin, prochain rendez-vous)
   services/note-push.ts    notification « Nouveau mot » (destinataire, ou toute la famille sauf l'auteur)
+  services/timer-push.ts   notification « Minuteur » (qui l'a lancé, sinon les parents)
+  services/task-push.ts    notification « Tâche en retard » (profil de la tâche ; la famille : les parents)
   sources/geocode.ts       recherche d'adresse (Géoplateforme de l'IGN)
   sources/transit-settings.ts  réglages de la page « Transports » (lieux, trajets, arrêts de l'accueil)
   sources/school-holidays.ts   vacances scolaires (calendrier officiel lu par pages, filtre local, cache d'un jour, aperçu)
@@ -1246,7 +1261,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/trip/vehicles` | `{ "tripIds": [...] }` (courses MOTIS du trajet, 4 au plus) → `{ vehicles }` : position réelle de chaque véhicule trouvé dans le flux VehiclePositions (`tripId`, `lat`, `lon`, `bearing`, `age` en secondes, `stopId`, `status`), les autres absents ; jamais tout le flux ; le téléphone de la personne seulement |
 | `GET /api/map`, `GET /api/map/tiles.pmtiles` | fond de carte : `{ tiles }` (le fichier est-il là ?), puis le fichier PMTiles par morceaux (`Range` → 206 ; 416 hors du fichier, 404 sans fichier) ; téléphones appairés seulement |
 | `GET /api/push`, `PUT /api/push`, `DELETE /api/push` | notifications de ce téléphone : `{ publicKey, subscribed, prefs }` ; `PUT` avec l'abonnement du navigateur (`{ endpoint, keys }`) |
-| `PUT /api/push/prefs` | `{ "trips"?: bool, "notes"?: bool }` → même réponse : réglages de ce téléphone (« Pars dans 5 min », « Nouveaux mots »), tout activé au départ ; le téléphone de la personne seulement |
+| `PUT /api/push/prefs` | `{ "trips"?: bool, "notes"?: bool, "timers"?: bool, "tasks"?: bool }` → même réponse : réglages de ce téléphone (« Pars dans 5 min », « Nouveaux mots », « Minuteurs », « Tâches en retard »), tout activé au départ ; le téléphone de la personne seulement |
 | `GET /api/trip/watch` | ce que surveille la notification de ce téléphone : `{ enabled, next, unplaced }` ; `next` : `kind`, `title`, `start`, `place`, `leaveAt` (depuis la maison, null sans itinéraire à temps), `byCommute` ; `unplaced` : rendez-vous des 3 h au lieu non reconnu (`title`, `start`, `location`, `reason` : `no-search`, `not-found`, `too-far`) |
 | `GET /api/trip/events?week=N` | `{ keys }` : clés (`<id>@<début>`) des rendez-vous à venir de la semaine N (0 à 2) dont le lieu est reconnu ; un téléphone : les siens et ceux de la famille ; la tablette : tous les profils ; un appareil non appairé : 403 |
 | `POST /api/trip/event` | `{ "event": "<clé>", "position"?: { lat, lon } }` → `{ enabled, trip, missing? }` : le trajet de ce rendez-vous (`trip.from`, `trip.homeBecause` : `far` ou `tablet`, `car.typical`) ; position prise seulement d'un téléphone et pour un rendez-vous des 3 h ; `missing` : `event`, `place`, `past`, `origin`, `here` |

@@ -69,8 +69,8 @@ describe('textes', () => {
 
 function setup({ result = 'sent' as PushResult, devices = [{ id: 'tel-lea', ownerId: 'lea' }], hasCommute = true, planned = trip(at(7, 45), 'event'), trips = true } = {}) {
   let subs: PushRecord[] = [
-    { deviceId: 'tel-lea', ownerId: 'lea', endpoint: 'https://push.exemple.test/1', keys: { p256dh: 'p', auth: 'a' }, prefs: { trips, notes: true } },
-    { deviceId: 'tel-vieux', ownerId: 'lea', endpoint: 'https://push.exemple.test/2', keys: { p256dh: 'p', auth: 'a' }, prefs: { trips: true, notes: true } },
+    { deviceId: 'tel-lea', ownerId: 'lea', endpoint: 'https://push.exemple.test/1', keys: { p256dh: 'p', auth: 'a' }, prefs: { trips, notes: true, timers: true, tasks: true } },
+    { deviceId: 'tel-vieux', ownerId: 'lea', endpoint: 'https://push.exemple.test/2', keys: { p256dh: 'p', auth: 'a' }, prefs: { trips: true, notes: true, timers: true, tasks: true } },
   ];
   const marked = new Set<string>();
   const sent: { to: string; message: PushMessage }[] = [];

@@ -10,9 +10,9 @@
   import type { PushPrefs } from '../../../shared/types.ts';
 
   // Réglages du téléphone (/m/reglages, roue dentée de l'en-tête) : les notifications (Web Push), « Pars dans 5 min »
-  // pour le trajet du matin et le prochain rendez-vous situé, et « Nouveaux mots » ; une fois activées, un interrupteur
-  // pour chacune (gardé par le serveur pour ce téléphone, tout activé au départ). Sur iPhone, possible seulement une fois HomeHub ajouté à
-  // l'écran d'accueil et ouvert depuis son icône : l'écran le dit. Un mot sur la position, utilisée pour le prochain
+  // pour le trajet du matin et le prochain rendez-vous situé, « Nouveaux mots », « Minuteurs » et « Tâches en retard » ;
+  // une fois activées, un interrupteur pour chacune (gardé par le serveur pour ce téléphone, tout activé au départ).
+  // Sur iPhone, possible seulement une fois HomeHub ajouté à l'écran d'accueil et ouvert depuis son icône : l'écran le dit. Un mot sur la position, utilisée pour le prochain
   // trajet sans être gardée. Le serveur rattache l'abonnement à ce téléphone appairé (et l'oublie s'il est retiré).
   // Sous la carte, une ligne discrète dit quel rendez-vous la notification surveille, ou pourquoi aucun (lieu non
   // reconnu, rien dans les 3 h) : de quoi comprendre une notification qui ne vient pas.
@@ -73,6 +73,8 @@
   const KINDS: { kind: keyof PushPrefs; name: string; hint: string }[] = [
     { kind: 'trips', name: 'Pars dans 5 min', hint: 'Trajet du matin et prochain rendez-vous qui a une adresse (calculé depuis la maison). Une seule par trajet ; touchée, elle ouvre le trajet.' },
     { kind: 'notes', name: 'Nouveaux mots', hint: 'Un mot laissé pour toi ou pour toute la famille, avec son texte ; touchée, elle ouvre les mots.' },
+    { kind: 'timers', name: 'Minuteurs', hint: 'Un minuteur que tu as lancé arrive à zéro, même tablette éteinte (sans auteur connu : les parents).' },
+    { kind: 'tasks', name: 'Tâches en retard', hint: 'Le lendemain matin d’une échéance, une tâche à toi pas cochée, avec son texte (celles de la famille : les parents) ; touchée, elle ouvre les tâches.' },
   ];
   const test = () =>
     run(async () => {
@@ -92,7 +94,7 @@
   {:else}
     <section class="card">
       <h2><Icon name="bell" size={22} /> Notifications</h2>
-      <p class="muted">« Pars dans 5 min » pour tes trajets, et les nouveaux mots qu’on te laisse. Elles arrivent même quand HomeHub est fermé.</p>
+      <p class="muted">« Pars dans 5 min » pour tes trajets, les nouveaux mots qu’on te laisse, tes minuteurs et tes tâches en retard. Elles arrivent même quand HomeHub est fermé.</p>
 
       {#if support === 'ios-install'}
         <div class="notice">

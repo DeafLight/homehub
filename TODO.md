@@ -260,7 +260,12 @@ Reste :
 - [x] Notification « Nouveau mot » (Web Push, 0.101.0) : sur le téléphone du destinataire, ou de chaque membre sauf
       l'auteur pour un mot à toute la famille ; titre « Mot de Sam », texte du mot, ouvre `/m/mots` ; interrupteurs
       « Pars dans 5 min » et « Nouveaux mots » par téléphone dans ses réglages (activés par défaut). Vérifié sur un vrai téléphone le 19/11/2026.
-- [ ] Autres notifications (Web Push dans la PWA) : minuteur qui sonne, tâche en retard.
+- [x] Notifications « Minuteur » et « Tâche en retard » (Web Push, 0.102.0) : un minuteur qui arrive à zéro, sur le
+      téléphone de qui l'a lancé (sinon des parents), envoyé par le serveur même tablette éteinte, une seule fois ;
+      une tâche pas cochée, le lendemain matin de son échéance à partir de 8 h, sur le téléphone de son profil (tâche
+      de la famille : les parents), une fois par échéance. Interrupteurs « Minuteurs » et « Tâches en retard » dans les
+      réglages du téléphone (activés par défaut).
+- [ ] Notifications « Minuteur » et « Tâche en retard » sur un vrai téléphone.
 
 ## Télé : appli HomeHub TV (une idée par version)
 

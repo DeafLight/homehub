@@ -23,7 +23,7 @@ const sub = (deviceId: string, ownerId: string, prefs: Partial<PushPrefs> = {}):
   ownerId,
   endpoint: `https://push.exemple.test/${deviceId}`,
   keys: { p256dh: 'p', auth: 'a' },
-  prefs: { trips: true, notes: true, ...prefs },
+  prefs: { trips: true, notes: true, timers: true, tasks: true, ...prefs },
 });
 
 function setup({

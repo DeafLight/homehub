@@ -1,7 +1,7 @@
-// Notifications Web Push (« Pars dans 5 min », « Nouveaux mots ») : clés VAPID du serveur, générées au premier
+// Notifications Web Push (« Pars dans 5 min », « Nouveaux mots », « Minuteurs », « Tâches en retard ») : clés VAPID du serveur, générées au premier
 // démarrage et gardées dans push-vapid.json (dossier d'état, jamais dans le dépôt) ; abonnements des téléphones appairés
-// dans push.json, un par téléphone (identifiant de l'appareil), avec les trajets déjà annoncés (une seule notification
-// par trajet, même après un redémarrage), oubliés au bout de deux jours. Les réglages de chaque téléphone (quelles
+// dans push.json, un par téléphone (identifiant de l'appareil), avec ce qui a déjà été annoncé (trajets, minuteurs,
+// tâches en retard : une seule notification chacun, même après un redémarrage), oubliés au bout de deux jours. Les réglages de chaque téléphone (quelles
 // notifications il veut) sont gardés à part de l'abonnement : ils survivent à « Couper » puis « Activer ».
 import { z } from 'zod';
 import { DEFAULT_PUSH_PREFS, type PushPrefs } from '../../shared/types.ts';
@@ -21,10 +21,10 @@ export const subscriptionSchema = z.object({
 const fileSchema = z.object({
   version: z.literal(1),
   subscriptions: z.record(z.string(), subscriptionSchema.extend({ ownerId: z.string(), at: z.string() })),
-  /** Trajets déjà annoncés : clé → heure d'envoi. */
+  /** Déjà annoncé (trajets, minuteurs, tâches en retard) : clé → heure d'envoi. */
   sent: z.record(z.string(), z.string()),
   /** Réglages par téléphone ; absents : tout activé (fichiers d'avant les réglages compris). */
-  prefs: z.record(z.string(), z.object({ trips: z.boolean(), notes: z.boolean() }).partial()).default({}),
+  prefs: z.record(z.string(), z.object({ trips: z.boolean(), notes: z.boolean(), timers: z.boolean(), tasks: z.boolean() }).partial()).default({}),
 });
 type PushFile = z.infer<typeof fileSchema>;
 
@@ -42,7 +42,7 @@ export type PushStore = {
   prefs(deviceId: string): Promise<PushPrefs>;
   /** Change une partie des réglages du téléphone ; renvoie les réglages complets. */
   setPrefs(deviceId: string, change: Partial<PushPrefs>): Promise<PushPrefs>;
-  /** Marque un trajet annoncé ; faux s'il l'était déjà (pas de seconde notification). */
+  /** Marque une clé annoncée (trajet, minuteur, tâche) ; faux si elle l'était déjà (pas de seconde notification). */
   markSent(key: string): Promise<boolean>;
 };
 

@@ -92,6 +92,8 @@ import { type PushMessage, type PushResult, sendPush } from './services/web-push
 import { createNextTripService } from './services/next-trip.ts';
 import { createTripPush } from './services/trip-push.ts';
 import { createNotePush } from './services/note-push.ts';
+import { createTimerPush } from './services/timer-push.ts';
+import { createTaskPush } from './services/task-push.ts';
 import { createTripApi } from './trip-api.ts';
 import { createMapApi } from './map-api.ts';
 import { createPushApi } from './push-api.ts';
@@ -154,7 +156,7 @@ export type AppDeps = {
   tomtom?: TomTomSource;
   /** Positions réelles des véhicules (carte en route) ; absent : positions estimées seulement. */
   vehicles?: VehiclePositionSource;
-  /** Notifications Web Push (« Pars dans 5 min », « Nouveaux mots ») ; absent (tests) : ni notifications, ni leurs routes. */
+  /** Notifications Web Push (« Pars dans 5 min », « Nouveaux mots », « Minuteurs », « Tâches en retard ») ; absent (tests) : ni notifications, ni leurs routes. */
   push?: PushStore;
   /** Envoi d'une notification ; absent : Web Push réel (services/web-push.ts). */
   sendPush?: (subscription: PushRecord, message: PushMessage) => Promise<PushResult>;
@@ -249,6 +251,9 @@ export function createApp(deps: AppDeps): Hono {
       clock,
       logger: console,
     }).start();
+    const pushDeps = { store, devices: () => deps.devices.list(), members: household.members, send, clock, logger: console };
+    createTimerPush({ ...pushDeps, timers: deps.timers }).start();
+    createTaskPush({ ...pushDeps, lists: deps.lists }).start();
   }
   api.route('/', createHolidaysApi({ holidaySettings: deps.holidaySettings, access }));
   api.route('/', createTimersApi({ timers: deps.timers, access, clock }));

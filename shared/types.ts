@@ -629,10 +629,13 @@ export type Me = {
 
 export type PairingCode = { code: string; ownerId: string; expiresAt: string };
 
-/** Notifications voulues sur un téléphone abonné : « Pars dans 5 min » (`trips`) et « Nouveaux mots » (`notes`). */
-export type PushPrefs = { trips: boolean; notes: boolean };
+/**
+ * Notifications voulues sur un téléphone abonné : « Pars dans 5 min » (`trips`), « Nouveaux mots » (`notes`),
+ * « Minuteurs » (`timers`) et « Tâches en retard » (`tasks`).
+ */
+export type PushPrefs = { trips: boolean; notes: boolean; timers: boolean; tasks: boolean };
 /** Réglages d'un téléphone qui n'a encore rien choisi : tout est activé. */
-export const DEFAULT_PUSH_PREFS: PushPrefs = { trips: true, notes: true };
+export const DEFAULT_PUSH_PREFS: PushPrefs = { trips: true, notes: true, timers: true, tasks: true };
 
 /** Notifications du téléphone (Web Push) : clé publique VAPID, si ce téléphone est abonné, et ce qu'il veut recevoir. */
 export type PushStatus = { publicKey: string; subscribed: boolean; prefs: PushPrefs };
