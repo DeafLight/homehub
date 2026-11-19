@@ -10,8 +10,21 @@ describe('parseConfig', () => {
     expect(config.family.name).toBe('Famille');
     expect(config.ui.idleTimeoutSeconds).toBe(180);
     expect(config.ui.screensaverMinutes).toBe(5);
+    expect(config.ui.nightlyReload).toBe('03:00');
     expect(config.trustedProxies).toEqual([]); // aucun proxy cru par défaut
     expect(config.faces.backend).toBe('webgl');
+  });
+
+  it('rechargement nocturne de la tablette : heure HH:MM, vide ou false pour jamais', () => {
+    const ui = (nightlyReload: unknown) => parseConfig({ members: [alex], ui: { idleTimeoutSeconds: 180, nightlyReload } }).ui;
+    expect(ui('04:30').nightlyReload).toBe('04:30');
+    expect(ui(false).nightlyReload).toBeNull();
+    expect(ui('').nightlyReload).toBeNull();
+    expect(ui(null).nightlyReload).toBeNull();
+    expect(parseConfig({ members: [alex], ui: { idleTimeoutSeconds: 180 } }).ui.nightlyReload).toBe('03:00');
+    expect(() => ui('3h')).toThrow();
+    expect(() => ui('25:00')).toThrow();
+    expect(toPublicConfig(parseConfig({ members: [alex] }), 'r').ui.nightlyReload).toBe('03:00');
   });
 
   it('caméra en direct : activée par défaut, bandeau et son compris ; au front, ni serveurs ni durée', () => {

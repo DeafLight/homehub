@@ -12,6 +12,8 @@ const calendarsSchema = z
   .default([]);
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'heure au format HH:MM');
+/** Rechargement nocturne de la tablette par défaut (`ui.nightlyReload`). */
+const NIGHTLY_RELOAD_DEFAULT = '03:00';
 /** Identifiant d'arrêt Irigo (SIRI StopPointRef, un quai dans un sens) : scripts/irigo-stops.ts les liste. */
 const stopRef = z.string().trim().regex(/^[A-Za-z0-9_:.-]{1,40}$/, 'identifiant d’arrêt Irigo (voir scripts/irigo-stops.ts)');
 /** Ligne Irigo telle qu'affichée (« 3 », « A ») ; « 03 » et « 3 » désignent la même. */
@@ -82,14 +84,19 @@ export const configSchema = z.object({
   trustedProxies: z.array(z.union([z.ipv4(), z.ipv6(), z.cidrv4(), z.cidrv6()])).default([]),
   /**
    * `idleTimeoutSeconds` : retour à l'accueil sans contact ; `screensaverMinutes` : veille de la tablette (écran noir,
-   * horloge qui se déplace) sans contact ni visage devant la caméra, 0 : jamais.
+   * horloge qui se déplace) sans contact ni visage devant la caméra, 0 : jamais ; `nightlyReload` : heure (« HH:MM »)
+   * du rechargement nocturne de la page de la tablette, qui rend la mémoire du WebView (vide ou false : jamais).
    */
   ui: z
     .object({
       idleTimeoutSeconds: z.number().int().min(15).max(3600),
       screensaverMinutes: z.number().int().min(0).max(240).default(5),
+      nightlyReload: z
+        .union([z.literal(false), z.null(), z.literal(''), hhmm])
+        .default(NIGHTLY_RELOAD_DEFAULT)
+        .transform((value) => (value ? value : null)),
     })
-    .default({ idleTimeoutSeconds: 180, screensaverMinutes: 5 }),
+    .default({ idleTimeoutSeconds: 180, screensaverMinutes: 5, nightlyReload: NIGHTLY_RELOAD_DEFAULT }),
   /**
    * Reconnaissance faciale de la tablette, pour savoir qui écrit. `threshold` : ressemblance minimale (0 à 1) avec un
    * visage enregistré ; `margin` : avance minimale sur la personne suivante ; `antispoof` et `liveness` : scores

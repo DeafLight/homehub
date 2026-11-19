@@ -462,6 +462,10 @@ personne depuis son propre téléphone.
       hauteur de l'écran, au lieu d'être coupée.
 - [x] Accueil (0.96.3) : l'horloge reste fixe en haut ; seules les informations en dessous (accueil de la personne
       reconnue, cartes, passages) défilent.
+- [x] Tablette (0.99.2) : la page se recharge une fois par nuit vers 3 h (`ui.nightlyReload`), quand personne n'est
+      là, pour rendre la mémoire du WebView ; Fully Kiosk plantait depuis que les versions ne rechargeaient plus la
+      page chaque jour.
+- [ ] Page « Le NAS » : date du dernier chargement de la page de la tablette, pour suivre le rechargement nocturne.
 
 ## Transports (après le design)
 

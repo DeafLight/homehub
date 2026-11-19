@@ -25,7 +25,8 @@ export type FaceBackend = (typeof FACE_BACKENDS)[number];
 export type PublicConfig = {
   members: Member[];
   family: { name: string };
-  ui: { idleTimeoutSeconds: number; screensaverMinutes: number };
+  /** `nightlyReload` : heure du rechargement nocturne de la tablette (« HH:MM »), null : jamais. */
+  ui: { idleTimeoutSeconds: number; screensaverMinutes: number; nightlyReload: string | null };
   /** Détection des visages sur la tablette (voir `faces` dans homehub.yaml). */
   faces: { minConfidence: number; minSize: number; backend: FaceBackend };
   /** Caméra en direct (voir `camera` dans homehub.yaml) : onglet des parents, bandeau sur la tablette. */

@@ -115,6 +115,10 @@ ui:
   # Veille de la tablette après ce délai sans contact ni visage devant la caméra (minutes ; 0 : jamais) : écran noir,
   # horloge qui se déplace. Un contact ou un visage la réveille.
   screensaverMinutes: 5
+  # Rechargement de la page de la tablette une fois par nuit, vers cette heure (« HH:MM », entre guillemets), pour
+  # rendre la mémoire du navigateur de Fully Kiosk (reconnaissance des visages). Reporté tant que quelqu'un est là
+  # (jusqu'à deux heures plus tard), jamais deux fois la même nuit, jamais sur les téléphones. Vide ou false : jamais.
+  nightlyReload: "03:00"
 
 # Bus et tram Irigo (Angers), temps réel en open data, sans clé : prochains passages sur l'accueil et la veille.
 # Sans arrêt, rien n'est affiché. Les arrêts se règlent aussi sur la tablette (roue dentée › Transports), qui remplace

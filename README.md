@@ -476,6 +476,13 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   venir ; le lendemain en soirée), déplacés au hasard toutes les 12 s (pour ne pas marquer l'écran) ; avec
   l'interface JavaScript de Fully Kiosk, la luminosité baisse aussi. Un visage devant la caméra ou un contact la
   réveille ; le contact qui réveille n'ouvre ni ne coche rien.
+- **Rechargement nocturne** (tablette) : une fois par nuit vers 3 h (`ui.nightlyReload`, « HH:MM » ; vide ou
+  `false` : jamais), la page de la tablette se recharge pour rendre la mémoire du navigateur de Fully Kiosk, qui
+  grossit quand la page tourne des jours sans interruption (reconnaissance des visages en WebGL) jusqu'à faire
+  planter Fully (« l'appli ne répond pas »). Seulement quand personne n'est là : pendant la veille, ou sans veille
+  après 10 min sans contact ni visage ; sinon reporté de minute en minute, jusqu'à deux heures après l'heure réglée.
+  Jamais deux fois la même nuit (ni si la page a déjà été rechargée, par un déploiement, depuis l'heure réglée),
+  jamais sur les téléphones.
 - **Accueil personnalisé** (tablette) : la personne reconnue a sa carte sur l'accueil (« Bonsoir Léa ! ») : ses mots
   pas encore vus (en évidence, qui clignotent doucement), sa routine du moment, ses devoirs du prochain jour
   (« 3 devoirs pour demain »), ses premières tâches et son prochain rendez-vous ; la toucher ouvre son dashboard. Chaque profil de « Qui est là ? » montre aussi le nombre de ses mots
@@ -919,6 +926,7 @@ family:
   calendars: [CAL_FAMILLE]
 ui:
   idleTimeoutSeconds: 180
+  nightlyReload: "03:00"   # rechargement nocturne de la tablette ; false : jamais
 kiosk:
   addresses: [192.168.1.50]   # facultatif : adresse fixe de la tablette (sinon, sa clé HOMEHUB_KIOSK_KEY)
 trustedProxies: [172.20.0.0/16]  # facultatif : proxy qui peut donner l'adresse du client (X-Real-IP) ; défaut : aucun

@@ -4,7 +4,8 @@
   import { getAppContext } from '../lib/context.ts';
   import { formatLongDate, formatTime } from '../lib/format.ts';
   import { createResource } from '../lib/resource.svelte.ts';
-  import { allowsScreensaver } from '../lib/route.ts';
+  import { watchNightlyReload } from '../lib/nightly-reload.ts';
+  import { allowsScreensaver, isPhoneRoute } from '../lib/route.ts';
   import { formatCountdown, secondsLeft, timerLook, timerName } from '../lib/timers.ts';
   import { departureRows, departureText } from '../lib/transit.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
@@ -14,6 +15,8 @@
   // (Presence.svelte), la réveille ; le contact qui réveille ne fait rien d'autre. Avec l'interface JavaScript de Fully
   // Kiosk, la luminosité baisse aussi pendant la veille. Les minuteurs en cours restent affichés sous l'horloge ; celui
   // qui se termine réveille la tablette (Timers.svelte l'affiche par-dessus).
+  // Ici aussi, le rechargement nocturne de la page (`ui.nightlyReload`, lib/nightly-reload.ts) : il se fait de
+  // préférence pendant la veille, quand personne n'est là.
   const MOVE_MS = 12_000;
   const CHECK_MS = 1_000;
   const DIM_BRIGHTNESS = 10;
@@ -81,7 +84,21 @@
   }
 
   onMount(() => {
-    void actor.isKiosk().then((value) => (kiosk = value));
+    let stopNightly = () => {};
+    let destroyed = false;
+    void actor.isKiosk().then((value) => {
+      kiosk = value;
+      if (!value || destroyed) return; // téléphone ou autre appareil : jamais de rechargement nocturne
+      stopNightly = watchNightlyReload({
+        at: config.ui.nightlyReload,
+        state: () => ({
+          phone: isPhoneRoute(router.route),
+          asleep,
+          present: actor.current !== null,
+          lastActivity: Math.max(lastTouch, actor.lastFace),
+        }),
+      });
+    });
     const touched = () => {
       lastTouch = Date.now();
     };
@@ -93,6 +110,8 @@
     }, CHECK_MS);
     const mover = setInterval(() => asleep && move(), MOVE_MS);
     return () => {
+      destroyed = true;
+      stopNightly();
       for (const type of ['pointerdown', 'keydown', 'wheel']) removeEventListener(type, touched, { capture: true });
       clearInterval(check);
       clearInterval(mover);

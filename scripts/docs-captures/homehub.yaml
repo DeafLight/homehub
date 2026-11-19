@@ -28,6 +28,8 @@ family:
 ui:
   idleTimeoutSeconds: 3600
   screensaverMinutes: 0
+  # Pas de rechargement nocturne : il couperait une capture si l'horloge simulée tombait dans la nuit.
+  nightlyReload: false
 holidays:
   academie: Nantes
 # Le faux site de recettes (fake-recipes.ts) n'a pas d'adresse publique : autorisé nommément. Les fiches du drive
