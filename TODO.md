@@ -259,7 +259,7 @@ Reste :
       rien à supprimer.
 - [x] Notification « Nouveau mot » (Web Push, 0.101.0) : sur le téléphone du destinataire, ou de chaque membre sauf
       l'auteur pour un mot à toute la famille ; titre « Mot de Sam », texte du mot, ouvre `/m/mots` ; interrupteurs
-      « Pars dans 5 min » et « Nouveaux mots » par téléphone dans ses réglages (activés par défaut).
+      « Pars dans 5 min » et « Nouveaux mots » par téléphone dans ses réglages (activés par défaut). Vérifié sur un vrai téléphone le 19/11/2026.
 - [ ] Autres notifications (Web Push dans la PWA) : minuteur qui sonne, tâche en retard.
 
 ## Télé : appli HomeHub TV (une idée par version)
