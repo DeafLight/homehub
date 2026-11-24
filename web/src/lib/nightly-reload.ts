@@ -1,7 +1,7 @@
 // Rechargement nocturne de la page de la tablette (`ui.nightlyReload` de homehub.yaml) : une fois par nuit, vers
 // l'heure réglée, la page se recharge pour rendre la mémoire du WebView (tas JavaScript, textures WebGL de la
 // reconnaissance des visages), qui grossit quand la page tourne des jours sans interruption. Seulement quand personne
-// n'est là (veille affichée, ou ni contact ni visage depuis un moment) ; sinon on réessaie à la vérification suivante,
+// n'est là (veille affichée, ou ni contact ni visage depuis un moment) et qu'aucune vidéo ne se lit ; sinon on réessaie à la vérification suivante,
 // jusqu'à la fin de la fenêtre. Jamais sur un téléphone. Renvoie la fonction d'arrêt. Au chargement suivant, la page
 // sait si elle vient de ce rechargement (`reloadedByNight`, pour la page « Le NAS »).
 
@@ -51,6 +51,8 @@ export type NightlyState = {
   present: boolean;
   /** Dernier contact ou dernier visage vu (ms). */
   lastActivity: number;
+  /** Une vidéo se lit (VideoDock) : on attend sa fin. */
+  playing?: boolean;
 };
 
 /** Faut-il recharger maintenant ? Renvoie la nuit à noter, ou null. */
@@ -62,7 +64,7 @@ export function nightlyReloadDue(s: NightlyState): string | null {
   if (s.loadedAt >= slot.getTime()) return null; // page déjà chargée cette nuit (déploiement, rechargement fait)
   const night = nightKey(slot);
   if (s.doneNight === night) return null;
-  if (s.present) return null;
+  if (s.present || s.playing) return null;
   const quiet = s.asleep || now - s.lastActivity >= NIGHTLY_QUIET_MS;
   return quiet ? night : null;
 }
@@ -91,7 +93,7 @@ export type NightlyWatchOptions = {
   /** Heure réglée (`ui.nightlyReload`), null : jamais. */
   at: string | null;
   /** État du moment (téléphone, veille, personne reconnue, dernière activité). */
-  state(): Pick<NightlyState, 'phone' | 'asleep' | 'present' | 'lastActivity'>;
+  state(): Pick<NightlyState, 'phone' | 'asleep' | 'present' | 'lastActivity' | 'playing'>;
   loadedAt?: number;
   now?: () => number;
   reload?: () => void;

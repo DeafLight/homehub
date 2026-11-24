@@ -460,6 +460,26 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   **Rien n'est gardé** : le fichier attend en mémoire au plus 10 minutes sous un numéro tiré au hasard (2 places, la
   navigation de « Partager » ne porte pas le jeton du téléphone), puis 5 minutes derrière une adresse impossible à
   deviner que seule une télé appairée peut lire.
+- **Vidéo YouTube sur la tablette** (tout téléphone appairé, enfants compris) : dans l'appli YouTube du téléphone,
+  **Partager → HomeHub** ouvre **Vidéo YouTube** (`/partager`, le lien arrive le plus souvent dans le texte partagé :
+  `youtube.com/watch`, `youtu.be` avec `?si=`, Shorts, `m.youtube.com`, direct, avec l'instant `t=` repris) ; le lien
+  YouTube est reconnu avant l'import de recette. **Lire sur la tablette** l'envoie : « **Envoyé sur la tablette** »,
+  ou « Tablette injoignable » si aucune page de tablette n'écoute. La tablette la lance **toute seule, en grand**
+  (tout l'écran, moins une barre HomeHub « Vidéo envoyée par Léa » avec **Réduire**, **Pause** et **Fermer**, gros
+  boutons), en se réveillant si elle était en veille. **Réduire** en fait une **vignette** de 400 px de large (16:9)
+  avec, dessous, une barre HomeHub : on la **déplace en la tirant par cette barre** (la vidéo garde ses touchers pour
+  le lecteur YouTube), elle se range dans le coin le plus proche, retenu, sans jamais sortir de l'écran ; boutons
+  **Agrandir**, **Pause** et **Fermer**. La lecture **continue quand on change d'écran** (le lecteur est monté hors
+  des pages). Une nouvelle vidéo remplace la précédente et repasse en grand ; à la fin, le lecteur se ferme. Tant
+  que la vidéo se lit : pas de retour à l'accueil sur inactivité, pas de veille, et les rechargements (nouvelle
+  version, configuration, nuit) attendent la fin ou la pause. Seuls l'**identifiant de la vidéo** (11 caractères,
+  validé par le serveur) et l'instant de départ passent du téléphone à la tablette, jamais une adresse ; la tablette
+  compose elle-même celle du lecteur (API IFrame de YouTube, domaine `video.host`). Le téléphone ne contacte pas
+  YouTube. **Pubs** : HomeHub ne peut pas les passer à la place de quelqu'un (le lecteur vient d'un autre site et son
+  API n'offre rien pour ça) ; le bouton « Ignorer » de YouTube reste touchable dans la vignette. Pour ne plus en
+  avoir : un compte **YouTube Premium** connecté dans le navigateur de Fully Kiosk et `video.host: youtube.com` (avec
+  le domaine par défaut `youtube-nocookie.com`, le lecteur ne voit pas le compte). Réglages de Fully Kiosk :
+  [Vidéo YouTube sur la tablette](#vidéo-youtube-sur-la-tablette-fully-kiosk).
   **Parents seulement** (le serveur refuse un enfant et un appareil non appairé ; un parent reconnu à la tablette peut
   s'en servir aussi). Rien de personnel : le tiroir ne montre que des noms d'applis.
 - **Écran de veille de la télé** (appli HomeHub TV) : quand la télé passe en veille d'écran, elle affiche HomeHub au
@@ -967,6 +987,8 @@ kiosk:
 trustedProxies: [172.20.0.0/16]  # facultatif : proxy qui peut donner l'adresse du client (X-Real-IP) ; défaut : aucun
 holidays:            # facultatif : vacances scolaires (la page « Vacances scolaires » prend le pas) ; sinon, aucune
   academie: Nantes   # ou zone: B (A, B ou C) ; Corse et outre-mer : academie: Corse, Réunion…
+video:               # facultatif : lecteur des vidéos YouTube envoyées à la tablette
+  host: youtube-nocookie.com   # ou youtube.com, pour un compte YouTube Premium connecté dans Fully (sans pubs)
 recipes:             # facultatif
   allowedHosts: []   # sites autorisés malgré une adresse privée (un serveur de recettes de la maison) ; défaut : aucun
 camera:              # facultatif : caméra en direct (valeurs par défaut)
@@ -1041,6 +1063,23 @@ Le message part tel que le téléphone l'enregistre : webm/opus (Chrome, Android
 formats que lisent les récepteurs Cast. L'appareil présente un certificat auto-signé, comme pour tout émetteur Cast
 local : HomeHub ne vérifie pas de chaîne de confiance (l'authentification de l'appareil, facultative dans le
 protocole, n'est pas utilisée).
+
+### Vidéo YouTube sur la tablette (Fully Kiosk)
+
+Pour que la vidéo envoyée d'un téléphone se lance seule, avec le son, sans jamais sortir du kiosque :
+
+1. **Liste blanche** (*Web Content Settings › URL Whitelist*, si elle est utilisée) : ajouter `youtube.com`,
+   `youtube-nocookie.com`, `googlevideo.com` (le flux vidéo) et `ytimg.com` (images et scripts du lecteur), avec
+   leurs sous-domaines (`*.youtube.com`…).
+2. **Lecture automatique** : *Web Content Settings › Autoplay Videos* (et *Autoplay Audio* si la version de Fully le
+   propose). Sans elle, la vidéo s'ouvre en grand mais attend un toucher sur le bouton de lecture.
+3. **Rester dans le kiosque** : un toucher sur la pub, le titre ou le logo YouTube veut ouvrir youtube.com ou l'appli
+   YouTube. Désactiver les fenêtres surgissantes (*Web Content Settings › Enable Popups* décoché) et l'ouverture des
+   autres applis (*Web Content Settings › Enable Intent URLs* décoché, *Advanced Web Settings › Open URLs in Other
+   Apps* ou équivalent décoché) ; la liste blanche ci-dessus n'autorise pas les autres sites.
+4. **Sans pubs** (facultatif) : se connecter à un compte YouTube Premium une fois dans le navigateur de Fully (ouvrir
+   youtube.com depuis les réglages de Fully, puis revenir à HomeHub) et mettre `video.host: youtube.com` dans
+   homehub.yaml.
 
 ### Caméra en direct hors de la maison
 
@@ -1319,6 +1358,8 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `POST /api/recipes/import` | `{ url }` (ou un texte partagé qui contient le lien) → `{ recipe, existing }` (201 si nouvelle ; `existing` : déjà au carnet) ou `{ draft, reason }` quand la page n'a pas de recette lisible ; 400 pour une adresse refusée. Quelqu'un de reconnu ou un téléphone relié, vérifié avant toute lecture |
 | `POST /api/recipes/import-text` | `{ text, url?, title? }` : texte copié d'une page → `{ preview: { token, content, url, site, origin, photo } }`, ou `{ recipe, existing: true }` si la page est déjà au carnet ; 422 sans ingrédient ni étape. Mêmes droits que l'import ; rien n'est lu sur le réseau. (Après un refus du site, `POST /api/recipes/import` répond `{ draft, reason, refused: true }`.) |
 | `POST /api/recipes/import-page` | page enregistrée : fichier `.mhtml` (multipart, champ `page`) ou `{ shared }` (numéro reçu par `/partager`) → même réponse ; 400 si ce n'est pas une page enregistrée, 410 si le fichier partagé a expiré |
+| `POST /api/video/tablet` | vidéo YouTube pour la tablette, tout téléphone appairé (403 sinon, 401 jeton retiré) : `{ videoId, start? }` (identifiant de 11 caractères, départ en secondes, 24 h au plus ; tout autre champ refusé, 400) → 202 `{ seq }` ; 503 si aucune page de tablette n'écoute |
+| `GET /api/video/tablet/next?after=` | la tablette seule : attente de la vidéo suivante (interrogation longue, 25 s) → `{ video: { videoId, start, from, seq } \| null, last }` ; sans `after`, réponse immédiate sans rien rejouer |
 | `POST /partager` | cible de « Partager » (formulaire multipart) : lien ou texte renvoyés en `GET /partager?…` ; une page enregistrée mise en attente → `/partager?fichier=<numéro>` ; une photo ou une vidéo (champ `media`) → `/partager?media=<numéro>`, ou `?erreur=media-format` / `media-trop-lourd` |
 | `POST /api/recipes` | `{ content, url?, pending? }` : recette saisie à la main (avec le lien d'une page illisible), ou l'aperçu `pending` corrigé (sa source et sa photo sont reprises) |
 | `POST /api/recipes/:id/reread` | relit la page d'origine → `{ recipe, updated, kept }` : les parties (titre, portions, ingrédients, étapes, temps, appareil) que notre version n'avait pas modifiées sont reprises, les autres gardées ; un parent ou qui l'a ajoutée ; 422 si la page n'a plus de recette lisible |

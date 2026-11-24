@@ -8,6 +8,7 @@
   import { documentLoadedAt, reportTabletPage } from '../lib/tablet-page.ts';
   import { allowsScreensaver, isPhoneRoute } from '../lib/route.ts';
   import { formatCountdown, secondsLeft, timerLook, timerName } from '../lib/timers.ts';
+  import { videoDock } from '../lib/video-dock.svelte.ts';
   import { departureRows, departureText } from '../lib/transit.ts';
   import { formatTemperature, weatherIcon, weatherIconColor, weatherLabel, weatherOutlook } from '../lib/weather.ts';
 
@@ -15,7 +16,8 @@
   // l'horloge (avec la date et la météo du moment) reste, et se déplace au hasard (pour ne pas marquer l'écran). Un contact, ou un visage vu par la caméra
   // (Presence.svelte), la réveille ; le contact qui réveille ne fait rien d'autre. Avec l'interface JavaScript de Fully
   // Kiosk, la luminosité baisse aussi pendant la veille. Les minuteurs en cours restent affichés sous l'horloge ; celui
-  // qui se termine réveille la tablette (Timers.svelte l'affiche par-dessus).
+  // qui se termine réveille la tablette (Timers.svelte l'affiche par-dessus), tout comme une vidéo envoyée par un
+  // téléphone (VideoDock.svelte), qui empêche la veille tant qu'elle se lit.
   // Ici aussi, le rechargement nocturne de la page (`ui.nightlyReload`, lib/nightly-reload.ts) : il se fait de
   // préférence pendant la veille, quand personne n'est là. Et, au démarrage de la page, le signalement de son
   // chargement au serveur (page « Le NAS », lib/tablet-page.ts).
@@ -49,7 +51,8 @@
   let lastTouch = Date.now();
   let position = $state({ x: 50, y: 50 });
 
-  const enabled = $derived(kiosk && config.ui.screensaverMinutes > 0 && allowsScreensaver(router.route));
+  // Pas de veille pendant qu'une vidéo envoyée par un téléphone se lit ; si elle arrive pendant la veille, réveil.
+  const enabled = $derived(kiosk && config.ui.screensaverMinutes > 0 && allowsScreensaver(router.route) && !videoDock.holds);
 
   const fully = () => (globalThis as { fully?: Fully }).fully;
   let savedBrightness: number | null = null;
@@ -104,6 +107,7 @@
           asleep,
           present: actor.current !== null,
           lastActivity: Math.max(lastTouch, actor.lastFace),
+          playing: videoDock.holds,
         }),
       });
     });

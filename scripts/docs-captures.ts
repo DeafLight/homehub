@@ -841,6 +841,40 @@ if (!only || SHARE_SHOTS.some((name) => only.test(name))) {
   }
 }
 
+// Vidéo YouTube envoyée à la tablette (0.105.0) : Léa partage une vidéo depuis l'appli YouTube (lien dans le texte,
+// avec `si=` et l'instant de départ), « Lire sur la tablette » ; la tablette, déjà ouverte sur l'accueil, la lance en
+// grand, puis la réduit en vignette. Faux lecteur à la place de l'API IFrame : aucune requête vers YouTube.
+const VIDEO_SHOTS = ['telephone-video-partage', 'telephone-video-envoyee', 'tablette-video-grand', 'tablette-video-vignette'];
+if (!only || VIDEO_SHOTS.some((name) => only.test(name))) {
+  const fakeYouTube = `window.YT = { Player: class {
+    constructor(el, o) {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;container-type:size;background:radial-gradient(circle at 70% 30%, #f3c77a 0 9%, transparent 10%), linear-gradient(160deg, #24324d 0%, #5d4a73 50%, #c98257 100%);font-family:system-ui,sans-serif;color:#fff';
+      d.innerHTML = '<div style="position:absolute;left:4%;top:5%;font-size:clamp(13px,2.6cqw,30px);font-weight:600;text-shadow:0 2px 8px #0008">Tuto : la pâte à crêpes</div>'
+        + '<div style="position:absolute;left:0;right:0;bottom:0;height:6px;background:#fff3"><div style="width:38%;height:100%;background:#e33"></div></div>';
+      el.replaceWith(d);
+      this.el = d;
+      setTimeout(() => { o.events?.onReady?.({ target: this, data: -1 }); o.events?.onStateChange?.({ target: this, data: 1 }); }, 50);
+    }
+    playVideo() {} pauseVideo() {} loadVideoById() {} destroy() { this.el.remove(); }
+  } };`;
+  const tablet = await openTarget(`${BASE}/`, TABLET, `localStorage.removeItem('homehub.phone'); ${fakeYouTube}`);
+  await sleep(2500); // la tablette écoute
+  const shared = `${BASE}/partager?text=${encodeURIComponent('Tuto : la pâte à crêpes https://youtu.be/Ex4mpleVid0?si=FauxPartage12&t=95')}`;
+  await shoot('telephone-video-partage', shared, PHONE, { init: asPhone('lea') });
+  await shoot('telephone-video-envoyee', shared, PHONE, { init: asPhone('lea'), after: click('Lire sur la tablette'), settle: 1500 });
+  if (!only || ['tablette-video-grand', 'tablette-video-vignette'].some((name) => only.test(name))) {
+    // Sans la capture précédente, Léa l'envoie par l'API.
+    if (only && !only.test('telephone-video-envoyee')) await call(TOKENS.lea, 'POST', '/video/tablet', { videoId: 'Ex4mpleVid0', start: 95 });
+    await sleep(1500);
+    if (!only || only.test('tablette-video-grand')) await tablet.capture('tablette-video-grand');
+    await tablet.evaluate(click('Réduire'));
+    await sleep(1000);
+    if (!only || only.test('tablette-video-vignette')) await tablet.capture('tablette-video-vignette');
+  }
+  await tablet.close();
+}
+
 // Mode cuisine sur la télé (fonction 13) : « Sur la télé » sur la fiche du mijoté (tablette), la fausse télé ouvre sa
 // vue ; Alex avance à l'étape 4 depuis son téléphone, la télécommande lance le minuteur de 15 min (OK) ; maquette de
 // la vue cuisine de la télé. Tout est arrêté ensuite (le minuteur cacherait le bas des captures suivantes).

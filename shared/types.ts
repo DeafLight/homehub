@@ -2,6 +2,7 @@
 // Types et constantes uniquement, sans dépendance : il est importé des deux côtés.
 import type { Unit } from './ingredients.ts';
 import type { HolidayStatus, SchoolHoliday } from './school-holidays.ts';
+import type { VideoHost } from './video.ts';
 
 /** Identifiant réservé au dashboard commun de la famille. */
 export const FAMILY_ID = 'famille';
@@ -31,6 +32,8 @@ export type PublicConfig = {
   faces: { minConfidence: number; minSize: number; backend: FaceBackend };
   /** Caméra en direct (voir `camera` dans homehub.yaml) : onglet des parents, bandeau sur la tablette. */
   camera: { live: boolean; banner: boolean; talk: boolean };
+  /** Lecteur des vidéos YouTube envoyées à la tablette (voir `video` dans homehub.yaml). */
+  video: { host: VideoHost };
   /** Appareils Cast où un parent peut envoyer un message vocal (vide : aucun, ou `cast.mediaUrl` absent). */
   cast: CastDevice[];
   /** Empreinte de la configuration : change à chaque modification du fichier. */

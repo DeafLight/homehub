@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import { FACE_BACKENDS, FAMILY_ID, type PublicConfig } from '../shared/types.ts';
+import { VIDEO_HOSTS } from '../shared/video.ts';
 import { findAcademie } from './sources/school-holidays.ts';
 
 /** Agendas iCal : noms de variables d'environnement (app.env) qui contiennent les adresses secrètes. */
@@ -192,6 +193,14 @@ export const configSchema = z.object({
     })
     .default({ live: true, banner: true, audio: true, talk: true, maxMinutes: 10, stun: [], turn: [] }),
   /**
+   * Vidéo YouTube envoyée d'un téléphone à la tablette (Partager → HomeHub). `host` : domaine du lecteur ;
+   * `youtube-nocookie.com` par défaut (pas de cookies) ; `youtube.com` pour profiter du compte YouTube Premium connecté
+   * dans le navigateur de la tablette (pas de pubs).
+   */
+  video: z
+    .object({ host: z.enum(VIDEO_HOSTS).default('youtube-nocookie.com') })
+    .default({ host: 'youtube-nocookie.com' }),
+  /**
    * Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
    * l'affiche en bandeau, par-dessus l'image, pendant `seconds` secondes. Une télé appairée avec l'appli HomeHub TV le
    * reçoit ; sans télé appairée, pas de bouton. `host` et `port` (appli tierce « Notifications for Android TV », retirée
@@ -312,6 +321,7 @@ export function toPublicConfig(config: AppConfig, revision: string): PublicConfi
     ui: config.ui,
     faces: { minConfidence: config.faces.minConfidence, minSize: config.faces.minSize, backend: config.faces.backend },
     camera: { live: config.camera.live, banner: config.camera.banner, talk: config.camera.talk },
+    video: { host: config.video.host },
     // Destinations des messages vocaux : les enceintes seulement (une télé, kind: tv, ne sert plus qu'à l'allumer).
     cast: config.camera.talk && config.cast.mediaUrl ? config.cast.devices.filter((d) => d.kind === 'speaker').map(({ id, name, kind }) => ({ id, name, kind })) : [],
     revision,

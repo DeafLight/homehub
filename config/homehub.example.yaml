@@ -168,6 +168,12 @@ holidays:
 #   stun: [stun:maison.example.org:3478]
 #   turn: [turn:maison.example.org:3478?transport=udp, turn:maison.example.org:3478?transport=tcp]
 
+# Vidéo YouTube envoyée d'un téléphone à la tablette (Partager → HomeHub, facultatif). host : domaine du lecteur ;
+# youtube-nocookie.com par défaut (sans cookies) ; youtube.com pour profiter du compte YouTube Premium connecté dans
+# le navigateur de Fully Kiosk (plus de pubs). Réglages de Fully (liste blanche, lecture automatique) : voir le README.
+# video:
+#   host: youtube-nocookie.com
+
 # Message à la télé (facultatif) : un parent écrit un texte sur son téléphone (onglet Caméra), la télé Android TV
 # l'affiche en bandeau par-dessus l'image. Une télé appairée avec l'appli HomeHub TV le reçoit d'elle-même : seule la
 # durée se règle ici. (host et port, de l'appli tierce retirée en 0.77.0, sont ignorés.)

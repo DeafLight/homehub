@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.104.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.105.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -603,6 +603,26 @@ bandeau « Photo de Léa » qui s'efface après quelques secondes. Retour à la 
 au bout d'une minute. Une vidéo se lit de même, le programme en pause.
 
 ![Maquette d'une télé : la photo partagée en plein écran, bandeau « Photo de Léa » en haut à gauche](images/tele-appli-photo.png)
+
+### Vidéo YouTube sur la tablette (tout téléphone appairé)
+
+Dans l'appli YouTube, **Partager → HomeHub** ouvre **Vidéo YouTube** : le lien est reconnu dans le texte partagé
+(`youtu.be/…?si=…&t=95`, ici) avant l'import de recette, avec son instant de départ. **Lire sur la tablette** l'envoie :
+« Envoyé sur la tablette ».
+
+<img src="images/telephone-video-partage.png" alt="Page Vidéo YouTube sur le téléphone de Léa : vidéo partagée depuis YouTube, à partir de 1 min 35 s, bouton Lire sur la tablette" width="260">
+<img src="images/telephone-video-envoyee.png" alt="Même page après l'envoi : Envoyé sur la tablette" width="260">
+
+La tablette la lance toute seule, **en grand** : tout l'écran, moins la barre HomeHub « Vidéo envoyée par Léa » avec
+Réduire, Pause et Fermer (le lecteur YouTube est remplacé par une fausse vidéo dans le monde fictif).
+
+![Tablette : la vidéo en grand, barre du bas avec Vidéo envoyée par Léa, Réduire, Pause et Fermer](images/tablette-video-grand.png)
+
+**Réduite**, c'est une vignette de 400 px, ici sur l'accueil, que l'on déplace en la tirant par sa barre (poignée à
+gauche) ; elle se range dans le coin le plus proche. Agrandir, Pause, Fermer à droite. La lecture continue d'un écran à
+l'autre.
+
+![Tablette : l'accueil avec la vidéo en vignette en bas à droite, barre avec poignée, Agrandir, Pause et Fermer](images/tablette-video-vignette.png)
 
 ### Vie scolaire sur le téléphone d'un parent
 

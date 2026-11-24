@@ -1,4 +1,5 @@
-// Tests du rechargement nocturne de la tablette : heure réglée, fenêtre, nuit déjà faite, personne là, téléphone.
+// Tests du rechargement nocturne de la tablette : heure réglée, fenêtre, nuit déjà faite, personne là, vidéo en cours,
+// téléphone.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lastSlot, nightKey, nightlyReloadDue, type NightlyState, parseReloadTime, readDoneNight, reloadedByNight, watchNightlyReload } from './nightly-reload.ts';
 
@@ -56,6 +57,9 @@ describe('nightlyReloadDue', () => {
 
   it('reporté tant que quelqu’un est là', () => {
     expect(nightlyReloadDue(state({ present: true }))).toBeNull();
+    // Une vidéo envoyée par un téléphone se lit : on attend sa fin.
+    expect(nightlyReloadDue(state({ playing: true }))).toBeNull();
+    expect(nightlyReloadDue(state({ playing: false }))).toBe('2026-11-20');
     const now = at(20, 3, 5);
     expect(nightlyReloadDue(state({ now, asleep: false, lastActivity: now.getTime() - 2 * MIN }))).toBeNull();
     // sans veille (désactivée), dix minutes sans contact ni visage suffisent

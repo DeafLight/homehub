@@ -278,6 +278,14 @@ Reste :
       HomeHub (`/api/cast/ringtone.wav`, port des médias compris) ; minuteur arrêté avant : lecteur Cast fermé ;
       enceinte muette : journal seulement. Faux appareil Cast dans le monde fictif.
 - [ ] Sonnerie du minuteur, à vérifier sur le vrai Google Home : carillon entendu, volume, arrêt à « Arrêter ».
+- [x] Vidéo YouTube sur la tablette (0.105.0) : dans l'appli YouTube du téléphone, Partager → HomeHub → « Lire sur la
+      tablette » (lien reconnu avant l'import de recette, instant `t=` repris) ; la tablette la lance seule, en grand,
+      réduite en vignette déplaçable (coin retenu), lecture continue d'un écran à l'autre ; ni veille, ni retour à
+      l'accueil, ni rechargement pendant la lecture. Identifiant de 11 caractères seulement (`POST /api/video/tablet`,
+      `GET /api/video/tablet/next`), `video.host` pour YouTube Premium.
+- [ ] Vidéo YouTube, à vérifier sur la vraie tablette et le vrai téléphone : partage depuis l'appli YouTube, lecture
+      automatique avec le son, « Ignorer » touché dans la vignette, toucher sur la pub ou le logo sans sortir du
+      kiosque, réveil depuis la veille, Premium avec `video.host: youtube.com`.
 
 ## Télé : appli HomeHub TV (une idée par version)
 

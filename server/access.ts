@@ -165,6 +165,12 @@ export type Access = {
   mediaSender(c: Context): Promise<Author & { ownerId: string }>;
 
   /**
+   * Envoyer une vidéo YouTube à la tablette : tout téléphone appairé, enfant compris (comme montrer une photo sur la
+   * télé) ; ni la tablette elle-même, ni un appareil non appairé. Rend le profil du téléphone.
+   */
+  videoSender(c: Context): Promise<Author & { ownerId: string }>;
+
+  /**
    * Le téléphone appairé de la personne, et lui seul : son profil. Ni la tablette (même la personne reconnue devant
    * elle), ni une télé, ni un parent pour un autre. Sert aux données personnelles montrées sur un écran partagé à la
    * demande de la personne (séance de sport sur la télé).
@@ -186,6 +192,8 @@ export const TALK_OFF = 'Parler est désactivé (camera.talk)';
 export const REMOTE_PARENTS_ONLY = 'La télécommande de la télé est réservée aux parents';
 
 export const MEDIA_PHONE_ONLY = 'Les photos se partagent vers la télé depuis un téléphone appairé';
+
+export const VIDEO_PHONE_ONLY = 'Les vidéos s’envoient à la tablette depuis un téléphone appairé';
 
 export const UNKNOWN_SCREEN = 'Télé non reconnue : à appairer de nouveau';
 
@@ -238,6 +246,14 @@ export function createAccess({
     return 'author' in who ? who.author : fail(who.status, who.error, who.identify);
   }
 
+  /** Un téléphone appairé, quel que soit son profil ; `denied` : le refus fait aux autres appareils. */
+  async function pairedPhone(c: Context, denied: string): Promise<Author & { ownerId: string }> {
+    const who = await caller(c);
+    if (who.rejectedToken) return fail(401, REJECTED_PHONE);
+    const ownerId = who.device?.ownerId;
+    return ownerId ? { ownerId, via: 'phone' } : fail(403, denied);
+  }
+
   return {
     caller,
     writer,
@@ -285,10 +301,11 @@ export function createAccess({
     },
 
     async mediaSender(c) {
-      const who = await caller(c);
-      if (who.rejectedToken) return fail(401, REJECTED_PHONE);
-      const ownerId = who.device?.ownerId;
-      return ownerId ? { ownerId, via: 'phone' } : fail(403, MEDIA_PHONE_ONLY);
+      return pairedPhone(c, MEDIA_PHONE_ONLY);
+    },
+
+    async videoSender(c) {
+      return pairedPhone(c, VIDEO_PHONE_ONLY);
     },
 
     async ownPhone(c) {

@@ -5,6 +5,7 @@
   import Screensaver from './components/Screensaver.svelte';
   import StatusBanner from './components/StatusBanner.svelte';
   import Timers from './components/Timers.svelte';
+  import VideoDock from './components/VideoDock.svelte';
   import { getAppContext } from './lib/context.ts';
   import { watchIdle } from './lib/idle.ts';
   import { sharedText } from './lib/lists.ts';
@@ -12,6 +13,9 @@
   import { sharedProductLink } from './lib/drive.ts';
   import { sharedMediaParam } from './lib/share-media.ts';
   import ShareMedia from './screens/ShareMedia.svelte';
+  import ShareVideo from './screens/ShareVideo.svelte';
+  import { sharedYouTube } from './lib/youtube.ts';
+  import { videoDock } from './lib/video-dock.svelte.ts';
   import { HOME_PATH, returnsHomeWhenIdle, routePath } from './lib/route.ts';
   import { watchVersion } from './lib/version.ts';
   import Dashboard from './screens/Dashboard.svelte';
@@ -49,6 +53,8 @@
       currentVersion: __APP_VERSION__,
       currentConfigRevision: config.revision,
       intervalMs: VERSION_CHECK_MS,
+      // Pas de rechargement en pleine vidéo : il attend la fin (ou la pause).
+      deferred: () => videoDock.holds,
       onReachable: (value) => (reachable = value),
     });
     return stopVersion;
@@ -57,8 +63,8 @@
   // Sans contact pendant un moment : retour à l'accueil, pour que le suivant tombe sur « Qui est là ? ».
   // Pas sur un téléphone, qui n'a pas d'accueil de tablette, ni pendant un scan (personne ne touche l'écran : le
   // scanner se ferme seul après quelques minutes sans lecture) ou une séance guidée. Le délai repart de zéro en
-  // quittant ces pages.
-  const idleHome = $derived(returnsHomeWhenIdle(router.route));
+  // quittant ces pages. Ni pendant qu'une vidéo envoyée par un téléphone se lit (VideoDock).
+  const idleHome = $derived(returnsHomeWhenIdle(router.route) && !videoDock.holds);
   $effect(() => {
     if (!idleHome) return;
     return watchIdle(config.ui.idleTimeoutSeconds * 1000, () => router.navigate(HOME_PATH));
@@ -125,15 +131,19 @@
 {:else if router.route.name === 'share'}
   <!-- Reçu par « Partager » (share_target du manifeste, POST renvoyé ici en GET par le serveur) : un lien ouvre
        l'import de recette (ou, au choix, l'ajout à une liste) ; un texte copié d'une recette ou une page enregistrée,
-       l'aperçu de l'import ; le lien d'une fiche produit d'une enseigne de drive, le choix de l'article à relier ;
+       l'aperçu de l'import ; un lien YouTube, la lecture sur la tablette ; le lien d'une fiche produit d'une enseigne de drive, le choix de l'article à relier ;
        un autre texte, l'ajout prérempli. -->
   {@const params = new URLSearchParams(location.search)}
   {@const media = sharedMediaParam(params)}
-  {@const product = sharedProductLink(params)}
-  {@const found = product ? null : sharedRecipe(params)}
+  {@const video = media ? null : sharedYouTube(params)}
+  {@const product = media || video ? null : sharedProductLink(params)}
+  {@const found = product || video ? null : sharedRecipe(params)}
   {#if media}
     <!-- Une photo ou une vidéo (fonction 11) : la montrer sur la télé. -->
     <ShareMedia {media} />
+  {:else if video}
+    <!-- Un lien YouTube (souvent dans le texte envoyé par l'appli YouTube) : le lire sur la tablette. -->
+    <ShareVideo {video} />
   {:else if product}
     <Phone tab="shopping" shared={sharedText(params)} sharedProduct={product} />
   {:else}
@@ -154,6 +164,8 @@
 <LiveCameraHost />
 <Screensaver />
 <Timers />
+<!-- Vidéo YouTube envoyée par un téléphone : hors des routes, pour que la lecture continue d'un écran à l'autre. -->
+<VideoDock />
 
 {#if actor.notice}
   <div class="notice" role="status">{actor.notice}</div>

@@ -1,6 +1,7 @@
 // Client HTTP typé de l'API HomeHub. `fetch` est injectable pour les tests ; `credentials` : jeton du téléphone
 // appairé, ou clé de la tablette et session de la personne reconnue devant elle, envoyés avec chaque requête.
 import type { ScreenCook, ScreenCookTarget } from '../../../shared/screen-cook.ts';
+import type { TabletVideoReply, VideoShare } from '../../../shared/video.ts';
 import type {
   AddressMatch,
   RouteOption,
@@ -318,6 +319,10 @@ export type Api = {
   /** Caméra en direct, tablette : `client` identifie la page ; `after` null : page qui démarre. */
   tabletCameraMessages(client: string, after: number | null, abort?: AbortSignal): Promise<CameraMessages & { last: number }>;
   sendTabletCameraSignal(client: string, id: string, signal: TabletSignal): Promise<void>;
+  /** Vidéo YouTube envoyée à la tablette (téléphone appairé) : identifiant validé et instant de départ seulement. */
+  sendTabletVideo(video: VideoShare): Promise<{ seq: number }>;
+  /** Tablette : attend la vidéo suivante après `after` (null : page qui démarre, rien n'est rejoué). */
+  tabletVideo(after: number | null, abort?: AbortSignal): Promise<TabletVideoReply>;
   /** Message vocal enregistré, lu par l'appareil Cast `device` (Google Home, télé) ; renvoie le nom de l'appareil. */
   sendVoice(device: string, audio: Blob): Promise<{ device: string }>;
   /** Télés appairées (appli HomeHub TV), tablette : liste, appairage par le code affiché sur la télé, retrait. */
@@ -594,6 +599,8 @@ export function createApi(
     tabletCameraMessages: (client, after, abort) =>
       request(`/camera/tablet/signals?client=${encodeURIComponent(client)}${after === null ? '' : `&after=${after}`}`, { signal: abort }),
     sendTabletCameraSignal: (client, id, signal) => send('POST', `/camera/tablet/sessions/${encodeURIComponent(id)}/signal?client=${encodeURIComponent(client)}`, signal),
+    sendTabletVideo: (video) => send('POST', '/video/tablet', video),
+    tabletVideo: (after, abort) => request(`/video/tablet/next${after === null ? '' : `?after=${after}`}`, { signal: abort }),
     sendVoice: (device, audio) => request(`/cast/${encodeURIComponent(device)}/voice`, { method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio }),
     screens: () => request('/screens'),
     pairScreen: (code, name) => send('POST', '/screens', { code, name }),
