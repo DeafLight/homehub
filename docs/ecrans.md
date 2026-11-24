@@ -1,6 +1,6 @@
 # Écrans
 
-Captures de HomeHub 0.105.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
+Captures de HomeHub 0.106.0, avec des **données fictives** : famille de test (Alex, Sam, Léa, Tom), agenda d'exemple,
 faux ÉcoleDirecte, faux temps réel Irigo, produits et marques inventés à la place d'Open Food Facts, recettes inventées sur un faux site de cuisine, fiches produit inventées d'une fausse enseigne de drive, calendrier
 scolaire d'exemple (zone B), horloge arrêtée le jeudi 5 novembre 2026 à 07:35 (le 11 novembre et en décembre pour les fériés et les vacances). La météo est réelle,
 celle du jour de la capture.
@@ -295,6 +295,13 @@ l'écran reste allumé et la tablette ne revient pas à l'accueil. Les notes ouv
 sur le côté (« Moins de cumin… »), pour ne pas les oublier ; « Ingrédients » prend leur place.
 
 ![Mode cuisine](images/tablette-recette-cuisine.png)
+
+Un minuteur qui sonne en mode cuisine propose **« +1 min »** à côté d'« Arrêter ». Ici, touché trois fois : la sonnerie
+s'est arrêtée partout dès le premier toucher, « −1 min » est apparu pour corriger, et la cuisson repartira pour 3 min
+5 s après le dernier toucher (la barre se vide, et repart pleine à chaque toucher). Revenu à 0, rien ne repart :
+l'alerte reste « Terminé », sans son.
+
+![Minuteur qui sonne en mode cuisine, +3 min en attente](images/tablette-recette-cuisine-minuteur.png)
 
 **Sur la télé** (si une télé a l'appli HomeHub TV) : le mode cuisine passe sur la télé du salon, et la fiche devient
 la barre de pilotage (« Télé du salon · étape 1 / 5 », étape précédente, **Suivante**, **Arrêter**). Le téléphone a le

@@ -141,6 +141,8 @@ export type Api = {
   transitRoutes(from: { lat: number; lon: number }, to: { lat: number; lon: number }): Promise<{ routes: RouteOption[] }>;
   startTimer(label: string, seconds: number): Promise<Timer>;
   stopTimer(id: string): Promise<void>;
+  /** Relance un minuteur qui sonne (ou tout juste arrêté en sonnant) : « +1 min » du mode cuisine. */
+  relaunchTimer(id: string, seconds: number): Promise<Timer>;
   me(): Promise<Me>;
   lists(): Promise<Lists>;
   addShopping(label: string): Promise<ShoppingItem>;
@@ -474,6 +476,7 @@ export function createApi(
     transitRoutes: (from, to) => request(`/transit/routes?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`),
     startTimer: (label, seconds) => send('POST', '/timers', { label, seconds }),
     stopTimer: (id) => send('DELETE', `/timers/${encodeURIComponent(id)}`),
+    relaunchTimer: (id, seconds) => send('POST', `/timers/${encodeURIComponent(id)}/relaunch`, { seconds }),
     me: () => request('/me'),
     lists: () => request('/lists'),
     addShopping: (label) => send('POST', '/lists/shopping', { label }),

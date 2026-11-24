@@ -109,7 +109,10 @@ Captures, diagrammes d'architecture et design : [docs/](docs/README.md).
   suivent les portions choisies, la ligne d'origine est toujours gardée, et une correction à la main (**Ajuster**)
   l'emporte. Fiche : photo, temps, portions ±, ingrédients, étapes numérotées avec le mode Cookeo et un minuteur en
   un geste pour chaque durée (« 15 minutes », « 1 h 30 »). **Mode cuisine** (tablette) : une étape à la fois en grand, l'écran reste allumé, pas
-  de retour à l'accueil. Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
+  de retour à l'accueil. Quand un minuteur sonne en mode cuisine, **« +1 min »** : le premier toucher arrête la
+  sonnerie partout (tablette, télés, Google Home), chaque toucher ajoute une minute (« +3 min »), « −1 min » corrige,
+  et le minuteur repart avec le total 5 s après le dernier toucher (barre qui se vide) ; revenu à 0, rien ne repart et
+  l'alerte reste « Terminé », sans son, jusqu'à « Arrêter ». Ajouter : quelqu'un de reconnu sur la tablette, ou un téléphone relié ; modifier : un parent
   ou qui a ajouté la recette ; retirer : un parent. **Notes de la famille** sur la fiche (tablette et téléphone, sous
   les ingrédients) : chacun laisse une note signée et datée (« moins salé la prochaine fois », « Tom n'aime pas les
   champignons ») ; une note se marque **résolue** (repliée, toujours consultable) et se rouvre ; son auteur ou un
@@ -1278,7 +1281,7 @@ scripts/extension-check.ts essai de l'extension dans Chrome sans fenêtre, sur l
 | `GET /api/transit/stops?q=` ou `?near=lat,lon` | `{ stops }` : arrêts par nom ou proches d'un point, avec lignes et destinations |
 | `GET /api/transit/routes?from=lat,lon&to=lat,lon` | `{ routes }` : lignes directes entre deux points, de la plus rapide à la plus lente |
 | `GET /api/routines`, `PUT /api/routines` | réglages des routines `{ windows, members }` ; enregistrer : `{ windows, members }`, un parent |
-| `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) |
+| `GET /api/timers`, `POST /api/timers`, `DELETE /api/timers/:id`, `POST /api/timers/:id/relaunch` | minuteurs : liste ; lancer (`{ label, seconds }`, quelqu'un de reconnu) ; arrêter (en cours : quelqu'un de reconnu ; qui sonne : la tablette) ; relancer (« +1 min » : `{ seconds }`, 1 min à 24 h, un minuteur qui sonne ou arrêté en sonnant depuis moins de 2 min, mêmes droits que l'arrêter ; nouveau minuteur, même nom et même auteur ; 404 sinon) |
 | `POST /api/camera/sessions` | caméra en direct : ouvre une diffusion `{ id, iceServers, audio, talk, maxSeconds }` (téléphone d'un parent ; 403 désactivée, 503 tablette injoignable, 409 trop de diffusions) |
 | `POST /api/camera/sessions/:id/signal`, `GET …/signals?after=`, `DELETE /api/camera/sessions/:id` | le même téléphone : offre, candidats, parole ou fin (`{ kind: "offer" \| "candidate" \| "talk" \| "bye", … }` ; `{ kind: "talk", on }` : le parent parle ou s'arrête, 403 si `camera.talk` est coupé) ; attente des messages de la tablette (25 s au plus, `{ messages }`) ; fermeture |
 | `POST /api/cast/:device/voice` | message vocal vers l'enceinte Cast `device` (une télé, `kind: tv` : 404) : corps = l'enregistrement, `Content-Type` = son format (`audio/webm`, `audio/mp4`, `audio/ogg`…, 3 Mo au plus) ; `{ device }` : nom de l'appareil qui le lit (téléphone d'un parent ; 403 enfant, tablette ou `camera.talk` coupé ; 404 appareil inconnu ; 400 format ou taille ; 502 appareil injoignable ou qui refuse ; 503 `cast.mediaUrl` absent) |

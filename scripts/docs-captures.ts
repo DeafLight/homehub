@@ -559,6 +559,22 @@ await shoot('tablette-scanner', `${BASE}/scanner`, TABLET, {
 await shoot('tablette-recettes', `${BASE}/recettes`, TABLET);
 await shoot('tablette-recette', `${BASE}/recette/${galettes.id}`, TABLET);
 await shoot('tablette-recette-cuisine', `${BASE}/recette/${lentilles.id}/cuisine`, TABLET, { after: click('Suivante') });
+// Minuteur du mode cuisine qui sonne, touché trois fois « +1 min » : la sonnerie s'est arrêtée, relance de 3 min dans
+// quelques secondes (barre qui se vide). L'horloge du navigateur suit celle du serveur (le minuteur doit y être fini
+// aussi) ; la relance faite, tout est arrêté (le minuteur cacherait le bas des captures suivantes).
+if (!only || only.test('tablette-recette-cuisine-minuteur')) {
+  await call(A, 'POST', '/timers', { label: 'Cuisson · étape 2', seconds: 10 });
+  await sleep(11_000);
+  browserNow = Date.parse(((await (await fetch(`${BASE}/api/health`)).json()) as { time: string }).time);
+  const plusOne = `[...document.querySelectorAll('.ringing button')].find((b) => b.textContent.trim() === '+ 1 min')?.click()`;
+  await shoot('tablette-recette-cuisine-minuteur', `${BASE}/recette/${lentilles.id}/cuisine`, TABLET, {
+    after: `${plusOne}; setTimeout(() => { ${plusOne} }, 200); setTimeout(() => { ${plusOne} }, 400)`,
+    settle: 1600,
+  });
+  browserNow = DOCS_NOW;
+  await sleep(6_000);
+  for (const t of (await call(A, 'GET', '/timers')) as { id: string }[]) await call(A, 'DELETE', `/timers/${t.id}`);
+}
 // Menu de la semaine : recettes par jour et courses du menu (tablette, téléphone), ajout d'une recette (personnes et
 // jour), et les produits du stock à relier aux ingrédients.
 await shoot('tablette-menu', `${BASE}/menu`, TABLET);

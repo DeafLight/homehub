@@ -278,6 +278,9 @@ Reste :
       HomeHub (`/api/cast/ringtone.wav`, port des médias compris) ; minuteur arrêté avant : lecteur Cast fermé ;
       enceinte muette : journal seulement. Faux appareil Cast dans le monde fictif.
 - [ ] Sonnerie du minuteur, à vérifier sur le vrai Google Home : carillon entendu, volume, arrêt à « Arrêter ».
+- [x] « +1 min » sur le minuteur qui sonne en mode cuisine (0.106.0) : chaque toucher ajoute une minute en attente,
+      « −1 min » apparaît dès le premier pour corriger ; la sonnerie s'arrête partout au premier toucher et le
+      minuteur repart avec le total 5 s après le dernier (barre qui se vide) ; revenu à 0, rien ne repart.
 - [x] Vidéo YouTube sur la tablette (0.105.0) : dans l'appli YouTube du téléphone, Partager → HomeHub → « Lire sur la
       tablette » (lien reconnu avant l'import de recette, instant `t=` repris) ; la tablette la lance seule, en grand,
       réduite en vignette déplaçable (coin retenu), lecture continue d'un écran à l'autre ; ni veille, ni retour à

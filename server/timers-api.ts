@@ -1,10 +1,13 @@
 // Minuteurs de la maison : à personne en particulier ; en lancer un demande d'être reconnu (tablette) ou un téléphone
-// appairé. Un minuteur qui sonne s'arrête depuis n'importe quel appareil de la maison.
+// appairé. Un minuteur qui sonne s'arrête depuis n'importe quel appareil de la maison ; il se relance de même
+// (« +1 min » du mode cuisine), aussi juste après avoir été arrêté en sonnant.
 import { z } from 'zod';
 import { type Access, READ_ONLY_DEVICE } from './access.ts';
 import { createRouter, fail, readBody } from './http.ts';
 import { MAX_TIMERS, TIMER_LABEL_MAX, TIMER_MAX_SECONDS, type TimerStore } from './sources/timers.ts';
 import type { Clock } from './sources/types.ts';
+
+const relaunchSchema = z.object({ seconds: z.number().int().min(60).max(TIMER_MAX_SECONDS) });
 
 const timerSchema = z.object({
   label: z.string().trim().max(TIMER_LABEL_MAX).default(''),
@@ -33,6 +36,16 @@ export function createTimersApi({ timers, access, clock }: { timers: TimerStore;
     }
     timers.stop(timer.id);
     return c.body(null, 204);
+  });
+
+  /** Relancer un minuteur qui sonne (ou arrêté en sonnant il y a peu) : mêmes droits que l'arrêter. */
+  api.post('/timers/:id/relaunch', async (c) => {
+    const { seconds } = await readBody(c, relaunchSchema, `Durée attendue : de 1 min à ${TIMER_MAX_SECONDS / 3600} h`);
+    const id = c.req.param('id');
+    if (!timers.relaunchable(id)) return fail(404, 'Minuteur inconnu, ou pas terminé');
+    const caller = await access.caller(c);
+    if (!caller.kiosk && !caller.device) return fail(403, READ_ONLY_DEVICE);
+    return c.json(timers.relaunch(id, seconds) ?? fail(409, `${MAX_TIMERS} minuteurs au plus`), 201);
   });
 
   return api;

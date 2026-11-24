@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NOW, silentLogger } from '../testing.ts';
-import { createTimerStore } from './timers.ts';
+import { createTimerStore, RELAUNCH_WINDOW_MS } from './timers.ts';
 
 const by = { ownerId: 'alex', via: 'tablet' as const };
 const tempPath = () => join(mkdtempSync(join(tmpdir(), 'homehub-timers-')), 'timers.json');
@@ -35,5 +35,32 @@ describe('minuteurs enregistrés', () => {
     expect(store.list()).toEqual([]);
     expect(logger.errors.length).toBe(1);
     expect(store.start('Jeux', 60, by)).not.toBeNull();
+  });
+
+  it('relance : un minuteur qui sonne, ou arrêté en sonnant depuis peu ; pas un minuteur en cours', () => {
+    let now = NOW.getTime();
+    const path = tempPath();
+    const store = createTimerStore({ clock: () => new Date(now), path });
+    const pasta = store.start('Cuisson', 60, by)!;
+    expect(store.relaunchable(pasta.id)).toBe(false);
+    expect(store.relaunch(pasta.id, 120)).toBeNull();
+
+    now += 60_000; // il sonne : relancé tel quel, sous un autre identifiant
+    const again = store.relaunch(pasta.id, 120)!;
+    expect(again).toMatchObject({ label: 'Cuisson', durationSeconds: 120, startedBy: by });
+    expect(again.id).not.toBe(pasta.id);
+    expect(store.list()).toEqual([again]);
+    expect(createTimerStore({ clock: () => new Date(now), path }).list()).toEqual([again]);
+
+    now += 120_000; // arrêté en sonnant : encore relançable un moment
+    store.stop(again.id);
+    expect(store.list()).toEqual([]);
+    expect(store.relaunchable(again.id)).toBe(true);
+    now += RELAUNCH_WINDOW_MS + 1;
+    expect(store.relaunchable(again.id)).toBe(false);
+
+    const screens = store.start('Écrans', 600, by)!;
+    store.stop(screens.id); // arrêté en cours : pas de relance
+    expect(store.relaunchable(screens.id)).toBe(false);
   });
 });

@@ -221,6 +221,26 @@ describe('API', () => {
     expect((await send('DELETE', `/api/timers/${id}`, { actor: null })).status).toBe(204);
   });
 
+  it("« +1 min » : un minuteur qui sonne, ou tout juste arrêté, repart sous un nouvel identifiant", async () => {
+    let now = NOW.getTime();
+    const { app, put } = setup(undefined, () => new Date(now));
+    const send = (method: string, path: string, body: unknown, options: { actor?: string | null; address?: string } = {}) =>
+      app.request(path, ...put(body, { ...options, method }));
+    const { id } = await (await send('POST', '/api/timers', { label: 'Cuisson · étape 2', seconds: 60 })).json();
+    expect((await send('POST', `/api/timers/${id}/relaunch`, { seconds: 120 }, { actor: null })).status).toBe(404); // en cours
+    now += 61_000;
+    expect((await send('POST', `/api/timers/${id}/relaunch`, { seconds: 10 }, { actor: null })).status).toBe(400);
+    expect((await send('POST', `/api/timers/${id}/relaunch`, { seconds: 120 }, { actor: null, address: '192.0.2.9' })).status).toBe(403);
+    expect((await send('DELETE', `/api/timers/${id}`, {}, { actor: null })).status).toBe(204); // premier clic : la sonnerie s'arrête
+    const relaunched = await send('POST', `/api/timers/${id}/relaunch`, { seconds: 180 }, { actor: null });
+    expect(relaunched.status).toBe(201);
+    const timer = await relaunched.json();
+    expect(timer).toMatchObject({ label: 'Cuisson · étape 2', durationSeconds: 180, endsAt: new Date(now + 180_000).toISOString() });
+    expect(timer.id).not.toBe(id);
+    expect(await (await app.request('/api/timers')).json()).toEqual([timer]);
+    expect((await send('POST', `/api/timers/${id}/relaunch`, { seconds: 60 }, { actor: null })).status).toBe(404); // déjà relancé
+  });
+
   it('GET /api/health', async () => {
     const { app, config } = setup();
     const res = await app.request('/api/health');

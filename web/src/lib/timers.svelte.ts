@@ -1,6 +1,6 @@
 // Minuteurs de la maison, partagés par la tablette : la liste (rafraîchie par Timers.svelte), et la fenêtre qui en
 // lance un (ouverte depuis l'accueil ou le rail). Lancer ou arrêter un minuteur en cours demande quelqu'un de
-// reconnu ; arrêter un minuteur qui sonne, non (n'importe qui doit pouvoir le faire taire).
+// reconnu ; arrêter un minuteur qui sonne, non (n'importe qui doit pouvoir le faire taire), ni le relancer (« +1 min »).
 import type { Timer } from '../../../shared/types.ts';
 import type { Api } from './api.ts';
 
@@ -11,10 +11,12 @@ export type Timers = {
   refresh(): Promise<void>;
   start(label: string, seconds: number): Promise<boolean>;
   stop(id: string): Promise<void>;
+  /** Minuteur qui sonne (ou tout juste arrêté en sonnant) relancé pour `seconds` ; false : échec. */
+  relaunch(id: string, seconds: number): Promise<boolean>;
 };
 
 export function createTimers(
-  api: Pick<Api, 'timers' | 'startTimer' | 'stopTimer'>,
+  api: Pick<Api, 'timers' | 'startTimer' | 'stopTimer' | 'relaunchTimer'>,
   /** Quelqu'un de reconnu (attend au besoin) : voir Actor.allow. */
   allow: () => Promise<boolean>,
 ): Timers {
@@ -59,6 +61,17 @@ export function createTimers(
       list = list.filter((t) => t.id !== id); // tout de suite : la sonnerie s'arrête
       try {
         await api.stopTimer(id);
+      } finally {
+        await refresh();
+      }
+    },
+
+    async relaunch(id, seconds) {
+      try {
+        await api.relaunchTimer(id, seconds);
+        return true;
+      } catch {
+        return false;
       } finally {
         await refresh();
       }

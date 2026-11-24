@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import type { Timer } from '../../../shared/types.ts';
   import Icon from './Icon.svelte';
   import TimerDial from './TimerDial.svelte';
   import TimerRing from './TimerRing.svelte';
@@ -18,10 +19,14 @@
     TIMER_MAX_MINUTES,
     timerProgress,
   } from '../lib/timers.ts';
+  import { createSnoozer, secondsBeforeRelaunch, SNOOZE_DELAY_MS, type Snoozer, type SnoozeState } from '../lib/timer-snooze.ts';
 
   // Minuteurs sur la tablette : ceux en cours, en bas de l'écran (toucher : l'arrêter) ; celui qui se termine prend
   // tout l'écran, par-dessus la veille, et sonne jusqu'à « Arrêter ». La fenêtre « Minuteur » en lance un : la durée
   // sur une roue (ou un raccourci), l'activité au choix (son emoji et sa couleur se retrouvent partout), puis « Lancer ».
+  // En mode cuisine, l'alerte propose aussi « +1 min » : le premier toucher arrête la sonnerie partout (tablette, télés,
+  // Google Home), chaque toucher ajoute une minute (« −1 min » en retire une), et le minuteur repart avec le total
+  // 5 s après le dernier toucher (barre qui se vide). Revenu à 0 : rien ne repart, l'alerte reste « Terminé » en silence.
   const REFRESH_MS = 5_000;
   const BEEP_EVERY_MS = 1_500;
   /** Au-delà, la sonnerie se tait (l'alerte reste affichée). */
@@ -46,6 +51,66 @@
   /** Change seulement quand un minuteur se met à sonner ou s'arrête (pas à chaque seconde). */
   const ringingIds = $derived(ringing.map((t) => t.id).join(','));
   const look = $derived(timerLook(label));
+  const kitchen = $derived(router.route.name === 'recipe' && router.route.mode === 'cook');
+
+  /** Minuteurs qui sonnaient, touchés « +1 min » : arrêtés partout, gardés ici le temps de les relancer. */
+  type Held = { timer: Timer; snooze: SnoozeState; failed: boolean };
+  let held = $state<Held[]>([]);
+  const snoozers = new Map<string, Snoozer>();
+  const alarms = $derived([
+    ...ringing.filter((t) => !held.some((h) => h.timer.id === t.id)).map((timer) => ({ timer, snooze: null, failed: false })),
+    ...held,
+  ]);
+
+  /** Heure fine (250 ms) pour « Relance dans 3 s », seulement pendant une attente (l'horloge commune va à la seconde). */
+  let fineNow = $state(Date.now());
+  const anyWaiting = $derived(held.some((h) => h.snooze.minutes > 0));
+  $effect(() => {
+    if (!anyWaiting) return;
+    fineNow = Date.now();
+    const timer = setInterval(() => (fineNow = Date.now()), 250);
+    return () => clearInterval(timer);
+  });
+
+  const update = (id: string, change: Partial<Held>) => (held = held.map((h) => (h.timer.id === id ? { ...h, ...change } : h)));
+
+  function snoozerOf(timer: Timer): Snoozer {
+    let snoozer = snoozers.get(timer.id);
+    if (!snoozer) {
+      snoozer = createSnoozer({
+        onChange: (snooze) => update(timer.id, { snooze }),
+        onCommit: (minutes) => void relaunch(timer.id, minutes),
+      });
+      snoozers.set(timer.id, snoozer);
+    }
+    return snoozer;
+  }
+
+  function more(timer: Timer) {
+    if (!held.some((h) => h.timer.id === timer.id)) {
+      held = [...held, { timer, snooze: { minutes: 0, dueAt: null }, failed: false }];
+      void timers.stop(timer.id); // la sonnerie s'arrête partout ; le serveur le laisse relancer un moment
+    }
+    update(timer.id, { failed: false });
+    snoozerOf(timer).add();
+  }
+
+  function forget(id: string) {
+    snoozers.get(id)?.cancel();
+    snoozers.delete(id);
+    held = held.filter((h) => h.timer.id !== id);
+  }
+
+  async function relaunch(id: string, minutes: number) {
+    if (await timers.relaunch(id, minutes * 60)) forget(id);
+    else update(id, { failed: true });
+  }
+
+  /** « Arrêter » : un minuteur qui sonne s'arrête ; un minuteur en attente de relance est oublié. */
+  function dismiss(timer: Timer) {
+    if (held.some((h) => h.timer.id === timer.id)) forget(timer.id);
+    else void timers.stop(timer.id);
+  }
 
   $effect(() => {
     if (!enabled) return;
@@ -191,17 +256,33 @@
     </div>
   {/if}
 
-  {#if ringing.length}
+  {#if alarms.length}
     <div class="ringing" role="alertdialog" aria-label="Minuteur terminé">
-      {#each ringing as timer (timer.id)}
+      {#each alarms as { timer, snooze, failed } (timer.id)}
         {@const { emoji, color } = timerLook(timer.label)}
-        <div class="alarm" style:--accent={color}>
+        {@const waiting = snooze !== null && snooze.minutes > 0}
+        <div class="alarm" class:calm={snooze !== null} style:--accent={color}>
           <span class="alarm-emoji" aria-hidden="true">{emoji}</span>
           <p class="title">{timerName(timer)}</p>
-          <p class="muted">
-            C'est l'heure !{#if timer.durationSeconds >= 60}{` (${formatDuration(Math.round(timer.durationSeconds / 60))})`}{/if}
-          </p>
-          <button type="button" class="stop" onclick={() => timers.stop(timer.id)}>Arrêter</button>
+          {#if waiting}
+            <p class="extra" aria-live="polite">+{formatDuration(snooze.minutes)}</p>
+            <p class="muted">Relance dans {Math.max(1, secondsBeforeRelaunch(snooze, fineNow))} s</p>
+            {#key snooze.dueAt}
+              <div class="wait" style:--wait="{SNOOZE_DELAY_MS}ms" aria-hidden="true"><span></span></div>
+            {/key}
+          {:else}
+            <p class="muted">
+              {failed ? 'Relance impossible' : snooze ? 'Terminé' : "C'est l'heure !"}{#if timer.durationSeconds >= 60}{` (${formatDuration(Math.round(timer.durationSeconds / 60))})`}{/if}
+            </p>
+          {/if}
+          <div class="actions">
+            {#if kitchen || snooze}
+              <!-- Place gardée avant le premier toucher : « +1 min » ne bouge pas quand « −1 min » apparaît. -->
+              <button type="button" class="nudge" class:hidden={!waiting} disabled={!waiting} aria-label="Une minute de moins" onclick={() => snoozers.get(timer.id)?.remove()}>− 1 min</button>
+              <button type="button" class="nudge" aria-label="Une minute de plus" onclick={() => more(timer)}>+ 1 min</button>
+            {/if}
+            <button type="button" class="stop" onclick={() => dismiss(timer)}>Arrêter</button>
+          </div>
         </div>
       {/each}
     </div>
@@ -463,8 +544,66 @@
     color: var(--accent);
   }
 
-  .stop {
+  .alarm.calm {
+    animation: none;
+  }
+
+  .extra {
+    margin: 0;
+    font-size: 4rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+
+  /* Attente avant la relance : la barre se vide en SNOOZE_DELAY_MS, et repart pleine à chaque toucher. */
+  .wait {
+    width: 320px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .wait span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transform-origin: left;
+    animation: drain var(--wait) linear forwards;
+  }
+
+  @keyframes drain {
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
     margin-top: 16px;
+  }
+
+  .nudge {
+    min-height: 80px;
+    padding: 0 32px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    font-size: 1.8rem;
+    font-weight: 700;
+  }
+
+  .nudge.hidden {
+    visibility: hidden;
+  }
+
+  .nudge:active {
+    background: var(--border-strong);
+  }
+
+  .stop {
     min-height: 80px;
     padding: 0 56px;
     border-radius: 999px;
