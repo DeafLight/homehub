@@ -281,6 +281,7 @@ Reste :
 - [x] « +1 min » sur le minuteur qui sonne en mode cuisine (0.106.0) : chaque toucher ajoute une minute en attente,
       « −1 min » apparaît dès le premier pour corriger ; la sonnerie s'arrête partout au premier toucher et le
       minuteur repart avec le total 5 s après le dernier (barre qui se vide) ; revenu à 0, rien ne repart.
+      Vérifié sur la vraie tablette le 24/11/2026.
 - [x] Vidéo YouTube sur la tablette (0.105.0) : dans l'appli YouTube du téléphone, Partager → HomeHub → « Lire sur la
       tablette » (lien reconnu avant l'import de recette, instant `t=` repris) ; la tablette la lance seule, en grand,
       réduite en vignette déplaçable (coin retenu), lecture continue d'un écran à l'autre ; ni veille, ni retour à
